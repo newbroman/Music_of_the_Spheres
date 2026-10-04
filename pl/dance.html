@@ -132,7 +132,7 @@ input[type=range]{width:100%;accent-color:var(--bronze)}
       </section>
     </aside>
   </div>
-  <p class="foot">Wysokości dźwięków są w stroju pitagorejskim, w greckiej skali danego stylu: hypodoryckiej (molowej) dla trance’u i tanga, frygijskiej (współczesnej doryckiej) dla house’u i cha-chy, doryckiej (współczesnej frygijskiej) dla techno i fandango, lidyjskiej (współczesny dur) dla walca oraz hypofrygijskiej (współczesnej miksolidyjskiej) dla samby, swingu i jive’a. Walc i fandango są w metrum trójdzielnym; swing i jive swingują ósemki triolowo. Fandango podąża za kadencją andaluzyjską, a niebo wybiera jej dwa pierwsze akordy. Tonacja podąża za znakiem Słońca. Narastanie zaczyna się, gdy aspekt między planetami się zacieśnia, a drop przychodzi, gdy staje się dokładny. Jeśli niebo milczy przez 32 takty, zespół i tak zaczyna narastać. Polecane słuchawki.</p>
+  <p class="foot">Wysokości dźwięków są w stroju pitagorejskim, w greckiej skali danego stylu: hypodoryckiej (molowej) dla trance’u i tanga, frygijskiej (współczesnej doryckiej) dla house’u i cha-chy, doryckiej (współczesnej frygijskiej) dla techno i fandango, lidyjskiej (współczesny dur) dla walca oraz hypofrygijskiej (współczesnej miksolidyjskiej) dla samby, swingu i jive’a. Walc i fandango są w metrum trójdzielnym; swing i jive swingują ósemki triolowo. Fandango podąża za kadencją andaluzyjską, a niebo wybiera jej dwa pierwsze akordy. Tonacja podąża za znakiem Słońca. Narastanie zaczyna się, gdy aspekt między planetami się zacieśnia, a drop przychodzi, gdy staje się dokładny. Jeśli niebo milczy przez 32 takty, zespół i tak zaczyna narastać. Polecane słuchawki. Zespoły towarzyskie i latynoskie grają na nagranych instrumentach z banku brzmień Fluid R3 General MIDI autorstwa Franka Wena (<a href="https://creativecommons.org/licenses/by/3.0/deed.pl" style="color:inherit">CC BY 3.0</a>).</p>
 </div>
 <script>
 (()=>{
@@ -578,7 +578,7 @@ function atBar(bar,t){
   D.energy+=((.35+Math.min(.65,ASPNOW.reduce((a,x)=>a+x.str,0)*.35))-D.energy)*.35;
   const into=bar-D.secBar, st=STY();
   if(D.section==='intro'&&into>=D.secLen)setSection('groove',16,bar);
-  else if(D.section==='groove'&&into>=8&&bar%4===0&&((max>.55&&rising)||into>=32)&&bar-D.lastDrop>20){setSection('build',st.buildBars,bar);riser(t,st.buildBars*barDur())}
+  else if(D.section==='groove'&&into>=8&&bar%4===0&&((max>.55&&rising)||into>=32)&&bar-D.lastDrop>20){setSection('build',st.buildBars,bar);if(st.fam==='ball')ballRiser(t,st.buildBars*barDur());else riser(t,st.buildBars*barDur())}
   else if(D.section==='build'&&into>=D.secLen){setSection('drop',16,bar);D.lastDrop=bar;crash(t);toast('Drop: '+(ASPNOW[0]?`${ASPNOW[0].a.god} ${ASPNOW[0].asp.sym}︎ ${ASPNOW[0].b.god}`:'sfery w jednej linii'))}
   else if(D.section==='drop'&&into>=D.secLen)setSection('break',8,bar);
   else if(D.section==='break'&&into>=D.secLen)setSection('groove',16,bar);
@@ -589,7 +589,7 @@ function atBar(bar,t){
   // stereo: each planet sits where it stands around the Sun
   Object.keys(PAN).forEach(id=>{if(id==='sun')return;const p=P[id];PAN[id].pan.setTargetAtTime(Math.sin(Math.atan2(p.y,p.x))*.75,t,.5)});
   // pads change chord each bar
-  const deg=D.prog[bar%4], L=LAYERS[D.section], pm=STY().pads;
+  const deg=D.prog[bar%4], L=LAYERS[D.section], pm=STY().pads==='strings'&&smpReady('string_ensemble_1')?'none':STY().pads;
   D.raise3=!!STY().cadence&&((deg%7)+7)%7===0;
   const padsOn=!D.mute.has('saturn')&&pm!=='stab'&&pm!=='none';
   padVib.gain.setTargetAtTime(pm==='strings'?9:0,t,.2);
@@ -650,13 +650,13 @@ function scheduler(){
 }
 function startDance(){
   if(!AC)initDanceAudio();
-  AC.resume();DEG7=modeDeg();
+  AC.resume();DEG7=modeDeg();loadStyleSamples();
   D.playing=true;D.step=0;nextT=AC.currentTime+.1;setSection('intro',8,0);D.lastDrop=-99;
   master.gain.setTargetAtTime(outGain(),AC.currentTime,.05);
   clearInterval(schedTimer);schedTimer=setInterval(scheduler,25);scheduler();syncPlay();
 }
 function stopDance(){D.playing=false;clearInterval(schedTimer);if(AC){master.gain.setTargetAtTime(0,AC.currentTime,.05);padV.forEach(v=>v.g.gain.setTargetAtTime(0,AC.currentTime,.1));subV.g.gain.setTargetAtTime(0,AC.currentTime,.1)}syncPlay()}
-function setStyle(k){const old=SPB();D.style=k;if(D.playing)D.step=(Math.floor(D.step/old)+1)*SPB();S.mode=STYLES[k].mode;DEG7=AC?modeDeg():null;D.bpm=STYLES[k].bpm;$('bpm').value=D.bpm;$('bpmOut').textContent=D.bpm+' BPM';
+function setStyle(k){const old=SPB();D.style=k;loadStyleSamples();if(D.playing)D.step=(Math.floor(D.step/old)+1)*SPB();S.mode=STYLES[k].mode;DEG7=AC?modeDeg():null;D.bpm=STYLES[k].bpm;$('bpm').value=D.bpm;$('bpmOut').textContent=D.bpm+' BPM';
   document.querySelectorAll('#style button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===k)));renderMixer();renderProg();if(AC&&D.playing)master.gain.setTargetAtTime(outGain(),AC.currentTime,.1)}
 
 /* ---- visuals: flashes when a planet's instrument sounds ---- */
@@ -664,28 +664,77 @@ const FL={},FQ=[];
 function flash(id,t){FQ.push([id,t])}
 function pumpFlashes(){if(!AC)return;const now=AC.currentTime;while(FQ.length&&FQ[0][1]<=now){FL[FQ.shift()[0]]=1}if(FQ.length>400)FQ.splice(0,FQ.length-400)}
 
-/* ================= BALLROOM & LATIN: acoustic-style instruments, the same sky ================= */
+/* ================= BALLROOM & LATIN: each dance played by its own band ================= */
+// Recorded instruments come from the Fluid R3 General MIDI SoundFont (Frank Wen, CC BY 3.0), loaded per style.
+// Until they arrive, or if they cannot be fetched, the synthesised instruments below stand in.
 const CADENCE='kadencja';
 const BALL_INST={
-  waltz:{sun:'Bęben basowy na raz',mercury:'Shaker',earth:'Miotełki',mars:'Kotły',jupiter:'Kontrabas','jupiter-moons':'Harfa, 1 : 2 : 4',saturn:'Fortepian i smyczki',venus:'Skrzypcowy głos',uranus:'Crescenda',neptune:'Wiolonczele'},
-  tango:{sun:'Rytm marcato',mercury:'Hi-hat miotełką',earth:'Miotełki',mars:'Lewa ręka fortepianu',jupiter:'Kontrabas, 3-3-2','jupiter-moons':'Arpeggio fortepianu, 1 : 2 : 4',saturn:'Bandoneon i smyczki',venus:'Skrzypcowy głos',uranus:'Crescenda',neptune:'Wiolonczele'},
-  samba:{sun:'Surdo',mercury:'Ganzá',earth:'Tamborim',mars:'Dzwonki agogô',jupiter:'Bas','jupiter-moons':'Gitara, 1 : 2 : 4',saturn:'Cavaquinho',venus:'Wokalne sample',uranus:'Narastania',neptune:'Sub'},
-  chacha:{sun:'Stopa',mercury:'Güiro',earth:'Klawesy, son clave',mars:'Kongi',jupiter:'Bas tumbao','jupiter-moons':'Arpeggio fortepianu, 1 : 2 : 4',saturn:'Fortepianowe montuno',venus:'Wokalne sample',uranus:'Narastania',neptune:'Sub'},
-  swing:{sun:'Delikatny bęben basowy',mercury:'Talerz ride',earth:'Miotełki',mars:'Przejścia na tomach',jupiter:'Walking bass','jupiter-moons':'Wibrafon, 1 : 2 : 4',saturn:'Akompaniament fortepianu',venus:'Głos dęciaka',uranus:'Narastania',neptune:'Sub'},
-  jive:{sun:'Bęben basowy',mercury:'Talerz ride',earth:'Werbel na dwa i cztery',mars:'Przejścia na tomach',jupiter:'Walking bass','jupiter-moons':'Wibrafon, 1 : 2 : 4',saturn:'Fortepian na słabe części',venus:'Głos dęciaka',uranus:'Narastania',neptune:'Sub'},
-  fandango:{sun:'Bas cajónu',mercury:'Kastaniety',earth:'Palmas (klaskanie)',mars:'Uderzenia w cajón',jupiter:'Kciuk gitarzysty','jupiter-moons':'Gitara picado, 1 : 2 : 4',saturn:'Gitara rasgueado',venus:'Cante (śpiew)',uranus:'Narastania',neptune:'Sub'}
+  waltz:{sun:'Bęben basowy i talerze',mercury:'Trójkąt',earth:'Smyczki pizzicato',mars:'Kotły',jupiter:'Kontrabasy','jupiter-moons':'Harfa, 1 : 2 : 4',saturn:'Waltornie i smyczki',venus:'Skrzypce solo i flet',uranus:'Tremolo talerza i crescendo smyczków',neptune:'Wiolonczele'},
+  tango:{sun:'Golpe na pudle kontrabasu',mercury:'Chicharra skrzypiec',earth:'Akordy fortepianu',mars:'Lewa ręka fortepianu',jupiter:'Kontrabas, 3-3-2','jupiter-moons':'Arpeggio fortepianu, 1 : 2 : 4',saturn:'Bandoneony i smyczki',venus:'Skrzypce solo',uranus:'Crescendo bandoneonu',neptune:'Wiolonczele'},
+  samba:{sun:'Surdo',mercury:'Ganzá',earth:'Tamborim',mars:'Dzwonki agogô',jupiter:'Gitara siedmiostrunowa','jupiter-moons':'Gitara, 1 : 2 : 4',saturn:'Cavaquinho',venus:'Flet',uranus:'Crescendo talerza',neptune:'Sub'},
+  chacha:{sun:'Timbalesy',mercury:'Güiro',earth:'Klawesy, son clave',mars:'Kongi',jupiter:'Bas tumbao','jupiter-moons':'Skrzypce pizzicato, 1 : 2 : 4',saturn:'Fortepianowe montuno i skrzypce',venus:'Flet charangi',uranus:'Crescendo talerza',neptune:'Sub'},
+  swing:{sun:'Delikatny bęben basowy',mercury:'Talerz ride',earth:'Miotełki',mars:'Przejścia na tomach',jupiter:'Walking bass','jupiter-moons':'Wibrafon, 1 : 2 : 4',saturn:'Sekcja saksofonów i fortepian',venus:'Trąbka z tłumikiem',uranus:'Puzony i uderzenia blachy',neptune:'Sub'},
+  jive:{sun:'Bęben basowy',mercury:'Talerz ride',earth:'Werbel na dwa i cztery',mars:'Przejścia na tomach',jupiter:'Walking bass','jupiter-moons':'Gitara elektryczna, 1 : 2 : 4',saturn:'Fortepian i saksofony',venus:'Saksofon tenorowy',uranus:'Puzony i uderzenia blachy',neptune:'Sub'},
+  fandango:{sun:'Bas cajónu',mercury:'Kastaniety',earth:'Palmas (klaskanie)',mars:'Uderzenia w cajón',jupiter:'Kciuk gitarzysty','jupiter-moons':'Gitara picado, 1 : 2 : 4',saturn:'Gitara rasgueado',venus:'Cante (śpiew)',uranus:'Crescendo talerza',neptune:'Sub'}
+};
+const BALL_SAMPLES={
+  waltz:['string_ensemble_1','violin','contrabass','french_horn','pizzicato_strings','orchestral_harp','timpani','flute'],
+  tango:['tango_accordion','violin','contrabass','acoustic_grand_piano','string_ensemble_1'],
+  samba:['acoustic_guitar_nylon','acoustic_guitar_steel','agogo','flute'],
+  chacha:['acoustic_grand_piano','acoustic_bass','flute','string_ensemble_1','pizzicato_strings'],
+  swing:['acoustic_bass','acoustic_grand_piano','alto_sax','tenor_sax','muted_trumpet','trombone','trumpet','vibraphone'],
+  jive:['acoustic_bass','acoustic_grand_piano','alto_sax','tenor_sax','trumpet','trombone','electric_guitar_clean'],
+  fandango:['acoustic_guitar_nylon']
 };
 Object.assign(STYLES,{
-  waltz:{gain:1.9,name:'Waltz',fam:'ball',beats:3,bpm:174,mode:'C',swing:0,kickF:[95,48,.45],kickLvl:.55,duck:.85,arp:.55,arpV:'harp',lead:.9,leadLen:1.6,pads:'strings',buildBars:8},
-  tango:{gain:2.0,name:'Tango',fam:'ball',beats:4,bpm:118,mode:'A',swing:0,kickF:[110,50,.4],kickLvl:.5,duck:.85,arp:.45,arpV:'piano',lead:.9,leadLen:1.3,pads:'strings',buildBars:4},
+  waltz:{gain:2.3,name:'Waltz',fam:'ball',beats:3,bpm:174,mode:'C',swing:0,kickF:[95,48,.45],kickLvl:.25,duck:.92,arp:.55,arpV:'harp',lead:.9,leadLen:1.6,pads:'strings',buildBars:8},
+  tango:{gain:2.8,name:'Tango',fam:'ball',beats:4,bpm:118,mode:'A',swing:0,kickF:[110,50,.4],kickLvl:.5,duck:.9,arp:.45,arpV:'piano',lead:.9,leadLen:1.3,pads:'strings',buildBars:4},
   samba:{gain:1.65,name:'Samba',fam:'ball',beats:4,bpm:104,mode:'G',swing:.08,kickF:[95,55,.3],kickLvl:.6,duck:.85,arp:.5,arpV:'guitar',lead:.8,pads:'none',buildBars:4},
-  chacha:{gain:2.0,name:'Cha-cha',fam:'ball',beats:4,bpm:120,mode:'D',swing:0,kickF:[120,52,.35],kickLvl:.55,duck:.8,arp:.45,arpV:'piano',lead:.8,pads:'none',buildBars:4},
-  swing:{gain:1.6,name:'Swing',fam:'ball',beats:4,bpm:140,mode:'G',swing:0,swing8:.667,kickF:[90,50,.35],kickLvl:.35,duck:.95,arp:.45,arpV:'vibes',lead:.85,leadLen:1.2,pads:'none',buildBars:4},
-  jive:{gain:1.3,name:'Jive',fam:'ball',beats:4,bpm:172,mode:'G',swing:0,swing8:.667,kickF:[100,50,.35],kickLvl:.5,duck:.9,arp:.45,arpV:'vibes',lead:.85,pads:'none',buildBars:8},
-  fandango:{gain:2.0,name:'Fandango',fam:'ball',beats:3,bpm:168,mode:'E',swing:0,kickF:[100,50,.3],kickLvl:.6,duck:.85,arp:.5,arpV:'guitar',lead:.9,leadLen:1.8,pads:'none',buildBars:8,cadence:true}
+  chacha:{gain:2.6,name:'Cha-cha',fam:'ball',beats:4,bpm:120,mode:'D',swing:0,kickF:[120,52,.35],kickLvl:.55,duck:.85,arp:.45,arpV:'pizz',lead:1,pads:'none',buildBars:4},
+  swing:{gain:1.9,name:'Swing',fam:'ball',beats:4,bpm:140,mode:'G',swing:0,swing8:.667,kickF:[90,50,.35],kickLvl:.18,duck:.97,arp:.45,arpV:'vibes',lead:.85,leadLen:1.2,pads:'none',buildBars:4},
+  jive:{gain:1.5,name:'Jive',fam:'ball',beats:4,bpm:172,mode:'G',swing:0,swing8:.667,kickF:[100,50,.35],kickLvl:.5,duck:.9,arp:.45,arpV:'eguitar',lead:.85,pads:'none',buildBars:8},
+  fandango:{gain:1.45,name:'Fandango',fam:'ball',beats:3,bpm:168,mode:'E',swing:0,kickF:[100,50,.3],kickLvl:.6,duck:.85,arp:.5,arpV:'guitar',lead:.9,leadLen:1.8,pads:'none',buildBars:8,cadence:true}
 });
-Object.keys(BALL_INST).forEach(k=>STYLES[k].inst=BALL_INST[k]);
+Object.keys(BALL_INST).forEach(k=>{STYLES[k].inst=BALL_INST[k];STYLES[k].samples=BALL_SAMPLES[k]});
 
+/* ---- the sampler ---- */
+const SMP={man:null,base:null,buf:{},ready:{},loading:{},tried:false};
+const SMP_ABS='https://newbroman.github.io/Music_of_the_Spheres/samples/';
+const smpReady=n=>!!SMP.ready[n];
+async function smpManifest(){
+  if(SMP.man)return true;if(SMP.tried)return false;SMP.tried=true;
+  const rel=(location.pathname.includes('/pl/')?'../':'')+'samples/';
+  for(const b of location.protocol==='file:'?[SMP_ABS]:[rel,SMP_ABS]){try{const u=new URL(b,location.href).href,r=await fetch(u+'manifest.json');if(r.ok){SMP.man=await r.json();SMP.base=u;return true}}catch(e){}}
+  return false;
+}
+function smpLoad(n){
+  if(SMP.loading[n])return SMP.loading[n];const info=SMP.man&&SMP.man[n];if(!info)return Promise.resolve(false);
+  const list=[];
+  return SMP.loading[n]=Promise.all(info.notes.map(m=>fetch(`${SMP.base}${n}/${m}.mp3`).then(r=>{if(!r.ok)throw 0;return r.arrayBuffer()}).then(ab=>new Promise((ok,no)=>AC.decodeAudioData(ab,ok,no))).then(buf=>list.push({m,buf}))))
+    .then(()=>{list.sort((a,c)=>a.m-c.m);SMP.buf[n]=list;SMP.ready[n]=true;return true}).catch(()=>{delete SMP.loading[n];return false});
+}
+let smpMsg='';
+async function loadStyleSamples(){
+  const st=STY(),names=st.samples;if(!AC||!names)return;
+  if(names.every(smpReady))return;
+  const k=D.style;smpMsg=k;toast(SMPTXT.tuning);
+  if(!(await smpManifest())){if(smpMsg===k)toast(SMPTXT.synth);return}
+  const ok=await Promise.all(names.map(smpLoad));
+  if(smpMsg===k&&D.style===k)toast(ok.every(Boolean)?SMPTXT.ready:SMPTXT.synth);
+}
+const SMPTXT={tuning:'Zespół się stroi…',ready:'Zespół gotowy',synth:'Nagrane instrumenty niedostępne: grają syntezowane'};
+// play one recorded note at any frequency: the nearest sample, re-pitched
+function samp(n,t,f,len,lvl,id,o={}){
+  if(!SMP.ready[n])return false;
+  const L=SMP.buf[n],midi=69+12*Math.log2(f/440);let best=L[0];for(const x of L)if(Math.abs(x.m-midi)<Math.abs(best.m-midi))best=x;
+  const src=AC.createBufferSource();src.buffer=best.buf;const rate=Math.pow(2,(midi-best.m)/12);src.playbackRate.value=rate;
+  const g=AC.createGain(),pk=lvl*SMP.man[n].gain,att=o.att||.004,rel=o.rel||.12;
+  const end=Math.max(t+att,Math.min(t+len,t+best.buf.duration/rate-rel));
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(pk,t+att);g.gain.setValueAtTime(pk,end);g.gain.linearRampToValueAtTime(0,end+rel);
+  src.connect(g);g.connect(toPan(id));const rv=o.rev===undefined?.25:o.rev;if(rv)g.connect(mkG(rv,revSend));
+  src.start(t);src.stop(end+rel+.05);if(o.flash!==false)flash(id,t);return true;
+}
+function sChord(n,t,degs,oct,len,lvl,id,o={}){if(!SMP.ready[n])return false;degs.forEach((d,k)=>samp(n,t+(o.spread||0)*k,noteF(d,oct),len,lvl,id,{...o,flash:false}));flash(id,t);return true}
 /* ---- instruments ---- */
 const toPan=id=>PAN[id]||drumBus;
 // a hammered string: a triangle body with a little sawtooth brightness, the felt closing quickly
@@ -750,88 +799,140 @@ function guiro(t,long,v){
   const am=AC.createGain();am.gain.value=.5;const lfo=AC.createOscillator();lfo.type='square';lfo.frequency.value=46;lfo.connect(mkG(.5,am.gain));
   const g=mkG(0,PAN.mercury);env(g,t,.2*v,.005,long?.07:.025);n.connect(bp);bp.connect(am);am.connect(g);lfo.start(t);lfo.stop(t+(long?.25:.12));flash('mercury',t);
 }
-// the moons' arpeggio in each style's own instrument
-function moonNote(t,f,lvl,dec,id,v){
-  if(v==='guitar'){nylon(t,f,lvl*1.6,dec,'jupiter');flash(id,t)}
-  else if(v==='piano'){piano(t,f,dec,lvl*1.3,'jupiter');flash(id,t)}
-  else pluck(t,f,lvl,v==='vibes'?'sine':'triangle',dec,id);
+
+
+/* ---- a few more synthesised sounds for the bands ---- */
+function triangleBell(t,v){[[5400,.06,.6],[7930,.03,.4],[11800,.015,.3]].forEach(([f,a,d])=>toneHit(t,f,f,'sine',a*v,d,'mercury'));flash('mercury',t)}
+function timbale(t,v){toneHit(t,380,350,'sine',.22*v,.12,'sun');noiseHit(t,.08,'bandpass',3000,1.2,.2*v,.0008,.03,'sun',.15);flash('sun',t)}
+function golpe(t,v){toneHit(t,85,60,'sine',.4*v,.06,'sun',.03);noiseHit(t,.05,'lowpass',900,.7,.12*v,.001,.02,'sun',.05);flash('sun',t)}
+function chicharra(t,v){
+  const n=noise(t,.12),bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1500;bp.Q.value=2.5;
+  const am=AC.createGain();am.gain.value=.5;const lfo=AC.createOscillator();lfo.type='sawtooth';lfo.frequency.value=72;lfo.connect(mkG(.5,am.gain));
+  const g=mkG(0,PAN.mercury);env(g,t,.16*v,.004,.04);n.connect(bp);bp.connect(am);am.connect(g);lfo.start(t);lfo.stop(t+.15);flash('mercury',t);
+}
+function cymbalSwell(t,dur,v){
+  const n=AC.createBufferSource();n.buffer=noiseBuf;n.loop=true;const hp=AC.createBiquadFilter();hp.type='highpass';hp.frequency.value=5500;
+  const g=mkG(0,PAN.uranus);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.001,t+dur*.3);g.gain.exponentialRampToValueAtTime(.16*v,t+dur);g.gain.setTargetAtTime(0,t+dur,.25);
+  n.connect(hp);hp.connect(g);g.connect(mkG(.4,revSend));n.start(t);n.stop(t+dur+1.2);flash('uranus',t);
+}
+// the trumpets and trombones together, for shouts at the drop
+function brassShout(t,deg,len){
+  const ok=sChord('trumpet',t,chordTones(deg),4,len,.42,'uranus',{att:.012,rel:.15});
+  sChord('trombone',t,[deg,deg+4],3,len,.42,'uranus',{att:.015,rel:.15});return ok;
+}
+// Ouranos' build: each band swells in its own way
+function ballRiser(t,dur){
+  const deg=D.prog[0], k=D.style;
+  if(k==='waltz'){cymbalSwell(t,dur,1);sChord('string_ensemble_1',t,chordTones(deg),4,dur,.3,'uranus',{att:dur*.9,rel:.2})}
+  else if(k==='tango'){if(!sChord('tango_accordion',t,chordTones(deg),4,dur,.4,'uranus',{att:dur*.9,rel:.1}))reed(t,chordTones(deg),dur,.06,true)}
+  else if(k==='swing'||k==='jive'){cymbalSwell(t,dur,.8);sChord('trombone',t,[deg,deg+2,deg+4],3,dur,.38,'uranus',{att:dur*.85,rel:.12})}
+  else cymbalSwell(t,dur,k==='fandango'?.6:1);
+  flash('uranus',t);
 }
 
-/* ---- the patterns: the same planets, a different dance ---- */
+/* ---- the patterns: the same planets, a different band ---- */
 function ballStep(s,pos,bar,t,st,L,deg,stepT,m,into,spb){
-  const nxt=D.prog[(bar+1)%4], sec=D.section, sw=!!st.swing8;
+  const nxt=D.prog[(bar+1)%4], sec=D.section, sw=!!st.swing8, drop=sec==='drop', bd=barDur();
+  const dropStart=drop&&into===0&&pos===0;
   switch(D.style){
   case 'waltz':
-    // oom-pah-pah: Apollo and Zeus on the one, Kronos on two and three
-    if(L.kick&&m('sun')&&pos===0)kick(t);
-    if(L.bass&&m('jupiter')&&pos===0)abass(t,noteF(bar%2?deg-3:deg,2),stepT*3.8);
-    if(L.pads&&m('saturn')&&(pos===4||pos===8))pchord(t,chordTones(deg),4,stepT*2.2,pos===4?.085:.07,'saturn');
-    if(L.hats&&m('mercury')&&(pos===4||pos===8||(pos===10&&sec==='drop')))shaker(t,L.hats*(pos===10?.5:.8));
-    if(L.clap&&m('earth')&&(pos===4||pos===8))brush(t,.7*L.clap,false);
-    if(L.toms&&m('mars')&&pos===0&&bar%4===0)timp(t,noteF(deg,2),.9);
+    // a Viennese orchestra: basses on the one, horns and pizzicato on two and three, strings singing over all
+    if(L.kick&&m('sun')&&pos===0){kick(t);if(dropStart||(drop&&bar%4===0))noiseHit(t,1.6,'highpass',5000,.7,.14,.002,.5,'sun',.3)}
+    if(L.bass&&m('jupiter')&&pos===0){const f=noteF(bar%2?deg-3:deg,2);samp('contrabass',t,f,stepT*3.6,.7,'jupiter',{att:.012,rel:.18})||abass(t,f,stepT*3.8)}
+    if(L.pads&&m('saturn')){
+      if(pos===4||pos===8)sChord('french_horn',t,chordTones(deg),3,stepT*2.4,pos===4?.28:.22,'saturn',{att:.02,rel:.12})||pchord(t,chordTones(deg),4,stepT*2.2,pos===4?.085:.07,'saturn');
+      if(pos===0)sChord('string_ensemble_1',t,[deg-7,deg,deg+2,deg+4],4,bd*1.02,.2*L.pads,'saturn',{att:.12,rel:.35,flash:false})}
+    if(L.clap&&m('earth')&&(pos===4||pos===8))sChord('pizzicato_strings',t,chordTones(deg),4,stepT*2,.3*L.clap,'earth',{rel:.08})||brush(t,.7*L.clap,false);
+    if(L.hats&&m('mercury')&&pos===0&&bar%2===0&&sec!=='intro')triangleBell(t,L.hats);
+    if(L.toms&&m('mars')&&pos===0&&bar%4===0){const f=noteF(deg,2);samp('timpani',t,f,bd,.6,'mars',{rel:.3})||timp(t,f,.9)}
     break;
   case 'tango':{
-    // marcato in four, the bass on the 3-3-2 of the habanera, and the bandoneon dragging into the next bar
-    if(L.kick&&m('sun')&&(pos===0||pos===8))kick(t);
-    if(L.bass&&m('jupiter')){const h={0:[0,5],6:[0,5],12:[4,3],14:sec==='drop'?[nxt-deg-1,2]:null}[pos];if(h)abass(t,noteF(deg+h[0],2),stepT*h[1]*.9)}
+    // an orquesta típica: bandoneons in marcato, the bass on the 3-3-2, piano chords and a solo violin
+    if(L.kick&&m('sun')&&(pos===0||pos===8))golpe(t,pos===0?1:.7);
+    if(L.bass&&m('jupiter')){const h={0:[0,5],6:[0,5],12:[4,3],14:drop?[nxt-deg-1,2]:null}[pos];if(h){const f=noteF(deg+h[0],2);samp('contrabass',t,f,stepT*h[1]*.8,1,'jupiter',{att:.008,rel:.1})||abass(t,f,stepT*h[1]*.9)}}
     const drag=bar%2===1&&sec!=='intro';
-    if(L.pads&&m('saturn')){if(pos%4===0&&!(drag&&pos===12))reed(t,chordTones(deg),stepT*(pos%8===0?1.6:1.1),pos%8===0?.065:.045,false);
-      if(drag&&pos===12)reed(t,chordTones(nxt),stepT*3.6,.065,true)}
-    if(L.clap&&m('earth')&&(pos===4||pos===12))brush(t,.6*L.clap,false);
-    if(L.hats&&m('mercury')&&pos%2===0)chick(t,(pos%4===0?.6:.35)*L.hats);
-    if(L.toms&&m('mars')){const tp=D.tomPat[pos];if(tp!==null&&bar%2){piano(t,noteF(deg+tp,2),stepT*1.5,.16,'mars');flash('mars',t)}}
+    if(L.pads&&m('saturn')){
+      if(pos%4===0&&!(drag&&pos===12)){const len=stepT*(pos%8===0?1.6:1.1),lv=pos%8===0?.4:.3;sChord('tango_accordion',t,chordTones(deg),4,len,lv,'saturn',{att:.008,rel:.06})||reed(t,chordTones(deg),len,lv*.16,false)}
+      if(drag&&pos===12)sChord('tango_accordion',t,chordTones(nxt),4,stepT*3.8,.4,'saturn',{att:stepT*3.4,rel:.05})||reed(t,chordTones(nxt),stepT*3.6,.065,true);
+      if(pos===0)sChord('string_ensemble_1',t,chordTones(deg),4,bd*1.02,.14*L.pads,'saturn',{att:.15,rel:.3,flash:false})}
+    if(L.clap&&m('earth')&&(pos===4||pos===12))sChord('acoustic_grand_piano',t,chordTones(deg),4,stepT*1.2,.32*L.clap,'earth',{rel:.1})||brush(t,.6*L.clap,false);
+    if(L.hats&&m('mercury')&&(drop||sec==='groove')&&pos%4===2&&bar%2===0)chicharra(t,L.hats);
+    if(L.toms&&m('mars')){const tp=D.tomPat[pos];if(tp!==null&&bar%2){const f=noteF(deg+tp,2);if(samp('acoustic_grand_piano',t,f,stepT*1.4,.6,'mars',{rel:.1}))samp('acoustic_grand_piano',t,f*2,stepT*1.4,.45,'mars',{rel:.1,flash:false});else{piano(t,f,stepT*1.5,.16,'mars');flash('mars',t)}}}
     break;}
   case 'samba':
-    // the surdo answers itself on two and four; ganzá, tamborim and agogô ride on top
+    // a roda de samba: surdo, ganzá, tamborim and agogô, with seven-string guitar and cavaquinho
     if(L.kick&&m('sun')&&pos%4===0)surdo(t,pos===4||pos===12,1);
-    if(L.hats&&m('mercury'))shaker(t,[.55,.25,.35,.85][pos%4]*L.hats);
-    if(L.clap&&m('earth')&&[0,3,6,10,12].includes(pos))tamborim(t,L.clap*(pos===0?1:.75));
-    if(L.toms&&m('mars')){if([0,3,6,10].includes(pos))agogo(t,true,.8);else if([8,12,14].includes(pos))agogo(t,false,.8)}
-    if(L.bass&&m('jupiter')){const h={0:[0,.8],3:[0,.6],4:[4,1.8],8:[0,.8],11:[0,.6],12:[-3,1.8]}[pos];if(h)abass(t,noteF(deg+h[0],2),stepT*h[1]*2)}
-    if(L.pads&&m('saturn')&&[0,3,6,10,13].includes(pos))strum(t,chordTones(deg).concat([deg+7]),4,.055,.008,pos%2===1,'saturn',.18);
+    if(L.hats&&m('mercury'))shaker(t,[.55,.25,.35,.85][pos%4]*L.hats*2.5);
+    if(L.clap&&m('earth')&&[0,3,6,10,12].includes(pos))tamborim(t,L.clap*(pos===0?2.5:1.9));
+    if(L.toms&&m('mars')){const hi=[0,3,6,10].includes(pos),lo=[8,12,14].includes(pos);if(hi||lo){if(!samp('agogo',t,hi?905:678,.3,.8,'mars',{rel:.05,rev:.15}))agogo(t,hi,.8)}}
+    if(L.bass&&m('jupiter')){const h={0:[0,.8],3:[0,.6],4:[4,1.8],8:[0,.8],11:[0,.6],12:[-3,1.8]}[pos];if(h){const f=noteF(deg+h[0],2);samp('acoustic_guitar_nylon',t,f,stepT*h[1]*2,.35,'jupiter',{rel:.08})||abass(t,f,stepT*h[1]*2)}}
+    if(L.pads&&m('saturn')&&[0,3,6,10,13].includes(pos)){const up=pos%2===1,V=chordTones(deg).concat([deg+7]);
+      if(smpReady('acoustic_guitar_steel')){(up?[...V].reverse():V).forEach((d,k)=>samp('acoustic_guitar_steel',t+k*.008,noteF(d,4),stepT*1.6,up?.16:.2,'saturn',{rel:.06,flash:false}));flash('saturn',t)}
+      else strum(t,V,4,.055,.008,up,'saturn',.18)}
     break;
   case 'chacha':
-    // one, two, three, cha-cha: the güiro and congas mark the cha-cha on four-and
-    if(L.kick&&m('sun')&&(pos===0||pos===8))kick(t);
-    if(L.bass&&m('jupiter')){if(pos===6)abass(t,noteF(deg,2),stepT*5.5);if(pos===12)abass(t,noteF(nxt,2),stepT*4)}
-    if(L.pads&&m('saturn')&&[0,3,6,8,11,14].includes(pos))pchord(t,chordTones(deg),4,stepT*1.3,.07,'saturn');
+    // a charanga: flute and violins over piano montuno, tumbao bass, güiro, claves, congas and timbales
+    if(L.kick&&m('sun')&&(pos===0||pos===14||(drop&&pos===6)))timbale(t,pos===0?1:.75);
+    if(L.bass&&m('jupiter')){const f=pos===6?noteF(deg,2):pos===12?noteF(nxt,2):0;if(f)samp('acoustic_bass',t,f,stepT*(pos===6?5.5:4),.6,'jupiter',{rel:.1})||abass(t,f,stepT*(pos===6?5.5:4))}
+    if(L.pads&&m('saturn')){
+      if([0,3,6,8,11,14].includes(pos))sChord('acoustic_grand_piano',t,chordTones(deg),4,stepT*1.3,.28,'saturn',{rel:.08})||pchord(t,chordTones(deg),4,stepT*1.3,.07,'saturn');
+      if((sec==='groove'||drop)&&(pos===0||pos===8))sChord('string_ensemble_1',t,chordTones(deg),5,stepT*2.5,.16,'saturn',{att:.02,rel:.12,flash:false})}
     if(L.hats&&m('mercury')){if(pos===0||pos===4||pos===8)guiro(t,true,L.hats);else if(pos===12||pos===14)guiro(t,false,L.hats)}
     if(L.clap&&m('earth')&&(bar%2===0?[4,8]:[0,6,12]).includes(pos))claves(t,L.clap);
     if(L.toms&&m('mars')){if(pos===4)conga(t,'slap',1);else if(pos===12||pos===14)conga(t,'open',1);else if(pos===0||pos===8)conga(t,'mute',1)}
     break;
   case 'swing':case 'jive':{
-    // swung eighths only: the off-beat eighth is pushed to the last third of the beat
+    // a big band (swing) and a jump-blues band (jive): swung eighths, walking bass, saxes, brass and drums
     if(pos%2)break;
     const jive=D.style==='jive';
     if(L.kick&&m('sun')&&pos%4===0)kick(t);
     if(L.hats&&m('mercury')){if([0,4,6,8,12,14].includes(pos))ride(t,L.hats*(pos===6||pos===14?.6:1));if(pos===4||pos===12)chick(t,.8)}
-    if(L.clap&&m('earth')&&(pos===4||pos===12)){if(jive)snare(t,.85*L.clap);else brush(t,.9*L.clap,true)}
-    if(L.bass&&m('jupiter')&&pos%4===0){const wl=[deg,deg+2,deg+4,nxt+((bar+signOf('jupiter'))%2?1:-1)];abass(t,noteF(wl[pos/4],2),stepT*3.6,.48)}
-    if(L.pads&&m('saturn')&&(jive?[4,12,14]:[0,6]).includes(pos))pchord(t,chordTones(deg),4,stepT*(jive?1.4:2.5),.07,'saturn');
+    if(L.clap&&m('earth')&&(pos===4||pos===12)){if(jive)snare(t,.85*L.clap);else brush(t,2.6*L.clap,true)}
+    if(L.bass&&m('jupiter')&&pos%4===0){const wl=[deg,deg+2,deg+4,nxt+((bar+signOf('jupiter'))%2?1:-1)],f=noteF(wl[pos/4],2);samp('acoustic_bass',t,f,stepT*3.4,.5,'jupiter',{rel:.08})||abass(t,f,stepT*3.6,.48)}
+    if(L.pads&&m('saturn')){
+      if(!jive&&(pos===0||pos===6)){const len=stepT*(pos===0?3:5);const a=sChord('tenor_sax',t,[deg,deg+2],3,len,.28,'saturn',{att:.02,rel:.1});sChord('alto_sax',t,[deg+4,deg+6],3,len,.26,'saturn',{att:.02,rel:.1,flash:false});if(!a)pchord(t,chordTones(deg),4,stepT*2.5,.07,'saturn')}
+      if(!jive&&pos===14&&bar%2)sChord('acoustic_grand_piano',t,chordTones(deg),5,stepT*1.2,.22,'saturn',{rel:.08,flash:false});
+      if(jive&&[4,12,14].includes(pos))sChord('acoustic_grand_piano',t,chordTones(deg),4,stepT*1.4,.3,'saturn',{rel:.08})||pchord(t,chordTones(deg),4,stepT*1.4,.07,'saturn');
+      if(jive&&drop&&(pos===0||pos===6)){sChord('tenor_sax',t,[deg,deg+4],3,stepT*(pos===0?2:1.6),.22,'saturn',{att:.01,rel:.08,flash:false});sChord('alto_sax',t,[deg+2],4,stepT*(pos===0?2:1.6),.2,'saturn',{att:.01,rel:.08,flash:false})}}
+    if(dropStart&&m('uranus'))brassShout(t,deg,stepT*5);
+    if(drop&&m('uranus')&&bar%4===3&&pos===12)brassShout(t,nxt,stepT*3);
     if(L.toms&&m('mars')&&bar%4===3&&pos>=8&&sec!=='intro')tom(t,noteF(deg+(14-pos)/2,3),.8);
     break;}
   case 'fandango':{
-    // three-time with the Andalusian cadence: cajón, castanets, palmas and a rasgueado guitar
-    if(L.kick&&m('sun')&&(pos===0||(pos===8&&sec==='drop')))cajon(t,true,1);
+    // flamenco: cajón, castanets, palmas and the guitar, with the cante over it
+    if(L.kick&&m('sun')&&(pos===0||(pos===8&&drop)))cajon(t,true,1);
     if(L.toms&&m('mars')&&(pos===4||pos===8||(pos===10&&bar%2)))cajon(t,false,pos===10?.6:1);
-    if(L.clap&&m('earth')&&(sec==='groove'||sec==='drop')){if(pos%4===0)clap(t,pos===0?.9:.65);else if(pos%4===2&&sec==='drop')clap(t,.3)}
+    if(L.clap&&m('earth')&&(sec==='groove'||drop)){if(pos%4===0)clap(t,pos===0?.9:.65);else if(pos%4===2&&drop)clap(t,.3)}
     if(L.hats&&m('mercury')){if(pos%2===0)castanet(t,L.hats*(pos%4===0?1:.6));if(pos===10){castanet(t+stepT*.66,.5*L.hats);castanet(t+stepT*1.33,.6*L.hats)}}
-    if(L.bass&&m('jupiter')&&(pos===0||pos===8)){nylon(t,noteF(pos===0?deg:deg-3,2),.32,.5,'jupiter');flash('jupiter',t)}
-    if(L.pads&&m('saturn')){const V=[deg-7,deg-3,deg,deg+2,deg+4,deg+7];
-      if(pos===0){strum(t,V,3,.06,.018,false,'saturn',.5);if(sec==='drop'&&!LOWPOWER){strum(t+.04,V.slice(2),3,.04,.01,false,'saturn',.2);strum(t+.08,V.slice(2),3,.04,.01,false,'saturn',.25)}}
-      else if(pos===4||pos===6)strum(t,V.slice(2),3,.05,.01,pos===6,'saturn',.25);
-      else if(pos===8)strum(t,V,3,.055,.014,false,'saturn',.4)}
+    if(L.bass&&m('jupiter')&&(pos===0||pos===8)){const f=noteF(pos===0?deg:deg-3,2);if(!samp('acoustic_guitar_nylon',t,f,stepT*4,.4,'jupiter',{rel:.1})){nylon(t,f,.32,.5,'jupiter');flash('jupiter',t)}}
+    if(L.pads&&m('saturn')){const V=[deg-7,deg-3,deg,deg+2,deg+4,deg+7],g=smpReady('acoustic_guitar_nylon');
+      const st2=(tt,vs,lv,gap,up,len)=>{if(g){(up?[...vs].reverse():vs).forEach((d,k)=>samp('acoustic_guitar_nylon',tt+k*gap,noteF(d,3),len,lv,'saturn',{rel:.06,flash:false}));flash('saturn',tt)}else strum(tt,vs,3,lv*.12,gap,up,'saturn',len*.4)};
+      if(pos===0){st2(t,V,.3,.018,false,stepT*4);if(drop){st2(t+.045,V.slice(2),.25,.009,false,stepT*2);st2(t+.09,V.slice(2),.3,.009,false,stepT*3)}}
+      else if(pos===4||pos===6)st2(t,V.slice(2),.24,.01,pos===6,stepT*2);
+      else if(pos===8)st2(t,V,.27,.014,false,stepT*3)}
     break;}
   }
   // the build: a timpani roll from Ares that quickens toward the drop
-  if(sec==='build'&&m('mars')&&!(sw&&pos%2)){const prog=(into+pos/spb)/D.secLen,every=prog<.5?4:prog<.75?2:1;if(pos%every===0)timp(t,noteF(0,2),.2+.55*prog)}
+  if(sec==='build'&&m('mars')&&!(sw&&pos%2)){const prog=(into+pos/spb)/D.secLen,every=prog<.5?4:prog<.75?2:1;if(pos%every===0){const f=noteF(0,2),v=.2+.55*prog;samp('timpani',t,f,stepT*every*1.5,v*.7,'mars',{rel:.15})||timp(t,f,v)}}
   // Jupiter's moons, still in their 1:2:4 resonance, counted across the bar lines
   if(L.arp&&m('jupiter-moons')&&!(sw&&pos%2)){const lv=L.arp*st.arp,tones=chordTones(deg).concat([deg+7]),up=moonWaxing(),k=s>>1;
     if(s%2===0)moonNote(t,noteF(tones[up?k%4:3-k%4],5),.06*lv,stepT*3,'io',st.arpV);
     if(s%4===0)moonNote(t,noteF(tones[((s>>2)+1)%3],4),.07*lv,stepT*5,'europa',st.arpV);
-    if(s%8===0)pluck(t,noteF(tones[(s>>3)%3],6),.045*lv,'sine',stepT*7,'ganymede');}
-  // Aphrodite's line: a violin-like voice in the ballroom, the cante in the fandango
-  if(L.lead*st.lead>.2&&m('venus')&&!(sw&&pos%2)){const mm=D.motif[(bar%2)*16+pos];if(mm&&(L.lead>=.9||pos%8===0))chop(t,noteF(deg+mm.deg,5),barDur()*mm.len*(st.leadLen||1),mm.vow)}
+    if(s%8===0)moonNote(t,noteF(tones[(s>>3)%3],6),.045*lv,stepT*7,'ganymede',st.arpV);}
+  // Aphrodite's line, played by the band's solo instrument
+  if(L.lead*st.lead>.2&&m('venus')&&!(sw&&pos%2)){const mm=D.motif[(bar%2)*16+pos];if(mm&&(L.lead>=.3||pos%8===0)){
+    const f=noteF(deg+mm.deg,5),len=bd*mm.len*(st.leadLen||1),li=LEADS[D.style];
+    if(!(li&&samp(li[0],t,f*(li[2]||1),len,li[1],'venus',{att:li[3]||.03,rel:.18,rev:.35})))chop(t,f,len,mm.vow);
+    if(D.style==='waltz'&&drop)samp('flute',t,f*2,len,.22,'venus',{att:.03,rel:.15,flash:false})}}
+}
+// each band's solo instrument: [sample, level, octave shift, attack]
+const LEADS={waltz:['violin',.5,1,.05],tango:['violin',.5,1,.04],samba:['flute',.5,1,.02],chacha:['flute',.55,1,.02],swing:['muted_trumpet',.4,.5,.02],jive:['tenor_sax',.45,.5,.02]};
+const MOONSMP={harp:'orchestral_harp',piano:'acoustic_grand_piano',guitar:'acoustic_guitar_nylon',pizz:'pizzicato_strings',vibes:'vibraphone',eguitar:'electric_guitar_clean'};
+function moonNote(t,f,lvl,dec,id,v){
+  const n=MOONSMP[v];if(n&&samp(n,t,f,dec*1.6,lvl*5.5,'jupiter',{rel:.12,flash:false})){flash(id,t);return}
+  if(v==='guitar'){nylon(t,f,lvl*1.6,dec,'jupiter');flash(id,t)}
+  else if(v==='piano'){piano(t,f,dec,lvl*1.3,'jupiter');flash(id,t)}
+  else pluck(t,f,lvl,v==='vibes'?'sine':'triangle',dec,id);
 }
 
 /* ---- the dance floor: the orrery seen from above ---- */

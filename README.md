@@ -60,7 +60,7 @@ In Plato's Myth of Er, a Siren rides each celestial sphere singing a single note
 
 ## Dance (club, ballroom and Latin)
 
-`dance.html` turns the solar system into a band. Choose a club style, trance (138 BPM, minor), house (124 BPM, Dorian) or techno (130 BPM, dark Phrygian). Or choose a ballroom or Latin style, played on synthesised acoustic instruments: waltz (3/4), tango, samba, cha-cha, swing and jive (triplet swing), or fandango (3/4, with the Andalusian cadence). The table below is for the club styles. In the ballroom and Latin styles each planet takes that style's instruments; the help page lists them.
+`dance.html` turns the solar system into a band. Choose a club style, trance (138 BPM, minor), house (124 BPM, Dorian) or techno (130 BPM, dark Phrygian). Or choose a ballroom or Latin style, each played by its own kind of band on recorded instruments: waltz (Viennese orchestra, 3/4), tango (orquesta típica), samba (roda de samba), cha-cha (charanga), swing (big band), jive (jump-blues band) or fandango (flamenco, 3/4, with the Andalusian cadence). The table below is for the club styles. In the ballroom and Latin styles each planet takes that style's instruments; the help page lists them.
 
 | Body | Plays |
 |---|---|
@@ -97,4 +97,4 @@ The `pl/` folder holds a Polish translation of all four pages. The English pages
 
 ## Technical
 
-Self-contained pages: `index.html` (the 2D dial, Canvas), `flight.html` (3D, three.js r128 from cdnjs), `dance.html` (the dance band) and `help.html` (the theory and a user guide). Both use vanilla JavaScript and the Web Audio API. There is no build step and nothing to install. Fonts come from Google Fonts.
+Self-contained pages: `index.html` (the 2D dial, Canvas), `flight.html` (3D, three.js r128 from cdnjs), `dance.html` (the dance band) and `help.html` (the theory and a user guide). Both use vanilla JavaScript and the Web Audio API. There is no build step and nothing to install. Fonts come from Google Fonts. The dance bands' recorded instruments (`samples/`) come from the Fluid R3 General MIDI SoundFont by Frank Wen, as rendered by [midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
