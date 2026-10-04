@@ -136,6 +136,7 @@ input[type=range]{width:100%;accent-color:var(--bronze)}
   <div><h3>Voices</h3><div class="seg" id="voices"><button data-v="instrument" aria-pressed="true">Instruments</button><button data-v="human" aria-pressed="false">Human choir</button></div></div>
   <label class="check"><input type="checkbox" id="speak" checked> Gods introduce themselves when you travel to them</label>
   <label class="check"><input type="checkbox" id="slowMoons" checked> Slow time near moons</label>
+  <label class="check"><input type="checkbox" id="hrtf"> Headphone 3D sound (uses more power; off by default on phones)</label>
   <div class="field"><label for="vol">Volume <output id="volOut"></output></label><input id="vol" type="range" min="0" max="100" value="70"></div>
   <div class="field"><label for="verb">Temple echo <output id="verbOut"></output></label><input id="verb" type="range" min="0" max="100" value="40"></div>
   <p class="note">Planets, moons and the Sun are drawn larger than life so you can find them; distances along their orbits are true. Wear headphones: the choir is placed around your ship and turns with it.</p>
@@ -516,9 +517,11 @@ function buildInst(b,v,fadeIn){
   I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,fadeIn?.15:.001);
   if(b.kind==='comet'){
     const fin=mkGain(1);noiseBus.connect(fin);I.taps.push([noiseBus,fin]);
-    I.bp1=AC.createBiquadFilter();I.bp1.type='bandpass';I.bp1.Q.value=9;I.bp1.frequency.value=f0;
-    I.bp2=AC.createBiquadFilter();I.bp2.type='bandpass';I.bp2.Q.value=16;I.bp2.frequency.value=f0*2;
-    const sum=mkGain(4,I.g), g2=mkGain(.6,sum);
+    // a soft breath: wide bands and a lowpass that takes off the fizz
+    I.bp1=AC.createBiquadFilter();I.bp1.type='bandpass';I.bp1.Q.value=4;I.bp1.frequency.value=f0;
+    I.bp2=AC.createBiquadFilter();I.bp2.type='bandpass';I.bp2.Q.value=6;I.bp2.frequency.value=f0*2;
+    const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2200;lp.Q.value=.5;lp.connect(I.g);
+    const sum=mkGain(2.6,lp), g2=mkGain(.5,sum);
     fin.connect(I.bp1);fin.connect(I.bp2);I.bp1.connect(sum);I.bp2.connect(g2);
   }else{
     I.o1=AC.createOscillator();I.o1.type='sawtooth';I.o1.frequency.value=f0;
@@ -714,8 +717,9 @@ function updateAudio(){
     if(v.part&&v.part.osc)v.part.osc.forEach(([o,base])=>tgt(o.detune,base+W.c,.05));
     let vol=0;
     if(b.kind==='comet'){
-      if(I){tgt(I.bp1.frequency,Math.min(4000,p.f*2),.1);tgt(I.bp2.frequency,Math.min(8000,p.f*3),.1)}
-      vol=aud?.1*Math.max(.4,Math.min(1,g)):.05*g*grp;
+      if(I){tgt(I.bp1.frequency,Math.min(2000,p.f*2),.35);tgt(I.bp2.frequency,Math.min(3000,p.f*3),.35)}
+      // comets stay a background breath, however close they pass
+      vol=aud?.1*Math.max(.4,Math.min(1,g)):.03*Math.min(.6,g)*grp;
     }else{
       if(I){tgt(I.o1.frequency,p.f,.07);tgt(I.o2.frequency,p.f,.07);if(I.o3)tgt(I.o3.frequency,p.f,.07);tgt(I.vd.gain,p.f*.004,.2);
         const sb=p.r>0?p.z/p.r:0;tgt(I.lp.frequency,Math.max(300,Math.min(12000,2600*Math.pow(2,3*sb))),.2);}
@@ -1017,8 +1021,11 @@ const visR=b=>Math.max(b.R,3)/AU_KM*MAG;
 const SUN_R=696000/AU_KM*SUN_MAG;
 
 const canvas=$('scene');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true,logarithmicDepthBuffer:true});
-renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+// phones: lighter graphics so the audio thread keeps its headroom
+const MOBILE=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
+const renderer=new THREE.WebGLRenderer({canvas,antialias:!MOBILE,logarithmicDepthBuffer:true});
+renderer.setPixelRatio(Math.min(MOBILE?1.5:2,window.devicePixelRatio||1));
+S.hrtf=!MOBILE;
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(62,1,1e-7,2e4);
 scene.add(new THREE.AmbientLight(0x404660,.55));
@@ -1345,6 +1352,8 @@ function setTime(d){S.speed=d;$('speed').value=Math.max(0,Math.min(1000,Math.rou
 $('speed').oninput=e=>{S.speed=Math.pow(10,-2+e.target.value/1000*6);SYS.savedSpeed=null;$('speedOut').textContent=fmtSpeed(S.speed)};
 $('vol').oninput=e=>{S.vol=e.target.value/100;$('volOut').textContent=e.target.value+'%';if(AC&&audioOn)tgt(master.gain,S.vol,.05)};$('vol').oninput({target:$('vol')});
 $('verb').oninput=e=>{S.verb=e.target.value/100;$('verbOut').textContent=e.target.value+'%';setVerb()};$('verb').oninput({target:$('verb')});
+$('hrtf').checked=S.hrtf;
+$('hrtf').onchange=e=>{S.hrtf=e.target.checked;if(AC)PANNERS.forEach(({p,hrtfOK})=>{if(hrtfOK)p.panningModel=S.hrtf?'HRTF':'equalpower'})};
 $('speak').onchange=e=>{S.speak=e.target.checked;if(!S.speak&&SYN)SYN.cancel()};
 document.querySelectorAll('#voices button').forEach(btn=>btn.onclick=()=>{S.voices=btn.dataset.v;document.querySelectorAll('#voices button').forEach(x=>x.setAttribute('aria-pressed',String(x===btn)));if(!audioOn)startAudio3D();applyVoiceMode()});
 function toggleNav(){$('panel').hidden?openNav():closeNav()}
@@ -1375,7 +1384,7 @@ function dateStr(jd){const d=new Date((jd-2440587.5)*86400000);if(isNaN(d))retur
 S.speed=1;setTime(1);S.vp='ship';
 computePositions();updateScene(0);
 placeNear('earth',OBJ.earth.r*9);
-let last3=performance.now(), lastA=0, lastU=0;
+let last3=performance.now(), lastA=0, lastU=0, lastR=0;
 function frame3(t){
   const dt=Math.min(.1,(t-last3)/1000);last3=t;
   const dtSim=S.playing?dt*S.speed:0;S.jd+=dtSim;
@@ -1384,7 +1393,7 @@ function frame3(t){
   updateLabels();
   if(t-lastA>45){audioTick();lastA=t}
   if(t-lastU>250){lastU=t;$('dateTxt').textContent=dateStr(S.jd);$('timeTxt').textContent=fmtSpeed(S.speed);readout(ns);resumeAudio()}
-  renderer.render(scene,camera);
+  if(!MOBILE||t-lastR>=32){renderer.render(scene,camera);lastR=t}
   requestAnimationFrame(frame3);
 }
 requestAnimationFrame(frame3);

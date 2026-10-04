@@ -639,9 +639,11 @@ function buildInst(b,v,fadeIn){
   I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,fadeIn?.15:.001);
   if(b.kind==='comet'){
     const fin=mkGain(1);noiseBus.connect(fin);I.taps.push([noiseBus,fin]);
-    I.bp1=AC.createBiquadFilter();I.bp1.type='bandpass';I.bp1.Q.value=9;I.bp1.frequency.value=f0;
-    I.bp2=AC.createBiquadFilter();I.bp2.type='bandpass';I.bp2.Q.value=16;I.bp2.frequency.value=f0*2;
-    const sum=mkGain(4,I.g), g2=mkGain(.6,sum);
+    // a soft breath: wide bands and a lowpass that takes off the fizz
+    I.bp1=AC.createBiquadFilter();I.bp1.type='bandpass';I.bp1.Q.value=4;I.bp1.frequency.value=f0;
+    I.bp2=AC.createBiquadFilter();I.bp2.type='bandpass';I.bp2.Q.value=6;I.bp2.frequency.value=f0*2;
+    const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2200;lp.Q.value=.5;lp.connect(I.g);
+    const sum=mkGain(2.6,lp), g2=mkGain(.5,sum);
     fin.connect(I.bp1);fin.connect(I.bp2);I.bp1.connect(sum);I.bp2.connect(g2);
   }else{
     I.o1=AC.createOscillator();I.o1.type='sawtooth';I.o1.frequency.value=f0;
@@ -837,8 +839,9 @@ function updateAudio(){
     if(v.part&&v.part.osc)v.part.osc.forEach(([o,base])=>tgt(o.detune,base+W.c,.05));
     let vol=0;
     if(b.kind==='comet'){
-      if(I){tgt(I.bp1.frequency,Math.min(4000,p.f*2),.1);tgt(I.bp2.frequency,Math.min(8000,p.f*3),.1)}
-      vol=aud?.1*Math.max(.4,Math.min(1,g)):.05*g*grp;
+      if(I){tgt(I.bp1.frequency,Math.min(2000,p.f*2),.35);tgt(I.bp2.frequency,Math.min(3000,p.f*3),.35)}
+      // comets stay a background breath, however close they pass
+      vol=aud?.1*Math.max(.4,Math.min(1,g)):.03*Math.min(.6,g)*grp;
     }else{
       if(I){tgt(I.o1.frequency,p.f,.07);tgt(I.o2.frequency,p.f,.07);if(I.o3)tgt(I.o3.frequency,p.f,.07);tgt(I.vd.gain,p.f*.004,.2);
         const sb=p.r>0?p.z/p.r:0;tgt(I.lp.frequency,Math.max(300,Math.min(12000,2600*Math.pow(2,3*sb))),.2);}
