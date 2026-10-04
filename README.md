@@ -28,6 +28,8 @@ In Plato's Myth of Er, a Siren rides each celestial sphere singing a single note
 | Moons | Melody | Each moon's phase against the Sun walks an arch through the chosen Greek mode: home note at new moon, up to the octave at full moon, and back. |
 | Comets | Breath | A comet's size is its coma, so it fades in as a whisper near the Sun. |
 | The Sun | Drone | Apollo holds the tonic and fifth of the chosen mode. |
+| The Sun's sign in the zodiac | Key | The key turns once round the circle of fifths each year. Aries is home, and Libra, at the autumn equinox, is the furthest key away. |
+| Aspects between planets | Intervals | Seen from your listening post, planets in conjunction, sextile, square, trine or opposition sound a unison, major sixth, fourth, fifth or octave, and swell as the angle comes exact. Ptolemy matched the octave, fifth and fourth to opposition, trine and square. |
 
 ## The voices
 
@@ -49,6 +51,7 @@ In Plato's Myth of Er, a Siren rides each celestial sphere singing a single note
 - **Fly by hand.** On a computer, drag to look, use W/S to fly, A/D to slide, R/F for up and down, Q/E to roll, and Shift to boost. On a phone, drag to look and use the ▲ ▼ buttons.
 - **Speed adapts** to what is near: gentle beside a planet, faster than light between them.
 - **Fly among a planet's moons** and they start singing around you, each one's melody following its phase. Time slows so you can hear them circle.
+- The twelve zodiac constellations are drawn on the sky from their main stars, along the ecliptic with each sign's boundary marked, and aspect lines join planets that are singing an interval.
 - Planets, moons and the Sun are drawn larger than life so you can find them. The distances along their orbits are true.
 
 ## Tuning

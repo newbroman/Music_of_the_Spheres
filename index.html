@@ -214,6 +214,9 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
             <option value="F">Hypolydian, on F</option>
           </select></div>
         <label class="check"><input type="checkbox" id="drone" checked> Sound the Sun's drone</label>
+        <label class="check"><input type="checkbox" id="zodKey" checked> The Sun's sign sets the key</label>
+        <label class="check"><input type="checkbox" id="aspects" checked> Aspects sing their intervals</label>
+        <p class="note" id="zodTxt"></p>
         <div class="field"><label for="reg">Earth's note <output id="regOut"></output></label><input id="reg" type="range" min="110" max="660" step="1" value="330"></div>
         <div class="field"><label for="dist">Size &amp; distance law <output id="distOut"></output></label><input id="dist" type="range" min="0" max="100" step="1" value="70"></div>
         <div class="field"><label for="verb">Temple echo <output id="verbOut"></output></label><input id="verb" type="range" min="0" max="100" step="1" value="40"></div>
@@ -257,6 +260,8 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
           <tr><td>Dwarf planets &amp; asteroids</td><td>Perturbation</td><td>By default they do not sing. Each tugs the pitch of the planet nearest to it, more the bigger and closer it is, like a small gravitational pull. Switch them to voices if you want to hear them as children.</td></tr>
           <tr><td>Comet's distance from the Sun</td><td>Breath</td><td>A comet's size is its coma, which only exists near the Sun, so comets fade in as whispers as they approach and vanish as they leave.</td></tr>
           <tr><td>Character of each god</td><td>Human voice</td><td>In Human choir mode: basses for Zeus, Kronos, Ouranos and Poseidon; tenor Ares; countertenor Hermes; alto Gaia; soprano Aphrodite. Dwarf planets, asteroids and moons are children. Each sings its own name.</td></tr>
+          <tr><td>The Sun's sign in the zodiac</td><td>Key</td><td>As the Sun moves through the signs, the key turns once round the circle of fifths each year: Aries is home, Libra at the autumn equinox the furthest key away.</td></tr>
+          <tr><td>Aspects between planets</td><td>Intervals</td><td>Planets in conjunction, sextile, square, trine or opposition, as seen from your post, sound a unison, sixth, fourth, fifth or octave, and swell as the angle comes exact.</td></tr>
           <tr><td>The Sun</td><td>Drone</td><td>Apollo, leader of the Muses, holds the tonic and fifth of the chosen mode.</td></tr>
           <tr><td>The asteroid belt</td><td>Bells</td><td>A random belt asteroid chimes now and then, pitched by its own orbit.</td></tr>
         </tbody>
@@ -408,7 +413,7 @@ const S={
   vp:'sun', face:'vernal', turn:0, hrtf:!(matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent)),
   tuning:'dia', mode:'E', drone:true, F:330, dist:0.5, verb:0.4, vol:0.7,
   groups:{planet:{on:true,vol:1,label:'Planets'},minor:{on:true,vol:.8,label:'Dwarfs & asteroids'},comet:{on:true,vol:.9,label:'Comets'},moons:{on:true,vol:.8,label:'Moons (lyre)'},belt:{on:true,vol:.7,label:'Belt bells'}},
-  muted:new Set(), solo:new Set(), sel:'earth', audition:null, voices:'instrument', minorMode:'wobble', speak:true, speaking:false,
+  muted:new Set(), solo:new Set(), sel:'earth', audition:null, voices:'instrument', minorMode:'wobble', zodiacKey:true, aspects:true, speak:true, speaking:false,
   az:-0.35, tilt:58*DEG, rmax:40, labelsAll:false
 };
 
@@ -469,10 +474,25 @@ const SETS={dia:['C','D','E','F','G','A','B'],pent:['C','D','E','G','A']};
 function quantize(f){
   if(S.tuning==='free')return f;
   const set=SETS[S.tuning].map(n=>Math.log2(PY[n]));set.push(1);
-  const l=Math.log2(f/C_BASE), o=Math.floor(l), fr=l-o;
+  const sh=keyShift(), l=Math.log2(f/C_BASE)-sh, o=Math.floor(l), fr=l-o;
   let best=set[0],bd=9;for(const s of set){const d=Math.abs(s-fr);if(d<bd){bd=d;best=s}}
-  return C_BASE*Math.pow(2,o+best);
+  return C_BASE*Math.pow(2,o+best+sh);
 }
+/* ---------- the zodiac ---------- */
+const SIGNS=[['Κριός','Aries','♈'],['Ταῦρος','Taurus','♉'],['Δίδυμοι','Gemini','♊'],['Καρκίνος','Cancer','♋'],['Λέων','Leo','♌'],['Παρθένος','Virgo','♍'],['Ζυγός','Libra','♎'],['Σκορπίος','Scorpio','♏'],['Τοξότης','Sagittarius','♐'],['Αἰγόκερως','Capricorn','♑'],['Ὑδροχόος','Aquarius','♒'],['Ἰχθύες','Pisces','♓']];
+// the Sun's longitude as seen from Earth, which is Earth's own heliocentric longitude turned round by 180 degrees
+const KS={jd:null,lon:0};
+function sunLon(){if(KS.jd!==S.jd){const e=posAt(byId.earth.el,S.jd);KS.lon=((Math.atan2(-e.y,-e.x)/DEG)%360+360)%360;KS.jd=S.jd}return KS.lon}
+function sunSign(){return Math.floor(sunLon()/30)%12}
+// the Sun's sign sets the key: each sign a Pythagorean fifth above the last, so the year turns once round the circle of fifths.
+// Aries is home; Libra, at the autumn equinox, is the furthest key away. Kept within half an octave either way.
+function keyName(){return noteName(droneFreqs()[0]).replace(/-?\d.*$/,'')}
+function zodiacLine(){
+  const i=sunSign();let t=`Sun in <b>${SIGNS[i][0]}</b> (${SIGNS[i][1]})`+(S.zodiacKey?` · key of ${keyName()}`:'');
+  if(ASPNOW.length)t+='<span class="asp"><br>'+ASPNOW.slice(0,3).map(a=>`${a.a.god} ${a.asp.sym}\uFE0E ${a.b.god}: ${a.asp.name}, ${a.asp.iv}`).join('<br>')+'</span>';
+  return t;
+}
+function keyShift(){if(!S.zodiacKey)return 0;let v=(sunSign()*Math.log2(1.5))%1;if(v>=.5)v-=1;return v}
 function rawPitch(om){let f=S.F*Math.pow(om/OM_EARTH,0.353);while(f<40)f*=2;while(f>2400)f/=2;return f}
 function moonPitch(P){let f=1760*Math.pow(Math.abs(P)/0.3,-0.294)*(S.F/330);while(f<120)f*=2;return quantize(f)}
 function noteName(f){
@@ -737,7 +757,7 @@ function buildSunInst(v,fadeIn){
   I.srcs.push(I.d1,I.d2,I.d3,bl);I.srcs.forEach(o=>o.start());
   return I;
 }
-function droneFreqs(){const t=C_BASE*PY[S.mode]*8;return [t,t*1.5,t/2]}
+function droneFreqs(){let t=C_BASE*PY[S.mode]*8*Math.pow(2,keyShift());return [t,t*1.5,t/2]}
 const APOLLO=[{type:'bass',tilt:1.25,vib:[4.6,.02],breath:.08,jit:.003,syl:2.0,rest:2.6,ens:.5,words:'a p o l o: n'},{type:'tenor',tilt:1.15,vib:[5.0,.02],breath:.06,jit:.003,syl:2.0,rest:2.6,ens:0,words:'a p o l o: n'}];
 
 // voices are built only while they can be heard; switching mode clears them and they rebuild in the new style
@@ -785,6 +805,7 @@ function initAudio(){
   const re=new Float32Array(5),im=new Float32Array(5);for(let n=1;n<5;n++)im[n]=-1/n;RETRO=AC.createPeriodicWave(re,im);
   for(let k=0;k<8;k++){const p=mkPanner(false);POOL.push({p,g:mkGain(0,p)})}
   for(let k=0;k<3;k++)BELTP.push(mkPanner(false));
+  makeAspectVoices();
   computePositions();
   BODIES.forEach(b=>V[b.id]=makeVoice(b));
   sunV=makeSun();
@@ -849,6 +870,7 @@ function updateAudio(){
   // rank the candidates by loudness; only the loudest MAXVOICES are allowed to sing
   const cand=BODIES.filter(b=>audible(b)&&!(b.kind==='minor'&&S.minorMode==='wobble')).map(b=>[b.id,loudness(b,P[b.id],audioDir(P[b.id],L))]).sort((a,c)=>c[1]-a[1]);
   const allowed=new Set(cand.slice(0,MAXVOICES).map(x=>x[0]));
+  const swell={};ASPNOW.forEach(a=>{swell[a.a.id]=Math.max(swell[a.a.id]||0,a.str);swell[a.b.id]=Math.max(swell[a.b.id]||0,a.str)});
   BODIES.forEach(b=>{
     const v=V[b.id], p=P[b.id], aud=S.audition===b.id;
     // auditioning: the body sings just ahead of you, at full presence
@@ -875,7 +897,7 @@ function updateAudio(){
         const sb=p.r>0?p.z/p.r:0;tgt(I.lp.frequency,Math.max(300,Math.min(12000,2600*Math.pow(2,3*sb))),.2);}
       vol=aud?.1*(.55+.45*b.sizeG):(b.kind==='planet'?.075:.06)*g*grp;
     }
-    tgt(v.vol.gain,v.part&&(on||aud)?vol*duck*(1+W.a):0,.12);
+    tgt(v.vol.gain,v.part&&(on||aud)?vol*duck*(1+W.a)*(1+.25*(swell[b.id]||0)):0,.12);
     if(Hp&&(on||aud))humanTick(Hp.h,p.f,1,now);
     // moons follow their planet: silent when it is
     const mOn=(on||aud)&&!!v.part&&(S.groups.moons.on||aud);
@@ -903,6 +925,7 @@ function updateAudio(){
     });
   });
   POOL.forEach((s,k)=>{if(!poolOwner||k>=byId[poolOwner].moons.length)tgt(s.g.gain,0,.1)});
+  updateAspectAudio(L,true);
   // sun
   const sa=audioDir({x:0,y:0,z:0},L);setPos(sunV.pan,sa.x,sa.y,sa.z);
   const [d1,d2,d3]=droneFreqs(), sp=sunV.part;
@@ -911,13 +934,56 @@ function updateAudio(){
   tgt(sunV.vol.gain,S.drone&&!S.solo.size?(S.audition?.025:.07*(sa.self?.7:Math.max(.3,1-S.dist*.6*Math.min(1,sa.d/20)))):0,.3);
 }
 // the lyre: soft attack, sine body and a gentle octave, folded below 1.1 kHz so it rings rather than ticks
+/* ---------- aspects: planets at telling angles sound the matching interval ---------- */
+// Ptolemy matched opposition, trine and square to the octave, fifth and fourth; conjunction is a unison and the sextile a major sixth
+const ASPECTS=[
+  {ang:0,ratio:1.004,name:'conjunction',sym:'☌',orb:7,iv:'a unison'},
+  {ang:60,ratio:5/3,name:'sextile',sym:'⚹',orb:4,iv:'a major sixth'},
+  {ang:90,ratio:4/3,name:'square',sym:'□',orb:6,iv:'a fourth'},
+  {ang:120,ratio:3/2,name:'trine',sym:'△',orb:6,iv:'a fifth'},
+  {ang:180,ratio:2,name:'opposition',sym:'☍',orb:7,iv:'an octave'}];
+let ASPNOW=[];
+// angles are measured along the zodiac as seen from wherever you are listening
+function computeAspects(){
+  ASPNOW=[];
+  if(!S.aspects||S.audition||SYS.id)return;
+  const L=listenerPos();
+  const pl=BODIES.filter(b=>b.kind==='planet'&&audible(b)).map(b=>{const p=P[b.id];return {b,d:Math.hypot(p.x-L.x,p.y-L.y),lon:Math.atan2(p.y-L.y,p.x-L.x)/DEG}}).filter(o=>o.d>1e-4);
+  for(let i=0;i<pl.length;i++)for(let j=i+1;j<pl.length;j++){
+    let sep=Math.abs(pl[i].lon-pl[j].lon)%360;if(sep>180)sep=360-sep;
+    for(const a of ASPECTS){const dev=Math.abs(sep-a.ang);if(dev<a.orb){ASPNOW.push({a:pl[i].b,b:pl[j].b,asp:a,str:Math.pow(1-dev/a.orb,2)});break}}
+  }
+  ASPNOW.sort((x,y)=>y.str-x.str);ASPNOW=ASPNOW.slice(0,4);
+}
+const ASP=[];
+function makeAspectVoices(){
+  for(let k=0;k<(LOWPOWER?2:3);k++){
+    const pan=mkPanner(false), g=mkGain(0,pan);
+    const o1=AC.createOscillator();o1.type='sine';const o2=AC.createOscillator();o2.type='sine';
+    o1.connect(g);o2.connect(mkGain(.8,g));o1.start();o2.start();ASP.push({pan,g,o1,o2});
+  }
+}
+// a soft glassy dyad between the two planets, swelling as the angle comes exact
+function updateAspectAudio(L,on){
+  ASP.forEach((slot,k)=>{
+    const a=on&&ASPNOW[k];
+    if(!a){tgt(slot.g.gain,0,.4);return}
+    let lo=Math.min(P[a.a.id].f,P[a.b.id].f);while(lo<180)lo*=2;while(lo>520)lo/=2;
+    tgt(slot.o1.frequency,lo,.3);tgt(slot.o2.frequency,lo*a.asp.ratio,.3);
+    const ga=(V[a.a.id]&&V[a.a.id].gRel)||0, gb=(V[a.b.id]&&V[a.b.id].gRel)||0;
+    tgt(slot.g.gain,.03*a.str*Math.min(1,Math.sqrt(ga*gb)*1.5)*S.groups.planet.vol,.4);
+    const da=audioDir(P[a.a.id],L), db=audioDir(P[a.b.id],L);let x=da.x+db.x,y=da.y+db.y,z=da.z+db.z;const n=Math.hypot(x,y,z);
+    if(n<.2){x=0;y=1;z=0}else{x/=n;y/=n;z/=n}
+    setPos(slot.pan,x,y,z,.3);
+  });
+}
 // in the solar-system view a moon is as loud as it is big beside its planet: our Moon is noticeable, Phobos all but silent
 // melody: the mode's seven Pythagorean degrees, walked in an arch by the moon's phase.
 // new moon sits on the home note, the line climbs to the octave at full moon and falls back
 const ARCH=[0,1,2,4,7,4,2,1];
 function modeDegrees(){const t=Math.log2(PY[S.mode]);return Object.values(PY).map(r=>((Math.log2(r)-t)%1+1)%1).sort((a,c)=>a-c)}
 function melodyPitch(base,phase){
-  const d=modeDegrees(), t=Math.log2(PY[S.mode]), l=Math.log2(base/C_BASE)-t;
+  const d=modeDegrees(), t=Math.log2(PY[S.mode])+keyShift(), l=Math.log2(base/C_BASE)-t;
   let best=0,bd=9;for(let o=Math.floor(l)-1;o<=Math.floor(l)+1;o++)d.forEach((x,i)=>{const e=Math.abs(o+x-l);if(e<bd){bd=e;best=o*7+i}});
   const j=best+ARCH[Math.floor(((phase%1)+1)%1*8)%8];
   return C_BASE*Math.pow(2,t+Math.floor(j/7)+d[((j%7)+7)%7]);
@@ -1070,6 +1136,7 @@ function updateSystemAudio(){
   else if(sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
   tgt(sunV.vol.gain,S.drone?.03:0,.3);
   POOL.forEach(s=>tgt(s.g.gain,0,.1));
+  ASP.forEach(s=>tgt(s.g.gain,0,.3));
 }
 function sysProj(x,y,z){
   const r=Math.hypot(x,y,z), r0=byId[SYS.id].R*3, s=r>0?RR*.92*Math.log(1+r/r0)/Math.log(1+SYS.rmax/r0)/r:0;
@@ -1227,8 +1294,19 @@ function draw(t){
     }
   });
   g.globalAlpha=1;
+  drawAspects2D(g);
   // listener
   drawListener(g,S.vp==='sun'?sp:screen[S.vp],facingAngle()+S.az);
+}
+// aspect lines across the dial, with the aspect's sign at the midpoint
+function drawAspects2D(g){
+  ASPNOW.forEach(a=>{const p=screen[a.a.id],q=screen[a.b.id];if(!p||!q)return;
+    g.strokeStyle=`rgba(201,152,79,${(.15+.55*a.str).toFixed(2)})`;g.lineWidth=1.2;
+    g.setLineDash(a.asp.name==='square'||a.asp.name==='opposition'?[5,5]:[]);
+    g.beginPath();g.moveTo(p.x,p.y);g.lineTo(q.x,q.y);g.stroke();g.setLineDash([]);
+    g.font='15px "GFS Didot",Georgia,serif';g.textAlign='center';g.textBaseline='middle';g.fillStyle=`rgba(201,152,79,${(.4+.6*a.str).toFixed(2)})`;
+    g.fillText(a.asp.sym+'\uFE0E',(p.x+q.x)/2,(p.y+q.y)/2);
+  });
 }
 function drawListener(g,lp,ang){
   const st=Math.sin(S.tilt);
@@ -1302,6 +1380,8 @@ $('today').onclick=()=>{S.jd=jdNow()};
 $('tuning').onchange=e=>{S.tuning=e.target.value};
 $('mode').onchange=e=>{S.mode=e.target.value};
 $('drone').onchange=e=>{S.drone=e.target.checked};
+$('zodKey').onchange=e=>{S.zodiacKey=e.target.checked};
+$('aspects').onchange=e=>{S.aspects=e.target.checked};
 $('reg').oninput=e=>{S.F=+e.target.value;$('regOut').textContent=noteName(quantize(S.F))};$('reg').oninput({target:$('reg')});
 $('dist').oninput=e=>{S.dist=e.target.value/100;$('distOut').textContent=e.target.value+'%'};$('dist').oninput({target:$('dist')});
 $('verb').oninput=e=>{S.verb=e.target.value/100;$('verbOut').textContent=e.target.value+'%';setVerb()};$('verb').oninput({target:$('verb')});
@@ -1520,7 +1600,7 @@ function frame(t){
   }
   draw(t);
   if(AC&&audioOn&&t-lastAudio>45){updateAudio();lastAudio=t}
-  if(t-lastUI>250){lastUI=t;
+  if(t-lastUI>250){lastUI=t;computeAspects();$('zodTxt').innerHTML=zodiacLine();
     // watchdog: phones can suspend web audio (for example while a spoken line plays); bring it back
     if(audioOn&&AC&&AC.state!=='running')AC.resume().catch(()=>{});
    $('dateTxt').textContent=dateStr(S.jd);$('speedTxt').textContent=S.playing?(S.dir<0?'◀ ':'')+fmtSpeed(S.speed):'paused';tickInfo()}
