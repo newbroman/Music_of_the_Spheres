@@ -283,7 +283,7 @@ BODIES.forEach(b=>{
 /* ---------- state ---------- */
 const S={
   jd:jdNow(), playing:true, dir:1, speed:20,
-  vp:'sun', face:'vernal', turn:0, hrtf:true,
+  vp:'sun', face:'vernal', turn:0, hrtf:!(matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent)),
   tuning:'dia', mode:'E', drone:true, F:330, dist:0.5, verb:0.4, vol:0.7,
   groups:{planet:{on:true,vol:1,label:'Planets'},minor:{on:true,vol:.8,label:'Dwarfs & asteroids'},comet:{on:true,vol:.9,label:'Comets'},moons:{on:true,vol:.8,label:'Moons (lyre)'},belt:{on:true,vol:.7,label:'Belt bells'}},
   muted:new Set(), solo:new Set(), sel:'earth', audition:null, voices:'instrument', minorMode:'wobble', speak:true, speaking:false,
@@ -381,6 +381,18 @@ function audible(b){
 /* ---------- audio ---------- */
 let AC=null, master, bus, wet, dry, conv, comp, noiseBuf, sunV, audioOn=false;
 const V={};
+// the temple echo: four damped feedback delays spread across the stereo field, a fraction of the
+// cost of a convolution reverb
+function makeTemple(input,output){
+  const pre=mkGain(.5);input.connect(pre);
+  [[.0437,-.8],[.0531,.8],[.0617,-.35],[.0719,.35]].forEach(([dt,pan])=>{
+    const d=AC.createDelay(.2);d.delayTime.value=dt*1.9;
+    const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2600;
+    const fb=mkGain(.82), out=AC.createStereoPanner?AC.createStereoPanner():null;
+    pre.connect(d);d.connect(lp);lp.connect(fb);fb.connect(d);
+    if(out){out.pan.value=pan;lp.connect(out);out.connect(output)}else lp.connect(output);
+  });
+}
 function makeIR(sec){
   const len=Math.floor(AC.sampleRate*sec), buf=AC.createBuffer(2,len,AC.sampleRate);
   for(let c=0;c<2;c++){const d=buf.getChannelData(c);
@@ -389,7 +401,13 @@ function makeIR(sec){
   }
   return buf;
 }
-const tgt=(param,v,tc=.08)=>param.setTargetAtTime(v,AC.currentTime,tc);
+// only send a value to the audio thread when it has really changed: re-sending identical targets
+// twenty times a second piles up automation work, which weaker phones hear as crackle
+const LASTV=new WeakMap();
+const tgt=(param,v,tc=.08)=>{const l=LASTV.get(param);if(l!==undefined&&Math.abs(l-v)<=Math.abs(v)*.002+1e-6)return;LASTV.set(param,v);param.setTargetAtTime(v,AC.currentTime,tc)};
+// phones and tablets: fewer simultaneous voices and stereo panning by default
+const LOWPOWER=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
+const MAXVOICES=LOWPOWER?6:10;
 
 /* ---------- human voices: formant singers ---------- */
 // [freq Hz, level dB, bandwidth Hz] x5, classic choir formant tables; child from Peterson & Barney child means
@@ -625,11 +643,13 @@ function syncPool(){
 }
 
 function initAudio(){
-  AC=new (window.AudioContext||window.webkitAudioContext)();
+  // 'playback' asks for larger output buffers: a little more latency, far fewer underruns
+  const ACtor=window.AudioContext||window.webkitAudioContext;
+  try{AC=new ACtor({latencyHint:'playback'})}catch(e){AC=new ACtor()}
   master=AC.createGain();master.gain.value=0;
   comp=AC.createDynamicsCompressor();comp.threshold.value=-20;comp.knee.value=14;comp.ratio.value=4;comp.attack.value=.02;comp.release.value=.35;
-  bus=AC.createGain();dry=AC.createGain();wet=AC.createGain();conv=AC.createConvolver();conv.buffer=makeIR(3.2);
-  bus.connect(dry);dry.connect(comp);bus.connect(conv);conv.connect(wet);wet.connect(comp);comp.connect(master);master.connect(AC.destination);
+  bus=AC.createGain();dry=AC.createGain();wet=AC.createGain();
+  bus.connect(dry);dry.connect(comp);makeTemple(bus,wet);wet.connect(comp);comp.connect(master);master.connect(AC.destination);
   setVerb();
   noiseBuf=AC.createBuffer(1,AC.sampleRate*3,AC.sampleRate);const nd=noiseBuf.getChannelData(0);for(let k=0;k<nd.length;k++)nd[k]=Math.random()*2-1;
   // one shared noise source feeds every breath, whisper and consonant
@@ -652,6 +672,7 @@ function setListener(){
   else l.setOrientation(f.x,f.y,f.z,u.x,u.y,u.z);
 }
 function setPos(p,x,y,z,tc=.08){
+  const q=p.__last;if(q&&Math.abs(q[0]-x)+Math.abs(q[1]-y)+Math.abs(q[2]-z)<.003)return;p.__last=[x,y,z];
   if(p.positionX){const t=AC.currentTime;p.positionX.setTargetAtTime(x,t,tc);p.positionY.setTargetAtTime(y,t,tc);p.positionZ.setTargetAtTime(z,t,tc);}
   else p.setPosition(x,y,z);
 }
@@ -699,6 +720,9 @@ function updateAudio(){
   computeWobble(now,dt);
   syncPool();
   let builds=0;
+  // rank the candidates by loudness; only the loudest MAXVOICES are allowed to sing
+  const cand=BODIES.filter(b=>audible(b)&&!(b.kind==='minor'&&S.minorMode==='wobble')).map(b=>[b.id,loudness(b,P[b.id],audioDir(P[b.id],L))]).sort((a,c)=>c[1]-a[1]);
+  const allowed=new Set(cand.slice(0,MAXVOICES).map(x=>x[0]));
   BODIES.forEach(b=>{
     const v=V[b.id], p=P[b.id], aud=S.audition===b.id;
     // auditioning: the body sings just ahead of you, at full presence
@@ -708,7 +732,7 @@ function updateAudio(){
     const asWobble=b.kind==='minor'&&S.minorMode==='wobble'&&!aud;
     const g=v.gRel=loudness(b,p,a);
     // only voices loud enough to hear are kept running (with a little hysteresis)
-    const want=aud||(on&&!asWobble&&g>(v.part?.025:.035));
+    const want=aud||(on&&!asWobble&&allowed.has(b.id)&&g>(v.part?.025:.035));
     if(want&&!v.part&&builds<3){buildPart(b,v);builds++}
     else if(!want&&v.part&&now-(v.born||0)>2.5){killPart(v.part);v.part=null;v.mode=null}
     v.culled=!v.part;
