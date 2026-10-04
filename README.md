@@ -5,6 +5,8 @@
 **Play it here:**
 - **2D dial:** https://newbroman.github.io/Music_of_the_Spheres/
 - **3D flight:** https://newbroman.github.io/Music_of_the_Spheres/flight.html
+- **Dance:** https://newbroman.github.io/Music_of_the_Spheres/dance.html
+- **v1 benchmark (frozen):** https://newbroman.github.io/Music_of_the_Spheres/v1/ and [v1/flight.html](https://newbroman.github.io/Music_of_the_Spheres/v1/flight.html)
 
 A live orrery that you can hear. Every planet, moon, dwarf planet and comet sings with the voice of a Greek god. The music comes from the real motions of the solar system, and you choose where you stand and listen.
 
@@ -53,6 +55,28 @@ In Plato's Myth of Er, a Siren rides each celestial sphere singing a single note
 - **Fly among a planet's moons** and they start singing around you, each one's melody following its phase. Time slows so you can hear them circle.
 - The twelve zodiac constellations are drawn on the sky from their main stars, along the ecliptic with each sign's boundary marked, and aspect lines join planets that are singing an interval.
 - Planets, moons and the Sun are drawn larger than life so you can find them. The distances along their orbits are true.
+
+## Dance (trance, house, techno)
+
+`dance.html` turns the solar system into a band. Choose trance (138 BPM, minor), house (124 BPM, Dorian) or techno (130 BPM, dark Phrygian).
+
+| Body | Plays |
+|---|---|
+| Apollo (Sun) | Kick drum; the music ducks around it |
+| Hermes (Mercury) | Hi-hats, busier as he speeds up near perihelion |
+| Gaia (Earth) | Claps and snares; the Moon's phase turns the arpeggio up while waxing and down while waning |
+| Ares (Mars) | Toms, in a pattern set by his zodiac sign |
+| Zeus (Jupiter) | Bass, or an acid line in techno |
+| Io, Europa, Ganymede | An arpeggio in their real 1 : 2 : 4 orbital resonance: 16ths, 8ths and quarters |
+| Kronos (Saturn) | Pads, house stabs or a techno drone |
+| Aphrodite (Venus) | Vocal-chop lead, with a motif set by her sign |
+| Ouranos (Uranus) | Risers in the builds |
+| Poseidon (Neptune) | Sub and atmosphere in the breakdowns |
+
+- **Harmony:** the chord progression is home, then the chords Zeus, Kronos and Poseidon stand on in the zodiac as seen from Earth. The key follows the Sun's sign.
+- **Arrangement:** when an aspect between planets tightens, the track builds (riser and snare roll), drops as the aspect comes exact, then breaks down. If the sky stays quiet for 32 bars, the band builds anyway.
+- **Stereo:** each planet sits in the stereo field where it stands around the Sun.
+- **Comets:** a comet near the Sun adds a whoosh every eight bars.
 
 ## Tuning
 
