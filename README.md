@@ -58,9 +58,9 @@ In Plato's Myth of Er, a Siren rides each celestial sphere singing a single note
 - The twelve zodiac constellations are drawn on the sky from their main stars, along the ecliptic with each sign's boundary marked, and aspect lines join planets that are singing an interval.
 - Planets, moons and the Sun are drawn larger than life so you can find them. The distances along their orbits are true.
 
-## Dance (trance, house, techno)
+## Dance (club, ballroom and Latin)
 
-`dance.html` turns the solar system into a band. Choose trance (138 BPM, minor), house (124 BPM, Dorian) or techno (130 BPM, dark Phrygian).
+`dance.html` turns the solar system into a band. Choose a club style, trance (138 BPM, minor), house (124 BPM, Dorian) or techno (130 BPM, dark Phrygian). Or choose a ballroom or Latin style, played on synthesised acoustic instruments: waltz (3/4), tango, samba, cha-cha, swing and jive (triplet swing), or fandango (3/4, with the Andalusian cadence). The table below is for the club styles. In the ballroom and Latin styles each planet takes that style's instruments; the help page lists them.
 
 | Body | Plays |
 |---|---|
