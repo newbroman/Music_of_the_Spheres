@@ -1,0 +1,1482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A live orrery synthesizer: the planets, moons, dwarf planets and comets sing with the voices of the Greek gods, pitched by their orbits and placed in space around a listening post you choose.">
+<title>Music of the Spheres</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=GFS+Didot&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+[hidden]{display:none!important}
+html,body{margin:0}
+
+/* Layout: an Antikythera-style bronze dial (live orrery) beside an instrument panel; the canon of mappings reads below. Deliberately single dark theme: the night sky. */
+:root{
+  --sky:#0c0e1a;
+  --sky-2:#13162a;
+  --sky-3:#1b1f38;
+  --line:#2b3050;
+  --vellum:#e9e1cc;
+  --vellum-dim:#a39c89;
+  --bronze:#c9984f;
+  --bronze-dim:#7f6236;
+  --verdigris:#62a597;
+  --f-display:"GFS Didot","Didot","Bodoni 72",Georgia,serif;
+  --f-body:"Alegreya Sans","Gill Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --r:6px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{background:var(--sky);color:var(--vellum)}
+body{font-family:var(--f-body);font-size:16px;line-height:1.5;padding-inline:clamp(16px,3vw,40px);padding-block:20px 48px}
+.wrap{max-width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+h1,h2,h3{font-family:var(--f-display);font-weight:400;text-wrap:balance;margin:0}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--bronze);outline-offset:2px}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px 32px;border-bottom:1px solid var(--line);padding-bottom:18px}
+.eyebrow{font-family:var(--f-display);color:var(--bronze);font-size:1.05rem;letter-spacing:.04em}
+.top h1{font-size:clamp(2.1rem,5vw,3.5rem);line-height:1.02;letter-spacing:.01em}
+.lede{max-width:62ch;color:var(--vellum-dim);margin:.5rem 0 0}
+.begin{appearance:none;border:1px solid var(--bronze);background:linear-gradient(180deg,#d7a75d,#a87a37);color:#1a1206;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:.85rem;padding:14px 22px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:10px;white-space:nowrap}
+.begin[aria-pressed="true"]{background:transparent;color:var(--bronze)}
+.begin .dot{width:9px;height:9px;border-radius:50%;background:currentColor}
+.begin[aria-pressed="true"] .dot{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+
+/* stage */
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 352px;gap:22px;align-items:start}
+@media (max-width:960px){.stage{grid-template-columns:minmax(0,1fr)}}
+.dial{position:relative;background:radial-gradient(ellipse at center,var(--sky-2) 0%,var(--sky) 70%);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;min-width:0}
+#orrery{display:block;width:100%;aspect-ratio:1/1;max-height:84vh;touch-action:none;cursor:grab}
+#orrery:active{cursor:grabbing}
+.dial-tools{position:absolute;left:10px;right:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between;pointer-events:none}
+.dial-tools > *{pointer-events:auto}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{appearance:none;background:rgba(12,14,26,.78);border:1px solid var(--line);color:var(--vellum-dim);font-size:.78rem;padding:5px 10px;border-radius:999px;cursor:pointer;letter-spacing:.03em}
+.chip:hover{color:var(--vellum);border-color:var(--bronze-dim)}
+.chip[aria-pressed="true"]{color:var(--bronze);border-color:var(--bronze)}
+.datebar{position:absolute;top:10px;left:12px;font-family:var(--f-mono);font-size:.8rem;color:var(--vellum-dim);background:rgba(12,14,26,.7);padding:4px 8px;border-radius:4px;pointer-events:none}
+.datebar b{color:var(--vellum);font-weight:500}
+.aud{position:absolute;top:44px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;background:rgba(12,14,26,.88);border:1px solid var(--bronze);color:var(--vellum);padding:5px 6px 5px 14px;border-radius:999px;font-size:.88rem;white-space:nowrap;max-width:calc(100% - 24px)}
+.aud #audTxt{overflow:hidden;text-overflow:ellipsis}
+.aud .dot{width:8px;height:8px;border-radius:50%;background:var(--bronze);flex:none;animation:pulse 1.6s ease-in-out infinite}
+@media (max-width:560px){.hint{display:none}.aud{top:40px}}
+.hint{position:absolute;top:10px;right:12px;font-size:.75rem;color:var(--vellum-dim);background:rgba(12,14,26,.7);padding:4px 8px;border-radius:4px;pointer-events:none}
+
+/* info card */
+.info{border:1px solid var(--line);border-radius:var(--r);background:var(--sky-2);padding:16px 18px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,2fr);gap:12px 24px;margin-top:14px}
+@media (max-width:640px){.info{grid-template-columns:minmax(0,1fr)}}
+.info h3{font-size:1.7rem;line-height:1.1}
+.info .greek{font-family:var(--f-display);color:var(--bronze);font-size:1.15rem}
+.info .sub{color:var(--vellum-dim);font-size:.92rem;margin:.2rem 0 .6rem}
+.info .voice{font-style:italic;color:var(--vellum);font-size:.95rem}
+.info dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 18px;margin:0}
+.info dt{font-size:.7rem;text-transform:uppercase;letter-spacing:.09em;color:var(--vellum-dim)}
+.info dd{margin:0;font-family:var(--f-mono);font-size:.88rem;font-variant-numeric:tabular-nums}
+.info .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.btn{appearance:none;background:var(--sky-3);border:1px solid var(--line);color:var(--vellum);padding:7px 12px;border-radius:5px;cursor:pointer;font-size:.85rem}
+.btn:hover{border-color:var(--bronze-dim)}
+
+/* panel */
+.panel{display:flex;flex-direction:column;gap:14px;min-width:0}
+.sec{border:1px solid var(--line);border-radius:var(--r);background:var(--sky-2);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.sec h2{font-size:1.2rem;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.sec h2 small{font-family:var(--f-display);color:var(--bronze);font-size:.95rem}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label,.lab{font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--vellum-dim);display:flex;justify-content:space-between;gap:8px}
+.field label output{font-family:var(--f-mono);text-transform:none;letter-spacing:0;color:var(--vellum)}
+select{appearance:none;background:var(--sky) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23c9984f'/%3E%3C/svg%3E") no-repeat right 10px center;border:1px solid var(--line);border-radius:5px;padding:7px 28px 7px 10px;width:100%}
+input[type=range]{width:100%;accent-color:var(--bronze)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row .btn{flex:1 1 auto}
+.seg{display:flex;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.seg button{appearance:none;flex:1;background:transparent;border:0;padding:7px 8px;cursor:pointer;color:var(--vellum-dim);font-size:.85rem}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--sky-3);color:var(--bronze)}
+.check{display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer}
+.check input{accent-color:var(--bronze);width:16px;height:16px}
+.note{margin:0;font-size:.85rem;color:var(--vellum-dim)}
+.groups{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;align-items:center}
+
+/* roster */
+.roster{max-height:420px;overflow-y:auto;margin:0 -6px;padding:0 6px}
+.roster h4{font-family:var(--f-body);font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--vellum-dim);margin:10px 0 4px;font-weight:500}
+.vrow{display:grid;grid-template-columns:12px minmax(0,1fr) auto auto auto;gap:8px;align-items:center;padding:5px 6px;border-radius:4px;cursor:pointer}
+.vrow:hover{background:var(--sky-3)}
+.vrow.sel{background:var(--sky-3);box-shadow:inset 0 0 0 1px var(--bronze-dim)}
+.vrow .sw{width:10px;height:10px;border-radius:50%}
+.vrow .nm{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.92rem}
+.vrow .nm span{color:var(--vellum-dim);font-size:.82rem}
+.vrow .nt{font-family:var(--f-mono);font-size:.75rem;color:var(--vellum-dim);font-variant-numeric:tabular-nums;min-width:4.8em;text-align:right}
+.ms{appearance:none;width:24px;height:22px;border:1px solid var(--line);background:transparent;border-radius:4px;font-size:.7rem;font-weight:700;color:var(--vellum-dim);cursor:pointer;padding:0}
+.ms[aria-pressed="true"].m{background:#5a2b2b;color:#f2c7c7;border-color:#8a4444}
+.ms[aria-pressed="true"].s{background:var(--bronze);color:#1a1206;border-color:var(--bronze)}
+.vrow.quiet .nm{opacity:.45}
+
+/* canon */
+.canon{border-top:1px solid var(--line);padding-top:22px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.2fr);gap:22px 40px}
+@media (max-width:860px){.canon{grid-template-columns:minmax(0,1fr)}}
+.canon h2{font-size:1.9rem}
+.canon .greek{font-family:var(--f-display);color:var(--bronze)}
+.canon p{color:var(--vellum-dim);max-width:60ch}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:520px}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--vellum-dim);font-weight:500}
+td:first-child{font-family:var(--f-display);font-size:1.05rem;width:34%}
+td:nth-child(2){color:var(--bronze);white-space:nowrap}
+td:last-child{color:var(--vellum-dim);font-size:.95rem}
+.foot{font-size:.82rem;color:var(--vellum-dim);max-width:90ch}
+@media (prefers-reduced-motion:reduce){.begin .dot,.aud .dot{animation:none}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">ἡ τῶν σφαιρῶν ἁρμονία</div>
+      <h1>Music of the Spheres</h1>
+      <p class="lede">Each wanderer sings with the voice of its god. Pitch follows orbital speed, as Kepler proposed in 1619; size, tilt, spin and moons shape the voice; and you choose where in the solar system to stand and listen.</p>
+    </div>
+    <button class="begin" id="begin" aria-pressed="false"><span class="dot"></span><span id="beginLabel">Begin the harmony</span></button>
+  </header>
+
+  <div class="stage">
+    <div style="min-width:0">
+      <div class="dial">
+        <canvas id="orrery" aria-label="Orrery of the solar system. Drag to turn, scroll or pinch to zoom, tap a body to select it."></canvas>
+        <div class="datebar"><b id="dateTxt">—</b> <span id="speedTxt"></span></div>
+        <div class="hint" id="hint">tap a body to hear it alone · drag to turn · scroll to zoom</div>
+        <div class="aud" id="aud" hidden><span class="dot"></span><span id="audTxt"></span><button class="chip" id="audBack">Full choir</button></div>
+        <div class="dial-tools">
+          <div class="chips" id="zoomChips">
+            <button class="chip" data-z="2.4">Inner</button>
+            <button class="chip" data-z="40" aria-pressed="true">Planets</button>
+            <button class="chip" data-z="120">Kuiper belt</button>
+            <button class="chip" data-z="1100">Sedna</button>
+          </div>
+          <div class="chips">
+            <button class="chip" id="labelsAll" aria-pressed="false">Name all</button>
+          </div>
+        </div>
+      </div>
+      <section class="info" id="info" aria-live="polite"></section>
+    </div>
+
+    <aside class="panel">
+      <section class="sec">
+        <h2>Listening post <small>ἀκρόασις</small></h2>
+        <div class="field"><label for="vp">Stand at</label><select id="vp"></select></div>
+        <div class="field"><label for="face">Face toward</label><select id="face"></select></div>
+        <div class="field"><label for="turn">Turn your head <output id="turnOut">0°</output></label><input id="turn" type="range" min="-180" max="180" step="1" value="0"></div>
+        <div class="field"><span class="lab">Output</span>
+          <div class="seg" id="spatial"><button data-v="hrtf" aria-pressed="true">Headphones · 3D</button><button data-v="stereo" aria-pressed="false">Speakers · stereo</button></div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <h2>Time <small>χρόνος</small></h2>
+        <div class="row">
+          <button class="btn" id="rev" title="Run time backward">◀ Backward</button>
+          <button class="btn" id="play">Pause</button>
+          <button class="btn" id="today">Today</button>
+        </div>
+        <div class="field"><label for="speed">Speed <output id="speedOut"></output></label><input id="speed" type="range" min="0" max="1000" step="1" value="460"></div>
+      </section>
+
+      <section class="sec">
+        <h2>Harmony <small>ἁρμονία</small></h2>
+        <div class="field"><label for="tuning">Tuning</label>
+          <select id="tuning">
+            <option value="free">Kepler: free glide</option>
+            <option value="dia" selected>Pythagorean diatonic</option>
+            <option value="pent">Pythagorean pentatonic</option>
+          </select></div>
+        <div class="field"><label for="mode">Mode of Apollo's drone</label>
+          <select id="mode">
+            <option value="E" selected>Dorian, on E</option>
+            <option value="D">Phrygian, on D</option>
+            <option value="C">Lydian, on C</option>
+            <option value="B">Mixolydian, on B</option>
+            <option value="A">Hypodorian, on A</option>
+            <option value="G">Hypophrygian, on G</option>
+            <option value="F">Hypolydian, on F</option>
+          </select></div>
+        <label class="check"><input type="checkbox" id="drone" checked> Sound the Sun's drone</label>
+        <div class="field"><label for="reg">Earth's note <output id="regOut"></output></label><input id="reg" type="range" min="110" max="660" step="1" value="330"></div>
+        <div class="field"><label for="dist">Size &amp; distance law <output id="distOut"></output></label><input id="dist" type="range" min="0" max="100" step="1" value="70"></div>
+        <div class="field"><label for="verb">Temple echo <output id="verbOut"></output></label><input id="verb" type="range" min="0" max="100" step="1" value="40"></div>
+        <div class="field"><label for="vol">Volume <output id="volOut"></output></label><input id="vol" type="range" min="0" max="100" step="1" value="70"></div>
+      </section>
+
+      <section class="sec">
+        <h2>Voices <small>φωναί</small></h2>
+        <div class="seg" id="voices"><button data-v="instrument" aria-pressed="true">Instruments</button><button data-v="human" aria-pressed="false">Human choir</button></div>
+        <p class="note" id="voicesNote">Synthesised instruments shaped by each god's vowel.</p>
+        <div class="field"><span class="lab">Dwarf planets &amp; asteroids</span>
+          <div class="seg" id="minorMode"><button data-v="wobble" aria-pressed="true">Wobble the planets</button><button data-v="voices" aria-pressed="false">Sing as voices</button></div></div>
+        <label class="check"><input type="checkbox" id="speak" checked> Gods introduce themselves when tapped</label>
+      </section>
+
+      <section class="sec">
+        <h2>Choir <small>χορός</small></h2>
+        <div class="groups" id="groups"></div>
+        <div class="roster" id="roster"></div>
+      </section>
+    </aside>
+  </div>
+
+  <section class="canon">
+    <div>
+      <div class="greek">κανών</div>
+      <h2>The canon</h2>
+      <p>In Plato's Myth of Er, a Siren rides each celestial whorl singing a single note, and together they make one harmony. Kepler gave the idea numbers by reading each planet's angular speed at perihelion and aphelion as a melodic interval. This instrument does the same from orbital elements, live, for every body below.</p>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Celestial measure</th><th>Becomes</th><th>How you hear it</th></tr></thead>
+        <tbody>
+          <tr><td>Orbital speed, moment by moment</td><td>Pitch</td><td>Faster wanderers sing higher. Eccentric orbits rise toward perihelion and sink toward aphelion, so Mercury, Pluto and the comets glide.</td></tr>
+          <tr><td>Apparent size: radius ÷ distance from your post</td><td>Loudness</td><td>Bodies are as loud as they look big in your sky. From the Sun, Zeus and Gaia lead and Poseidon is distant. Voices too faint to hear drop out of the mix.</td></tr>
+          <tr><td>Orbital inclination</td><td>Elevation, sway</td><td>Inclined bodies rise and fall in 3D space as they cross the ecliptic, brighten when north of it, and their pitch sways up and down with them.</td></tr>
+          <tr><td>Axial tilt</td><td>Wobble</td><td>A tilted spinner wobbles in pitch with its day. Ouranos, tipped on his side, wobbles most; Zeus, nearly upright, hardly at all.</td></tr>
+          <tr><td>Rotation, length of day</td><td>Pulse</td><td>Fast spinners pulse quickly. Retrograde spinners (Aphrodite, Ouranos, Hades) pulse in reversed swells.</td></tr>
+          <tr><td>Moons</td><td>Lyre</td><td>Each moon plucks once per orbit. Moons too quick to pluck at the current speed blend into a hum.</td></tr>
+          <tr><td>Direction from your post</td><td>Position</td><td>Bodies ahead, behind, left and right of you are placed there in the mix.</td></tr>
+          <tr><td>Dwarf planets &amp; asteroids</td><td>Perturbation</td><td>By default they do not sing. Each tugs the pitch of the planet nearest to it, more the bigger and closer it is, like a small gravitational pull. Switch them to voices if you want to hear them as children.</td></tr>
+          <tr><td>Comet's distance from the Sun</td><td>Breath</td><td>A comet's size is its coma, which only exists near the Sun, so comets fade in as whispers as they approach and vanish as they leave.</td></tr>
+          <tr><td>Character of each god</td><td>Human voice</td><td>In Human choir mode: basses for Zeus, Kronos, Ouranos and Poseidon; tenor Ares; countertenor Hermes; alto Gaia; soprano Aphrodite. Dwarf planets, asteroids and moons are children. Each sings its own name.</td></tr>
+          <tr><td>The Sun</td><td>Drone</td><td>Apollo, leader of the Muses, holds the tonic and fifth of the chosen mode.</td></tr>
+          <tr><td>The asteroid belt</td><td>Bells</td><td>A random belt asteroid chimes now and then, pitched by its own orbit.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="foot" style="grid-column:1/-1">Planet positions use JPL's approximate Keplerian elements (good from about 1800 to 2050). Minor planets and comets use rounded elements, so treat their positions as illustrative. Only major moons are shown, and moon orbits are not to scale. Distances on the dial are logarithmic so the inner planets and the Kuiper belt fit together.</p>
+  </section>
+</div>
+
+<script>
+(()=>{
+'use strict';
+const DEG=Math.PI/180, TAU=Math.PI*2, J2000=2451545.0;
+const jdNow=()=>Date.now()/86400000+2440587.5;
+const jdOf=(y,m,d)=>Date.UTC(y,m-1,d)/86400000+2440587.5;
+const OM_EARTH=TAU/365.256;
+
+/* ---------- elements ---------- */
+const pl=(a,e,I,L,varpi,Om,Lrate)=>({a,e,i:I,Om,w:varpi-Om,M0:L-varpi,epoch:J2000,n:Lrate/36525});
+const pe=(a,e,i,Om,w,Tp)=>({a,e,i,Om,w,M0:0,epoch:Tp,n:360/(365.25*Math.pow(a,1.5))});
+
+const VOWELS={
+  a:[[700,1],[1100,.5],[2550,.22]],
+  ah:[[800,1],[1150,.55],[2900,.25]],
+  e:[[450,1],[1750,.32],[2500,.22]],
+  i:[[290,1],[2250,.25],[2950,.2]],
+  o:[[430,1],[780,.38],[2500,.08]],
+  u:[[320,1],[700,.15],[2300,.05]],
+  uh:[[620,1],[1200,.4],[2400,.12]],
+  ae:[[660,1],[1700,.4],[2400,.15]]
+};
+
+const BODIES=[
+ {id:'mercury',name:'Mercury',god:'Hermes',greek:'Ἑρμῆς',ancient:'Stilbōn, the Gleaming',kind:'planet',color:'#bdb3a5',R:2440,rot:1407.6,vowel:'i',
+  voice:'Hermes, the messenger: a bright, quick “ee”, darting with his eccentric orbit.',
+  el:pl(0.38709927,0.20563593,7.00497902,252.25032350,77.45779628,48.33076593,149472.67411175),moons:[]},
+ {id:'venus',name:'Venus',god:'Aphrodite',greek:'Ἀφροδίτη',ancient:'Phōsphoros at dawn, Hesperos at dusk',kind:'planet',color:'#e9d093',R:6052,rot:-5832.5,vowel:'ah',
+  voice:'Aphrodite: an open, sustained “ah”, its slow pulse reversed by her backward spin.',
+  el:pl(0.72333566,0.00677672,3.39467605,181.97909950,131.60246718,76.67984255,58517.81538729),moons:[]},
+ {id:'earth',name:'Earth',god:'Gaia',greek:'Γαῖα',ancient:'the hearth of the cosmos',kind:'planet',color:'#74abdc',R:6371,rot:23.934,vowel:'o',
+  voice:'Gaia: a round, warm “oh”, with Selene plucking the lyre each month.',
+  el:pl(1.00000261,0.01671123,-0.00001531,100.46457166,102.93768193,0.0,35999.37244981),
+  moons:[{name:'Selene (Moon)',P:27.3217,a:384400,R:1737}]},
+ {id:'mars',name:'Mars',god:'Ares',greek:'Ἄρης',ancient:'Pyroeis, the Fiery',kind:'planet',color:'#d46e4f',R:3390,rot:24.623,vowel:'e',
+  voice:'Ares: a hard, forward “eh”, his sons Phobos and Deimos rattling around him.',
+  el:pl(1.52371034,0.09339410,1.84969142,-4.55343205,-23.94362959,49.55953891,19140.30268499),
+  moons:[{name:'Phobos',P:0.31891,a:9376,R:11},{name:'Deimos',P:1.26244,a:23463,R:6}]},
+ {id:'jupiter',name:'Jupiter',god:'Zeus',greek:'Ζεύς',ancient:'Phaethōn, the Shining',kind:'planet',color:'#dcae7c',R:69911,rot:9.925,vowel:'a',
+  voice:'Zeus: a broad bass “aw”, the widest chorus in the sky.',
+  el:pl(5.20288700,0.04838624,1.30439695,34.39644051,14.72847983,100.47390909,3034.74612775),
+  moons:[{name:'Amalthea',P:0.4982,a:181366,R:84},{name:'Io',P:1.769,a:421700,R:1822},{name:'Europa',P:3.551,a:671034,R:1561},{name:'Ganymede',P:7.155,a:1070412,R:2634},{name:'Callisto',P:16.689,a:1882709,R:2410}]},
+ {id:'saturn',name:'Saturn',god:'Kronos',greek:'Κρόνος',ancient:'Phainōn, the Bright',kind:'planet',color:'#e6d08f',R:58232,rot:10.656,vowel:'u',
+  voice:'Kronos, father of time: a dark, hollow “oo”, ringed by eight moons.',
+  el:pl(9.53667594,0.05386179,2.48599187,49.95424423,92.59887831,113.66242448,1222.49362201),
+  moons:[{name:'Mimas',P:0.942,a:185539,R:198},{name:'Enceladus',P:1.370,a:237948,R:252},{name:'Tethys',P:1.888,a:294619,R:531},{name:'Dione',P:2.737,a:377396,R:561},{name:'Rhea',P:4.518,a:527108,R:764},{name:'Titan',P:15.945,a:1221870,R:2575},{name:'Hyperion',P:21.28,a:1500880,R:135},{name:'Iapetus',P:79.32,a:3560820,R:735}]},
+ {id:'uranus',name:'Uranus',god:'Ouranos',greek:'Οὐρανός',ancient:'the sky itself',kind:'planet',color:'#a3d9d8',R:25362,rot:-17.24,vowel:'uh',
+  voice:'Ouranos: a deep, muffled “uh” that pulses backward, as the planet rolls on its side.',
+  el:pl(19.18916464,0.04725744,0.77263783,313.23810451,170.95427630,74.01692503,428.48202785),
+  moons:[{name:'Miranda',P:1.413,a:129390,R:236},{name:'Ariel',P:2.520,a:191020,R:579},{name:'Umbriel',P:4.144,a:266000,R:585},{name:'Titania',P:8.706,a:435910,R:789},{name:'Oberon',P:13.463,a:583520,R:761}]},
+ {id:'neptune',name:'Neptune',god:'Poseidon',greek:'Ποσειδῶν',ancient:'lord of the deep',kind:'planet',color:'#7389e2',R:24622,rot:16.11,vowel:'o',
+  voice:'Poseidon: the lowest “oh” of the planets, with Triton circling against the current.',
+  el:pl(30.06992276,0.00859048,1.77004347,-55.12002969,44.96476227,131.78422574,218.45945325),
+  moons:[{name:'Proteus',P:1.122,a:117647,R:210},{name:'Triton',P:-5.877,a:354759,R:1353},{name:'Nereid',P:360.13,a:5513818,R:170}]},
+ {id:'pluto',name:'Pluto',god:'Hades',greek:'Ἅιδης',ancient:'the unseen one',kind:'minor',color:'#cdae98',R:1188,rot:-153.3,vowel:'u',
+  voice:'Hades: a low “oo” that climbs as Pluto nears the Sun and sinks again, Charon beside him.',
+  el:pl(39.48211675,0.24882730,17.14001206,238.92903833,224.06891629,110.30393684,145.20780515),
+  moons:[{name:'Charon',P:6.387,a:19591,R:606},{name:'Nix',P:24.85,a:48694,R:25},{name:'Hydra',P:38.20,a:64738,R:26}]},
+ {id:'ceres',name:'Ceres',god:'Demeter',greek:'Δημήτηρ',ancient:'goddess of the harvest',kind:'minor',color:'#b9b19f',R:470,rot:9.07,vowel:'ah',
+  voice:'Demeter: a soft “ah” from the heart of the asteroid belt.', el:pe(2.7675,0.0785,10.59,80.27,73.6,jdOf(2022,12,7)),moons:[]},
+ {id:'vesta',name:'Vesta',god:'Hestia',greek:'Ἑστία',ancient:'keeper of the hearth',kind:'minor',color:'#c8bfae',R:263,rot:5.342,vowel:'e',
+  voice:'Hestia: a small, steady “eh”, pulsing with Vesta’s five-hour day.', el:pe(2.3615,0.0887,7.14,103.81,151.2,jdOf(2021,12,26)),moons:[]},
+ {id:'pallas',name:'Pallas',god:'Athena',greek:'Ἀθηνᾶ',ancient:'Pallas, the grey-eyed',kind:'minor',color:'#a9a598',R:256,rot:7.81,vowel:'i',
+  voice:'Athena: a keen “ee” that soars high above the ecliptic on Pallas’s steep orbit.', el:pe(2.773,0.2302,34.84,173.08,310.15,jdOf(2022,7,20)),moons:[]},
+ {id:'juno',name:'Juno',god:'Hera',greek:'Ἥρα',ancient:'queen of Olympus',kind:'minor',color:'#b6ab97',R:127,rot:7.21,vowel:'ah',
+  voice:'Hera: a proud, light “ah”.', el:pe(2.669,0.2562,12.99,169.85,248.1,jdOf(2023,6,1)),moons:[]},
+ {id:'hygiea',name:'Hygiea',god:'Hygieia',greek:'Ὑγίεια',ancient:'goddess of health',kind:'minor',color:'#9d968a',R:217,rot:13.8,vowel:'i',
+  voice:'Hygieia: a calm, small “ee”.', el:pe(3.142,0.1125,3.83,283.2,312.3,jdOf(2021,11,10)),moons:[]},
+ {id:'eros',name:'Eros',god:'Eros',greek:'Ἔρως',ancient:'the near-Earth wanderer',kind:'minor',color:'#d9a7a0',R:8.4,rot:5.27,vowel:'ae',
+  voice:'Eros: a slender thread of “ae” that swings in close to Gaia.', el:pe(1.458,0.2229,10.83,304.3,178.9,jdOf(2024,4,1)),moons:[]},
+ {id:'eris',name:'Eris',god:'Eris',greek:'Ἔρις',ancient:'goddess of strife',kind:'minor',color:'#d8d4cc',R:1163,rot:378.9,vowel:'e',
+  voice:'Eris: a distant, discordant “eh” from beyond Hades.', el:pe(67.86,0.4361,44.04,35.95,151.6,jdOf(2257,1,1)),
+  moons:[{name:'Dysnomia',P:15.786,a:37300,R:350}]},
+ {id:'haumea',name:'Haumea',god:'Haumea',greek:'Hawaiian goddess',ancient:'named outside the Greek pantheon',kind:'minor',color:'#c2c9cf',R:780,rot:3.915,vowel:'ae',
+  voice:'A guest voice from the Hawaiian pantheon: the fastest pulse in the choir, from a four-hour day.', el:pe(43.1,0.195,28.2,122.2,239.0,jdOf(2133,1,1)),moons:[]},
+ {id:'makemake',name:'Makemake',god:'Makemake',greek:'Rapa Nui creator',ancient:'named outside the Greek pantheon',kind:'minor',color:'#c99f86',R:715,rot:22.83,vowel:'o',
+  voice:'A guest voice from Rapa Nui: a low, remote “oh”.', el:pe(45.4,0.161,29.0,79.6,294.8,jdOf(2186,1,1)),moons:[]},
+ {id:'sedna',name:'Sedna',god:'Sedna',greek:'Inuit sea goddess',ancient:'named outside the Greek pantheon',kind:'minor',color:'#c9705a',R:500,rot:10.3,vowel:'u',
+  voice:'A guest voice from the Inuit sea: the slowest wanderer here, folded up into hearing.', el:pe(506,0.855,11.93,144.4,311.3,jdOf(2076,3,1)),moons:[]},
+ {id:'halley',name:'1P/Halley',god:'Halley',greek:'κομήτης',ancient:'the long-haired star',kind:'comet',color:'#bfe1ff',R:5.5,rot:52.8,
+  voice:'A breath of wind that roars past the Sun every 76 years, travelling against the planets.', el:pe(17.83,0.96714,162.26,58.42,111.33,jdOf(1986,2,9)),moons:[]},
+ {id:'encke',name:'2P/Encke',god:'Encke',greek:'κομήτης',ancient:'the long-haired star',kind:'comet',color:'#c9e6ff',R:2.4,rot:11,
+  voice:'The quickest comet: a whisper that returns every 3.3 years.', el:pe(2.215,0.848,11.78,334.57,186.54,jdOf(2023,10,22)),moons:[]},
+ {id:'cg67p',name:'67P/Churyumov–Gerasimenko',god:'67P',greek:'κομήτης',ancient:'the long-haired star',kind:'comet',color:'#d3eaff',R:2,rot:12.4,
+  voice:'Rosetta’s comet: a faint breath every six and a half years.', el:pe(3.46,0.641,7.04,50.1,12.8,jdOf(2021,11,2)),moons:[]},
+ {id:'swift',name:'109P/Swift–Tuttle',god:'Swift–Tuttle',greek:'κομήτης',ancient:'parent of the Perseids',kind:'comet',color:'#b8dcff',R:13,rot:70,
+  voice:'Mother of the Perseid meteors, steeply tilted; next close pass in 2126.', el:pe(26.09,0.963,113.45,139.38,152.98,jdOf(1992,12,12)),moons:[]},
+ {id:'tempel',name:'55P/Tempel–Tuttle',god:'Tempel–Tuttle',greek:'κομήτης',ancient:'parent of the Leonids',kind:'comet',color:'#c4e0ff',R:1.8,rot:15,
+  voice:'Mother of the Leonids, orbiting backward every 33 years.', el:pe(10.33,0.906,162.5,235.3,172.5,jdOf(1998,2,28)),moons:[]},
+ {id:'halebopp',name:'C/1995 O1 Hale–Bopp',god:'Hale–Bopp',greek:'κομήτης',ancient:'the great comet of 1997',kind:'comet',color:'#e2f0ff',R:30,rot:11.3,
+  voice:'A huge, slow comet whose breath last swelled in 1997 and returns in about 2,500 years.', el:pe(186,0.995,89.4,282.47,130.59,jdOf(1997,4,1)),moons:[]}
+];
+// human voices: the gods' characters. Dwarf planets and asteroids are children; comets whisper.
+// type, glottal tilt (higher = darker), vibrato [Hz, depth], breath, jitter, syllable s, rest s, ensemble, words, speech
+const HV={
+ mercury:{type:'ct',tilt:1.0,vib:[6.2,.03],breath:.06,jit:.004,syl:.42,rest:1.4,ens:.2,words:'h e r m e: s',say:['m',1.3,1.2,"I am Hermes, messenger of the gods, whom the Greeks called Stilbon, the Gleaming. I run my circuit of the Sun in eighty-eight days, and no wanderer is swifter."]},
+ venus:{type:'soprano',tilt:1.15,vib:[5.2,.035],breath:.1,jit:.004,syl:.8,rest:2.5,ens:.2,words:'a f r o d i t e:',say:['f',1.1,.9,"I am Aphrodite. At dawn they called me Phosphoros, and at dusk Hesperos. My day is longer than my year, and I turn backward against all the others."]},
+ earth:{type:'alto',tilt:1.2,vib:[5.0,.025],breath:.08,jit:.004,syl:.9,rest:2.6,ens:.3,words:'g a i a:',say:['f',.95,.88,"I am Gaia, mother of all things. You are standing upon me. Selene, my Moon, keeps me company each month."]},
+ mars:{type:'tenor',tilt:.95,vib:[5.8,.035],breath:.05,jit:.008,syl:.55,rest:1.8,ens:.25,words:'a r e: s',say:['m',.85,1.05,"I am Ares, Pyroeis, the Fiery. Fear and Dread, Phobos and Deimos, run at my side."]},
+ jupiter:{type:'bass',tilt:1.0,vib:[5.0,.03],breath:.04,jit:.004,syl:1.1,rest:2.8,ens:.6,words:'z e u: s',say:['m',.55,.85,"I am Zeus, Phaethon the Shining, king of Olympus. Twelve years I take to walk the zodiac, and my moons are many."]},
+ saturn:{type:'bass',tilt:1.3,vib:[4.4,.045],breath:.12,jit:.009,syl:1.5,rest:3.5,ens:.4,words:'k r o n o: s',say:['m',.45,.75,"I am Kronos, Phainon, father of time. I walk slowly, twenty-nine years to a circuit, and I wear my rings."]},
+ uranus:{type:'bass',tilt:1.35,vib:[4.6,.03],breath:.15,jit:.005,syl:1.6,rest:3.8,ens:.4,words:'u r a n o: s',say:['m',.5,.7,"I am Ouranos, the sky itself, first of all the fathers. I roll upon my side, eighty-four years to a turn."]},
+ neptune:{type:'bass',tilt:1.2,vib:[4.8,.04],breath:.1,jit:.006,syl:1.4,rest:3.4,ens:.4,words:'p o s e i d o: n',say:['m',.55,.78,"I am Poseidon, lord of the deep. One hundred and sixty-five years I take to circle the Sun."]},
+ pluto:{type:'child',tilt:1.35,vib:[4.6,.02],breath:.16,jit:.004,syl:1.3,rest:3.6,ens:0,words:'h a i d e: s',say:['m',1.35,.85,"I am little Hades, the unseen one. I keep to the cold edge, and Charon keeps me company."]},
+ ceres:{type:'child',tilt:1.15,vib:[5.4,.025],breath:.08,jit:.004,syl:.75,rest:2.4,ens:0,words:'d e m e t e: r',say:['f',1.55,1.0,"I am Demeter, the harvest child, the biggest of the stones between Ares and Zeus."]},
+ vesta:{type:'child',tilt:1.15,vib:[5.6,.02],breath:.1,jit:.004,syl:.6,rest:2.2,ens:0,words:'h e s t i a:',say:['f',1.6,1.0,"I am Hestia, keeper of the hearth. I tend the fire out in the belt of stones."]},
+ pallas:{type:'child',tilt:1.05,vib:[5.8,.015],breath:.05,jit:.003,syl:.55,rest:2.0,ens:0,words:'a th e n a:',say:['f',1.55,1.05,"I am Pallas Athena, grey-eyed and clever. My path climbs steeply above all the others."]},
+ juno:{type:'child',tilt:1.1,vib:[5.6,.025],breath:.06,jit:.004,syl:.65,rest:2.2,ens:0,words:'h e r a:',say:['f',1.6,1.0,"I am Hera, the little queen. I walk the belt of stones in four and a half years."]},
+ hygiea:{type:'child',tilt:1.15,vib:[5.8,.02],breath:.1,jit:.004,syl:.6,rest:2.3,ens:0,words:'h u g i e i a:',say:['f',1.65,.95,"I am Hygieia, the healing child. I keep quietly to the outer edge of the belt."]},
+ eros:{type:'child',tilt:1.0,vib:[6.2,.025],breath:.07,jit:.004,syl:.4,rest:1.5,ens:0,words:'e r o: s',say:['m',1.7,1.15,"I am Eros. I am very small, but I swing close to Gaia, and every heart notices."]},
+ eris:{type:'child',tilt:.95,vib:[6.4,.04],breath:.07,jit:.014,syl:.45,rest:1.7,ens:0,words:'e r i: s',say:['f',1.5,1.15,"I am Eris, and I cause trouble. When they found me, Hades lost his place among the planets."]},
+ haumea:{type:'child',tilt:1.1,vib:[5.8,.025],breath:.08,jit:.004,syl:.32,rest:1.4,ens:0,words:'h a u m e a:',say:['f',1.55,1.1,"I am Haumea, a guest from the Hawaiian islands. I spin all the way round every four hours, faster than any large world."]},
+ makemake:{type:'child',tilt:1.2,vib:[5.2,.025],breath:.1,jit:.004,syl:.7,rest:2.6,ens:0,words:'m a k e m a k e:',say:['m',1.4,.95,"I am Makemake, a guest from Rapa Nui, playing far out in the Kuiper belt."]},
+ sedna:{type:'child',tilt:1.35,vib:[4.8,.025],breath:.18,jit:.004,syl:1.3,rest:4.0,ens:0,words:'s e d n a:',say:['f',1.4,.85,"I am Sedna, from the Inuit sea. One of my years is longer than eleven thousand of yours."]},
+ halley:{type:'tenor',syl:.5,rest:2.6,words:'k o m e t e: s',say:['m',1,1,"I am Halley's comet, the long-haired star. I come back every seventy-six years, travelling against the planets."]},
+ encke:{type:'alto',syl:.4,rest:2.0,words:'k o m e t e: s',say:['f',1.05,1.05,"I am Encke's comet. I return every three years and a little more, the quickest of the comets."]},
+ cg67p:{type:'alto',syl:.45,rest:2.4,words:'k o m e t e: s',say:['f',1,1,"I am comet sixty-seven P. A spacecraft called Rosetta once came to live beside me."]},
+ swift:{type:'tenor',syl:.55,rest:2.8,words:'k o m e t e: s',say:['m',.95,.95,"I am Swift-Tuttle, mother of the Perseid meteors. I will pass close again in twenty-one twenty-six."]},
+ tempel:{type:'alto',syl:.5,rest:2.6,words:'k o m e t e: s',say:['f',1,1,"I am Tempel-Tuttle, mother of the Leonid meteors. I circle backward every thirty-three years."]},
+ halebopp:{type:'bass',syl:.7,rest:3.2,words:'k o m e t e: s',say:['m',.9,.9,"I am Hale-Bopp, the great comet of nineteen ninety-seven. I will not return for two and a half thousand years."]}
+};
+BODIES.forEach(b=>b.hv=HV[b.id]);
+// axial tilt in degrees (over 90 means the body spins backward)
+const OBLIQ={mercury:.03,venus:177.4,earth:23.44,mars:25.19,jupiter:3.13,saturn:26.73,uranus:97.77,neptune:28.32,pluto:122.5};
+const byId=Object.fromEntries(BODIES.map(b=>[b.id,b]));
+BODIES.forEach(b=>{
+  const lr=Math.log10(Math.max(b.R,1))/Math.log10(70000);
+  b.sizeN=Math.max(0,Math.min(1,lr));
+  b.sizeG=b.kind==='comet'?1:0.15+0.85*b.sizeN*b.sizeN;
+  b.obl=OBLIQ[b.id];b.tiltWob=b.obl===undefined?0:22*Math.abs(Math.sin(b.obl*DEG));
+  b.Pyears=360/b.el.n/365.25;
+  (b.moons||[]).forEach((m,k)=>{m.ph0=((k*0.618034+b.R*0.0001)%1);m.rank=k;m.sizeN=Math.log10(m.R/5)/Math.log10(2634/5);m.flash=0});
+  // sort moon ranks by distance
+  const sorted=[...b.moons].sort((x,y)=>x.a-y.a); sorted.forEach((m,k)=>m.rank=k);
+});
+
+/* ---------- state ---------- */
+const S={
+  jd:jdNow(), playing:true, dir:1, speed:20,
+  vp:'sun', face:'vernal', turn:0, hrtf:true,
+  tuning:'dia', mode:'E', drone:true, F:330, dist:0.5, verb:0.4, vol:0.7,
+  groups:{planet:{on:true,vol:1,label:'Planets'},minor:{on:true,vol:.8,label:'Dwarfs & asteroids'},comet:{on:true,vol:.9,label:'Comets'},moons:{on:true,vol:.8,label:'Moons (lyre)'},belt:{on:true,vol:.7,label:'Belt bells'}},
+  muted:new Set(), solo:new Set(), sel:'earth', audition:null, voices:'instrument', minorMode:'wobble', speak:true, speaking:false,
+  az:-0.35, tilt:58*DEG, rmax:40, labelsAll:false
+};
+
+/* ---------- orbital mechanics ---------- */
+function kepler(M,e){
+  M=((M%TAU)+TAU)%TAU;
+  let E=e<0.8?M:Math.PI;
+  for(let k=0;k<60;k++){const d=(E-e*Math.sin(E)-M)/(1-e*Math.cos(E));E-=d;if(Math.abs(d)<1e-11)break;}
+  return E;
+}
+function rotate(el,xp,yp){
+  const co=Math.cos(el.w*DEG),so=Math.sin(el.w*DEG),cO=Math.cos(el.Om*DEG),sO=Math.sin(el.Om*DEG),ci=Math.cos(el.i*DEG),si=Math.sin(el.i*DEG);
+  return {
+    x:(co*cO-so*sO*ci)*xp+(-so*cO-co*sO*ci)*yp,
+    y:(co*sO+so*cO*ci)*xp+(-so*sO+co*cO*ci)*yp,
+    z:(so*si)*xp+(co*si)*yp
+  };
+}
+function posAt(el,jd){
+  const M=(el.M0+el.n*(jd-el.epoch))*DEG, E=kepler(M,el.e), cE=Math.cos(E), sE=Math.sin(E);
+  const xp=el.a*(cE-el.e), yp=el.a*Math.sqrt(1-el.e*el.e)*sE;
+  const p=rotate(el,xp,yp);
+  const cnu=(cE-el.e)/(1-el.e*cE);
+  p.om=el.n*DEG*Math.pow(1+el.e*cnu,2)/Math.pow(1-el.e*el.e,1.5);
+  p.r=Math.hypot(p.x,p.y,p.z);
+  return p;
+}
+BODIES.forEach(b=>{
+  const pts=[];const N=b.el.e>0.8?360:200;
+  for(let k=0;k<=N;k++){
+    // eccentric orbits: sample densely near perihelion (E near 0 and 2π)
+    const u=k/N, E=b.el.e>0.8?Math.PI*(1-Math.cos(Math.PI*u)):TAU*u;
+    const xp=b.el.a*(Math.cos(E)-b.el.e), yp=b.el.a*Math.sqrt(1-b.el.e*b.el.e)*Math.sin(E);
+    pts.push(rotate(b.el,xp,yp));
+  }
+  b.orbit=pts;
+});
+
+// asteroid belt
+let seed=7; const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646};
+const BELT=[];
+for(let k=0;k<520;k++){
+  const a=2.15+Math.pow(rnd(),0.9)*1.2, i=(rnd()-.5)*24*DEG*rnd(), Om=rnd()*TAU, th0=rnd()*TAU;
+  BELT.push({a,i,Om,th0,n:TAU/(365.25*Math.pow(a,1.5)),flash:0});
+}
+function beltPos(p,jd){
+  const th=p.th0+p.n*(jd-J2000);
+  const x=p.a*Math.cos(th), y=p.a*Math.sin(th), z=p.a*Math.sin(p.i)*Math.sin(th-p.Om);
+  return {x,y,z,om:p.n,r:p.a};
+}
+const STARS=[];for(let k=0;k<420;k++)STARS.push({x:rnd(),y:rnd(),m:rnd()});
+
+/* ---------- pitch ---------- */
+const NOTE=['C','C♯','D','E♭','E','F','F♯','G','G♯','A','B♭','B'];
+const PY={C:1,D:9/8,E:81/64,F:4/3,G:3/2,A:27/16,B:243/128};
+const C_BASE=440*16/27/16; // Pythagorean C0 relative to A=440
+const SETS={dia:['C','D','E','F','G','A','B'],pent:['C','D','E','G','A']};
+function quantize(f){
+  if(S.tuning==='free')return f;
+  const set=SETS[S.tuning].map(n=>Math.log2(PY[n]));set.push(1);
+  const l=Math.log2(f/C_BASE), o=Math.floor(l), fr=l-o;
+  let best=set[0],bd=9;for(const s of set){const d=Math.abs(s-fr);if(d<bd){bd=d;best=s}}
+  return C_BASE*Math.pow(2,o+best);
+}
+function rawPitch(om){let f=S.F*Math.pow(om/OM_EARTH,0.353);while(f<40)f*=2;while(f>2400)f/=2;return f}
+function moonPitch(P){let f=1760*Math.pow(Math.abs(P)/0.3,-0.294)*(S.F/330);while(f<120)f*=2;return quantize(f)}
+function noteName(f){
+  if(!f||!isFinite(f))return '—';
+  const m=69+12*Math.log2(f/440), r=Math.round(m), c=Math.round((m-r)*100);
+  return NOTE[((r%12)+12)%12]+(Math.floor(r/12)-1)+(c===0?'':(c>0?' +':' −')+Math.abs(c)+'¢');
+}
+
+/* ---------- frame state ---------- */
+const P={}; // positions this frame
+function computePositions(){BODIES.forEach(b=>{const p=posAt(b.el,S.jd);p.f=quantize(rawPitch(p.om));if(b.kind==='comet')p.act=Math.min(1,Math.pow(1.6/p.r,2));P[b.id]=p});}
+function listenerPos(){return S.vp==='sun'?{x:0,y:0,z:0}:P[S.vp]}
+function facingAngle(){
+  const L=listenerPos();let ang=0;
+  if(S.face==='sun'){ if(S.vp==='sun')ang=0; else ang=Math.atan2(-L.y,-L.x); }
+  else if(S.face==='vernal')ang=0;
+  else { const T=S.face==='sun'?{x:0,y:0}:P[S.face]; if(S.face===S.vp)ang=0; else ang=Math.atan2(T.y-L.y,T.x-L.x); }
+  return ang+S.turn*DEG;
+}
+function audible(b){
+  if(S.audition)return b.id===S.audition;
+  if(!S.groups[b.kind].on)return false;
+  if(S.muted.has(b.id))return false;
+  if(S.solo.size&&!S.solo.has(b.id))return false;
+  return true;
+}
+
+/* ---------- audio ---------- */
+let AC=null, master, bus, wet, dry, conv, comp, noiseBuf, sunV, audioOn=false;
+const V={};
+function makeIR(sec){
+  const len=Math.floor(AC.sampleRate*sec), buf=AC.createBuffer(2,len,AC.sampleRate);
+  for(let c=0;c<2;c++){const d=buf.getChannelData(c);
+    for(let k=0;k<len;k++){const t=k/len;d[k]=(Math.random()*2-1)*Math.pow(1-t,2.8)*(k<AC.sampleRate*0.012?0:1);}
+    [0.019,0.027,0.041,0.053].forEach((s,j)=>{const at=Math.floor(s*AC.sampleRate*(1+c*.07));if(at<len)d[at]+=0.5/(j+1)});
+  }
+  return buf;
+}
+const tgt=(param,v,tc=.08)=>param.setTargetAtTime(v,AC.currentTime,tc);
+
+/* ---------- human voices: formant singers ---------- */
+// [freq Hz, level dB, bandwidth Hz] x5, classic choir formant tables; child from Peterson & Barney child means
+const FT={
+ bass:{a:[[600,0,60],[1040,-7,70],[2250,-9,110],[2450,-9,120],[2750,-20,130]],e:[[400,0,40],[1620,-12,80],[2400,-9,100],[2800,-12,120],[3100,-18,120]],i:[[250,0,60],[1750,-30,90],[2600,-16,100],[3050,-22,120],[3340,-28,120]],o:[[400,0,40],[750,-11,80],[2400,-21,100],[2600,-20,120],[2900,-40,120]],u:[[350,0,40],[600,-20,80],[2400,-32,100],[2675,-28,120],[2950,-36,120]]},
+ tenor:{a:[[650,0,80],[1080,-6,90],[2650,-7,120],[2900,-8,130],[3250,-22,140]],e:[[400,0,70],[1700,-14,80],[2600,-12,100],[3200,-14,120],[3580,-20,120]],i:[[290,0,40],[1870,-15,90],[2800,-18,100],[3250,-20,120],[3540,-30,120]],o:[[400,0,40],[800,-10,80],[2600,-12,100],[2800,-12,120],[3000,-26,120]],u:[[350,0,40],[600,-20,60],[2700,-17,100],[2900,-14,120],[3300,-26,120]]},
+ ct:{a:[[660,0,80],[1120,-6,90],[2750,-23,120],[3000,-24,130],[3350,-38,140]],e:[[440,0,70],[1800,-14,80],[2700,-18,100],[3000,-20,120],[3300,-20,120]],i:[[270,0,40],[1850,-24,90],[2900,-24,100],[3350,-36,120],[3590,-36,120]],o:[[430,0,40],[820,-10,80],[2700,-26,100],[3000,-22,120],[3300,-34,120]],u:[[370,0,40],[630,-20,60],[2750,-23,100],[3000,-30,120],[3400,-34,120]]},
+ alto:{a:[[800,0,80],[1150,-4,90],[2800,-20,120],[3500,-36,130],[4950,-60,140]],e:[[400,0,60],[1600,-24,80],[2700,-30,120],[3300,-35,150],[4950,-60,200]],i:[[350,0,50],[1700,-20,100],[2700,-30,120],[3700,-36,150],[4950,-60,200]],o:[[450,0,70],[800,-9,80],[2830,-16,100],[3500,-28,130],[4950,-55,135]],u:[[325,0,50],[700,-12,60],[2530,-30,170],[3500,-40,180],[4950,-64,200]]},
+ soprano:{a:[[800,0,80],[1150,-6,90],[2900,-32,120],[3900,-20,130],[4950,-50,140]],e:[[350,0,60],[2000,-20,100],[2800,-15,120],[3600,-40,150],[4950,-56,200]],i:[[270,0,60],[2140,-12,90],[2950,-26,100],[3900,-26,120],[4950,-44,120]],o:[[450,0,70],[800,-11,80],[2830,-22,100],[3800,-22,130],[4950,-50,135]],u:[[325,0,50],[700,-16,60],[2700,-35,170],[3800,-40,180],[4950,-60,200]]},
+ child:{a:[[1030,0,110],[1370,-5,120],[3170,-20,160],[4300,-30,200],[5200,-45,220]],e:[[690,0,90],[2610,-14,130],[3570,-22,170],[4400,-32,200],[5200,-45,220]],i:[[370,0,60],[3200,-16,130],[3730,-20,170],[4500,-34,200],[5300,-46,220]],o:[[680,0,90],[1060,-8,110],[3180,-26,160],[4300,-34,200],[5200,-48,220]],u:[[430,0,60],[1170,-16,90],[3260,-30,160],[4300,-38,200],[5200,-50,220]]}
+};
+const NASAL={m:[[270,0,60],[1000,-18,150],[2300,-26,200],[3000,-30,200],[3600,-40,200]],n:[[270,0,60],[1500,-18,150],[2500,-26,200],[3000,-30,200],[3600,-40,200]],l:[[360,0,60],[1300,-10,120],[2700,-18,150],[3200,-24,150],[3600,-34,160]]};
+const RANGE={bass:[82,330],tenor:[130,523],ct:[175,700],alto:[175,700],soprano:[262,1046],child:[262,1046]};
+const VOICE_LABEL={bass:'bass',tenor:'tenor',ct:'countertenor',alto:'alto',soprano:'soprano',child:'child'};
+const GLOT={};
+function glottal(tilt){
+  const key=tilt.toFixed(2);if(GLOT[key])return GLOT[key];
+  const N=64,re=new Float32Array(N),im=new Float32Array(N);
+  for(let n=1;n<N;n++){im[n]=Math.pow(n,-tilt)*(n%2?1:.82)}
+  return GLOT[key]=AC.createPeriodicWave(re,im);
+}
+function parseWords(s){return s.trim().split(/\s+/).map(tok=>{const hold=tok.endsWith(':');tok=tok.replace(':','');return {t:tok,hold}})}
+const NF=4; // formants per singer: four is enough for vowel identity and keeps the phone's audio thread light
+let noiseBus=null, jitBus=null, inhaleBus=null, RETRO=null;
+const mkGain=(v,to)=>{const g=AC.createGain();g.gain.value=v;if(to)g.connect(to);return g};
+
+/* ---------- human singer ---------- */
+function makeHuman(spec,dest,whisper){
+  const h={spec,whisper,next:0,shift:0,words:parseWords(spec.words),srcs:[],taps:[]};
+  const tap=(bus,node)=>{bus.connect(node);h.taps.push([bus,node])};
+  h.form=FT[spec.type];
+  h.out=mkGain(0,dest);h.src=mkGain(1);
+  h.bps=[];h.bgs=[];
+  for(let k=0;k<NF;k++){const bp=AC.createBiquadFilter();bp.type='bandpass';const g=mkGain(0,h.out);h.src.connect(bp);bp.connect(g);h.bps.push(bp);h.bgs.push(g)}
+  setFormants(h,h.form.a,AC.currentTime,.001);
+  if(!whisper){
+    h.vg=mkGain(1,h.src);
+    h.o1=AC.createOscillator();h.o1.setPeriodicWave(glottal(spec.tilt));h.o1.connect(h.vg);h.srcs.push(h.o1);
+    h.vib=AC.createOscillator();h.vib.frequency.value=spec.vib[0];h.vibD=mkGain(0);h.vib.connect(h.vibD);h.vibD.connect(h.o1.frequency);h.srcs.push(h.vib);
+    h.jit=mkGain(0);tap(jitBus,h.jit);h.jit.connect(h.o1.frequency);
+    if((spec.ens||0)>=.2){
+      h.o2=AC.createOscillator();h.o2.setPeriodicWave(glottal(spec.tilt));h.o2.detune.value=9;h.o2.connect(mkGain(spec.ens,h.vg));
+      h.vibD.connect(h.o2.frequency);h.jit.connect(h.o2.frequency);h.srcs.push(h.o2);
+    }
+    h.bg=mkGain(spec.breath,h.src);tap(noiseBus,h.bg);
+  }else{
+    h.vg=mkGain(1,h.src);tap(noiseBus,h.vg);h.bg=h.vg;
+  }
+  // fricatives and plosive bursts
+  h.fin=mkGain(1);tap(noiseBus,h.fin);
+  h.fr=AC.createBiquadFilter();h.fr.type='bandpass';h.fr.Q.value=1.2;h.fg=mkGain(0,h.out);h.fin.connect(h.fr);h.fr.connect(h.fg);
+  // audible in-breath between phrases
+  h.ig=mkGain(0,dest);tap(inhaleBus,h.ig);
+  h.srcs.forEach(o=>o.start());
+  return h;
+}
+function killHuman(h){
+  const t=AC.currentTime;h.srcs.forEach(o=>{try{o.stop(t+.05)}catch(e){}});
+  setTimeout(()=>{h.taps.forEach(([b,n])=>{try{b.disconnect(n)}catch(e){}});try{h.out.disconnect()}catch(e){}try{h.ig.disconnect()}catch(e){}},150);
+}
+function setFormants(h,tab,t,tc){
+  for(let k=0;k<NF;k++){const [F,db,bw]=tab[k];
+    h.bps[k].frequency.setTargetAtTime(F,t,tc);h.bps[k].Q.setTargetAtTime(F/bw,t,tc);
+    h.bgs[k].gain.setTargetAtTime(Math.pow(10,db/20)*(h.whisper?4:2.6),t,tc);}
+}
+const FRIC={s:[6500,.35,true],z:[5500,.25,false],f:[2500,.22,true],ph:[2500,.22,true],th:[3800,.22,true],h:[1500,0,true]};
+const PLOS={p:[900,true],t:[3500,true],k:[1800,true],d:[3000,false],g:[1600,false],b:[800,false]};
+function fitShift(f,type){const [lo,hi]=RANGE[type];return Math.round(Math.log2(Math.sqrt(lo*hi)/f))}
+// every gain move inside a phrase uses a time constant of 15 ms or more, so consonants never click
+function schedulePhrase(h,t0,f,level){
+  const sp=h.spec, vg=h.vg.gain; let t=t0;
+  h.shift=fitShift(f,sp.type);
+  h.out.gain.setTargetAtTime(level,t0,.07);
+  if(!h.whisper){const ff=f*Math.pow(2,h.shift);h.vibD.gain.setTargetAtTime(0,t0,.04);h.vibD.gain.setTargetAtTime(ff*sp.vib[1],t0+.35,.25);h.jit.gain.setTargetAtTime(ff*(sp.jit||.004)*6,t0,.1);}
+  h.ig.gain.setTargetAtTime(0,t0,.05);
+  h.words.forEach(({t:tok,hold})=>{
+    if(FT[sp.type][tok]){
+      setFormants(h,h.form[tok],t,.05);vg.setTargetAtTime(1,t,.025);
+      if(!h.whisper)h.bg.gain.setTargetAtTime(sp.breath,t,.03);
+      t+=sp.syl*(hold?2.4:1)*(.85+Math.random()*.3);
+    }else if(FRIC[tok]){
+      const [F,amt,unv]=FRIC[tok];
+      if(tok==='h'){h.bg.gain.setTargetAtTime(h.whisper?1.5:.5,t,.02);if(!h.whisper)vg.setTargetAtTime(.1,t,.02);h.bg.gain.setTargetAtTime(h.whisper?1:sp.breath,t+.1,.025);}
+      else{h.fr.frequency.setValueAtTime(F,t);h.fg.gain.setTargetAtTime(amt,t,.02);h.fg.gain.setTargetAtTime(0,t+.1,.02);if(unv)vg.setTargetAtTime(.1,t,.02);}
+      t+=.12;
+    }else if(PLOS[tok]){
+      const [F,unv]=PLOS[tok];
+      vg.setTargetAtTime(unv?.08:.2,t,.015);vg.setTargetAtTime(1,t+.06,.02);
+      h.fr.frequency.setValueAtTime(F,t+.04);h.fg.gain.setTargetAtTime(.15,t+.05,.012);h.fg.gain.setTargetAtTime(0,t+.075,.02);
+      t+=.08;
+    }else if(tok==='m'||tok==='n'||tok==='l'){
+      setFormants(h,NASAL[tok],t,.03);vg.setTargetAtTime(tok==='l'?.8:.55,t,.025);t+=tok==='l'?.07:.1;
+    }else if(tok==='r'){
+      [0,.03,.06].forEach((d,k)=>vg.setTargetAtTime(k%2?1:.55,t+d,.012));t+=.09;
+    }
+  });
+  h.out.gain.setTargetAtTime(0,t,.22);
+  const rest=sp.rest*(.7+Math.random()*.6);
+  h.ig.gain.setTargetAtTime(.25*level,t+rest-.55,.12);h.ig.gain.setTargetAtTime(0,t+rest-.1,.07);
+  h.next=t+.5+rest;
+}
+function humanTick(h,f,level,now){
+  if(!h.whisper){const ff=f*Math.pow(2,h.shift);tgt(h.o1.frequency,ff,.07);if(h.o2)tgt(h.o2.frequency,ff,.07)}
+  if(now+.12>=h.next)schedulePhrase(h,Math.max(now+.05,h.next),f,level);
+}
+// a moon child sings the vowels of its name once, when it completes an orbit
+function singMoon(m,dest,f){
+  const t=AC.currentTime, [lo,hi]=RANGE.child;while(f<lo)f*=2;while(f>hi)f/=2;
+  const o=AC.createOscillator();o.setPeriodicWave(glottal(1.15));o.frequency.setValueAtTime(f*.97,t);o.frequency.setTargetAtTime(f,t,.04);
+  const vib=AC.createOscillator();vib.frequency.value=6;const vd=mkGain(0);vd.gain.setValueAtTime(0,t);vd.gain.setTargetAtTime(f*.012,t+.2,.1);vib.connect(vd);vd.connect(o.frequency);
+  const env=mkGain(0),amp=.1*(.4+.6*m.sizeN);env.gain.setValueAtTime(0,t);
+  const vs=(m.name.toLowerCase().match(/[aeiou]/g)||['a']).slice(0,2), seg=.24;
+  const bps=[];
+  for(let k=0;k<3;k++){const bp=AC.createBiquadFilter();bp.type='bandpass';const g=mkGain(0,env);o.connect(bp);bp.connect(g);bps.push([bp,g])}
+  vs.forEach((v,j)=>{FT.child[v].slice(0,3).forEach(([F,db,bw],k)=>{const [bp,g]=bps[k];bp.frequency.setTargetAtTime(F,t+j*seg,j?.04:.001);bp.Q.setTargetAtTime(F/bw,t+j*seg,.02);g.gain.setTargetAtTime(Math.pow(10,db/20)*3,t+j*seg,.02)})});
+  const end=t+seg*vs.length+.3;
+  env.gain.linearRampToValueAtTime(amp,t+.06);env.gain.setTargetAtTime(amp*.8,t+.12,.1);env.gain.setTargetAtTime(0,end-.25,.09);
+  env.connect(dest);o.start(t);vib.start(t);o.stop(end+.4);vib.stop(end+.4);
+  setTimeout(()=>{try{env.disconnect()}catch(e){}},(end-t+.6)*1000);
+}
+
+/* ---------- instrument voice ---------- */
+function buildInst(b,v,fadeIn){
+  const I={srcs:[],taps:[]}, f0=P[b.id].f;
+  I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,fadeIn?.15:.001);
+  if(b.kind==='comet'){
+    const fin=mkGain(1);noiseBus.connect(fin);I.taps.push([noiseBus,fin]);
+    I.bp1=AC.createBiquadFilter();I.bp1.type='bandpass';I.bp1.Q.value=9;I.bp1.frequency.value=f0;
+    I.bp2=AC.createBiquadFilter();I.bp2.type='bandpass';I.bp2.Q.value=16;I.bp2.frequency.value=f0*2;
+    const sum=mkGain(4,I.g), g2=mkGain(.6,sum);
+    fin.connect(I.bp1);fin.connect(I.bp2);I.bp1.connect(sum);I.bp2.connect(g2);
+  }else{
+    I.o1=AC.createOscillator();I.o1.type='sawtooth';I.o1.frequency.value=f0;
+    I.o2=AC.createOscillator();I.o2.type='sawtooth';I.o2.frequency.value=f0;I.o2.detune.value=4+16*b.sizeN;
+    const src=mkGain(.34);I.o1.connect(src);I.o2.connect(src);I.srcs.push(I.o1,I.o2);
+    if(b.sizeN>.85){I.o3=AC.createOscillator();I.o3.type='sawtooth';I.o3.frequency.value=f0;I.o3.detune.value=-(3+12*b.sizeN);I.o3.connect(src);I.srcs.push(I.o3)}
+    const form=mkGain(1);
+    (VOWELS[b.vowel]||VOWELS.a).forEach(([F,g],k)=>{const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=F;bp.Q.value=[7,10,13][k];src.connect(bp);bp.connect(mkGain(g*2.2,form))});
+    src.connect(mkGain(.12,form));
+    I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.Q.value=.6;I.lp.frequency.value=2500;form.connect(I.lp);
+    const trem=mkGain(.7,I.g);I.lp.connect(trem);
+    // retrograde spin: a reversed swell built from four smooth harmonics, so the pulse never jumps
+    I.tl=AC.createOscillator();if(b.rot<0)I.tl.setPeriodicWave(RETRO);else I.tl.type='sine';I.tl.frequency.value=v.rate;
+    const td=mkGain(b.tremD!==undefined?b.tremD:(b.rot<0?.22:.3));I.tl.connect(td);td.connect(trem.gain);
+    I.vib=AC.createOscillator();I.vib.frequency.value=4.4+Math.random()*1.4;I.vd=mkGain(f0*.004);
+    I.vib.connect(I.vd);[I.o1,I.o2,I.o3].forEach(o=>o&&I.vd.connect(o.frequency));
+    I.srcs.push(I.tl,I.vib);
+    I.osc=[[I.o1,0],[I.o2,4+16*b.sizeN]];if(I.o3)I.osc.push([I.o3,-(3+12*b.sizeN)]);
+    addTiltWobble(b,v,I,I.osc.map(x=>x[0]));
+  }
+  I.srcs.forEach(o=>o.start());
+  return I;
+}
+function killPart(part){
+  if(!part)return;const t=AC.currentTime;
+  part.g.gain.setTargetAtTime(0,t,.08);
+  setTimeout(()=>{(part.srcs||[]).forEach(o=>{try{o.stop()}catch(e){}});(part.taps||[]).forEach(([b,n])=>{try{b.disconnect(n)}catch(e){}});(part.hums||[]).forEach(killHuman);try{part.g.disconnect()}catch(e){}},450);
+}
+function buildHumanPart(b,v){
+  const part={g:mkGain(0,v.vol)};part.g.gain.setTargetAtTime(1.25,AC.currentTime,.15);
+  const h=makeHuman(b.hv,part.g,b.kind==='comet');h.next=AC.currentTime+.2+Math.random()*2.5;
+  part.hums=[h];part.h=h;part.srcs=[];
+  if(h.o1){part.osc=[[h.o1,0]];if(h.o2)part.osc.push([h.o2,9]);addTiltWobble(b,v,part,part.osc.map(x=>x[0]));part.srcs.forEach(o=>o.start())}
+  return part;
+}
+// axial tilt: a tilted spinner wobbles in pitch once per day-pulse; Uranus, on its side, wobbles most
+function addTiltWobble(b,v,part,oscs){
+  const depth=b.tiltWob||0;if(depth<.5)return;
+  const o=AC.createOscillator();o.frequency.value=v.rate*.5;const g=mkGain(depth);o.connect(g);oscs.forEach(x=>g.connect(x.detune));
+  part.srcs.push(o);
+}
+
+/* ---------- bodies, sun, moons ---------- */
+const PANNERS=[];
+function mkPanner(hrtfOK){
+  const p=AC.createPanner();p.panningModel=S.hrtf&&hrtfOK?'HRTF':'equalpower';p.distanceModel='linear';
+  p.refDistance=1;p.maxDistance=10000;p.rolloffFactor=0;p.coneInnerAngle=360;p.coneOuterAngle=360;
+  p.connect(bus);PANNERS.push({p,hrtfOK});return p;
+}
+function makeVoice(b){
+  // only the planets get true 3D (HRTF) panning; everything else uses cheap stereo panning
+  const v={pan:mkPanner(b.kind==='planet')};
+  v.vol=mkGain(0,v.pan);
+  v.rate=Math.min(7,6*Math.pow(3.9/Math.abs(b.rot),.45));
+  v.moonBus=mkGain(1);v.moonVol=mkGain(0,v.pan);v.moonBus.connect(v.moonVol);
+  (b.moons||[]).forEach(m=>{
+    m.out=mkGain(1,v.moonBus);m.sv=null;
+  });
+  v.mode=null;
+  return v;
+}
+function makeSun(){
+  const v={pan:mkPanner(true)};v.vol=mkGain(0,v.pan);v.mode=null;return v;
+}
+function buildSunInst(v,fadeIn){
+  const I={srcs:[]};I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,fadeIn?.15:.001);
+  const breath=mkGain(.75);const bl=AC.createOscillator();bl.frequency.value=.07;const bd=mkGain(.25);bl.connect(bd);bd.connect(breath.gain);
+  const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=900;breath.connect(lp);lp.connect(I.g);
+  I.d1=AC.createOscillator();I.d1.type='triangle';I.d2=AC.createOscillator();I.d2.type='triangle';I.d3=AC.createOscillator();I.d3.type='sine';
+  const [a,b2,c]=droneFreqs();I.d1.frequency.value=a;I.d2.frequency.value=b2;I.d3.frequency.value=c;
+  I.d1.connect(breath);I.d2.connect(mkGain(.55,breath));I.d3.connect(mkGain(.8,breath));
+  I.srcs.push(I.d1,I.d2,I.d3,bl);I.srcs.forEach(o=>o.start());
+  return I;
+}
+function droneFreqs(){const t=C_BASE*PY[S.mode]*8;return [t,t*1.5,t/2]}
+const APOLLO=[{type:'bass',tilt:1.25,vib:[4.6,.02],breath:.08,jit:.003,syl:2.0,rest:2.6,ens:.5,words:'a p o l o: n'},{type:'tenor',tilt:1.15,vib:[5.0,.02],breath:.06,jit:.003,syl:2.0,rest:2.6,ens:0,words:'a p o l o: n'}];
+
+// voices are built only while they can be heard; switching mode clears them and they rebuild in the new style
+function applyVoiceMode(){
+  if(!AC)return;const mode=S.voices;
+  BODIES.forEach(b=>{const v=V[b.id];if(v.part&&v.mode!==mode){killPart(v.part);v.part=null;v.mode=null}});
+  if(sunV.mode!==mode){
+    killPart(sunV.part);
+    if(mode==='human'){const part={g:mkGain(0,sunV.vol)};part.g.gain.setTargetAtTime(.9,AC.currentTime,.15);
+      part.hums=APOLLO.map(sp=>{const h=makeHuman(sp,part.g,false);h.next=AC.currentTime+.6;return h});sunV.part=part;}
+    else sunV.part=buildSunInst(sunV,sunV.mode!==null);
+    sunV.mode=mode;
+  }
+}
+const ensureHuman=applyVoiceMode;
+function buildPart(b,v){v.part=S.voices==='human'?buildHumanPart(b,v):buildInst(b,v,true);v.mode=S.voices;v.born=AC.currentTime}
+
+
+// a small reusable set of panners lets an auditioned planet's moons circle your head
+const POOL=[];let poolOwner=null;
+function syncPool(){
+  if(poolOwner===S.audition)return;
+  if(poolOwner){byId[poolOwner].moons.forEach(m=>{if(m.slot!==undefined){try{m.out.disconnect()}catch(e){}m.out.connect(V[poolOwner].moonBus);m.slot=undefined}})}
+  poolOwner=S.audition;
+  if(poolOwner){byId[poolOwner].moons.slice(0,POOL.length).forEach((m,k)=>{try{m.out.disconnect()}catch(e){}m.out.connect(POOL[k].g);m.slot=k})}
+}
+
+function initAudio(){
+  AC=new (window.AudioContext||window.webkitAudioContext)();
+  master=AC.createGain();master.gain.value=0;
+  comp=AC.createDynamicsCompressor();comp.threshold.value=-20;comp.knee.value=14;comp.ratio.value=4;comp.attack.value=.02;comp.release.value=.35;
+  bus=AC.createGain();dry=AC.createGain();wet=AC.createGain();conv=AC.createConvolver();conv.buffer=makeIR(3.2);
+  bus.connect(dry);dry.connect(comp);bus.connect(conv);conv.connect(wet);wet.connect(comp);comp.connect(master);master.connect(AC.destination);
+  setVerb();
+  noiseBuf=AC.createBuffer(1,AC.sampleRate*3,AC.sampleRate);const nd=noiseBuf.getChannelData(0);for(let k=0;k<nd.length;k++)nd[k]=Math.random()*2-1;
+  // one shared noise source feeds every breath, whisper and consonant
+  const ns=AC.createBufferSource();ns.buffer=noiseBuf;ns.loop=true;noiseBus=mkGain(1);ns.connect(noiseBus);ns.start();
+  const jl=AC.createBiquadFilter();jl.type='lowpass';jl.frequency.value=7;noiseBus.connect(jl);jitBus=mkGain(1);jl.connect(jitBus);
+  const ib=AC.createBiquadFilter();ib.type='bandpass';ib.frequency.value=1600;ib.Q.value=.6;noiseBus.connect(ib);inhaleBus=mkGain(.16);ib.connect(inhaleBus);
+  const re=new Float32Array(5),im=new Float32Array(5);for(let n=1;n<5;n++)im[n]=-1/n;RETRO=AC.createPeriodicWave(re,im);
+  for(let k=0;k<8;k++){const p=mkPanner(false);POOL.push({p,g:mkGain(0,p)})}
+  for(let k=0;k<3;k++)BELTP.push(mkPanner(false));
+  computePositions();
+  BODIES.forEach(b=>V[b.id]=makeVoice(b));
+  sunV=makeSun();
+  applyVoiceMode();
+}
+function setVerb(){if(!AC)return;tgt(wet.gain,S.verb*1.1,.1);tgt(dry.gain,1-S.verb*.35,.1)}
+
+function setListener(ang){
+  const l=AC.listener, fx=Math.cos(ang), fz=-Math.sin(ang);
+  if(l.forwardX){const t=AC.currentTime;l.forwardX.setTargetAtTime(fx,t,.08);l.forwardY.setTargetAtTime(0,t,.08);l.forwardZ.setTargetAtTime(fz,t,.08);}
+  else{l.setOrientation(fx,0,fz,0,1,0)}
+}
+function setPos(p,x,y,z,tc=.08){
+  if(p.positionX){const t=AC.currentTime;p.positionX.setTargetAtTime(x,t,tc);p.positionY.setTargetAtTime(y,t,tc);p.positionZ.setTargetAtTime(z,t,tc);}
+  else p.setPosition(x,y,z);
+}
+function audioDir(src,L){
+  const dx=src.x-L.x, dy=src.y-L.y, dz=src.z-L.z, d=Math.hypot(dx,dy,dz);
+  if(d<1e-9)return {x:0,y:.5,z:-.87,d:0,self:true};
+  return {x:dx/d,y:dz/d,z:-dy/d,d};
+}
+// loudness follows apparent size: radius divided by distance from your post, as a body looks in the sky.
+// a comet's size is its coma, which only exists near the Sun.
+// coma brightness falls roughly as the fourth power of distance from the Sun
+function apparentSize(b,p,d){const R=b.kind==='comet'?Math.max(b.R,100000*Math.min(1,Math.pow(1/p.r,4))):b.R;return R/Math.max(d,1e-3)}
+function loudness(b,p,a){
+  if(a.self)return .55;
+  const law=.25+.85*S.dist;
+  return Math.min(1.6,Math.pow(apparentSize(b,p,a.d)/12000,law));
+}
+const WOB={};let lastWob=0;
+// dwarf planets and asteroids are not voices by default: each tugs the pitch of the planet nearest to it
+function computeWobble(now,dt){
+  BODIES.forEach(b=>{WOB[b.id]={c:0,a:0,by:[]}});
+  const planets=BODIES.filter(b=>b.kind==='planet');
+  BODIES.filter(b=>b.kind==='minor').forEach((m,k)=>{
+    m.wobTarget=null;
+    if(S.minorMode!=='wobble'||!S.groups.minor.on||S.muted.has(m.id)||S.audition===m.id)return;
+    const p=P[m.id];let best=null,bd=1e9;
+    planets.forEach(q=>{const r=P[q.id],d=Math.hypot(p.x-r.x,p.y-r.y,p.z-r.z);if(d<bd){bd=d;best=q}});
+    const depth=30*S.groups.minor.vol*Math.pow(m.R/500,.6)/(.3+bd);
+    const syn=S.playing?Math.abs(p.om-P[best.id].om)/TAU*S.speed:0;
+    const rate=.09+.05*(k%5)+Math.min(3,syn);
+    m.wph=(m.wph||Math.random()*TAU)+dt*TAU*rate;
+    const c=depth*Math.sin(m.wph);
+    const w=WOB[best.id];w.c+=c;w.a+=.004*c;w.by.push(m.id);
+    m.wobTarget=best.id;m.wobDepth=depth;
+  });
+  // comets and planets also sway with their own orbital inclination as they rise and fall through the ecliptic
+  BODIES.forEach(b=>{const p=P[b.id];WOB[b.id].c+=60*(p.r>0?p.z/p.r:0)});
+}
+
+function updateAudio(){
+  if(SYS.id){updateSystemAudio();return}
+  const L=listenerPos(), ang=facingAngle(), now=AC.currentTime;setListener(ang);
+  const fwd={x:Math.cos(ang),y:0,z:-Math.sin(ang)};
+  const dt=Math.min(.2,now-(lastWob||now));lastWob=now;
+  computeWobble(now,dt);
+  syncPool();
+  let builds=0;
+  BODIES.forEach(b=>{
+    const v=V[b.id], p=P[b.id], aud=S.audition===b.id;
+    // auditioning: the body sings just ahead of you, at full presence
+    const a=aud?{...fwd,d:0}:audioDir(p,L);
+    setPos(v.pan,a.x,a.y,a.z);
+    const on=audible(b), grp=aud?1:S.groups[b.kind].vol;
+    const asWobble=b.kind==='minor'&&S.minorMode==='wobble'&&!aud;
+    const g=v.gRel=loudness(b,p,a);
+    // only voices loud enough to hear are kept running (with a little hysteresis)
+    const want=aud||(on&&!asWobble&&g>(v.part?.025:.035));
+    if(want&&!v.part&&builds<3){buildPart(b,v);builds++}
+    else if(!want&&v.part&&now-(v.born||0)>2.5){killPart(v.part);v.part=null;v.mode=null}
+    v.culled=!v.part;
+    const I=v.mode==='instrument'?v.part:null, Hp=v.mode==='human'?v.part:null, W=WOB[b.id]||{c:0,a:0};
+    const duck=aud&&S.speaking?.3:1;
+    if(v.part&&v.part.osc)v.part.osc.forEach(([o,base])=>tgt(o.detune,base+W.c,.05));
+    let vol=0;
+    if(b.kind==='comet'){
+      if(I){tgt(I.bp1.frequency,Math.min(4000,p.f*2),.1);tgt(I.bp2.frequency,Math.min(8000,p.f*3),.1)}
+      vol=aud?.1*Math.max(.4,Math.min(1,g)):.05*g*grp;
+    }else{
+      if(I){tgt(I.o1.frequency,p.f,.07);tgt(I.o2.frequency,p.f,.07);if(I.o3)tgt(I.o3.frequency,p.f,.07);tgt(I.vd.gain,p.f*.004,.2);
+        const sb=p.r>0?p.z/p.r:0;tgt(I.lp.frequency,Math.max(300,Math.min(12000,2600*Math.pow(2,3*sb))),.2);}
+      vol=aud?.1*(.55+.45*b.sizeG):(b.kind==='planet'?.075:.06)*g*grp;
+    }
+    tgt(v.vol.gain,v.part&&(on||aud)?vol*duck*(1+W.a):0,.12);
+    if(Hp&&(on||aud))humanTick(Hp.h,p.f,1,now);
+    // moons follow their planet: silent when it is
+    const mOn=(on||aud)&&!!v.part&&(S.groups.moons.on||aud);
+    tgt(v.moonVol.gain,mOn&&!aud?S.groups.moons.vol*Math.min(1,g):0,.12);
+    (b.moons||[]).forEach(m=>{
+      const rate=S.playing?S.speed/Math.abs(m.P):0;
+      if(aud&&m.slot!==undefined){
+        const slot=POOL[m.slot];tgt(slot.g.gain,mOn?1:0,.12);
+        // slow moons circle you at their true phase; fast ones hold a place so the panner never whips round
+        const th=rate>.5?ang+Math.PI*(.25+m.rank*.27):TAU*((S.jd-J2000)/m.P+m.ph0);
+        setPos(slot.p,Math.cos(th),.1,-Math.sin(th),.12);
+      }
+      // each moon sings a continuous line; its orbital phase against the Sun picks the note
+      const rel=aud?Math.max(.35,moonRel(b,m)):moonRel(b,m), lvl=aud?rel:rel*Math.min(1,g);
+      const wantM=mOn&&lvl>(m.sv&&m.sv.part?.025:.035);
+      if(wantM&&!m.sv){const mb=moonBody(b,{m,id:'smoon:'+b.id+':'+m.rank});m.sv={body:mb,vol:mkGain(0,m.out),part:null,rate:.3}}
+      const sv=m.sv;if(!sv)return;
+      const mf=melodyPitch(moonBase(p.f),moonPhase(b,m));P[sv.body.id]={f:mf};
+      if(sv.part&&sv.mode!==S.voices){killPart(sv.part);sv.part=null}
+      if(wantM&&!sv.part){sv.part=S.voices==='human'?buildHumanPart(sv.body,sv):buildInst(sv.body,sv,true);sv.mode=S.voices;sv.born=now}
+      else if(!wantM&&sv.part&&now-sv.born>2.5){killPart(sv.part);sv.part=null}
+      if(!sv.part){tgt(sv.vol.gain,0,.1);return}
+      singAt(sv,mf,now);
+      tgt(sv.vol.gain,.07*rel,.12);
+    });
+  });
+  POOL.forEach((s,k)=>{if(!poolOwner||k>=byId[poolOwner].moons.length)tgt(s.g.gain,0,.1)});
+  // sun
+  const sa=audioDir({x:0,y:0,z:0},L);setPos(sunV.pan,sa.x,sa.y,sa.z);
+  const [d1,d2,d3]=droneFreqs(), sp=sunV.part;
+  if(sunV.mode==='instrument'){tgt(sp.d1.frequency,d1,.3);tgt(sp.d2.frequency,d2,.3);tgt(sp.d3.frequency,d3,.3)}
+  else if(sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
+  tgt(sunV.vol.gain,S.drone&&!S.solo.size?(S.audition?.025:.07*(sa.self?.7:Math.max(.3,1-S.dist*.6*Math.min(1,sa.d/20)))):0,.3);
+}
+// the lyre: soft attack, sine body and a gentle octave, folded below 1.1 kHz so it rings rather than ticks
+// in the solar-system view a moon is as loud as it is big beside its planet: our Moon is noticeable, Phobos all but silent
+// melody: the mode's seven Pythagorean degrees, walked in an arch by the moon's phase.
+// new moon sits on the home note, the line climbs to the octave at full moon and falls back
+const ARCH=[0,1,2,4,7,4,2,1];
+function modeDegrees(){const t=Math.log2(PY[S.mode]);return Object.values(PY).map(r=>((Math.log2(r)-t)%1+1)%1).sort((a,c)=>a-c)}
+function melodyPitch(base,phase){
+  const d=modeDegrees(), t=Math.log2(PY[S.mode]), l=Math.log2(base/C_BASE)-t;
+  let best=0,bd=9;for(let o=Math.floor(l)-1;o<=Math.floor(l)+1;o++)d.forEach((x,i)=>{const e=Math.abs(o+x-l);if(e<bd){bd=e;best=o*7+i}});
+  const j=best+ARCH[Math.floor(((phase%1)+1)%1*8)%8];
+  return C_BASE*Math.pow(2,t+Math.floor(j/7)+d[((j%7)+7)%7]);
+}
+function moonPhase(b,m){const pp=P[b.id], th=TAU*((S.jd-J2000)/m.P+m.ph0), sun=Math.atan2(-pp.y,-pp.x);return (((th-sun)/TAU)%1+1)%1}
+// in the solar-system view a moon sings an octave or so above its planet
+function moonBase(pf){let f=pf*2;while(f<220)f*=2;while(f>880)f/=2;return f}
+// glide a voice of either kind to a new note, legato
+function singAt(v,f,now){
+  const I=v.mode==='instrument'?v.part:null;
+  if(I){tgt(I.o1.frequency,f,.06);tgt(I.o2.frequency,f,.06);if(I.o3)tgt(I.o3.frequency,f,.06);tgt(I.vd.gain,f*.004,.2)}
+  else if(v.part&&v.part.h)humanTick(v.part.h,f,1,now);
+}
+function moonRel(b,m){return Math.min(1,3*Math.pow(m.R/b.R,.25+.85*S.dist))}
+function pluck(b,m){
+  if(!V[b.id].part&&S.audition!==b.id)return;
+  if(S.voices==='human'){singMoon(m,m.out,moonPitch(m.P));return}
+  let f=moonPitch(m.P);while(f>1100)f/=2;
+  const t=AC.currentTime, amp=.08*(.35+.65*m.sizeN)*(S.audition===b.id?1:moonRel(b,m));
+  const o=AC.createOscillator();o.type='sine';o.frequency.value=f;
+  const o2=AC.createOscillator();o2.type='sine';o2.frequency.value=f*2.003;const g2=mkGain(.22);
+  const g=mkGain(0);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(amp,t+.015);g.gain.setTargetAtTime(0,t+.03,.5);
+  o.connect(g);o2.connect(g2);g2.connect(g);g.connect(m.out);o.start(t);o2.start(t);o.stop(t+2.6);o2.stop(t+2.6);
+  setTimeout(()=>{try{g.disconnect()}catch(e){}},2800);
+}
+const BELTP=[];let beltIx=0;
+function beltPing(p,pos){
+  const L=listenerPos(), a=audioDir(pos,L), t=AC.currentTime;
+  let f=rawPitch(pos.om)*4;while(f>1600)f/=2;f=quantize(f);
+  const pan=BELTP[beltIx++%BELTP.length];setPos(pan,a.x,a.y,a.z,.01);
+  const o=AC.createOscillator();o.type='sine';o.frequency.value=f;const o2=AC.createOscillator();o2.type='sine';o2.frequency.value=f*2.76;
+  const g2=mkGain(.15);const g=mkGain(0);
+  const amp=.035*S.groups.belt.vol*Math.pow(1/(1+a.d/3),.5);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(amp,t+.02);g.gain.setTargetAtTime(0,t+.04,.35);
+  o.connect(g);o2.connect(g2);g2.connect(g);g.connect(pan);o.start(t);o2.start(t);o.stop(t+2);o2.stop(t+2);
+  setTimeout(()=>{try{g.disconnect()}catch(e){}},2200);
+}
+
+
+/* ---------- moon systems: each planet and its moons as a small solar system ---------- */
+const SYS={id:null,moons:[],voices:[],savedSpeed:null,vp:'centre',sel:null,rmax:1};
+// turn a moon's name into singable tokens for the child voices
+function g2p(name){
+  let w=name.toLowerCase().replace(/\(.*\)/,'').trim().split(/\s/)[0].normalize('NFD').replace(/[̀-ͯ]/g,'');
+  w=w.replace(/ph/g,'f').replace(/th/g,'T').replace(/ch/g,'k').replace(/qu/g,'k').replace(/x/g,'ks').replace(/c/g,'k').replace(/y/g,'i').replace(/j/g,'i').replace(/w/g,'u').replace(/v/g,'f').replace(/(.)\1/g,'$1');
+  const toks=[];for(const ch of w){if('aeiou'.includes(ch))toks.push(ch);else if(ch==='T')toks.push('th');else if('sztpkdgbmnlrhf'.includes(ch))toks.push(ch)}
+  for(let k=toks.length-1;k>=0;k--)if('aeiou'.includes(toks[k])){toks[k]+=':';break}
+  return toks.join(' ')||'a:';
+}
+function sysPitch(P){let f=S.F*1.33*Math.pow(1.77/Math.abs(P),.33);while(f<55)f*=2;while(f>1400)f/=2;return quantize(f)}
+// moons orbit in their planet's equatorial plane, tipped by the planet's axial tilt
+function moonPos(b,m,jd){
+  const th=TAU*((jd-J2000)/m.P+m.ph0), e=(b.obl||0)*DEG;
+  return {x:m.a*Math.cos(th),y:m.a*Math.sin(th)*Math.cos(e),z:m.a*Math.sin(th)*Math.sin(e)};
+}
+function sysListener(){
+  if(SYS.vp==='centre')return {x:0,y:0,z:0};
+  return SYS.moons[SYS.vp].pos;
+}
+// facing: toward the Sun as seen from the planet, plus your head turn
+function sysFacing(){const pp=P[SYS.id];return Math.atan2(-pp.y,-pp.x)+S.turn*DEG}
+function enterSystem(id){
+  const b=byId[id];if(!b.moons.length)return;
+  if(S.audition)endAudition();
+  SYS.id=id;SYS.vp='centre';SYS.sel=null;
+  SYS.moons=b.moons.map((m,k)=>({m,k,id:'moon:'+id+':'+k,pos:moonPos(b,m,S.jd)}));
+  SYS.rmax=Math.max(...b.moons.map(m=>m.a))*1.15;
+  // slow time so the quickest moon takes about four seconds per orbit
+  SYS.savedSpeed=S.speed;
+  const minP=Math.min(...b.moons.map(m=>Math.abs(m.P)));
+  setSpeed(Math.max(.02,minP/4));
+  if(!audioOn)startAudio();
+  buildSystemVoices();
+  renderInfo();renderAud();
+}
+function leaveSystem(){
+  if(!SYS.id)return;
+  killSystemVoices();
+  SYS.id=null;SYS.moons=[];
+  if(SYS.savedSpeed)setSpeed(SYS.savedSpeed);
+  renderInfo();renderAud();
+}
+function moonBody(b,sm){
+  const m=sm.m, v0=(m.name.toLowerCase().match(/[aeiou]/)||['a'])[0];
+  return {id:sm.id,name:m.name,god:m.name.split(' ')[0],kind:'moonv',R:m.R,sizeN:Math.max(0,m.sizeN),tremD:m.name==='Hyperion'?.15:.05,
+    vowel:v0==='a'?'ah':v0,
+    // nearly every major moon is tidally locked, so its day equals its orbit; Hyperion tumbles chaotically
+    rot:m.name==='Hyperion'?13*24:Math.abs(m.P)*24,
+    hv:{type:'child',tilt:1.1,vib:[5.6,.02],breath:.08,jit:m.name==='Hyperion'?.02:.004,syl:.5,rest:2.2,ens:0,words:g2p(m.name)}};
+}
+function buildSystemVoices(){
+  if(!AC||!SYS.id)return;
+  killSystemVoices();
+  const b=byId[SYS.id];
+  SYS.voices=SYS.moons.map(sm=>{
+    const mb=moonBody(b,sm);P[mb.id]={f:sysPitch(sm.m.P)};
+    const v={pan:mkPanner(true),body:mb,part:null};v.vol=mkGain(0,v.pan);
+    v.rate=Math.min(7,6*Math.pow(3.9/Math.abs(mb.rot),.45));
+    if(sm.m.name==='Hyperion')v.rate=1.7;
+    return v;
+  });
+  SYS.mode=S.voices;
+}
+function killSystemVoices(){
+  SYS.voices.forEach(v=>{killPart(v.part);tgt(v.vol.gain,0,.08);const pan=v.pan;setTimeout(()=>{try{pan.disconnect()}catch(e){}const i=PANNERS.findIndex(x=>x.p===pan);if(i>=0)PANNERS.splice(i,1)},700)});
+  SYS.voices=[];
+}
+// solar-view moon voices give way to the system's own moon voices
+function silenceMoonVoices(x,now){(x.moons||[]).forEach(m=>{const sv=m.sv;if(sv&&sv.part){tgt(sv.vol.gain,0,.08);killPart(sv.part);sv.part=null}})}
+function updateSystemAudio(){
+  const now=AC.currentTime, b=byId[SYS.id], pp=P[SYS.id], ang=sysFacing();
+  setListener(ang);
+  if(SYS.mode!==S.voices)buildSystemVoices();
+  const L=sysListener(), law=.25+.85*S.dist;
+  // every other body falls silent while you are inside a system
+  BODIES.forEach(x=>{
+    const v=V[x.id];
+    if(x.id!==SYS.id){tgt(v.vol.gain,0,.1);tgt(v.moonVol.gain,0,.1);silenceMoonVoices(x,now);
+      if(v.part&&now-(v.born||0)>1){killPart(v.part);v.part=null;v.mode=null}return}
+    // the planet hums at the centre of its system
+    if(!v.part)buildPart(x,v);
+    const a=audioDir({x:0,y:0,z:0},L);setPos(v.pan,a.x,a.y,a.z);
+    const g=a.self?.5:Math.min(.8,Math.pow((x.R/a.d)/.002,law)*.5);
+    tgt(v.vol.gain,.07*g,.15);tgt(v.moonVol.gain,0,.1);silenceMoonVoices(x,now);
+    const I=v.mode==='instrument'?v.part:null;
+    if(I){tgt(I.o1.frequency,pp.f,.07);tgt(I.o2.frequency,pp.f,.07);if(I.o3)tgt(I.o3.frequency,pp.f,.07)}
+    if(v.mode==='human')humanTick(v.part.h,pp.f,1,now);
+  });
+  // reference loudness: the moon that looks biggest from the planet's centre sings at full voice
+  const ref=Math.max(...SYS.moons.map(sm=>sm.m.R/sm.m.a));
+  SYS.moons.forEach((sm,k)=>{
+    const v=SYS.voices[k], mb=v.body, f=P[mb.id].f=melodyPitch(sysPitch(sm.m.P),moonPhase(b,sm.m));
+    const isMe=SYS.vp===k;
+    const a=audioDir(sm.pos,L);setPos(v.pan,a.x,a.y,a.z,.06);
+    const g=v.gRel=isMe?.55:Math.min(1.6,Math.pow((sm.m.R/Math.max(a.d,1))/ref,law));
+    const want=!S.muted.has(mb.id)&&g>(v.part?.025:.035);
+    if(want&&!v.part){v.part=S.voices==='human'?buildHumanPart(mb,v):buildInst(mb,v,true);v.mode=S.voices;v.born=now}
+    else if(!want&&v.part&&now-v.born>2.5){killPart(v.part);v.part=null}
+    if(!v.part){tgt(v.vol.gain,0,.1);return}
+    singAt(v,f,now);
+    tgt(v.vol.gain,.075*g*S.groups.moons.vol/(.8),.12);
+  });
+  // Apollo, the Sun, stays where the Sun is
+  const sd={x:-pp.x,y:-pp.y,z:-pp.z}, sl=Math.hypot(sd.x,sd.y,sd.z)||1;
+  setPos(sunV.pan,sd.x/sl,sd.z/sl,-sd.y/sl);
+  const [d1,d2,d3]=droneFreqs(), sp=sunV.part;
+  if(sunV.mode==='instrument'){tgt(sp.d1.frequency,d1,.3);tgt(sp.d2.frequency,d2,.3);tgt(sp.d3.frequency,d3,.3)}
+  else if(sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
+  tgt(sunV.vol.gain,S.drone?.03:0,.3);
+  POOL.forEach(s=>tgt(s.g.gain,0,.1));
+}
+function sysProj(x,y,z){
+  const r=Math.hypot(x,y,z), r0=byId[SYS.id].R*3, s=r>0?RR*.92*Math.log(1+r/r0)/Math.log(1+SYS.rmax/r0)/r:0;
+  const X=x*s,Y=y*s,Z=z*s,c=Math.cos(S.az),sn=Math.sin(S.az),X2=X*c-Y*sn,Y2=X*sn+Y*c,st=Math.sin(S.tilt),ct=Math.cos(S.tilt);
+  return {x:CX+X2,y:CY-(Y2*st+Z*ct),d:Y2*ct-Z*st};
+}
+function drawSystem(g,t){
+  const b=byId[SYS.id], pp=P[SYS.id];
+  SYS.moons.forEach(sm=>sm.pos=moonPos(b,sm.m,S.jd));
+  screen={};
+  // orbits
+  SYS.moons.forEach(sm=>{
+    const m=sm.m;g.strokeStyle=SYS.sel===sm.k?'rgba(201,152,79,.7)':'rgba(233,225,204,.16)';g.lineWidth=1;g.beginPath();
+    for(let k=0;k<=96;k++){const th=TAU*k/96, e=(b.obl||0)*DEG;const q=sysProj(m.a*Math.cos(th),m.a*Math.sin(th)*Math.cos(e),m.a*Math.sin(th)*Math.sin(e));k?g.lineTo(q.x,q.y):g.moveTo(q.x,q.y)}
+    g.stroke();
+  });
+  // the planet at the centre
+  const c=sysProj(0,0,0), pr=Math.max(10,Math.min(34,RR*.06*Math.pow(b.R/20000,.35)));
+  const gr=g.createRadialGradient(c.x-pr*.3,c.y-pr*.3,pr*.1,c.x,c.y,pr);gr.addColorStop(0,b.color);gr.addColorStop(1,hexA(b.color,.55));
+  if(b.id==='saturn'){g.strokeStyle=hexA(b.color,.75);g.lineWidth=2;g.beginPath();g.ellipse(c.x,c.y,pr*2.2,pr*2.2*Math.max(.15,Math.sin(S.tilt)*.4),-.35,0,TAU);g.stroke()}
+  g.fillStyle=gr;g.beginPath();g.arc(c.x,c.y,pr,0,TAU);g.fill();
+  screen[SYS.id]=c;
+  g.font='15px "GFS Didot",Georgia,serif';g.fillStyle='rgba(233,225,204,.9)';g.textAlign='center';g.textBaseline='top';g.fillText(b.god,c.x,c.y+pr+6);
+  // the direction of the Sun
+  const sa=Math.atan2(-pp.y,-pp.x)+S.az, sx=CX+Math.cos(sa)*RR*1.0, sy=CY-Math.sin(sa)*RR*Math.sin(S.tilt);
+  const sg=g.createRadialGradient(sx,sy,0,sx,sy,14);sg.addColorStop(0,'rgba(255,236,190,1)');sg.addColorStop(1,'rgba(201,152,79,0)');g.fillStyle=sg;g.beginPath();g.arc(sx,sy,14,0,TAU);g.fill();
+  g.font='11px "Alegreya Sans",sans-serif';g.fillStyle='rgba(233,225,204,.7)';g.fillText('toward the Sun',sx,sy+14);
+  // moons, nearest last
+  SYS.moons.map(sm=>({sm,s:sysProj(sm.pos.x,sm.pos.y,sm.pos.z)})).sort((p,q)=>q.s.d-p.s.d).forEach(({sm,s})=>{
+    const v=SYS.voices[sm.k], r=Math.max(2.5,Math.min(9,1.5+2.2*Math.log10(Math.max(sm.m.R,5)/20)));
+    screen['moon:'+sm.k]=s;
+    if(v&&v.part){const ph=(t/1000*(v.rate||1))%1,w=Math.sin(ph*TAU)*.5+.5;g.strokeStyle=`rgba(233,225,204,${.15+.3*w})`;g.lineWidth=1;g.beginPath();g.arc(s.x,s.y,r+4+w*5,0,TAU);g.stroke()}
+    g.fillStyle=v&&v.part?'#ece4d0':'rgba(233,225,204,.45)';g.beginPath();g.arc(s.x,s.y,r,0,TAU);g.fill();
+    if(SYS.vp===sm.k){g.strokeStyle='#62a597';g.lineWidth=1.5;g.beginPath();g.arc(s.x,s.y,r+9,0,TAU);g.stroke()}
+    g.font='12px "Alegreya Sans",sans-serif';g.textAlign='left';g.textBaseline='middle';g.fillStyle='rgba(233,225,204,.8)';
+    g.fillText(sm.m.name.split(' ')[0],s.x+r+6,s.y);
+  });
+  // listener
+  const L=sysListener(), lp=sysProj(L.x,L.y,L.z);drawListener(g,lp,sysFacing()+S.az);
+}
+function setSpeed(d){
+  const v=Math.max(0,Math.min(1000,Math.round((Math.log10(d)+1)/5*1000)));
+  $('speed').value=v;S.speed=Math.pow(10,-1+v/1000*5);if(d<.1)S.speed=d;$('speedOut').textContent=fmtSpeed(S.speed);
+}
+function sysInfoHTML(){
+  const b=byId[SYS.id];
+  const rows=SYS.moons.map(sm=>{const v=SYS.voices[sm.k];const st=!AC?'':(v&&v.part?noteName(P[v.body.id].f)+' · '+((x=>(x>=0?'+':'−')+Math.abs(x))(Math.round(20*Math.log10(Math.max(1e-4,v.gRel)))))+' dB':'faint');
+    const per=Math.abs(sm.m.P)<2?fmt(Math.abs(sm.m.P)*24,1)+' h':fmt(Math.abs(sm.m.P),1)+' d';
+    return `<div class="vrow${SYS.vp===sm.k?' sel':''}" data-moon="${sm.k}" style="grid-template-columns:minmax(0,1fr) auto auto auto"><span class="nm">${sm.m.name} <span>${per}${sm.m.P<0?' · retrograde':''} · ${fmt(sm.m.R,0)} km</span></span><span class="nt" id="sm_${sm.k}">${st}</span><button class="ms" data-act="here" title="Listen from ${sm.m.name}" aria-pressed="${SYS.vp===sm.k}">◎</button><span></span></div>`}).join('');
+  return `<div>
+      <div class="greek">${b.greek}</div>
+      <h3>The system of ${b.god}</h3>
+      <div class="sub">${b.name} and ${b.moons.length===1?'its moon':'its '+b.moons.length+' moons'}, as a small solar system</div>
+      <div class="voice">Each moon sings, pitched by its orbital speed and as loud as it looks from where you listen. ${b.god} hums at the centre. Time is slowed so the quickest moon circles in about four seconds.</div>
+      <div class="acts"><button class="btn" id="sysCentre">${SYS.vp==='centre'?'Listening from '+b.god:'Listen from '+b.god}</button><button class="btn" id="sysLeave" style="border-color:var(--bronze);color:var(--bronze)">Back to the solar system</button></div>
+    </div>
+    <div class="roster" id="sysRoster" style="max-height:none">${rows}</div>`;
+}
+function wireSysInfo(){
+  $('sysLeave').onclick=leaveSystem;
+  $('sysCentre').onclick=()=>{SYS.vp='centre';renderInfo()};
+  $('sysRoster').onclick=e=>{const row=e.target.closest('.vrow');if(!row)return;const k=+row.dataset.moon;SYS.vp=SYS.vp===k?'centre':k;renderInfo()};
+}
+function tickSysInfo(){
+  SYS.moons.forEach(sm=>{const el=$('sm_'+sm.k),v=SYS.voices[sm.k];if(!el||!v)return;el.textContent=v.part?noteName(P[v.body.id].f)+' · '+((x=>(x>=0?'+':'−')+Math.abs(x))(Math.round(20*Math.log10(Math.max(1e-4,v.gRel)))))+' dB':'faint'});
+}
+
+/* ---------- canvas ---------- */
+const cv=document.getElementById('orrery'), cx2=cv.getContext('2d');
+let W=0,H=0,DPR=1,CX=0,CY=0,RR=0;
+function resize(){
+  DPR=Math.min(2,window.devicePixelRatio||1);const r=cv.getBoundingClientRect();
+  W=r.width;H=r.height;cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
+  CX=W/2;CY=H/2;RR=Math.min(W,H)/2*.8;
+}
+new ResizeObserver(resize).observe(cv);
+const R0=0.5;
+function sr(r){return RR*Math.log(1+r/R0)/Math.log(1+S.rmax/R0)}
+function proj(x,y,z){
+  const r=Math.hypot(x,y,z), s=r>0?sr(r)/r:0, X=x*s, Y=y*s, Z=z*s;
+  const c=Math.cos(S.az), sn=Math.sin(S.az), X2=X*c-Y*sn, Y2=X*sn+Y*c, st=Math.sin(S.tilt), ct=Math.cos(S.tilt);
+  return {x:CX+X2, y:CY-(Y2*st+Z*ct), d:Y2*ct-Z*st};
+}
+function ringPt(ang,rad){const a=ang+S.az;return {x:CX+rad*Math.cos(a),y:CY-rad*Math.sin(a)*Math.sin(S.tilt)}}
+const ZOD=['Κριός','Ταῦρος','Δίδυμοι','Καρκίνος','Λέων','Παρθένος','Ζυγός','Σκορπίος','Τοξότης','Αἰγόκερως','Ὑδροχόος','Ἰχθύες'];
+const bodyPx=b=>b.kind==='comet'?2.2:Math.max(2,Math.min(9,1.4+2.1*Math.log10(Math.max(b.R,10)/120)));
+let screen={};
+
+function draw(t){
+  const g=cx2;g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,W,H);
+  // stars
+  STARS.forEach(s=>{g.fillStyle=`rgba(233,225,204,${.12+s.m*.35})`;g.fillRect(s.x*W,s.y*H,s.m>.92?1.6:1,s.m>.92?1.6:1)});
+  // zodiac ring, the Antikythera-style dial
+  const Rz=RR*1.06;
+  g.strokeStyle='rgba(201,152,79,.45)';g.lineWidth=1;
+  g.beginPath();for(let k=0;k<=360;k+=2){const p=ringPt(k*DEG,Rz);k?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y)}g.stroke();
+  g.beginPath();for(let k=0;k<=360;k+=2){const p=ringPt(k*DEG,Rz*1.035);k?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y)}g.stroke();
+  g.strokeStyle='rgba(201,152,79,.38)';g.beginPath();
+  for(let k=0;k<360;k++){const l=k%30===0?1.035:k%5===0?1.022:1.011;const a=ringPt(k*DEG,Rz),b=ringPt(k*DEG,Rz*l);g.moveTo(a.x,a.y);g.lineTo(b.x,b.y)}
+  g.stroke();
+  g.fillStyle='rgba(201,152,79,.75)';g.font=`${Math.max(10,RR*.034)}px "GFS Didot",Georgia,serif`;g.textAlign='center';g.textBaseline='middle';
+  ZOD.forEach((n,k)=>{const p=ringPt((k*30+15)*DEG,Rz*1.1);g.fillText(n,p.x,p.y)});
+  if(SYS.id){drawSystem(g,t);return}
+  // orbits
+  const L=listenerPos();
+  BODIES.forEach(b=>{
+    if(b.el.a>S.rmax*3&&b.id!==S.sel)return;
+    const sel=b.id===S.sel, on=audioOn?audible(b):true;
+    g.strokeStyle=hexA(b.color,sel?.75:b.kind==='planet'?.26:.14);g.lineWidth=sel?1.4:1;
+    if(b.kind==='comet')g.setLineDash([2,4]);else g.setLineDash([]);
+    g.beginPath();b.orbit.forEach((o,k)=>{const p=proj(o.x,o.y,o.z);k?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y)});g.stroke();
+  });
+  g.setLineDash([]);
+  // belt
+  BELT.forEach(p=>{const q=beltPos(p,S.jd), s=proj(q.x,q.y,q.z);p.flash*=.93;g.fillStyle=p.flash>.05?`rgba(233,225,204,${.3+p.flash*.7})`:'rgba(163,156,137,.28)';const z=p.flash>.05?1.2+p.flash*3:1;g.fillRect(s.x-z/2,s.y-z/2,z,z)});
+  // sun
+  const sp=proj(0,0,0);const sg=g.createRadialGradient(sp.x,sp.y,0,sp.x,sp.y,22);
+  sg.addColorStop(0,'rgba(255,236,190,1)');sg.addColorStop(.25,'rgba(232,180,95,.85)');sg.addColorStop(1,'rgba(201,152,79,0)');
+  g.fillStyle=sg;g.beginPath();g.arc(sp.x,sp.y,22,0,TAU);g.fill();
+  // bodies by depth
+  screen={sun:sp};
+  const order=BODIES.map(b=>{const p=P[b.id];return {b,p,s:proj(p.x,p.y,p.z)}}).sort((a,c)=>c.s.d-a.s.d);
+  order.forEach(({b,p,s})=>{
+    screen[b.id]=s;
+    if(s.x<-40||s.y<-40||s.x>W+40||s.y>H+40)return;
+    const r=bodyPx(b), on=audioOn&&audible(b), aud=S.audition===b.id;
+    g.globalAlpha=S.audition&&!aud?.3:1;
+    if(b.kind==='comet'){
+      const act=p.act, len=6+act*60, ux=s.x-sp.x, uy=s.y-sp.y, ul=Math.hypot(ux,uy)||1;
+      const tg=g.createLinearGradient(s.x,s.y,s.x+ux/ul*len,s.y+uy/ul*len);tg.addColorStop(0,hexA(b.color,.2+act*.6));tg.addColorStop(1,hexA(b.color,0));
+      g.strokeStyle=tg;g.lineWidth=1+act*2.5;g.beginPath();g.moveTo(s.x,s.y);g.lineTo(s.x+ux/ul*len,s.y+uy/ul*len);g.stroke();
+    }
+    if(on&&b.kind!=='comet'){
+      const v=V[b.id], ph=(t/1000*(v?v.rate:1))%1, w=b.rot<0?ph:(Math.sin(ph*TAU)*.5+.5);
+      g.strokeStyle=hexA(b.color,.18+.25*w);g.lineWidth=1;g.beginPath();g.arc(s.x,s.y,r+4+w*5,0,TAU);g.stroke();
+    }
+    if(b.id==='saturn'){g.strokeStyle=hexA(b.color,.7);g.lineWidth=1.2;g.beginPath();g.ellipse(s.x,s.y,r*2.1,r*2.1*Math.max(.18,Math.sin(S.tilt)*.45),-.35,0,TAU);g.stroke()}
+    g.fillStyle=b.color;g.beginPath();g.arc(s.x,s.y,r,0,TAU);g.fill();
+    // moons (not to scale)
+    (b.moons||[]).forEach(m=>{
+      const th=TAU*((S.jd-J2000)/m.P+m.ph0), rad=aud?r+12+m.rank*9:r+4+m.rank*3.6, st=Math.sin(S.tilt);
+      const mx=s.x+rad*Math.cos(th+S.az), my=s.y-rad*Math.sin(th+S.az)*st;
+      m.flash*=.9;
+      if(aud){g.strokeStyle='rgba(233,225,204,.12)';g.lineWidth=1;g.beginPath();g.ellipse(s.x,s.y,rad,rad*st,0,0,TAU);g.stroke()}
+      g.fillStyle=m.flash>.05?`rgba(255,240,205,${.5+m.flash*.5})`:'rgba(233,225,204,.6)';
+      const mr=(m.flash>.05?1.2+m.flash*2.5:1.1)*(aud?1.6:1);g.beginPath();g.arc(mx,my,mr,0,TAU);g.fill();
+      if(aud){g.font='10.5px "Alegreya Sans",sans-serif';g.textAlign='left';g.textBaseline='middle';g.fillStyle='rgba(233,225,204,.65)';g.fillText(m.name.split(' ')[0],mx+5,my)}
+    });
+    if(b.id===S.sel){g.strokeStyle='#c9984f';g.lineWidth=1.3;g.beginPath();g.arc(s.x,s.y,r+11,0,TAU);g.stroke()}
+    const showLabel=b.kind==='planet'||S.labelsAll||b.id===S.sel||b.id===S.vp;
+    if(showLabel){
+      g.font=`${b.kind==='planet'?13:11.5}px "GFS Didot",Georgia,serif`;g.textAlign='left';g.textBaseline='middle';
+      g.fillStyle=b.kind==='planet'?'rgba(233,225,204,.92)':'rgba(233,225,204,.7)';
+      g.fillText(b.kind==='comet'?b.name.split(' ')[0]:b.god,s.x+r+7,s.y-1);
+    }
+  });
+  g.globalAlpha=1;
+  // listener
+  drawListener(g,S.vp==='sun'?sp:screen[S.vp],facingAngle()+S.az);
+}
+function drawListener(g,lp,ang){
+  const st=Math.sin(S.tilt);
+  const fx=Math.cos(ang), fy=-Math.sin(ang)*st;
+  g.strokeStyle='#62a597';g.fillStyle='#62a597';g.lineWidth=1.5;
+  g.beginPath();g.arc(lp.x,lp.y,15,0,TAU);g.globalAlpha=.6;g.stroke();g.globalAlpha=1;
+  const tipx=lp.x+fx*42, tipy=lp.y+fy*42;
+  g.beginPath();g.moveTo(lp.x+fx*15,lp.y+fy*15);g.lineTo(tipx,tipy);g.stroke();
+  g.beginPath();g.moveTo(tipx,tipy);const nx=-fy,ny=fx;g.lineTo(tipx-fx*7+nx*4,tipy-fy*7+ny*4);g.lineTo(tipx-fx*7-nx*4,tipy-fy*7-ny*4);g.closePath();g.fill();
+  const la=ang+Math.PI/2, ra=ang-Math.PI/2;
+  g.font='600 10px "IBM Plex Mono",monospace';g.textAlign='center';g.textBaseline='middle';
+  g.fillText('L',lp.x+Math.cos(la)*24,lp.y-Math.sin(la)*st*24);g.fillText('R',lp.x+Math.cos(ra)*24,lp.y-Math.sin(ra)*st*24);
+}
+function hexA(h,a){const n=parseInt(h.slice(1),16);return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`}
+
+/* ---------- interaction ---------- */
+const ptrs=new Map();let dragStart=null,moved=false,pinch0=null;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});moved=false;dragStart={x:e.clientX,y:e.clientY,az:S.az,tilt:S.tilt};if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch0={d:Math.hypot(a.x-b.x,a.y-b.y),r:S.rmax}}});
+cv.addEventListener('pointermove',e=>{
+  if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2&&pinch0){const [a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);setZoom(pinch0.r*Math.pow(pinch0.d/d,1.6));moved=true;return}
+  const dx=e.clientX-dragStart.x, dy=e.clientY-dragStart.y;if(Math.hypot(dx,dy)>4)moved=true;
+  if(moved){S.az=dragStart.az+dx*.006;S.tilt=Math.max(8*DEG,Math.min(90*DEG,dragStart.tilt-dy*.005))}
+});
+const endPtr=e=>{
+  if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);if(ptrs.size<2)pinch0=null;
+  if(!moved&&e.type==='pointerup'){const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+    let best=null,bd=18;Object.entries(screen).forEach(([id,s])=>{const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=id}});
+    if(SYS.id){ if(best&&best.startsWith('moon:')){const k=+best.split(':')[1];SYS.vp=SYS.vp===k?'centre':k;renderInfo()} else if(best===SYS.id){SYS.vp='centre';renderInfo()} }
+    else if(best&&best!=='sun'){ if(S.audition===best)endAudition(); else audition(best); }
+    else if(S.audition&&!SYS.id)endAudition();}
+};
+cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
+cv.addEventListener('wheel',e=>{e.preventDefault();setZoom(S.rmax*Math.exp(e.deltaY*.0012))},{passive:false});
+function setZoom(r){S.rmax=Math.max(1.6,Math.min(1500,r));document.querySelectorAll('#zoomChips .chip').forEach(c=>c.setAttribute('aria-pressed',String(Math.abs(Math.log(+c.dataset.z/S.rmax))<.05)))}
+document.querySelectorAll('#zoomChips .chip').forEach(c=>c.onclick=()=>setZoom(+c.dataset.z));
+const labelsBtn=document.getElementById('labelsAll');labelsBtn.onclick=()=>{S.labelsAll=!S.labelsAll;labelsBtn.setAttribute('aria-pressed',String(S.labelsAll))};
+
+/* ---------- panel ---------- */
+const $=id=>document.getElementById(id);
+const KIND_LABEL={planet:'The wanderers · πλανῆται',minor:'Dwarf planets & asteroids',comet:'Comets · κομῆται'};
+function fillSelects(){
+  const vp=$('vp'), face=$('face');
+  let h='<option value="sun">The Sun · Helios (heliocentric)</option>';
+  ['planet','minor','comet'].forEach(k=>{h+=`<optgroup label="${KIND_LABEL[k]}">`+BODIES.filter(b=>b.kind===k).map(b=>`<option value="${b.id}">${b.kind==='comet'?b.name:b.god+' · '+b.name}${b.id==='earth'?' (Ptolemaic)':''}</option>`).join('')+'</optgroup>'});
+  vp.innerHTML=h;vp.value=S.vp;
+  let f='<option value="vernal">The vernal point ♈︎ (fixed)</option><option value="sun">The Sun</option>';
+  ['planet','minor','comet'].forEach(k=>{f+=`<optgroup label="${KIND_LABEL[k]}">`+BODIES.filter(b=>b.kind===k).map(b=>`<option value="${b.id}">${b.kind==='comet'?b.name:b.god+' · '+b.name}</option>`).join('')+'</optgroup>'});
+  face.innerHTML=f;face.value=S.face;
+}
+fillSelects();
+$('vp').onchange=e=>{S.vp=e.target.value;if(S.vp!=='sun'&&S.face==='vernal'){}renderInfo()};
+$('face').onchange=e=>{S.face=e.target.value};
+$('turn').oninput=e=>{S.turn=+e.target.value;$('turnOut').textContent=(S.turn>0?'+':'')+S.turn+'°'+(S.turn===0?' ahead':Math.abs(S.turn)===180?' behind':S.turn>0?' left':' right')};
+$('turn').oninput({target:$('turn')});
+document.querySelectorAll('#spatial button').forEach(b=>b.onclick=()=>{
+  S.hrtf=b.dataset.v==='hrtf';document.querySelectorAll('#spatial button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+  if(AC)PANNERS.forEach(({p,hrtfOK})=>{if(hrtfOK)p.panningModel=S.hrtf?'HRTF':'equalpower'})
+});
+function fmtSpeed(d){
+  if(d<1)return (d*24).toFixed(d*24<10?1:0)+' hours / s';
+  if(d<60)return d.toFixed(d<10?1:0)+' days / s';
+  if(d<730)return (d/30.44).toFixed(d<304?1:0)+' months / s';
+  const y=d/365.25;return (y<10?y.toFixed(1):Math.round(y))+' years / s';
+}
+$('speed').oninput=e=>{S.speed=Math.pow(10,-1+(+e.target.value)/1000*5);$('speedOut').textContent=fmtSpeed(S.speed)};$('speed').oninput({target:$('speed')});
+$('play').onclick=()=>{S.playing=!S.playing;$('play').textContent=S.playing?'Pause':'Play'};
+$('rev').onclick=()=>{S.dir*=-1;$('rev').textContent=S.dir>0?'◀ Backward':'Forward ▶'};
+$('today').onclick=()=>{S.jd=jdNow()};
+$('tuning').onchange=e=>{S.tuning=e.target.value};
+$('mode').onchange=e=>{S.mode=e.target.value};
+$('drone').onchange=e=>{S.drone=e.target.checked};
+$('reg').oninput=e=>{S.F=+e.target.value;$('regOut').textContent=noteName(quantize(S.F))};$('reg').oninput({target:$('reg')});
+$('dist').oninput=e=>{S.dist=e.target.value/100;$('distOut').textContent=e.target.value+'%'};$('dist').oninput({target:$('dist')});
+$('verb').oninput=e=>{S.verb=e.target.value/100;$('verbOut').textContent=e.target.value+'%';setVerb()};$('verb').oninput({target:$('verb')});
+$('vol').oninput=e=>{S.vol=e.target.value/100;$('volOut').textContent=e.target.value+'%';if(AC)tgt(master.gain,S.vol,.05)};$('vol').oninput({target:$('vol')});
+
+// groups
+$('groups').innerHTML=Object.entries(S.groups).map(([k,g])=>`<label class="check" for="g_${k}"><input type="checkbox" id="g_${k}" ${g.on?'checked':''}> ${g.label}</label><input type="range" id="gv_${k}" min="0" max="100" value="${Math.round(g.vol*100)}" aria-label="${g.label} volume">`).join('');
+Object.keys(S.groups).forEach(k=>{$('g_'+k).onchange=e=>{S.groups[k].on=e.target.checked;renderRoster()};$('gv_'+k).oninput=e=>{S.groups[k].vol=e.target.value/100}});
+
+// roster
+function renderRoster(){
+  let h='';
+  ['planet','minor','comet'].forEach(k=>{
+    h+=`<h4>${KIND_LABEL[k]}</h4>`;
+    BODIES.filter(b=>b.kind===k).forEach(b=>{
+      const q=!audible(b);
+      h+=`<div class="vrow${b.id===S.sel?' sel':''}${q?' quiet':''}" data-id="${b.id}"><span class="sw" style="background:${b.color}"></span>
+      <span class="nm">${b.kind==='comet'?b.name:b.god+' <span>'+b.name+'</span>'}</span>
+      <span class="nt" id="nt_${b.id}">${noteName(P[b.id]?.f)}</span>
+      <button class="ms m" data-a="m" aria-pressed="${S.muted.has(b.id)}" title="Mute ${b.god}">M</button>
+      <button class="ms s" data-a="s" aria-pressed="${S.solo.has(b.id)}" title="Solo ${b.god}">S</button></div>`;
+    });
+  });
+  $('roster').innerHTML=h;
+}
+$('roster').addEventListener('click',e=>{
+  const row=e.target.closest('.vrow');if(!row)return;const id=row.dataset.id, a=e.target.dataset.a;
+  if(a==='m'){S.muted.has(id)?S.muted.delete(id):S.muted.add(id);renderRoster()}
+  else if(a==='s'){S.solo.has(id)?S.solo.delete(id):S.solo.add(id);renderRoster()}
+  else if(S.audition===id)endAudition();
+  else audition(id);
+});
+
+// audition: hear one body and its moons alone
+async function audition(id){
+  S.sel=id;S.audition=id;
+  speakGod(byId[id]);
+  if(!audioOn)await startAudio();
+  renderRoster();renderInfo();renderAud();
+}
+function endAudition(){S.audition=null;stopSpeech();renderRoster();renderInfo();renderAud()}
+function renderAud(){
+  const el=$('aud');
+  $('hint').textContent=SYS.id?'tap a moon to listen from it · drag to turn':'tap a body to hear it alone · drag to turn · scroll to zoom';
+  $('zoomChips').hidden=!!SYS.id;
+  if(SYS.id){el.hidden=false;$('audTxt').textContent=`Inside the system of ${byId[SYS.id].god}`;$('audBack').textContent='Solar system';return}
+  $('audBack').textContent='Full choir';
+  if(!S.audition){el.hidden=true;return}
+  const b=byId[S.audition], n=b.moons.length;
+  el.hidden=false;
+  $('audTxt').textContent=`Hearing ${b.kind==='comet'?b.name:b.god}${n?` and ${n===1?b.moons[0].name.split(' ')[0]:n+' moons'}`:''} alone`;
+}
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(SYS.id)leaveSystem();else if(S.audition)endAudition()});
+
+// info card
+function select(id){S.sel=id;renderRoster();renderInfo()}
+const fmt=(x,d=2)=>x.toLocaleString('en-GB',{maximumFractionDigits:d,minimumFractionDigits:0});
+function renderInfo(){
+  if(SYS.id){$('info').innerHTML=sysInfoHTML();wireSysInfo();return}
+  const b=byId[S.sel], p=P[b.id];if(!p)return;
+  const L=listenerPos(), d=Math.hypot(p.x-L.x,p.y-L.y,p.z-L.z);
+  const per=b.Pyears<2?fmt(b.Pyears*365.25,0)+' days':fmt(b.Pyears,b.Pyears<20?2:0)+' years';
+  const rot=Math.abs(b.rot)<48?fmt(Math.abs(b.rot),1)+' h':fmt(Math.abs(b.rot)/24,1)+' days';
+  const moonTxt=b.moons.length?b.moons.map(m=>m.name).join(', '):'none shown';
+  $('info').innerHTML=`<div>
+      <div class="greek">${b.greek}</div>
+      <h3>${b.kind==='comet'?b.name:b.god}</h3>
+      <div class="sub">${b.kind==='comet'?'Comet':b.name}${b.ancient?' · '+b.ancient:''}</div>
+      <div class="voice">${S.voices==='human'?humanDesc(b):b.voice}</div>
+      <div class="acts"><button class="btn" id="audBtn" style="border-color:var(--bronze);color:var(--bronze)">${S.audition===b.id?'Back to full choir':'Hear alone'+(b.moons.length?' with moons':'')}</button>${b.hv&&b.hv.say&&SYN?'<button class="btn" id="sayBtn">Speak</button>':''}${b.moons.length?'<button class="btn" id="sysBtn" style="border-color:var(--verdigris);color:var(--verdigris)">Enter the system of '+(b.kind==='comet'?b.name:b.god)+'</button>':''}<button class="btn" id="hereBtn">${S.vp===b.id?'Listening from here':'Listen from here'}</button><button class="btn" id="faceBtn">Face toward</button></div>
+    </div>
+    <dl>
+      <div><dt>Singing now</dt><dd id="i_note">${noteName(p.f)}</dd></div>
+      <div style="grid-column:span 2"><dt>In the mix</dt><dd id="i_heard" style="font-family:var(--f-body)">${voiceState(b).long}</dd></div>
+      <div><dt>Frequency</dt><dd id="i_f">${fmt(p.f,1)} Hz</dd></div>
+      <div><dt>From the Sun</dt><dd id="i_r">${fmt(p.r,3)} AU</dd></div>
+      <div><dt>From your post</dt><dd id="i_d">${S.vp===b.id?'here':fmt(d,3)+' AU'}</dd></div>
+      <div><dt>Orbital period</dt><dd>${per}</dd></div>
+      <div><dt>Eccentricity</dt><dd>${fmt(b.el.e,3)}</dd></div>
+      <div><dt>Inclination</dt><dd>${fmt(b.el.i,2)}°${b.el.i>90?' (retrograde)':''}</dd></div>
+      <div><dt>Day length</dt><dd>${rot}${b.rot<0?' · retrograde':''}</dd></div>
+      <div><dt>Radius</dt><dd>${fmt(b.R,1)} km</dd></div>
+      <div><dt>Height above ecliptic</dt><dd id="i_z">${fmt(p.z,3)} AU</dd></div>
+      <div style="grid-column:1/-1"><dt>Moons on the lyre</dt><dd style="font-family:var(--f-body)">${moonTxt}</dd></div>
+    </dl>`;
+  $('hereBtn').onclick=()=>{S.vp=b.id;$('vp').value=b.id;if(S.face==='vernal'){S.face='sun';$('face').value='sun'}renderInfo()};
+  $('faceBtn').onclick=()=>{S.face=b.id;$('face').value=b.id};
+  if($('sayBtn'))$('sayBtn').onclick=()=>speakGod(b);
+  if($('sysBtn'))$('sysBtn').onclick=()=>enterSystem(b.id);
+  $('audBtn').onclick=()=>S.audition===b.id?endAudition():audition(b.id);
+}
+
+function humanDesc(b){
+  const h=b.hv;if(!h)return b.voice;
+  const name=b.kind==='comet'?b.name:b.god;
+  const sung=h.words.replace(/:/g,'').replace(/\s+/g,'');
+  if(b.kind==='comet')return `A whispering ${VOICE_LABEL[h.type]}, breathing “kometes”, the long-haired star, louder near the Sun.`;
+  const who=h.type==='child'?'A child’s voice':`A ${VOICE_LABEL[h.type]}`;
+  const moons=b.moons.length?` ${b.moons.length===1?'Its moon is':'Its moons are'} children who sing their names as they complete each orbit.`:'';
+  return `${who} sings “${sung}”.${moons}`;
+}
+function tickInfo(){
+  if(SYS.id){tickSysInfo();return}
+  const b=byId[S.sel],p=P[b.id];if(!p||!$('i_note'))return;
+  const L=listenerPos(), d=Math.hypot(p.x-L.x,p.y-L.y,p.z-L.z);
+  $('i_note').textContent=noteName(p.f);$('i_f').textContent=fmt(p.f,1)+' Hz';$('i_r').textContent=fmt(p.r,3)+' AU';
+  $('i_d').textContent=S.vp===b.id?'here':fmt(d,3)+' AU';$('i_z').textContent=fmt(p.z,3)+' AU';
+  BODIES.forEach(x=>{const el=$('nt_'+x.id);if(!el)return;const st=voiceState(x);el.textContent=st.txt;el.closest('.vrow').classList.toggle('quiet',st.quiet)});
+  if($('i_heard'))$('i_heard').textContent=voiceState(b).long;
+}
+// what a body is doing in the mix right now, for the roster and the info card
+function voiceState(b){
+  const v=AC&&V[b.id];
+  if(!audioOn||!v)return {txt:noteName(P[b.id].f),quiet:!audible(b),long:'sound is off'};
+  if(b.kind==='minor'&&S.minorMode==='wobble'&&S.audition!==b.id){
+    const t=b.wobTarget?byId[b.wobTarget]:null;
+    return t?{txt:'→ '+t.god,quiet:false,long:`wobbling ${t.god}'s voice by up to ${Math.round(b.wobDepth)} cents`}:{txt:'—',quiet:true,long:'silent'};
+  }
+  if(!audible(b)&&S.audition!==b.id)return {txt:'—',quiet:true,long:'muted'};
+  if(v.culled)return {txt:'faint',quiet:true,long:'too faint to hear from here'};
+  const db=Math.round(20*Math.log10(Math.max(1e-4,v.gRel)));
+  const by=(WOB[b.id]&&WOB[b.id].by.length)?`, wobbled by ${WOB[b.id].by.map(id=>byId[id].god).join(', ')}`:'';
+  return {txt:noteName(P[b.id].f),quiet:false,long:(db>=0?'+':'−')+Math.abs(db)+' dB'+by};
+}
+function dateStr(jd){
+  const d=new Date((jd-2440587.5)*86400000);if(isNaN(d))return '—';
+  const y=d.getUTCFullYear(), m=d.getUTCMonth(), dd=d.getUTCDate();
+  const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${dd} ${M[m]} ${y<0?(-y+1)+' BCE':y}`;
+}
+
+
+/* ---------- voices UI and speech ---------- */
+const VNOTE={instrument:"Synthesised instruments shaped by each god's vowel.",human:"Each god sings their own name in a voice that suits them: Zeus and Kronos are basses, Ares a tenor, Hermes a countertenor, Gaia an alto, Aphrodite a soprano. Dwarf planets, asteroids and moons are children; comets whisper."};
+document.querySelectorAll('#voices button').forEach(btn=>btn.onclick=()=>{
+  S.voices=btn.dataset.v;document.querySelectorAll('#voices button').forEach(x=>x.setAttribute('aria-pressed',String(x===btn)));
+  $('voicesNote').textContent=VNOTE[S.voices];
+  if(!audioOn)startAudio();applyVoiceMode();
+  renderInfo();
+});
+document.querySelectorAll('#minorMode button').forEach(btn=>btn.onclick=()=>{S.minorMode=btn.dataset.v;document.querySelectorAll('#minorMode button').forEach(x=>x.setAttribute('aria-pressed',String(x===btn)));renderInfo()});
+$('speak').onchange=e=>{S.speak=e.target.checked;if(!S.speak)stopSpeech()};
+const SYN=window.speechSynthesis||null;
+const FEMALE=/female|samantha|victoria|karen|moira|tessa|fiona|serena|kate|susan|zira|hazel|libby|sonia|allison|ava|joanna|amy|emma|martha|catherine|nicky|kathy|shelley|sandy|flo|grandma|aria|jenny|mia|zoe|google uk english female/i;
+const MALE=/(^|\W)male|daniel|alex|fred|arthur|oliver|thomas|george|david|mark|ryan|aaron|gordon|rishi|james|tom|lee|oskar|reed|rocko|eddy|grandpa|guy|brian|google uk english male/i;
+function pickVoice(sex,seed){
+  if(!SYN)return null;
+  const all=SYN.getVoices().filter(v=>/^en/i.test(v.lang));if(!all.length)return null;
+  const gb=all.filter(v=>/en[-_]GB/i.test(v.lang));
+  const pool=(list)=>list.filter(v=>sex==='f'?FEMALE.test(v.name)&&!/(^|\W)male/i.test(v.name.replace(/female/i,'')):MALE.test(v.name)&&!FEMALE.test(v.name));
+  let c=pool(gb);if(!c.length)c=pool(all);if(!c.length)c=gb.length?gb:all;
+  return c[seed%c.length];
+}
+if(SYN&&SYN.onvoiceschanged!==undefined)SYN.onvoiceschanged=()=>{};
+let speakTimer=0;
+document.addEventListener('pointerdown',()=>{if(audioOn&&AC&&AC.state!=='running')AC.resume().catch(()=>{})},true);
+function stopSpeech(){if(SYN)SYN.cancel();S.speaking=false}
+function speakGod(b){
+  if(!S.speak||!SYN||!b.hv||!b.hv.say)return;
+  const [sex,pitch,rate,line]=b.hv.say;
+  SYN.cancel();
+  const u=new SpeechSynthesisUtterance(line);
+  const v=pickVoice(sex,BODIES.indexOf(b));if(v){u.voice=v;u.lang=v.lang}else u.lang='en-GB';
+  u.pitch=Math.max(0,Math.min(2,pitch));u.rate=rate;u.volume=1;
+  const done=()=>{S.speaking=false;if(audioOn&&AC)AC.resume().catch(()=>{})};
+  u.onstart=()=>{S.speaking=true;clearTimeout(speakTimer);speakTimer=setTimeout(done,line.length*90/rate+2500)};u.onend=u.onerror=done;
+  SYN.speak(u);
+}
+/* ---------- begin ---------- */
+async function startAudio(){
+  if(!AC)initAudio();
+  applyVoiceMode();
+  audioOn=true;AC.resume();updateAudio();tgt(master.gain,S.vol,.3);syncBegin();
+}
+function stopAudio(){audioOn=false;tgt(master.gain,0,.15);setTimeout(()=>{if(!audioOn)AC.suspend()},600);syncBegin()}
+function syncBegin(){$('begin').setAttribute('aria-pressed',String(audioOn));$('beginLabel').textContent=audioOn?'Silence the spheres':'Begin the harmony'}
+$('begin').onclick=()=>audioOn?stopAudio():startAudio();
+$('audBack').onclick=()=>SYS.id?leaveSystem():endAudition();
+
+/* ---------- loop ---------- */
+let last=performance.now(), lastAudio=0, lastUI=0, beltAcc=0;
+function frame(t){
+  const dt=Math.min(.1,(t-last)/1000);last=t;
+  if(S.playing)S.jd+=dt*S.speed*S.dir;
+  computePositions();
+  // moons: pluck on each completed orbit
+  let plucks=0;
+  if(!SYS.id)BODIES.forEach(b=>(b.moons||[]).forEach(m=>{
+    const k=Math.floor((S.jd-J2000)/Math.abs(m.P)+m.ph0);
+    if(m.k!==undefined&&k!==m.k){
+      m.flash=1;
+      const rate=S.speed/Math.abs(m.P), aud=S.audition===b.id;
+      // in audition a fast moon still plucks, at most every 0.4 s, over its hum
+      const ok=rate<=1.2||(aud&&t-(m.lastPluck||0)>700);
+    }
+    m.k=k;
+  }));
+  // belt bells
+  if(audioOn&&S.playing&&S.groups.belt.on&&!S.solo.size&&!S.audition&&!SYS.id){
+    beltAcc+=dt*1.0;
+    while(beltAcc>1){beltAcc-=Math.random()*1.4+.3;const p=BELT[(Math.random()*BELT.length)|0];p.flash=1;beltPing(p,beltPos(p,S.jd))}
+  }
+  draw(t);
+  if(AC&&audioOn&&t-lastAudio>45){updateAudio();lastAudio=t}
+  if(t-lastUI>250){lastUI=t;
+    // watchdog: phones can suspend web audio (for example while a spoken line plays); bring it back
+    if(audioOn&&AC&&AC.state!=='running')AC.resume().catch(()=>{});
+   $('dateTxt').textContent=dateStr(S.jd);$('speedTxt').textContent=S.playing?(S.dir<0?'◀ ':'')+fmtSpeed(S.speed):'paused';tickInfo()}
+  requestAnimationFrame(frame);
+}
+computePositions();resize();renderRoster();renderInfo();
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
