@@ -137,7 +137,7 @@ input[type=range]{width:100%;accent-color:var(--bronze)}
   <label class="check"><input type="checkbox" id="speak" checked> Gods introduce themselves when you travel to them</label>
   <label class="check"><input type="checkbox" id="slowMoons" checked> Slow time near moons</label>
   <label class="check"><input type="checkbox" id="hrtf"> Headphone 3D sound (uses more power; off by default on phones)</label>
-  <div class="field"><label for="vol">Volume <output id="volOut"></output></label><input id="vol" type="range" min="0" max="100" value="70"></div>
+  <div class="field"><label for="vol">Volume <output id="volOut"></output></label><input id="vol" type="range" min="0" max="100" value="45"></div>
   <div class="field"><label for="verb">Temple echo <output id="verbOut"></output></label><input id="verb" type="range" min="0" max="100" value="40"></div>
   <p class="note">Planets, moons and the Sun are drawn larger than life so you can find them; distances along their orbits are true. Wear headphones: the choir is placed around your ship and turns with it.</p>
   <button class="btn" id="closeNav">Close</button>
@@ -387,8 +387,9 @@ function makeTemple(input,output){
   const pre=mkGain(.5);input.connect(pre);
   [[.0437,-.8],[.0531,.8],[.0617,-.35],[.0719,.35]].forEach(([dt,pan])=>{
     const d=AC.createDelay(.2);d.delayTime.value=dt*1.9;
-    const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2600;
-    const fb=mkGain(.82), out=AC.createStereoPanner?AC.createStereoPanner():null;
+    // Q is set flat (-3 dB): the default resonant peak pushed the loop gain past 1 near 2 kHz and the echo grew into a scream
+    const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2600;lp.Q.value=-3;
+    const fb=mkGain(.78), out=AC.createStereoPanner?AC.createStereoPanner():null;
     pre.connect(d);d.connect(lp);lp.connect(fb);fb.connect(d);
     if(out){out.pan.value=pan;lp.connect(out);out.connect(output)}else lp.connect(output);
   });
@@ -649,7 +650,10 @@ function initAudio(){
   master=AC.createGain();master.gain.value=0;
   comp=AC.createDynamicsCompressor();comp.threshold.value=-20;comp.knee.value=14;comp.ratio.value=4;comp.attack.value=.02;comp.release.value=.35;
   bus=AC.createGain();dry=AC.createGain();wet=AC.createGain();
-  bus.connect(dry);dry.connect(comp);makeTemple(bus,wet);wet.connect(comp);comp.connect(master);master.connect(AC.destination);
+  bus.connect(dry);dry.connect(comp);makeTemple(bus,wet);wet.connect(comp);comp.connect(master);
+  // last line of defence: a fast, hard limiter so nothing can ever become painfully loud
+  const lim=AC.createDynamicsCompressor();lim.threshold.value=-8;lim.knee.value=0;lim.ratio.value=20;lim.attack.value=.002;lim.release.value=.2;
+  master.connect(lim);lim.connect(AC.destination);
   setVerb();
   noiseBuf=AC.createBuffer(1,AC.sampleRate*3,AC.sampleRate);const nd=noiseBuf.getChannelData(0);for(let k=0;k<nd.length;k++)nd[k]=Math.random()*2-1;
   // one shared noise source feeds every breath, whisper and consonant
@@ -1016,8 +1020,6 @@ const MALE=/(^|\W)male|daniel|alex|fred|arthur|oliver|thomas|george|david|mark|r
 function pickVoice(sex,seed){
   if(!SYN)return null;
   let all=SYN.getVoices().filter(v=>/^en/i.test(v.lang));if(!all.length)return null;
-  // voices installed on the device only: network voices make phones reroute their audio mid-song
-  const local=all.filter(v=>v.localService);if(local.length)all=local;
   const gb=all.filter(v=>/en[-_]GB/i.test(v.lang));
   const pool=(list)=>list.filter(v=>sex==='f'?FEMALE.test(v.name)&&!/(^|\W)male/i.test(v.name.replace(/female/i,'')):MALE.test(v.name)&&!FEMALE.test(v.name));
   let c=pool(gb);if(!c.length)c=pool(all);
@@ -1044,7 +1046,8 @@ function speakGod(b){
   SYN.cancel();
   const u=new SpeechSynthesisUtterance(line);
   const v=pickVoice(sex,BODIES.indexOf(b));if(v){u.voice=v;u.lang=v.lang}else u.lang='en-GB';
-  u.pitch=Math.max(0,Math.min(2,pitch));u.rate=rate;u.volume=1;
+  // phone speech engines turn robotic at extreme pitches, so keep them within a natural range there
+  u.pitch=LOWPOWER?Math.max(.8,Math.min(1.35,.8+(pitch-.4)*.45)):Math.max(0,Math.min(2,pitch));u.rate=LOWPOWER?Math.max(.85,Math.min(1.15,rate)):rate;u.volume=1;
   const done=()=>{S.speaking=false;if(audioOn&&AC){if(LOWPOWER)refreshOutput();else AC.resume().catch(()=>{})}};
   u.onstart=()=>{S.speaking=true;clearTimeout(speakTimer);speakTimer=setTimeout(done,line.length*90/rate+2500)};u.onend=u.onerror=done;
   SYN.speak(u);
@@ -1389,7 +1392,9 @@ function fmtSpeed(d){
 }
 function setTime(d){S.speed=d;$('speed').value=Math.max(0,Math.min(1000,Math.round((Math.log10(d)+2)/6*1000)));$('speedOut').textContent=fmtSpeed(d)}
 $('speed').oninput=e=>{S.speed=Math.pow(10,-2+e.target.value/1000*6);SYS.savedSpeed=null;$('speedOut').textContent=fmtSpeed(S.speed)};
-$('vol').oninput=e=>{S.vol=e.target.value/100;$('volOut').textContent=e.target.value+'%';if(AC&&audioOn)tgt(master.gain,S.vol,.05)};$('vol').oninput({target:$('vol')});
+// the 3D page keeps its own volume, separate from the 2D dial
+try{const sv=localStorage.getItem('mots.vol.3d');if(sv!==null)$('vol').value=sv}catch(e){}
+$('vol').oninput=e=>{S.vol=e.target.value/100;$('volOut').textContent=e.target.value+'%';if(AC&&audioOn)tgt(master.gain,S.vol,.05);try{localStorage.setItem('mots.vol.3d',e.target.value)}catch(e){}};$('vol').oninput({target:$('vol')});
 $('verb').oninput=e=>{S.verb=e.target.value/100;$('verbOut').textContent=e.target.value+'%';setVerb()};$('verb').oninput({target:$('verb')});
 $('hrtf').checked=S.hrtf;
 $('hrtf').onchange=e=>{S.hrtf=e.target.checked;if(AC)PANNERS.forEach(({p,hrtfOK})=>{if(hrtfOK)p.panningModel=S.hrtf?'HRTF':'equalpower'})};
