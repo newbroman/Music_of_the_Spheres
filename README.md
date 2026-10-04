@@ -6,6 +6,7 @@
 - **2D dial:** https://newbroman.github.io/Music_of_the_Spheres/
 - **3D flight:** https://newbroman.github.io/Music_of_the_Spheres/flight.html
 - **Dance:** https://newbroman.github.io/Music_of_the_Spheres/dance.html
+- **How it works (help and theory):** https://newbroman.github.io/Music_of_the_Spheres/help.html
 - **v1 benchmark (frozen):** https://newbroman.github.io/Music_of_the_Spheres/v1/ and [v1/flight.html](https://newbroman.github.io/Music_of_the_Spheres/v1/flight.html)
 
 A live orrery that you can hear. Every planet, moon, dwarf planet and comet sings with the voice of a Greek god. The music comes from the real motions of the solar system, and you choose where you stand and listen.
@@ -91,4 +92,4 @@ You can choose free glide (Kepler), Pythagorean diatonic or Pythagorean pentaton
 
 ## Technical
 
-Two self-contained pages: `index.html` (the 2D dial, Canvas) and `flight.html` (3D, three.js r128 from cdnjs). Both use vanilla JavaScript and the Web Audio API. There is no build step and nothing to install. Fonts come from Google Fonts.
+Self-contained pages: `index.html` (the 2D dial, Canvas), `flight.html` (3D, three.js r128 from cdnjs), `dance.html` (the dance band) and `help.html` (the theory and a user guide). Both use vanilla JavaScript and the Web Audio API. There is no build step and nothing to install. Fonts come from Google Fonts.
