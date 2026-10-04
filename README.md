@@ -2,7 +2,9 @@
 
 *ἡ τῶν σφαιρῶν ἁρμονία*
 
-**Play it here: https://newbroman.github.io/Music_of_the_Spheres/**
+**Play it here:**
+- **2D dial:** https://newbroman.github.io/Music_of_the_Spheres/
+- **3D flight:** https://newbroman.github.io/Music_of_the_Spheres/flight.html
 
 A live orrery that you can hear. Every planet, moon, dwarf planet and comet sings with the voice of a Greek god. The music comes from the real motions of the solar system, and you choose where you stand and listen.
 
@@ -39,6 +41,16 @@ In Plato's Myth of Er, a Siren rides each celestial sphere singing a single note
 - Tap a body to hear it alone. Its god can introduce themselves, using your device's speech voices.
 - **Enter a planet's system** (for example Jupiter or Saturn) to hear its moons as a miniature solar system circling you. You can listen from the planet or from any moon.
 
+## Flight (3D)
+
+`flight.html` puts you in a spaceship. The same orbital data and the same choir surround you, and your ears ride in the cockpit, so the voices are placed by where you are and which way you face.
+
+- **Travel to** any body. The autopilot flies you there, and once you arrive you stay in orbit with it.
+- **Fly by hand.** On a computer, drag to look, use W/S to fly, A/D to slide, R/F for up and down, Q/E to roll, and Shift to boost. On a phone, drag to look and use the ▲ ▼ buttons.
+- **Speed adapts** to what is near: gentle beside a planet, faster than light between them.
+- **Fly among a planet's moons** and they start singing around you, each one's melody following its phase. Time slows so you can hear them circle.
+- Planets, moons and the Sun are drawn larger than life so you can find them. The distances along their orbits are true.
+
 ## Tuning
 
 You can choose free glide (Kepler), Pythagorean diatonic or Pythagorean pentatonic tuning. Apollo's drone can sit in the Dorian, Phrygian, Lydian, Mixolydian, Hypodorian, Hypophrygian or Hypolydian mode.
@@ -52,4 +64,4 @@ You can choose free glide (Kepler), Pythagorean diatonic or Pythagorean pentaton
 
 ## Technical
 
-One self-contained `index.html` file, built with vanilla JavaScript, the Web Audio API and Canvas. There is no build step and nothing to install. Fonts come from Google Fonts.
+Two self-contained pages: `index.html` (the 2D dial, Canvas) and `flight.html` (3D, three.js r128 from cdnjs). Both use vanilla JavaScript and the Web Audio API. There is no build step and nothing to install. Fonts come from Google Fonts.

@@ -3,272 +3,142 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="A live orrery synthesizer: the planets, moons, dwarf planets and comets sing with the voices of the Greek gods, pitched by their orbits and placed in space around a listening post you choose.">
-<title>Music of the Spheres</title>
+<meta name="description" content="Fly a spaceship through a 3D solar system while the planets and moons sing around you, voiced by the Greek gods and pitched by their orbits.">
+<title>Flight Through the Spheres</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=GFS+Didot&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-[hidden]{display:none!important}
-html,body{margin:0}
-
-/* Layout: an Antikythera-style bronze dial (live orrery) beside an instrument panel; the canon of mappings reads below. Deliberately single dark theme: the night sky. */
+/* Layout: a full-screen cockpit view of the 3D solar system with a thin bronze HUD at the edges and a slide-in navigation panel. Single dark theme: deep space. */
 :root{
-  --sky:#0c0e1a;
-  --sky-2:#13162a;
-  --sky-3:#1b1f38;
-  --line:#2b3050;
+  --sky:#05060d;
+  --glass:rgba(10,12,24,.74);
+  --line:rgba(201,152,79,.35);
   --vellum:#e9e1cc;
   --vellum-dim:#a39c89;
   --bronze:#c9984f;
-  --bronze-dim:#7f6236;
   --verdigris:#62a597;
   --f-display:"GFS Didot","Didot","Bodoni 72",Georgia,serif;
   --f-body:"Alegreya Sans","Gill Sans","Segoe UI",system-ui,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
-  --r:6px;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-html,body{background:var(--sky);color:var(--vellum)}
-body{font-family:var(--f-body);font-size:16px;line-height:1.5;padding-inline:clamp(16px,3vw,40px);padding-block:20px 48px}
-.wrap{max-width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
-h1,h2,h3{font-family:var(--f-display);font-weight:400;text-wrap:balance;margin:0}
+html,body{height:100%;margin:0;background:var(--sky);color:var(--vellum);font-family:var(--f-body);overflow:hidden;overscroll-behavior:none}
+[hidden]{display:none!important}
 button,select,input{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--bronze);outline-offset:2px}
-
-/* header */
-.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px 32px;border-bottom:1px solid var(--line);padding-bottom:18px}
-.eyebrow{font-family:var(--f-display);color:var(--bronze);font-size:1.05rem;letter-spacing:.04em}
-.top h1{font-size:clamp(2.1rem,5vw,3.5rem);line-height:1.02;letter-spacing:.01em}
-.lede{max-width:62ch;color:var(--vellum-dim);margin:.5rem 0 0}
-.begin{appearance:none;border:1px solid var(--bronze);background:linear-gradient(180deg,#d7a75d,#a87a37);color:#1a1206;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:.85rem;padding:14px 22px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:10px;white-space:nowrap}
-.fly3d{color:var(--bronze);text-decoration:none;border:1px solid var(--bronze-dim);border-radius:999px;padding:13px 18px;font-size:.85rem;letter-spacing:.04em;white-space:nowrap}
-.fly3d:hover{border-color:var(--bronze)}
-.begin[aria-pressed="true"]{background:transparent;color:var(--bronze)}
-.begin .dot{width:9px;height:9px;border-radius:50%;background:currentColor}
-.begin[aria-pressed="true"] .dot{animation:pulse 1.6s ease-in-out infinite}
-@keyframes pulse{50%{opacity:.25}}
-
-/* stage */
-.stage{display:grid;grid-template-columns:minmax(0,1fr) 352px;gap:22px;align-items:start}
-@media (max-width:960px){.stage{grid-template-columns:minmax(0,1fr)}}
-.dial{position:relative;background:radial-gradient(ellipse at center,var(--sky-2) 0%,var(--sky) 70%);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;min-width:0}
-#orrery{display:block;width:100%;aspect-ratio:1/1;max-height:84vh;touch-action:none;cursor:grab}
-#orrery:active{cursor:grabbing}
-.dial-tools{position:absolute;left:10px;right:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between;pointer-events:none}
-.dial-tools > *{pointer-events:auto}
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{appearance:none;background:rgba(12,14,26,.78);border:1px solid var(--line);color:var(--vellum-dim);font-size:.78rem;padding:5px 10px;border-radius:999px;cursor:pointer;letter-spacing:.03em}
-.chip:hover{color:var(--vellum);border-color:var(--bronze-dim)}
-.chip[aria-pressed="true"]{color:var(--bronze);border-color:var(--bronze)}
-.datebar{position:absolute;top:10px;left:12px;font-family:var(--f-mono);font-size:.8rem;color:var(--vellum-dim);background:rgba(12,14,26,.7);padding:4px 8px;border-radius:4px;pointer-events:none}
-.datebar b{color:var(--vellum);font-weight:500}
-.aud{position:absolute;top:44px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;background:rgba(12,14,26,.88);border:1px solid var(--bronze);color:var(--vellum);padding:5px 6px 5px 14px;border-radius:999px;font-size:.88rem;white-space:nowrap;max-width:calc(100% - 24px)}
-.aud #audTxt{overflow:hidden;text-overflow:ellipsis}
-.aud .dot{width:8px;height:8px;border-radius:50%;background:var(--bronze);flex:none;animation:pulse 1.6s ease-in-out infinite}
-@media (max-width:560px){.hint{display:none}.aud{top:40px}}
-.hint{position:absolute;top:10px;right:12px;font-size:.75rem;color:var(--vellum-dim);background:rgba(12,14,26,.7);padding:4px 8px;border-radius:4px;pointer-events:none}
-
-/* info card */
-.info{border:1px solid var(--line);border-radius:var(--r);background:var(--sky-2);padding:16px 18px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,2fr);gap:12px 24px;margin-top:14px}
-@media (max-width:640px){.info{grid-template-columns:minmax(0,1fr)}}
-.info h3{font-size:1.7rem;line-height:1.1}
-.info .greek{font-family:var(--f-display);color:var(--bronze);font-size:1.15rem}
-.info .sub{color:var(--vellum-dim);font-size:.92rem;margin:.2rem 0 .6rem}
-.info .voice{font-style:italic;color:var(--vellum);font-size:.95rem}
-.info dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 18px;margin:0}
-.info dt{font-size:.7rem;text-transform:uppercase;letter-spacing:.09em;color:var(--vellum-dim)}
-.info dd{margin:0;font-family:var(--f-mono);font-size:.88rem;font-variant-numeric:tabular-nums}
-.info .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.btn{appearance:none;background:var(--sky-3);border:1px solid var(--line);color:var(--vellum);padding:7px 12px;border-radius:5px;cursor:pointer;font-size:.85rem}
-.btn:hover{border-color:var(--bronze-dim)}
-
-/* panel */
-.panel{display:flex;flex-direction:column;gap:14px;min-width:0}
-.sec{border:1px solid var(--line);border-radius:var(--r);background:var(--sky-2);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
-.sec h2{font-size:1.2rem;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.sec h2 small{font-family:var(--f-display);color:var(--bronze);font-size:.95rem}
-.field{display:flex;flex-direction:column;gap:4px}
-.field label,.lab{font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--vellum-dim);display:flex;justify-content:space-between;gap:8px}
-.field label output{font-family:var(--f-mono);text-transform:none;letter-spacing:0;color:var(--vellum)}
-select{appearance:none;background:var(--sky) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23c9984f'/%3E%3C/svg%3E") no-repeat right 10px center;border:1px solid var(--line);border-radius:5px;padding:7px 28px 7px 10px;width:100%}
-input[type=range]{width:100%;accent-color:var(--bronze)}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.row .btn{flex:1 1 auto}
-.seg{display:flex;border:1px solid var(--line);border-radius:5px;overflow:hidden}
-.seg button{appearance:none;flex:1;background:transparent;border:0;padding:7px 8px;cursor:pointer;color:var(--vellum-dim);font-size:.85rem}
+#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#scene:active{cursor:grabbing}
+#labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;transform:translate(10px,-50%);font-family:var(--f-display);font-size:13px;color:var(--vellum);white-space:nowrap;pointer-events:auto;cursor:pointer;text-shadow:0 0 6px #000,0 0 2px #000;padding:2px 4px;border-radius:3px}
+.lbl:hover{color:var(--bronze)}
+.lbl.minor{font-size:11.5px;color:var(--vellum-dim)}
+.lbl.moon{font-family:var(--f-body);font-size:11.5px;color:var(--vellum-dim)}
+.lbl.target{color:var(--bronze)}
+.lbl small{font-family:var(--f-mono);font-size:10px;color:var(--vellum-dim);margin-left:6px}
+.hud{position:fixed;pointer-events:none;font-size:13px}
+.hud > *{pointer-events:auto}
+.tl{top:calc(env(safe-area-inset-top,0px) + 12px);left:14px;display:flex;flex-direction:column;gap:2px}
+.tl .t{font-family:var(--f-display);font-size:19px;letter-spacing:.01em}
+.tl .t span{color:var(--bronze)}
+.tl .d{font-family:var(--f-mono);font-size:12px;color:var(--vellum-dim)}
+.tr{top:calc(env(safe-area-inset-top,0px) + 10px);right:12px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:70vw}
+.btn{appearance:none;background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:8px 14px;cursor:pointer;font-size:13px;color:var(--vellum);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{border-color:var(--bronze)}
+.btn.primary{background:linear-gradient(180deg,#d7a75d,#a87a37);color:#1a1206;font-weight:700;border-color:var(--bronze)}
+.btn.primary[aria-pressed="true"]{background:var(--glass);color:var(--bronze)}
+.bc{bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;max-width:calc(100vw - 32px);text-align:center}
+.readout{background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:7px 14px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.readout .near{font-family:var(--f-display);font-size:16px}
+.readout .near em{font-style:normal;color:var(--bronze)}
+.readout .sub{font-family:var(--f-mono);font-size:11.5px;color:var(--vellum-dim);font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.chip{appearance:none;background:var(--glass);border:1px solid var(--line);color:var(--vellum-dim);font-size:12px;padding:4px 10px;border-radius:999px;cursor:pointer}
+.chip:hover{color:var(--vellum);border-color:var(--bronze)}
+.thrust{position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);display:flex;flex-direction:column;gap:10px}
+.thrust button{width:58px;height:58px;border-radius:50%;background:var(--glass);border:1px solid var(--line);font-size:20px;color:var(--bronze);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none}
+.thrust button.on{background:rgba(201,152,79,.3)}
+.keys{position:fixed;left:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);font-size:11.5px;color:var(--vellum-dim);line-height:1.6;background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.keys b{font-family:var(--f-mono);color:var(--vellum);font-weight:500}
+@media (hover:none){.keys{display:none}}
+@media (max-width:640px){.keys{display:none}.bc{bottom:calc(env(safe-area-inset-bottom,0px) + 92px)}}
+.cross{position:fixed;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;pointer-events:none;opacity:.55}
+.cross::before,.cross::after{content:"";position:absolute;background:var(--bronze)}
+.cross::before{left:10px;top:0;width:2px;height:7px;box-shadow:0 15px 0 var(--bronze)}
+.cross::after{top:10px;left:0;height:2px;width:7px;box-shadow:15px 0 0 var(--bronze)}
+.toast{position:fixed;top:calc(env(safe-area-inset-top,0px) + 64px);left:50%;transform:translateX(-50%);background:var(--glass);border:1px solid var(--bronze);border-radius:999px;padding:6px 14px;font-size:13px;transition:opacity .4s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
+/* navigation panel */
+.panel{position:fixed;top:0;right:0;bottom:0;width:min(360px,100vw);background:rgba(8,10,20,.93);border-left:1px solid var(--line);padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);overflow-y:auto;display:flex;flex-direction:column;gap:16px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.panel h2{font-family:var(--f-display);font-weight:400;font-size:20px;margin:0;display:flex;justify-content:space-between;align-items:baseline}
+.panel h2 small{color:var(--bronze);font-size:15px}
+.panel h3{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--vellum-dim);font-weight:500;margin:4px 0}
+.dest{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.dest button{appearance:none;text-align:left;background:rgba(255,255,255,.03);border:1px solid rgba(201,152,79,.2);border-radius:6px;padding:7px 9px;cursor:pointer;display:flex;align-items:center;gap:8px;min-width:0}
+.dest button:hover{border-color:var(--bronze)}
+.dest .sw{width:9px;height:9px;border-radius:50%;flex:none}
+.dest .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px}
+.dest .nm span{color:var(--vellum-dim);font-size:12px}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{appearance:none;flex:1;background:transparent;border:0;padding:7px 8px;cursor:pointer;color:var(--vellum-dim);font-size:13px}
 .seg button+button{border-left:1px solid var(--line)}
-.seg button[aria-pressed="true"]{background:var(--sky-3);color:var(--bronze)}
-.check{display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer}
+.seg button[aria-pressed="true"]{background:rgba(201,152,79,.18);color:var(--bronze)}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--vellum-dim);display:flex;justify-content:space-between}
+.field output{font-family:var(--f-mono);text-transform:none;letter-spacing:0;color:var(--vellum)}
+input[type=range]{width:100%;accent-color:var(--bronze)}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
 .check input{accent-color:var(--bronze);width:16px;height:16px}
-.note{margin:0;font-size:.85rem;color:var(--vellum-dim)}
-.groups{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;align-items:center}
-
-/* roster */
-.roster{max-height:420px;overflow-y:auto;margin:0 -6px;padding:0 6px}
-.roster h4{font-family:var(--f-body);font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--vellum-dim);margin:10px 0 4px;font-weight:500}
-.vrow{display:grid;grid-template-columns:12px minmax(0,1fr) auto auto auto;gap:8px;align-items:center;padding:5px 6px;border-radius:4px;cursor:pointer}
-.vrow:hover{background:var(--sky-3)}
-.vrow.sel{background:var(--sky-3);box-shadow:inset 0 0 0 1px var(--bronze-dim)}
-.vrow .sw{width:10px;height:10px;border-radius:50%}
-.vrow .nm{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.92rem}
-.vrow .nm span{color:var(--vellum-dim);font-size:.82rem}
-.vrow .nt{font-family:var(--f-mono);font-size:.75rem;color:var(--vellum-dim);font-variant-numeric:tabular-nums;min-width:4.8em;text-align:right}
-.ms{appearance:none;width:24px;height:22px;border:1px solid var(--line);background:transparent;border-radius:4px;font-size:.7rem;font-weight:700;color:var(--vellum-dim);cursor:pointer;padding:0}
-.ms[aria-pressed="true"].m{background:#5a2b2b;color:#f2c7c7;border-color:#8a4444}
-.ms[aria-pressed="true"].s{background:var(--bronze);color:#1a1206;border-color:var(--bronze)}
-.vrow.quiet .nm{opacity:.45}
-
-/* canon */
-.canon{border-top:1px solid var(--line);padding-top:22px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.2fr);gap:22px 40px}
-@media (max-width:860px){.canon{grid-template-columns:minmax(0,1fr)}}
-.canon h2{font-size:1.9rem}
-.canon .greek{font-family:var(--f-display);color:var(--bronze)}
-.canon p{color:var(--vellum-dim);max-width:60ch}
-.tablewrap{overflow-x:auto}
-table{border-collapse:collapse;width:100%;min-width:520px}
-th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
-th{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--vellum-dim);font-weight:500}
-td:first-child{font-family:var(--f-display);font-size:1.05rem;width:34%}
-td:nth-child(2){color:var(--bronze);white-space:nowrap}
-td:last-child{color:var(--vellum-dim);font-size:.95rem}
-.foot{font-size:.82rem;color:var(--vellum-dim);max-width:90ch}
-@media (prefers-reduced-motion:reduce){.begin .dot,.aud .dot{animation:none}}
+.note{font-size:12.5px;color:var(--vellum-dim);margin:0}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
 </style>
-
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <div>
-      <div class="eyebrow">ἡ τῶν σφαιρῶν ἁρμονία</div>
-      <h1>Music of the Spheres</h1>
-      <p class="lede">Each wanderer sings with the voice of its god. Pitch follows orbital speed, as Kepler proposed in 1619; size, tilt, spin and moons shape the voice; and you choose where in the solar system to stand and listen.</p>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-    <button class="begin" id="begin" aria-pressed="false"><span class="dot"></span><span id="beginLabel">Begin the harmony</span></button>
-      <a class="fly3d" href="https://newbroman.github.io/Music_of_the_Spheres/flight.html">Fly through it in 3D →</a>
-    </div>
-  </header>
+<canvas id="scene" aria-label="3D view of the solar system from your ship. Drag to look around; use the arrow buttons or W and S to fly."></canvas>
+<div id="labels"></div>
+<div class="cross"></div>
 
-  <div class="stage">
-    <div style="min-width:0">
-      <div class="dial">
-        <canvas id="orrery" aria-label="Orrery of the solar system. Drag to turn, scroll or pinch to zoom, tap a body to select it."></canvas>
-        <div class="datebar"><b id="dateTxt">—</b> <span id="speedTxt"></span></div>
-        <div class="hint" id="hint">tap a body to hear it alone · drag to turn · scroll to zoom</div>
-        <div class="aud" id="aud" hidden><span class="dot"></span><span id="audTxt"></span><button class="chip" id="audBack">Full choir</button></div>
-        <div class="dial-tools">
-          <div class="chips" id="zoomChips">
-            <button class="chip" data-z="2.4">Inner</button>
-            <button class="chip" data-z="40" aria-pressed="true">Planets</button>
-            <button class="chip" data-z="120">Kuiper belt</button>
-            <button class="chip" data-z="1100">Sedna</button>
-          </div>
-          <div class="chips">
-            <button class="chip" id="labelsAll" aria-pressed="false">Name all</button>
-          </div>
-        </div>
-      </div>
-      <section class="info" id="info" aria-live="polite"></section>
-    </div>
+<div class="hud tl">
+  <div class="t">Flight <span>·</span> Music of the Spheres</div>
+  <div class="d"><span id="dateTxt">—</span> · <span id="timeTxt"></span></div>
+</div>
+<div class="hud tr">
+  <button class="btn primary" id="begin" aria-pressed="false">Begin the harmony</button>
+  <button class="btn" id="navBtn" aria-expanded="false">Travel</button>
+  <a class="btn" href="https://newbroman.github.io/Music_of_the_Spheres/" id="back2d">2D dial</a>
+</div>
+<div class="toast" id="toast" style="opacity:0"></div>
 
-    <aside class="panel">
-      <section class="sec">
-        <h2>Listening post <small>ἀκρόασις</small></h2>
-        <div class="field"><label for="vp">Stand at</label><select id="vp"></select></div>
-        <div class="field"><label for="face">Face toward</label><select id="face"></select></div>
-        <div class="field"><label for="turn">Turn your head <output id="turnOut">0°</output></label><input id="turn" type="range" min="-180" max="180" step="1" value="0"></div>
-        <div class="field"><span class="lab">Output</span>
-          <div class="seg" id="spatial"><button data-v="hrtf" aria-pressed="true">Headphones · 3D</button><button data-v="stereo" aria-pressed="false">Speakers · stereo</button></div>
-        </div>
-      </section>
-
-      <section class="sec">
-        <h2>Time <small>χρόνος</small></h2>
-        <div class="row">
-          <button class="btn" id="rev" title="Run time backward">◀ Backward</button>
-          <button class="btn" id="play">Pause</button>
-          <button class="btn" id="today">Today</button>
-        </div>
-        <div class="field"><label for="speed">Speed <output id="speedOut"></output></label><input id="speed" type="range" min="0" max="1000" step="1" value="460"></div>
-      </section>
-
-      <section class="sec">
-        <h2>Harmony <small>ἁρμονία</small></h2>
-        <div class="field"><label for="tuning">Tuning</label>
-          <select id="tuning">
-            <option value="free">Kepler: free glide</option>
-            <option value="dia" selected>Pythagorean diatonic</option>
-            <option value="pent">Pythagorean pentatonic</option>
-          </select></div>
-        <div class="field"><label for="mode">Mode of Apollo's drone</label>
-          <select id="mode">
-            <option value="E" selected>Dorian, on E</option>
-            <option value="D">Phrygian, on D</option>
-            <option value="C">Lydian, on C</option>
-            <option value="B">Mixolydian, on B</option>
-            <option value="A">Hypodorian, on A</option>
-            <option value="G">Hypophrygian, on G</option>
-            <option value="F">Hypolydian, on F</option>
-          </select></div>
-        <label class="check"><input type="checkbox" id="drone" checked> Sound the Sun's drone</label>
-        <div class="field"><label for="reg">Earth's note <output id="regOut"></output></label><input id="reg" type="range" min="110" max="660" step="1" value="330"></div>
-        <div class="field"><label for="dist">Size &amp; distance law <output id="distOut"></output></label><input id="dist" type="range" min="0" max="100" step="1" value="70"></div>
-        <div class="field"><label for="verb">Temple echo <output id="verbOut"></output></label><input id="verb" type="range" min="0" max="100" step="1" value="40"></div>
-        <div class="field"><label for="vol">Volume <output id="volOut"></output></label><input id="vol" type="range" min="0" max="100" step="1" value="70"></div>
-      </section>
-
-      <section class="sec">
-        <h2>Voices <small>φωναί</small></h2>
-        <div class="seg" id="voices"><button data-v="instrument" aria-pressed="true">Instruments</button><button data-v="human" aria-pressed="false">Human choir</button></div>
-        <p class="note" id="voicesNote">Synthesised instruments shaped by each god's vowel.</p>
-        <div class="field"><span class="lab">Dwarf planets &amp; asteroids</span>
-          <div class="seg" id="minorMode"><button data-v="wobble" aria-pressed="true">Wobble the planets</button><button data-v="voices" aria-pressed="false">Sing as voices</button></div></div>
-        <label class="check"><input type="checkbox" id="speak" checked> Gods introduce themselves when tapped</label>
-      </section>
-
-      <section class="sec">
-        <h2>Choir <small>χορός</small></h2>
-        <div class="groups" id="groups"></div>
-        <div class="roster" id="roster"></div>
-      </section>
-    </aside>
-  </div>
-
-  <section class="canon">
-    <div>
-      <div class="greek">κανών</div>
-      <h2>The canon</h2>
-      <p>In Plato's Myth of Er, a Siren rides each celestial whorl singing a single note, and together they make one harmony. Kepler gave the idea numbers by reading each planet's angular speed at perihelion and aphelion as a melodic interval. This instrument does the same from orbital elements, live, for every body below.</p>
-    </div>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Celestial measure</th><th>Becomes</th><th>How you hear it</th></tr></thead>
-        <tbody>
-          <tr><td>Orbital speed, moment by moment</td><td>Pitch</td><td>Faster wanderers sing higher. Eccentric orbits rise toward perihelion and sink toward aphelion, so Mercury, Pluto and the comets glide.</td></tr>
-          <tr><td>Apparent size: radius ÷ distance from your post</td><td>Loudness</td><td>Bodies are as loud as they look big in your sky. From the Sun, Zeus and Gaia lead and Poseidon is distant. Voices too faint to hear drop out of the mix.</td></tr>
-          <tr><td>Orbital inclination</td><td>Elevation, sway</td><td>Inclined bodies rise and fall in 3D space as they cross the ecliptic, brighten when north of it, and their pitch sways up and down with them.</td></tr>
-          <tr><td>Axial tilt</td><td>Wobble</td><td>A tilted spinner wobbles in pitch with its day. Ouranos, tipped on his side, wobbles most; Zeus, nearly upright, hardly at all.</td></tr>
-          <tr><td>Rotation, length of day</td><td>Pulse</td><td>Fast spinners pulse quickly. Retrograde spinners (Aphrodite, Ouranos, Hades) pulse in reversed swells.</td></tr>
-          <tr><td>Moons</td><td>Lyre</td><td>Each moon plucks once per orbit. Moons too quick to pluck at the current speed blend into a hum.</td></tr>
-          <tr><td>Direction from your post</td><td>Position</td><td>Bodies ahead, behind, left and right of you are placed there in the mix.</td></tr>
-          <tr><td>Dwarf planets &amp; asteroids</td><td>Perturbation</td><td>By default they do not sing. Each tugs the pitch of the planet nearest to it, more the bigger and closer it is, like a small gravitational pull. Switch them to voices if you want to hear them as children.</td></tr>
-          <tr><td>Comet's distance from the Sun</td><td>Breath</td><td>A comet's size is its coma, which only exists near the Sun, so comets fade in as whispers as they approach and vanish as they leave.</td></tr>
-          <tr><td>Character of each god</td><td>Human voice</td><td>In Human choir mode: basses for Zeus, Kronos, Ouranos and Poseidon; tenor Ares; countertenor Hermes; alto Gaia; soprano Aphrodite. Dwarf planets, asteroids and moons are children. Each sings its own name.</td></tr>
-          <tr><td>The Sun</td><td>Drone</td><td>Apollo, leader of the Muses, holds the tonic and fifth of the chosen mode.</td></tr>
-          <tr><td>The asteroid belt</td><td>Bells</td><td>A random belt asteroid chimes now and then, pitched by its own orbit.</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="foot" style="grid-column:1/-1">Planet positions use JPL's approximate Keplerian elements (good from about 1800 to 2050). Minor planets and comets use rounded elements, so treat their positions as illustrative. Only major moons are shown, and moon orbits are not to scale. Distances on the dial are logarithmic so the inner planets and the Kuiper belt fit together.</p>
-  </section>
+<div class="hud bc">
+  <div class="chips" id="moonChips"></div>
+  <div class="readout"><div class="near" id="nearTxt">—</div><div class="sub" id="speedTxt">—</div></div>
 </div>
 
+<div class="thrust" aria-label="Engines">
+  <button id="fwd" aria-label="Fly forward">▲</button>
+  <button id="bwd" aria-label="Fly backward">▼</button>
+</div>
+<div class="keys" id="keys">
+  <b>drag</b> look · <b>W</b>/<b>S</b> fly · <b>A</b>/<b>D</b> slide · <b>R</b>/<b>F</b> up/down · <b>Q</b>/<b>E</b> roll · <b>Shift</b> boost · <b>T</b> travel
+</div>
+
+<aside class="panel" id="panel" hidden>
+  <h2>Navigation <small>ναυτιλία</small></h2>
+  <div><h3>Travel to</h3><div class="dest" id="dest"></div></div>
+  <div class="field"><label for="speed">Time <output id="speedOut"></output></label><input id="speed" type="range" min="0" max="1000" value="200"></div>
+  <div><h3>Voices</h3><div class="seg" id="voices"><button data-v="instrument" aria-pressed="true">Instruments</button><button data-v="human" aria-pressed="false">Human choir</button></div></div>
+  <label class="check"><input type="checkbox" id="speak" checked> Gods introduce themselves when you travel to them</label>
+  <label class="check"><input type="checkbox" id="slowMoons" checked> Slow time near moons</label>
+  <div class="field"><label for="vol">Volume <output id="volOut"></output></label><input id="vol" type="range" min="0" max="100" value="70"></div>
+  <div class="field"><label for="verb">Temple echo <output id="verbOut"></output></label><input id="verb" type="range" min="0" max="100" value="40"></div>
+  <p class="note">Planets, moons and the Sun are drawn larger than life so you can find them; distances along their orbits are true. Wear headphones: the choir is placed around your ship and turns with it.</p>
+  <button class="btn" id="closeNav">Close</button>
+</aside>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (()=>{
 'use strict';
+
 const DEG=Math.PI/180, TAU=Math.PI*2, J2000=2451545.0;
 const jdNow=()=>Date.now()/86400000+2440587.5;
 const jdOf=(y,m,d)=>Date.UTC(y,m-1,d)/86400000+2440587.5;
@@ -484,7 +354,7 @@ function noteName(f){
 /* ---------- frame state ---------- */
 const P={}; // positions this frame
 function computePositions(){BODIES.forEach(b=>{const p=posAt(b.el,S.jd);p.f=quantize(rawPitch(p.om));if(b.kind==='comet')p.act=Math.min(1,Math.pow(1.6/p.r,2));P[b.id]=p});}
-function listenerPos(){return S.vp==='sun'?{x:0,y:0,z:0}:P[S.vp]}
+function listenerPos(){return toE(ship.pos)}
 function facingAngle(){
   const L=listenerPos();let ang=0;
   if(S.face==='sun'){ if(S.vp==='sun')ang=0; else ang=Math.atan2(-L.y,-L.x); }
@@ -766,10 +636,10 @@ function initAudio(){
 }
 function setVerb(){if(!AC)return;tgt(wet.gain,S.verb*1.1,.1);tgt(dry.gain,1-S.verb*.35,.1)}
 
-function setListener(ang){
-  const l=AC.listener, fx=Math.cos(ang), fz=-Math.sin(ang);
-  if(l.forwardX){const t=AC.currentTime;l.forwardX.setTargetAtTime(fx,t,.08);l.forwardY.setTargetAtTime(0,t,.08);l.forwardZ.setTargetAtTime(fz,t,.08);}
-  else{l.setOrientation(fx,0,fz,0,1,0)}
+function setListener(){
+  const l=AC.listener,f=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion),u=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
+  if(l.forwardX){const t=AC.currentTime;l.forwardX.setTargetAtTime(f.x,t,.04);l.forwardY.setTargetAtTime(f.y,t,.04);l.forwardZ.setTargetAtTime(f.z,t,.04);l.upX.setTargetAtTime(u.x,t,.04);l.upY.setTargetAtTime(u.y,t,.04);l.upZ.setTargetAtTime(u.z,t,.04)}
+  else l.setOrientation(f.x,f.y,f.z,u.x,u.y,u.z);
 }
 function setPos(p,x,y,z,tc=.08){
   if(p.positionX){const t=AC.currentTime;p.positionX.setTargetAtTime(x,t,tc);p.positionY.setTargetAtTime(y,t,tc);p.positionZ.setTargetAtTime(z,t,tc);}
@@ -942,10 +812,7 @@ function moonPos(b,m,jd){
   const th=TAU*((jd-J2000)/m.P+m.ph0), e=(b.obl||0)*DEG;
   return {x:m.a*Math.cos(th),y:m.a*Math.sin(th)*Math.cos(e),z:m.a*Math.sin(th)*Math.sin(e)};
 }
-function sysListener(){
-  if(SYS.vp==='centre')return {x:0,y:0,z:0};
-  return SYS.moons[SYS.vp].pos;
-}
+function sysListener(){const e=toE(ship.pos),p=P[SYS.id];return {x:(e.x-p.x)/MAG*AU_KM,y:(e.y-p.y)/MAG*AU_KM,z:(e.z-p.z)/MAG*AU_KM}}
 // facing: toward the Sun as seen from the planet, plus your head turn
 function sysFacing(){const pp=P[SYS.id];return Math.atan2(-pp.y,-pp.x)+S.turn*DEG}
 function enterSystem(id){
@@ -1104,312 +971,8 @@ function tickSysInfo(){
   SYS.moons.forEach(sm=>{const el=$('sm_'+sm.k),v=SYS.voices[sm.k];if(!el||!v)return;el.textContent=v.part?noteName(P[v.body.id].f)+' · '+((x=>(x>=0?'+':'−')+Math.abs(x))(Math.round(20*Math.log10(Math.max(1e-4,v.gRel)))))+' dB':'faint'});
 }
 
-/* ---------- canvas ---------- */
-const cv=document.getElementById('orrery'), cx2=cv.getContext('2d');
-let W=0,H=0,DPR=1,CX=0,CY=0,RR=0;
-function resize(){
-  DPR=Math.min(2,window.devicePixelRatio||1);const r=cv.getBoundingClientRect();
-  W=r.width;H=r.height;cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
-  CX=W/2;CY=H/2;RR=Math.min(W,H)/2*.8;
-}
-new ResizeObserver(resize).observe(cv);
-const R0=0.5;
-function sr(r){return RR*Math.log(1+r/R0)/Math.log(1+S.rmax/R0)}
-function proj(x,y,z){
-  const r=Math.hypot(x,y,z), s=r>0?sr(r)/r:0, X=x*s, Y=y*s, Z=z*s;
-  const c=Math.cos(S.az), sn=Math.sin(S.az), X2=X*c-Y*sn, Y2=X*sn+Y*c, st=Math.sin(S.tilt), ct=Math.cos(S.tilt);
-  return {x:CX+X2, y:CY-(Y2*st+Z*ct), d:Y2*ct-Z*st};
-}
-function ringPt(ang,rad){const a=ang+S.az;return {x:CX+rad*Math.cos(a),y:CY-rad*Math.sin(a)*Math.sin(S.tilt)}}
-const ZOD=['Κριός','Ταῦρος','Δίδυμοι','Καρκίνος','Λέων','Παρθένος','Ζυγός','Σκορπίος','Τοξότης','Αἰγόκερως','Ὑδροχόος','Ἰχθύες'];
-const bodyPx=b=>b.kind==='comet'?2.2:Math.max(2,Math.min(9,1.4+2.1*Math.log10(Math.max(b.R,10)/120)));
-let screen={};
 
-function draw(t){
-  const g=cx2;g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,W,H);
-  // stars
-  STARS.forEach(s=>{g.fillStyle=`rgba(233,225,204,${.12+s.m*.35})`;g.fillRect(s.x*W,s.y*H,s.m>.92?1.6:1,s.m>.92?1.6:1)});
-  // zodiac ring, the Antikythera-style dial
-  const Rz=RR*1.06;
-  g.strokeStyle='rgba(201,152,79,.45)';g.lineWidth=1;
-  g.beginPath();for(let k=0;k<=360;k+=2){const p=ringPt(k*DEG,Rz);k?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y)}g.stroke();
-  g.beginPath();for(let k=0;k<=360;k+=2){const p=ringPt(k*DEG,Rz*1.035);k?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y)}g.stroke();
-  g.strokeStyle='rgba(201,152,79,.38)';g.beginPath();
-  for(let k=0;k<360;k++){const l=k%30===0?1.035:k%5===0?1.022:1.011;const a=ringPt(k*DEG,Rz),b=ringPt(k*DEG,Rz*l);g.moveTo(a.x,a.y);g.lineTo(b.x,b.y)}
-  g.stroke();
-  g.fillStyle='rgba(201,152,79,.75)';g.font=`${Math.max(10,RR*.034)}px "GFS Didot",Georgia,serif`;g.textAlign='center';g.textBaseline='middle';
-  ZOD.forEach((n,k)=>{const p=ringPt((k*30+15)*DEG,Rz*1.1);g.fillText(n,p.x,p.y)});
-  if(SYS.id){drawSystem(g,t);return}
-  // orbits
-  const L=listenerPos();
-  BODIES.forEach(b=>{
-    if(b.el.a>S.rmax*3&&b.id!==S.sel)return;
-    const sel=b.id===S.sel, on=audioOn?audible(b):true;
-    g.strokeStyle=hexA(b.color,sel?.75:b.kind==='planet'?.26:.14);g.lineWidth=sel?1.4:1;
-    if(b.kind==='comet')g.setLineDash([2,4]);else g.setLineDash([]);
-    g.beginPath();b.orbit.forEach((o,k)=>{const p=proj(o.x,o.y,o.z);k?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y)});g.stroke();
-  });
-  g.setLineDash([]);
-  // belt
-  BELT.forEach(p=>{const q=beltPos(p,S.jd), s=proj(q.x,q.y,q.z);p.flash*=.93;g.fillStyle=p.flash>.05?`rgba(233,225,204,${.3+p.flash*.7})`:'rgba(163,156,137,.28)';const z=p.flash>.05?1.2+p.flash*3:1;g.fillRect(s.x-z/2,s.y-z/2,z,z)});
-  // sun
-  const sp=proj(0,0,0);const sg=g.createRadialGradient(sp.x,sp.y,0,sp.x,sp.y,22);
-  sg.addColorStop(0,'rgba(255,236,190,1)');sg.addColorStop(.25,'rgba(232,180,95,.85)');sg.addColorStop(1,'rgba(201,152,79,0)');
-  g.fillStyle=sg;g.beginPath();g.arc(sp.x,sp.y,22,0,TAU);g.fill();
-  // bodies by depth
-  screen={sun:sp};
-  const order=BODIES.map(b=>{const p=P[b.id];return {b,p,s:proj(p.x,p.y,p.z)}}).sort((a,c)=>c.s.d-a.s.d);
-  order.forEach(({b,p,s})=>{
-    screen[b.id]=s;
-    if(s.x<-40||s.y<-40||s.x>W+40||s.y>H+40)return;
-    const r=bodyPx(b), on=audioOn&&audible(b), aud=S.audition===b.id;
-    g.globalAlpha=S.audition&&!aud?.3:1;
-    if(b.kind==='comet'){
-      const act=p.act, len=6+act*60, ux=s.x-sp.x, uy=s.y-sp.y, ul=Math.hypot(ux,uy)||1;
-      const tg=g.createLinearGradient(s.x,s.y,s.x+ux/ul*len,s.y+uy/ul*len);tg.addColorStop(0,hexA(b.color,.2+act*.6));tg.addColorStop(1,hexA(b.color,0));
-      g.strokeStyle=tg;g.lineWidth=1+act*2.5;g.beginPath();g.moveTo(s.x,s.y);g.lineTo(s.x+ux/ul*len,s.y+uy/ul*len);g.stroke();
-    }
-    if(on&&b.kind!=='comet'){
-      const v=V[b.id], ph=(t/1000*(v?v.rate:1))%1, w=b.rot<0?ph:(Math.sin(ph*TAU)*.5+.5);
-      g.strokeStyle=hexA(b.color,.18+.25*w);g.lineWidth=1;g.beginPath();g.arc(s.x,s.y,r+4+w*5,0,TAU);g.stroke();
-    }
-    if(b.id==='saturn'){g.strokeStyle=hexA(b.color,.7);g.lineWidth=1.2;g.beginPath();g.ellipse(s.x,s.y,r*2.1,r*2.1*Math.max(.18,Math.sin(S.tilt)*.45),-.35,0,TAU);g.stroke()}
-    g.fillStyle=b.color;g.beginPath();g.arc(s.x,s.y,r,0,TAU);g.fill();
-    // moons (not to scale)
-    (b.moons||[]).forEach(m=>{
-      const th=TAU*((S.jd-J2000)/m.P+m.ph0), rad=aud?r+12+m.rank*9:r+4+m.rank*3.6, st=Math.sin(S.tilt);
-      const mx=s.x+rad*Math.cos(th+S.az), my=s.y-rad*Math.sin(th+S.az)*st;
-      m.flash*=.9;
-      if(aud){g.strokeStyle='rgba(233,225,204,.12)';g.lineWidth=1;g.beginPath();g.ellipse(s.x,s.y,rad,rad*st,0,0,TAU);g.stroke()}
-      g.fillStyle=m.flash>.05?`rgba(255,240,205,${.5+m.flash*.5})`:'rgba(233,225,204,.6)';
-      const mr=(m.flash>.05?1.2+m.flash*2.5:1.1)*(aud?1.6:1);g.beginPath();g.arc(mx,my,mr,0,TAU);g.fill();
-      if(aud){g.font='10.5px "Alegreya Sans",sans-serif';g.textAlign='left';g.textBaseline='middle';g.fillStyle='rgba(233,225,204,.65)';g.fillText(m.name.split(' ')[0],mx+5,my)}
-    });
-    if(b.id===S.sel){g.strokeStyle='#c9984f';g.lineWidth=1.3;g.beginPath();g.arc(s.x,s.y,r+11,0,TAU);g.stroke()}
-    const showLabel=b.kind==='planet'||S.labelsAll||b.id===S.sel||b.id===S.vp;
-    if(showLabel){
-      g.font=`${b.kind==='planet'?13:11.5}px "GFS Didot",Georgia,serif`;g.textAlign='left';g.textBaseline='middle';
-      g.fillStyle=b.kind==='planet'?'rgba(233,225,204,.92)':'rgba(233,225,204,.7)';
-      g.fillText(b.kind==='comet'?b.name.split(' ')[0]:b.god,s.x+r+7,s.y-1);
-    }
-  });
-  g.globalAlpha=1;
-  // listener
-  drawListener(g,S.vp==='sun'?sp:screen[S.vp],facingAngle()+S.az);
-}
-function drawListener(g,lp,ang){
-  const st=Math.sin(S.tilt);
-  const fx=Math.cos(ang), fy=-Math.sin(ang)*st;
-  g.strokeStyle='#62a597';g.fillStyle='#62a597';g.lineWidth=1.5;
-  g.beginPath();g.arc(lp.x,lp.y,15,0,TAU);g.globalAlpha=.6;g.stroke();g.globalAlpha=1;
-  const tipx=lp.x+fx*42, tipy=lp.y+fy*42;
-  g.beginPath();g.moveTo(lp.x+fx*15,lp.y+fy*15);g.lineTo(tipx,tipy);g.stroke();
-  g.beginPath();g.moveTo(tipx,tipy);const nx=-fy,ny=fx;g.lineTo(tipx-fx*7+nx*4,tipy-fy*7+ny*4);g.lineTo(tipx-fx*7-nx*4,tipy-fy*7-ny*4);g.closePath();g.fill();
-  const la=ang+Math.PI/2, ra=ang-Math.PI/2;
-  g.font='600 10px "IBM Plex Mono",monospace';g.textAlign='center';g.textBaseline='middle';
-  g.fillText('L',lp.x+Math.cos(la)*24,lp.y-Math.sin(la)*st*24);g.fillText('R',lp.x+Math.cos(ra)*24,lp.y-Math.sin(ra)*st*24);
-}
-function hexA(h,a){const n=parseInt(h.slice(1),16);return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`}
-
-/* ---------- interaction ---------- */
-const ptrs=new Map();let dragStart=null,moved=false,pinch0=null;
-cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});moved=false;dragStart={x:e.clientX,y:e.clientY,az:S.az,tilt:S.tilt};if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch0={d:Math.hypot(a.x-b.x,a.y-b.y),r:S.rmax}}});
-cv.addEventListener('pointermove',e=>{
-  if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(ptrs.size===2&&pinch0){const [a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);setZoom(pinch0.r*Math.pow(pinch0.d/d,1.6));moved=true;return}
-  const dx=e.clientX-dragStart.x, dy=e.clientY-dragStart.y;if(Math.hypot(dx,dy)>4)moved=true;
-  if(moved){S.az=dragStart.az+dx*.006;S.tilt=Math.max(8*DEG,Math.min(90*DEG,dragStart.tilt-dy*.005))}
-});
-const endPtr=e=>{
-  if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);if(ptrs.size<2)pinch0=null;
-  if(!moved&&e.type==='pointerup'){const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
-    let best=null,bd=18;Object.entries(screen).forEach(([id,s])=>{const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=id}});
-    if(SYS.id){ if(best&&best.startsWith('moon:')){const k=+best.split(':')[1];SYS.vp=SYS.vp===k?'centre':k;renderInfo()} else if(best===SYS.id){SYS.vp='centre';renderInfo()} }
-    else if(best&&best!=='sun'){ if(S.audition===best)endAudition(); else audition(best); }
-    else if(S.audition&&!SYS.id)endAudition();}
-};
-cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
-cv.addEventListener('wheel',e=>{e.preventDefault();setZoom(S.rmax*Math.exp(e.deltaY*.0012))},{passive:false});
-function setZoom(r){S.rmax=Math.max(1.6,Math.min(1500,r));document.querySelectorAll('#zoomChips .chip').forEach(c=>c.setAttribute('aria-pressed',String(Math.abs(Math.log(+c.dataset.z/S.rmax))<.05)))}
-document.querySelectorAll('#zoomChips .chip').forEach(c=>c.onclick=()=>setZoom(+c.dataset.z));
-const labelsBtn=document.getElementById('labelsAll');labelsBtn.onclick=()=>{S.labelsAll=!S.labelsAll;labelsBtn.setAttribute('aria-pressed',String(S.labelsAll))};
-
-/* ---------- panel ---------- */
-const $=id=>document.getElementById(id);
-const KIND_LABEL={planet:'The wanderers · πλανῆται',minor:'Dwarf planets & asteroids',comet:'Comets · κομῆται'};
-function fillSelects(){
-  const vp=$('vp'), face=$('face');
-  let h='<option value="sun">The Sun · Helios (heliocentric)</option>';
-  ['planet','minor','comet'].forEach(k=>{h+=`<optgroup label="${KIND_LABEL[k]}">`+BODIES.filter(b=>b.kind===k).map(b=>`<option value="${b.id}">${b.kind==='comet'?b.name:b.god+' · '+b.name}${b.id==='earth'?' (Ptolemaic)':''}</option>`).join('')+'</optgroup>'});
-  vp.innerHTML=h;vp.value=S.vp;
-  let f='<option value="vernal">The vernal point ♈︎ (fixed)</option><option value="sun">The Sun</option>';
-  ['planet','minor','comet'].forEach(k=>{f+=`<optgroup label="${KIND_LABEL[k]}">`+BODIES.filter(b=>b.kind===k).map(b=>`<option value="${b.id}">${b.kind==='comet'?b.name:b.god+' · '+b.name}</option>`).join('')+'</optgroup>'});
-  face.innerHTML=f;face.value=S.face;
-}
-fillSelects();
-$('vp').onchange=e=>{S.vp=e.target.value;if(S.vp!=='sun'&&S.face==='vernal'){}renderInfo()};
-$('face').onchange=e=>{S.face=e.target.value};
-$('turn').oninput=e=>{S.turn=+e.target.value;$('turnOut').textContent=(S.turn>0?'+':'')+S.turn+'°'+(S.turn===0?' ahead':Math.abs(S.turn)===180?' behind':S.turn>0?' left':' right')};
-$('turn').oninput({target:$('turn')});
-document.querySelectorAll('#spatial button').forEach(b=>b.onclick=()=>{
-  S.hrtf=b.dataset.v==='hrtf';document.querySelectorAll('#spatial button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
-  if(AC)PANNERS.forEach(({p,hrtfOK})=>{if(hrtfOK)p.panningModel=S.hrtf?'HRTF':'equalpower'})
-});
-function fmtSpeed(d){
-  if(d<1)return (d*24).toFixed(d*24<10?1:0)+' hours / s';
-  if(d<60)return d.toFixed(d<10?1:0)+' days / s';
-  if(d<730)return (d/30.44).toFixed(d<304?1:0)+' months / s';
-  const y=d/365.25;return (y<10?y.toFixed(1):Math.round(y))+' years / s';
-}
-$('speed').oninput=e=>{S.speed=Math.pow(10,-1+(+e.target.value)/1000*5);$('speedOut').textContent=fmtSpeed(S.speed)};$('speed').oninput({target:$('speed')});
-$('play').onclick=()=>{S.playing=!S.playing;$('play').textContent=S.playing?'Pause':'Play'};
-$('rev').onclick=()=>{S.dir*=-1;$('rev').textContent=S.dir>0?'◀ Backward':'Forward ▶'};
-$('today').onclick=()=>{S.jd=jdNow()};
-$('tuning').onchange=e=>{S.tuning=e.target.value};
-$('mode').onchange=e=>{S.mode=e.target.value};
-$('drone').onchange=e=>{S.drone=e.target.checked};
-$('reg').oninput=e=>{S.F=+e.target.value;$('regOut').textContent=noteName(quantize(S.F))};$('reg').oninput({target:$('reg')});
-$('dist').oninput=e=>{S.dist=e.target.value/100;$('distOut').textContent=e.target.value+'%'};$('dist').oninput({target:$('dist')});
-$('verb').oninput=e=>{S.verb=e.target.value/100;$('verbOut').textContent=e.target.value+'%';setVerb()};$('verb').oninput({target:$('verb')});
-$('vol').oninput=e=>{S.vol=e.target.value/100;$('volOut').textContent=e.target.value+'%';if(AC)tgt(master.gain,S.vol,.05)};$('vol').oninput({target:$('vol')});
-
-// groups
-$('groups').innerHTML=Object.entries(S.groups).map(([k,g])=>`<label class="check" for="g_${k}"><input type="checkbox" id="g_${k}" ${g.on?'checked':''}> ${g.label}</label><input type="range" id="gv_${k}" min="0" max="100" value="${Math.round(g.vol*100)}" aria-label="${g.label} volume">`).join('');
-Object.keys(S.groups).forEach(k=>{$('g_'+k).onchange=e=>{S.groups[k].on=e.target.checked;renderRoster()};$('gv_'+k).oninput=e=>{S.groups[k].vol=e.target.value/100}});
-
-// roster
-function renderRoster(){
-  let h='';
-  ['planet','minor','comet'].forEach(k=>{
-    h+=`<h4>${KIND_LABEL[k]}</h4>`;
-    BODIES.filter(b=>b.kind===k).forEach(b=>{
-      const q=!audible(b);
-      h+=`<div class="vrow${b.id===S.sel?' sel':''}${q?' quiet':''}" data-id="${b.id}"><span class="sw" style="background:${b.color}"></span>
-      <span class="nm">${b.kind==='comet'?b.name:b.god+' <span>'+b.name+'</span>'}</span>
-      <span class="nt" id="nt_${b.id}">${noteName(P[b.id]?.f)}</span>
-      <button class="ms m" data-a="m" aria-pressed="${S.muted.has(b.id)}" title="Mute ${b.god}">M</button>
-      <button class="ms s" data-a="s" aria-pressed="${S.solo.has(b.id)}" title="Solo ${b.god}">S</button></div>`;
-    });
-  });
-  $('roster').innerHTML=h;
-}
-$('roster').addEventListener('click',e=>{
-  const row=e.target.closest('.vrow');if(!row)return;const id=row.dataset.id, a=e.target.dataset.a;
-  if(a==='m'){S.muted.has(id)?S.muted.delete(id):S.muted.add(id);renderRoster()}
-  else if(a==='s'){S.solo.has(id)?S.solo.delete(id):S.solo.add(id);renderRoster()}
-  else if(S.audition===id)endAudition();
-  else audition(id);
-});
-
-// audition: hear one body and its moons alone
-async function audition(id){
-  S.sel=id;S.audition=id;
-  speakGod(byId[id]);
-  if(!audioOn)await startAudio();
-  renderRoster();renderInfo();renderAud();
-}
-function endAudition(){S.audition=null;stopSpeech();renderRoster();renderInfo();renderAud()}
-function renderAud(){
-  const el=$('aud');
-  $('hint').textContent=SYS.id?'tap a moon to listen from it · drag to turn':'tap a body to hear it alone · drag to turn · scroll to zoom';
-  $('zoomChips').hidden=!!SYS.id;
-  if(SYS.id){el.hidden=false;$('audTxt').textContent=`Inside the system of ${byId[SYS.id].god}`;$('audBack').textContent='Solar system';return}
-  $('audBack').textContent='Full choir';
-  if(!S.audition){el.hidden=true;return}
-  const b=byId[S.audition], n=b.moons.length;
-  el.hidden=false;
-  $('audTxt').textContent=`Hearing ${b.kind==='comet'?b.name:b.god}${n?` and ${n===1?b.moons[0].name.split(' ')[0]:n+' moons'}`:''} alone`;
-}
-document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(SYS.id)leaveSystem();else if(S.audition)endAudition()});
-
-// info card
-function select(id){S.sel=id;renderRoster();renderInfo()}
-const fmt=(x,d=2)=>x.toLocaleString('en-GB',{maximumFractionDigits:d,minimumFractionDigits:0});
-function renderInfo(){
-  if(SYS.id){$('info').innerHTML=sysInfoHTML();wireSysInfo();return}
-  const b=byId[S.sel], p=P[b.id];if(!p)return;
-  const L=listenerPos(), d=Math.hypot(p.x-L.x,p.y-L.y,p.z-L.z);
-  const per=b.Pyears<2?fmt(b.Pyears*365.25,0)+' days':fmt(b.Pyears,b.Pyears<20?2:0)+' years';
-  const rot=Math.abs(b.rot)<48?fmt(Math.abs(b.rot),1)+' h':fmt(Math.abs(b.rot)/24,1)+' days';
-  const moonTxt=b.moons.length?b.moons.map(m=>m.name).join(', '):'none shown';
-  $('info').innerHTML=`<div>
-      <div class="greek">${b.greek}</div>
-      <h3>${b.kind==='comet'?b.name:b.god}</h3>
-      <div class="sub">${b.kind==='comet'?'Comet':b.name}${b.ancient?' · '+b.ancient:''}</div>
-      <div class="voice">${S.voices==='human'?humanDesc(b):b.voice}</div>
-      <div class="acts"><button class="btn" id="audBtn" style="border-color:var(--bronze);color:var(--bronze)">${S.audition===b.id?'Back to full choir':'Hear alone'+(b.moons.length?' with moons':'')}</button>${b.hv&&b.hv.say&&SYN?'<button class="btn" id="sayBtn">Speak</button>':''}${b.moons.length?'<button class="btn" id="sysBtn" style="border-color:var(--verdigris);color:var(--verdigris)">Enter the system of '+(b.kind==='comet'?b.name:b.god)+'</button>':''}<button class="btn" id="hereBtn">${S.vp===b.id?'Listening from here':'Listen from here'}</button><button class="btn" id="faceBtn">Face toward</button></div>
-    </div>
-    <dl>
-      <div><dt>Singing now</dt><dd id="i_note">${noteName(p.f)}</dd></div>
-      <div style="grid-column:span 2"><dt>In the mix</dt><dd id="i_heard" style="font-family:var(--f-body)">${voiceState(b).long}</dd></div>
-      <div><dt>Frequency</dt><dd id="i_f">${fmt(p.f,1)} Hz</dd></div>
-      <div><dt>From the Sun</dt><dd id="i_r">${fmt(p.r,3)} AU</dd></div>
-      <div><dt>From your post</dt><dd id="i_d">${S.vp===b.id?'here':fmt(d,3)+' AU'}</dd></div>
-      <div><dt>Orbital period</dt><dd>${per}</dd></div>
-      <div><dt>Eccentricity</dt><dd>${fmt(b.el.e,3)}</dd></div>
-      <div><dt>Inclination</dt><dd>${fmt(b.el.i,2)}°${b.el.i>90?' (retrograde)':''}</dd></div>
-      <div><dt>Day length</dt><dd>${rot}${b.rot<0?' · retrograde':''}</dd></div>
-      <div><dt>Radius</dt><dd>${fmt(b.R,1)} km</dd></div>
-      <div><dt>Height above ecliptic</dt><dd id="i_z">${fmt(p.z,3)} AU</dd></div>
-      <div style="grid-column:1/-1"><dt>Moons on the lyre</dt><dd style="font-family:var(--f-body)">${moonTxt}</dd></div>
-    </dl>`;
-  $('hereBtn').onclick=()=>{S.vp=b.id;$('vp').value=b.id;if(S.face==='vernal'){S.face='sun';$('face').value='sun'}renderInfo()};
-  $('faceBtn').onclick=()=>{S.face=b.id;$('face').value=b.id};
-  if($('sayBtn'))$('sayBtn').onclick=()=>speakGod(b);
-  if($('sysBtn'))$('sysBtn').onclick=()=>enterSystem(b.id);
-  $('audBtn').onclick=()=>S.audition===b.id?endAudition():audition(b.id);
-}
-
-function humanDesc(b){
-  const h=b.hv;if(!h)return b.voice;
-  const name=b.kind==='comet'?b.name:b.god;
-  const sung=h.words.replace(/:/g,'').replace(/\s+/g,'');
-  if(b.kind==='comet')return `A whispering ${VOICE_LABEL[h.type]}, breathing “kometes”, the long-haired star, louder near the Sun.`;
-  const who=h.type==='child'?'A child’s voice':`A ${VOICE_LABEL[h.type]}`;
-  const moons=b.moons.length?` ${b.moons.length===1?'Its moon is':'Its moons are'} children who sing their names as they complete each orbit.`:'';
-  return `${who} sings “${sung}”.${moons}`;
-}
-function tickInfo(){
-  if(SYS.id){tickSysInfo();return}
-  const b=byId[S.sel],p=P[b.id];if(!p||!$('i_note'))return;
-  const L=listenerPos(), d=Math.hypot(p.x-L.x,p.y-L.y,p.z-L.z);
-  $('i_note').textContent=noteName(p.f);$('i_f').textContent=fmt(p.f,1)+' Hz';$('i_r').textContent=fmt(p.r,3)+' AU';
-  $('i_d').textContent=S.vp===b.id?'here':fmt(d,3)+' AU';$('i_z').textContent=fmt(p.z,3)+' AU';
-  BODIES.forEach(x=>{const el=$('nt_'+x.id);if(!el)return;const st=voiceState(x);el.textContent=st.txt;el.closest('.vrow').classList.toggle('quiet',st.quiet)});
-  if($('i_heard'))$('i_heard').textContent=voiceState(b).long;
-}
-// what a body is doing in the mix right now, for the roster and the info card
-function voiceState(b){
-  const v=AC&&V[b.id];
-  if(!audioOn||!v)return {txt:noteName(P[b.id].f),quiet:!audible(b),long:'sound is off'};
-  if(b.kind==='minor'&&S.minorMode==='wobble'&&S.audition!==b.id){
-    const t=b.wobTarget?byId[b.wobTarget]:null;
-    return t?{txt:'→ '+t.god,quiet:false,long:`wobbling ${t.god}'s voice by up to ${Math.round(b.wobDepth)} cents`}:{txt:'—',quiet:true,long:'silent'};
-  }
-  if(!audible(b)&&S.audition!==b.id)return {txt:'—',quiet:true,long:'muted'};
-  if(v.culled)return {txt:'faint',quiet:true,long:'too faint to hear from here'};
-  const db=Math.round(20*Math.log10(Math.max(1e-4,v.gRel)));
-  const by=(WOB[b.id]&&WOB[b.id].by.length)?`, wobbled by ${WOB[b.id].by.map(id=>byId[id].god).join(', ')}`:'';
-  return {txt:noteName(P[b.id].f),quiet:false,long:(db>=0?'+':'−')+Math.abs(db)+' dB'+by};
-}
-function dateStr(jd){
-  const d=new Date((jd-2440587.5)*86400000);if(isNaN(d))return '—';
-  const y=d.getUTCFullYear(), m=d.getUTCMonth(), dd=d.getUTCDate();
-  const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${dd} ${M[m]} ${y<0?(-y+1)+' BCE':y}`;
-}
-
-
-/* ---------- voices UI and speech ---------- */
-const VNOTE={instrument:"Synthesised instruments shaped by each god's vowel.",human:"Each god sings their own name in a voice that suits them: Zeus and Kronos are basses, Ares a tenor, Hermes a countertenor, Gaia an alto, Aphrodite a soprano. Dwarf planets, asteroids and moons are children; comets whisper."};
-document.querySelectorAll('#voices button').forEach(btn=>btn.onclick=()=>{
-  S.voices=btn.dataset.v;document.querySelectorAll('#voices button').forEach(x=>x.setAttribute('aria-pressed',String(x===btn)));
-  $('voicesNote').textContent=VNOTE[S.voices];
-  if(!audioOn)startAudio();applyVoiceMode();
-  renderInfo();
-});
-document.querySelectorAll('#minorMode button').forEach(btn=>btn.onclick=()=>{S.minorMode=btn.dataset.v;document.querySelectorAll('#minorMode button').forEach(x=>x.setAttribute('aria-pressed',String(x===btn)));renderInfo()});
-$('speak').onchange=e=>{S.speak=e.target.checked;if(!S.speak)stopSpeech()};
+/* ---------- speech ---------- */
 const SYN=window.speechSynthesis||null;
 const FEMALE=/female|samantha|victoria|karen|moira|tessa|fiona|serena|kate|susan|zira|hazel|libby|sonia|allison|ava|joanna|amy|emma|martha|catherine|nicky|kathy|shelley|sandy|flo|grandma|aria|jenny|mia|zoe|google uk english female/i;
 const MALE=/(^|\W)male|daniel|alex|fred|arthur|oliver|thomas|george|david|mark|ryan|aaron|gordon|rishi|james|tom|lee|oskar|reed|rocko|eddy|grandpa|guy|brian|google uk english male/i;
@@ -1436,50 +999,362 @@ function speakGod(b){
   u.onstart=()=>{S.speaking=true;clearTimeout(speakTimer);speakTimer=setTimeout(done,line.length*90/rate+2500)};u.onend=u.onerror=done;
   SYN.speak(u);
 }
-/* ---------- begin ---------- */
-async function startAudio(){
-  if(!AC)initAudio();
-  applyVoiceMode();
-  audioOn=true;AC.resume();updateAudio();tgt(master.gain,S.vol,.3);syncBegin();
-}
-function stopAudio(){audioOn=false;tgt(master.gain,0,.15);setTimeout(()=>{if(!audioOn)AC.suspend()},600);syncBegin()}
-function syncBegin(){$('begin').setAttribute('aria-pressed',String(audioOn));$('beginLabel').textContent=audioOn?'Silence the spheres':'Begin the harmony'}
-$('begin').onclick=()=>audioOn?stopAudio():startAudio();
-$('audBack').onclick=()=>SYS.id?leaveSystem():endAudition();
 
-/* ---------- loop ---------- */
-let last=performance.now(), lastAudio=0, lastUI=0, beltAcc=0;
-function frame(t){
-  const dt=Math.min(.1,(t-last)/1000);last=t;
-  if(S.playing)S.jd+=dt*S.speed*S.dir;
-  computePositions();
-  // moons: pluck on each completed orbit
-  let plucks=0;
-  if(!SYS.id)BODIES.forEach(b=>(b.moons||[]).forEach(m=>{
-    const k=Math.floor((S.jd-J2000)/Math.abs(m.P)+m.ph0);
-    if(m.k!==undefined&&k!==m.k){
-      m.flash=1;
-      const rate=S.speed/Math.abs(m.P), aud=S.audition===b.id;
-      // in audition a fast moon still plucks, at most every 0.4 s, over its hum
-      const ok=rate<=1.2||(aud&&t-(m.lastPluck||0)>700);
-    }
-    m.k=k;
-  }));
-  // belt bells
-  if(audioOn&&S.playing&&S.groups.belt.on&&!S.solo.size&&!S.audition&&!SYS.id){
-    beltAcc+=dt*1.0;
-    while(beltAcc>1){beltAcc-=Math.random()*1.4+.3;const p=BELT[(Math.random()*BELT.length)|0];p.flash=1;beltPing(p,beltPos(p,S.jd))}
+/* ================= FLIGHT: the 3D solar system ================= */
+const $=id=>document.getElementById(id);
+const AU_KM=1.495978707e8, MAG=40, SUN_MAG=10;
+// ecliptic (x,y,z) <-> three.js / Web Audio world (x, z, -y): the same axes the audio engine already uses
+const toV=e=>new THREE.Vector3(e.x,e.z,-e.y);
+const toE=v=>({x:v.x,y:-v.z,z:v.y});
+const visR=b=>Math.max(b.R,3)/AU_KM*MAG;
+const SUN_R=696000/AU_KM*SUN_MAG;
+
+const canvas=$('scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,logarithmicDepthBuffer:true});
+renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(62,1,1e-7,2e4);
+scene.add(new THREE.AmbientLight(0x404660,.55));
+const sunLight=new THREE.PointLight(0xfff2dd,1.35,0);scene.add(sunLight);
+function resize3d(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+addEventListener('resize',resize3d);resize3d();
+
+/* ---- procedural textures ---- */
+let tseed=11;const trnd=()=>{tseed=(tseed*16807)%2147483647;return (tseed-1)/2147483646};
+function cvs(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return [c,c.getContext('2d')]}
+function bands(cols,opt={}){
+  const [c,g]=cvs(512,256);
+  const ph=[trnd()*6,trnd()*6,trnd()*6];
+  for(let y=0;y<256;y++){
+    const t=y/256, n=(Math.sin(t*opt.k1*TAU+ph[0])+.6*Math.sin(t*opt.k2*TAU+ph[1])+.3*Math.sin(t*opt.k3*TAU+ph[2]))/1.9;
+    const i=Math.max(0,Math.min(cols.length-1,Math.floor((n*.5+.5)*cols.length)));
+    g.fillStyle=cols[i];g.fillRect(0,y,512,1);
   }
-  draw(t);
-  if(AC&&audioOn&&t-lastAudio>45){updateAudio();lastAudio=t}
-  if(t-lastUI>250){lastUI=t;
-    // watchdog: phones can suspend web audio (for example while a spoken line plays); bring it back
-    if(audioOn&&AC&&AC.state!=='running')AC.resume().catch(()=>{});
-   $('dateTxt').textContent=dateStr(S.jd);$('speedTxt').textContent=S.playing?(S.dir<0?'◀ ':'')+fmtSpeed(S.speed):'paused';tickInfo()}
-  requestAnimationFrame(frame);
+  // gentle turbulence along the belts
+  for(let k=0;k<(opt.swirl||220);k++){g.fillStyle=cols[(trnd()*cols.length)|0];g.globalAlpha=.18;const y=trnd()*256;g.beginPath();g.ellipse(trnd()*512,y,8+trnd()*40,1+trnd()*3,0,0,TAU);g.fill()}
+  g.globalAlpha=1;
+  if(opt.spot){g.fillStyle=opt.spot[0];g.globalAlpha=.9;g.beginPath();g.ellipse(opt.spot[1]*512,opt.spot[2]*256,opt.spot[3],opt.spot[3]*.55,0,0,TAU);g.fill();g.globalAlpha=1}
+  return tex(c);
 }
-computePositions();resize();renderRoster();renderInfo();
-requestAnimationFrame(frame);
+function rocky(base,spots,opt={}){
+  const [c,g]=cvs(512,256);g.fillStyle=base;g.fillRect(0,0,512,256);
+  for(let k=0;k<(opt.n||260);k++){g.fillStyle=spots[(trnd()*spots.length)|0];g.globalAlpha=.12+trnd()*.3;g.beginPath();const r=2+Math.pow(trnd(),2.2)*(opt.big||40);g.ellipse(trnd()*512,trnd()*256,r,r*(.5+trnd()*.5),trnd()*3,0,TAU);g.fill()}
+  g.globalAlpha=1;
+  if(opt.caps){g.fillStyle=opt.caps;g.fillRect(0,0,512,10);g.fillRect(0,246,512,10)}
+  return tex(c);
+}
+function earthTex(){
+  const [c,g]=cvs(512,256);g.fillStyle='#21508f';g.fillRect(0,0,512,256);
+  const lands=[[80,70],[110,150],[250,80],[270,160],[380,90],[420,175],[470,120]];
+  lands.forEach(([x,y])=>{for(let k=0;k<26;k++){g.fillStyle=['#3f7a3a','#6b8f45','#8c7b4f','#4d6a33'][(trnd()*4)|0];g.globalAlpha=.75;g.beginPath();g.ellipse(x+(trnd()-.5)*90,y+(trnd()-.5)*55,6+trnd()*20,4+trnd()*14,trnd()*3,0,TAU);g.fill()}});
+  g.globalAlpha=.92;g.fillStyle='#eef3f6';g.fillRect(0,0,512,14);g.fillRect(0,240,512,16);
+  for(let k=0;k<70;k++){g.globalAlpha=.12;g.beginPath();g.ellipse(trnd()*512,20+trnd()*216,8+trnd()*24,4+trnd()*9,trnd()*3,0,TAU);g.fill()}
+  g.globalAlpha=1;return tex(c);
+}
+function tex(c){const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t}
+const TEX={
+  mercury:()=>rocky('#8e8983',['#6d6862','#b0aaa2','#5a5651'],{n:420,big:22}),
+  venus:()=>bands(['#e2cc98','#d9c08a','#ecdcb5','#cfb57d'],{k1:2,k2:5,k3:11,swirl:300}),
+  earth:earthTex,
+  mars:()=>rocky('#b65a33',['#8a3f22','#cf7a4c','#6e331d','#d89065'],{n:300,big:46,caps:'#f1e9e1'}),
+  jupiter:()=>bands(['#c4936a','#dcc3a0','#b8875f','#e6d5ba','#ad7a55','#d2b28e'],{k1:4,k2:9,k3:17,swirl:520,spot:['#b5604a',.62,.62,24]}),
+  saturn:()=>bands(['#e2cd96','#d3b77e','#ecdcb3','#c6a86f','#e7d6a6'],{k1:4,k2:9,k3:19,swirl:260}),
+  uranus:()=>bands(['#a6dbdb','#9ed2d5','#b2e2e0'],{k1:2,k2:3,k3:7,swirl:60}),
+  neptune:()=>bands(['#4f6fd6','#5d7ee0','#3f5cc0','#7290ea'],{k1:3,k2:7,k3:13,swirl:160,spot:['#22336e',.4,.58,14]}),
+  pluto:()=>rocky('#c7a68f',['#a2826c','#eadbc9','#8c6a56'],{n:200,big:60}),
+  io:()=>rocky('#d9c55a',['#b58a2e','#f2e9a0','#8a5a2a','#e07a2a'],{n:300,big:18}),
+  europa:()=>rocky('#e9e1d2',['#b48b67','#cdb59a'],{n:160,big:6}),
+  titan:()=>bands(['#d79a4a','#c98a3c','#e0a85a'],{k1:1,k2:2,k3:3,swirl:20}),
+  moon:()=>rocky('#9b9893',['#6f6c68','#c4c1bb','#55524f'],{n:300,big:30}),
+  grey:()=>rocky('#8f8a84',['#6b6762','#aaa59e'],{n:160,big:20}),
+  ice:()=>rocky('#cfd3d6',['#a9aeb2','#e9ecee'],{n:140,big:20})
+};
+function moonTexKey(name){const n=name.toLowerCase();if(n.startsWith('io'))return 'io';if(n.startsWith('europa'))return 'europa';if(n.startsWith('titan'))return 'titan';if(n.startsWith('selene'))return 'moon';
+  return /enceladus|tethys|dione|rhea|mimas|ariel|miranda|titania|oberon|umbriel|triton|charon|ganymede|callisto|iapetus|nereid|proteus|dysnomia/.test(n)?'ice':'grey'}
+function ringTex(){
+  const [c,g]=cvs(512,512);const cx=256;
+  for(let r=256;r>0;r--){const t=r/256;if(t<1.24/2.27)break;
+    const f=(t-1.24/2.27)/(1-1.24/2.27);
+    const gap=Math.abs(f-.62)<.025?.1:1, a=(.35+.5*Math.sin(f*40)*Math.sin(f*7)*.5+.3*(f<.3?.5:1))*gap;
+    g.strokeStyle=`rgba(${210+30*f|0},${190+20*f|0},${150+20*f|0},${Math.max(0,Math.min(.9,a))})`;g.lineWidth=1.2;g.beginPath();g.arc(cx,cx,r,0,TAU);g.stroke()}
+  return tex(c);
+}
+function glowTex(inner,outer){const [c,g]=cvs(128,128);const gr=g.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,inner);gr.addColorStop(.25,outer);gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,128,128);return tex(c)}
+
+/* ---- stars ---- */
+{const n=3500,pos=new Float32Array(n*3),col=new Float32Array(n*3);
+ for(let k=0;k<n;k++){const u=trnd()*2-1,th=trnd()*TAU,s=Math.sqrt(1-u*u),R=9000;pos.set([R*s*Math.cos(th),R*u,R*s*Math.sin(th)],k*3);const w=.55+trnd()*.45,tint=trnd();col.set([w*(tint>.8?1:.85),w*.88,w*(tint<.2?1:.8)],k*3)}
+ const gm=new THREE.BufferGeometry();gm.setAttribute('position',new THREE.BufferAttribute(pos,3));gm.setAttribute('color',new THREE.BufferAttribute(col,3));
+ scene.add(new THREE.Points(gm,new THREE.PointsMaterial({size:1.6,sizeAttenuation:false,vertexColors:true,depthWrite:false})));}
+
+/* ---- the Sun ---- */
+const sunMesh=new THREE.Mesh(new THREE.SphereGeometry(SUN_R,48,32),new THREE.MeshBasicMaterial({color:0xffe6b0}));scene.add(sunMesh);
+const sunGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('rgba(255,236,190,1)','rgba(232,170,80,.45)'),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));
+sunGlow.scale.set(SUN_R*14,SUN_R*14,1);scene.add(sunGlow);
+
+/* ---- bodies ---- */
+const OBJ={};
+BODIES.forEach(b=>{
+  const o={b,grp:new THREE.Group(),tilt:new THREE.Group(),r:visR(b)};
+  scene.add(o.grp);o.grp.add(o.tilt);o.tilt.rotation.x=(b.obl||0)*DEG;
+  if(b.kind!=='comet'){
+    const key=TEX[b.id]?b.id:(b.kind==='minor'?'grey':'grey');
+    const mat=new THREE.MeshLambertMaterial({map:TEX[key]()});
+    o.mesh=new THREE.Mesh(new THREE.SphereGeometry(o.r,b.kind==='planet'?48:20,b.kind==='planet'?32:14),mat);o.tilt.add(o.mesh);
+  }else{
+    o.coma=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('rgba(220,240,255,1)','rgba(150,200,255,.35)'),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));o.grp.add(o.coma);
+    const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(6),3));tg.setAttribute('color',new THREE.BufferAttribute(new Float32Array([.8,.9,1,0,0,0]),3));
+    o.tail=new THREE.Line(tg,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));scene.add(o.tail);
+  }
+  if(b.id==='saturn'){const rg=new THREE.Mesh(new THREE.RingGeometry(o.r*1.24,o.r*2.27,160),new THREE.MeshLambertMaterial({map:ringTex(),transparent:true,side:THREE.DoubleSide,depthWrite:false}));rg.rotation.x=-Math.PI/2;o.tilt.add(rg)}
+  // moons live in the planet's equatorial plane, at the same magnification as the planet
+  o.moons=(b.moons||[]).map(m=>{
+    const mm=new THREE.Mesh(new THREE.SphereGeometry(Math.max(m.R,4)/AU_KM*MAG,16,12),new THREE.MeshLambertMaterial({map:TEX[moonTexKey(m.name)]()}));o.tilt.add(mm);
+    const ring=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(Array.from({length:96},(_,k)=>new THREE.Vector3(Math.cos(k/96*TAU),0,Math.sin(k/96*TAU)).multiplyScalar(m.a/AU_KM*MAG))),new THREE.LineBasicMaterial({color:0xe9e1cc,transparent:true,opacity:.12,depthWrite:false}));
+    o.tilt.add(ring);return {m,mesh:mm,ring};
+  });
+  o.outer=o.moons.length?Math.max(...b.moons.map(m=>m.a))/AU_KM*MAG:0;
+  o.soi=Math.max(o.r*25,o.outer*1.6);
+  // orbit line
+  const pts=b.orbit.map(p=>toV(p));
+  const ol=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:new THREE.Color(b.color),transparent:true,opacity:b.kind==='planet'?.2:b.kind==='minor'?.09:.08,depthWrite:false}));
+  scene.add(ol);o.orbit=ol;
+  OBJ[b.id]=o;
+});
+// a fixed-size marker for every body so the small ones can be found from afar
+const DOTS=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:3.2,sizeAttenuation:false,vertexColors:true,depthWrite:false,transparent:true,opacity:.9}));
+{const n=BODIES.length,pos=new Float32Array(n*3),col=new Float32Array(n*3);BODIES.forEach((b,k)=>{const c=new THREE.Color(b.color);col.set([c.r,c.g,c.b],k*3)});
+ DOTS.geometry.setAttribute('position',new THREE.BufferAttribute(pos,3));DOTS.geometry.setAttribute('color',new THREE.BufferAttribute(col,3));scene.add(DOTS);}
+// markers for the moons, so they show as points of light when the spheres are too small to see
+const MOONREF=[];BODIES.forEach(b=>OBJ[b.id].moons.forEach((mm,k)=>MOONREF.push([b.id,k])));
+const MOONDOTS=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:2.6,sizeAttenuation:false,color:0xe9e1cc,transparent:true,opacity:.85,depthWrite:false}));
+MOONDOTS.geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(MOONREF.length*3),3));scene.add(MOONDOTS);
+// asteroid belt
+const BELTPTS=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:1.5,sizeAttenuation:false,color:0xa39c89,transparent:true,opacity:.55,depthWrite:false}));
+BELTPTS.geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(BELT.length*3),3));scene.add(BELTPTS);
+
+function moonLocal(o,mm){const th=TAU*((S.jd-J2000)/mm.m.P+mm.m.ph0),a=mm.m.a/AU_KM*MAG;return new THREE.Vector3(a*Math.cos(th),0,-a*Math.sin(th))}
+function moonWorld(o,k){return o.moons[k].mesh.getWorldPosition(new THREE.Vector3())}
+const prevPos={};
+function updateScene(dtSim){
+  BODIES.forEach((b,k)=>{
+    const o=OBJ[b.id],p=P[b.id],v=toV(p);
+    prevPos[b.id]=prevPos[b.id]||v.clone();
+    o.prev=prevPos[b.id].clone();prevPos[b.id].copy(v);
+    o.grp.position.copy(v);o.pos=v;
+    DOTS.geometry.attributes.position.setXYZ(k,v.x,v.y,v.z);
+    if(o.mesh){const spin=b.rot?TAU*24/b.rot*dtSim:0;o.mesh.rotation.y+=Math.max(-.3,Math.min(.3,spin))}
+    o.moons.forEach(mm=>mm.mesh.position.copy(moonLocal(o,mm)));
+    if(b.kind==='comet'){
+      const act=Math.min(1,Math.pow(1/p.r,2)), away=v.clone().normalize(), len=.01+act*.7;
+      o.coma.scale.setScalar(.004+act*.08);o.coma.material.opacity=.25+act*.75;
+      const a=o.tail.geometry.attributes.position;a.setXYZ(0,v.x,v.y,v.z);a.setXYZ(1,v.x+away.x*len,v.y+away.y*len,v.z+away.z*len);a.needsUpdate=true;
+    }
+  });
+  DOTS.geometry.attributes.position.needsUpdate=true;
+  scene.updateMatrixWorld();
+  const md=MOONDOTS.geometry.attributes.position;MOONREF.forEach(([id,k],i)=>{const w=moonWorld(OBJ[id],k);md.setXYZ(i,w.x,w.y,w.z)});md.needsUpdate=true;
+  const bp=BELTPTS.geometry.attributes.position;BELT.forEach((q,k)=>{const e=beltPos(q,S.jd);bp.setXYZ(k,e.x,e.z,-e.y)});bp.needsUpdate=true;
+}
+
+/* ---- the ship ---- */
+const ship={pos:new THREE.Vector3(),vel:new THREE.Vector3(),anchor:null,ap:null};
+const keys=new Set();let hold=0, lookDrag=null;
+function placeNear(id,dist){
+  const o=OBJ[id],v=toV(P[id]);
+  const off=v.clone().normalize().multiplyScalar(-1).add(new THREE.Vector3(0,.35,0)).normalize().multiplyScalar(dist);
+  ship.pos.copy(v).add(off);camera.position.copy(ship.pos);camera.lookAt(v);
+}
+function nearestSurface(){
+  let best=ship.pos.length()-SUN_R, who='sun';
+  BODIES.forEach(b=>{const o=OBJ[b.id];const d=ship.pos.distanceTo(o.pos)-o.r;if(d<best){best=d;who=b.id}
+    o.moons.forEach((mm,k)=>{const d2=ship.pos.distanceTo(moonWorld(o,k))-mm.mesh.geometry.parameters.radius;if(d2<best){best=d2;who=b.id+':'+k}})});
+  return {d:Math.max(best,1e-7),who};
+}
+function travelTo(id){
+  const b=id.includes(':')||id==='sun'?null:byId[id];
+  const name=id==='sun'?'Helios, the Sun':id.includes(':')?moonName(id):(b.kind==='comet'?b.name:b.god);
+  ship.ap={id,name};ship.vel.set(0,0,0);
+  if(b&&S.speak&&audioOn)speakGod(b);
+  toast(`Setting course for ${name}`);
+  closeNav();
+}
+function moonName(id){const [pid,k]=id.split(':');return byId[pid].moons[+k].name.split(' ')[0]}
+function targetInfo(id){
+  if(id==='sun')return {pos:new THREE.Vector3(),r:SUN_R};
+  if(id.includes(':')){const [pid,k]=id.split(':');const o=OBJ[pid];return {pos:moonWorld(o,+k),r:o.moons[+k].mesh.geometry.parameters.radius}}
+  const o=OBJ[id];return {pos:o.pos.clone(),r:o.r,o};
+}
+const tmpQ=new THREE.Quaternion(), tmpM=new THREE.Matrix4();
+function flight(dt){
+  const ns=nearestSurface();
+  // the ship rides along with whichever planet's neighbourhood it is in
+  let anchor=null,ad=1e9;
+  BODIES.forEach(b=>{const o=OBJ[b.id];if(b.kind==='comet')return;const d=ship.pos.distanceTo(o.pos);if(d<o.soi&&d<ad){ad=d;anchor=b.id}});
+  ship.anchor=anchor;
+  if(anchor){const o=OBJ[anchor];ship.pos.add(o.pos.clone().sub(o.prev))}
+  if(ship.ap){
+    const T=targetInfo(ship.ap.id);
+    const stand=ship.ap.id==='sun'?SUN_R*9:T.r*(T.o&&T.o.b.id==='saturn'?11:7);
+    const dirOff=T.pos.clone().normalize().multiplyScalar(-1);if(!isFinite(dirOff.x)||ship.ap.id==='sun')dirOff.copy(ship.pos).normalize();
+    const goal=T.pos.clone().add(dirOff.add(new THREE.Vector3(0,.35,0)).normalize().multiplyScalar(stand));
+    const d=goal.clone().sub(ship.pos), D=d.length();
+    ship.pos.add(d.multiplyScalar(1-Math.exp(-dt*1.3)));
+    tmpM.lookAt(ship.pos,T.pos,new THREE.Vector3(0,1,0));tmpQ.setFromRotationMatrix(tmpM);
+    camera.quaternion.slerp(tmpQ,1-Math.exp(-dt*2.6));
+    if(D<stand*.04){toast(`Arrived at ${ship.ap.name}`);ship.ap=null}
+  }else{
+    const base=Math.min(40,Math.max(2e-6,ns.d*.55))*(keys.has('Shift')?5:1);
+    const f=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion), r=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion), u=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
+    const th=(keys.has('w')||keys.has('ArrowUp')?1:0)-(keys.has('s')||keys.has('ArrowDown')?1:0)+hold;
+    const st=(keys.has('d')?1:0)-(keys.has('a')?1:0), vt=(keys.has('r')?1:0)-(keys.has('f')?1:0);
+    const want=f.multiplyScalar(th).add(r.multiplyScalar(st)).add(u.multiplyScalar(vt)).multiplyScalar(base);
+    ship.vel.lerp(want,1-Math.exp(-dt*4));
+    ship.pos.addScaledVector(ship.vel,dt);
+    const roll=(keys.has('q')?1:0)-(keys.has('e')?1:0);if(roll)camera.rotateZ(roll*dt*1.2);
+    if(keys.has('ArrowLeft'))camera.rotateY(dt*1.2);if(keys.has('ArrowRight'))camera.rotateY(-dt*1.2);
+  }
+  // never fly into a body
+  const push=(c,r)=>{const d=ship.pos.distanceTo(c);if(d<r*1.15){ship.pos.copy(c).add(ship.pos.clone().sub(c).normalize().multiplyScalar(r*1.15))}};
+  push(new THREE.Vector3(),SUN_R);BODIES.forEach(b=>{const o=OBJ[b.id];push(o.pos,o.r);o.moons.forEach((mm,k)=>push(moonWorld(o,k),mm.mesh.geometry.parameters.radius))});
+  camera.position.copy(ship.pos);
+  // speed relative to the neighbourhood you are in, from how far the ship actually moved
+  const fr=ship.anchor?OBJ[ship.anchor].pos.clone().sub(OBJ[ship.anchor].prev):new THREE.Vector3();
+  if(ship.last&&dt>0){const inst=ship.pos.clone().sub(ship.last).sub(fr).length()/dt;ship.speed=(ship.speed||0)+(inst-(ship.speed||0))*Math.min(1,dt*4)}
+  ship.last=ship.pos.clone();
+  return ns;
+}
+// looking around: drag with mouse or finger
+canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);lookDrag={x:e.clientX,y:e.clientY};resumeAudio()});
+canvas.addEventListener('pointermove',e=>{if(!lookDrag)return;const dx=e.clientX-lookDrag.x,dy=e.clientY-lookDrag.y;lookDrag={x:e.clientX,y:e.clientY};
+  if(ship.ap&&Math.hypot(dx,dy)>3){ship.ap=null}
+  camera.rotateY(-dx*.0035);camera.rotateX(-dy*.0035)});
+const endLook=()=>{lookDrag=null};canvas.addEventListener('pointerup',endLook);canvas.addEventListener('pointercancel',endLook);
+addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;const k=e.key.length===1?e.key.toLowerCase():e.key;keys.add(k);
+  if(['w','s','a','d','r','f','q','e','ArrowUp','ArrowDown'].includes(k))ship.ap=null;
+  if(k==='t')toggleNav();if(k==='Escape')closeNav();if(k.startsWith('Arrow'))e.preventDefault()});
+addEventListener('keyup',e=>{const k=e.key.length===1?e.key.toLowerCase():e.key;keys.delete(k)});
+addEventListener('blur',()=>keys.clear());
+function bindHold(el,v){
+  const on=e=>{e.preventDefault();hold=v;ship.ap=null;el.classList.add('on');resumeAudio()}, off=()=>{hold=0;el.classList.remove('on')};
+  el.addEventListener('pointerdown',on);el.addEventListener('pointerup',off);el.addEventListener('pointerleave',off);el.addEventListener('pointercancel',off);
+}
+bindHold($('fwd'),1);bindHold($('bwd'),-1);
+
+/* ---- labels ---- */
+const LBL={};
+function lbl(id,text,cls){const d=document.createElement('div');d.className='lbl '+(cls||'');d.innerHTML=text;d.onclick=()=>travelTo(id);$('labels').appendChild(d);LBL[id]=d;return d}
+lbl('sun','Helios <small>Sun</small>','');
+BODIES.forEach(b=>{lbl(b.id,b.kind==='comet'?b.name.split(' ')[0]:b.god,b.kind==='planet'?'':'minor');(b.moons||[]).forEach((m,k)=>lbl(b.id+':'+k,m.name.split(' ')[0],'moon'))});
+const pv=new THREE.Vector3();
+function placeLabel(id,pos,show){
+  const el=LBL[id];if(!show){el.hidden=true;return}
+  pv.copy(pos).project(camera);
+  if(pv.z>1||pv.z<-1||Math.abs(pv.x)>1.1||Math.abs(pv.y)>1.1){el.hidden=true;return}
+  el.hidden=false;el.style.left=((pv.x*.5+.5)*innerWidth)+'px';el.style.top=((-pv.y*.5+.5)*innerHeight)+'px';
+  el.classList.toggle('target',!!(ship.ap&&ship.ap.id===id));
+}
+function updateLabels(){
+  placeLabel('sun',new THREE.Vector3(),true);
+  BODIES.forEach(b=>{const o=OBJ[b.id],d=ship.pos.distanceTo(o.pos);
+    placeLabel(b.id,o.pos,b.kind==='planet'||d<4||(ship.ap&&ship.ap.id===b.id));
+    o.moons.forEach((mm,k)=>placeLabel(b.id+':'+k,moonWorld(o,k),ship.anchor===b.id||(ship.ap&&ship.ap.id===b.id+':'+k)));
+  });
+}
+
+/* ---- audio: the ship is the listener ---- */
+function resumeAudio(){if(audioOn&&AC&&AC.state!=='running')AC.resume().catch(()=>{})}
+function startAudio3D(){
+  if(!AC)initAudio();
+  applyVoiceMode();audioOn=true;AC.resume();
+  if(SYS.id)buildSystemVoices();
+  tgt(master.gain,S.vol,.3);syncBegin();
+}
+function stopAudio3D(){audioOn=false;tgt(master.gain,0,.15);setTimeout(()=>{if(!audioOn)AC.suspend()},600);syncBegin()}
+function syncBegin(){$('begin').setAttribute('aria-pressed',String(audioOn));$('begin').textContent=audioOn?'Silence':'Begin the harmony'}
+$('begin').onclick=()=>audioOn?stopAudio3D():startAudio3D();
+// enter a planet's moon system when the ship is among its moons
+function sysEnter3D(id){
+  const b=byId[id];SYS.id=id;SYS.vp='centre';SYS.moons=b.moons.map((m,k)=>({m,k,id:'moon:'+id+':'+k,pos:moonPos(b,m,S.jd)}));
+  if(AC)buildSystemVoices();
+  if($('slowMoons').checked){const minP=Math.min(...b.moons.map(m=>Math.abs(m.P)));if(S.speed>minP/4){SYS.savedSpeed=S.speed;setTime(minP/4);toast(`Among the moons of ${b.god}: time slowed to ${fmtSpeed(S.speed)}`)}}
+  renderMoonChips();
+}
+function sysLeave3D(){if(AC)killSystemVoices();SYS.id=null;SYS.moons=[];if(SYS.savedSpeed){setTime(SYS.savedSpeed);SYS.savedSpeed=null}renderMoonChips()}
+function renderMoonChips(){
+  const el=$('moonChips');
+  if(!ship.anchor||!byId[ship.anchor].moons.length){el.innerHTML='';return}
+  const b=byId[ship.anchor];el.innerHTML=b.moons.map((m,k)=>`<button class="chip" data-id="${b.id}:${k}">${m.name.split(' ')[0]}</button>`).join('')+`<button class="chip" data-id="${b.id}">${b.god}</button>`;
+}
+$('moonChips').onclick=e=>{const c=e.target.closest('.chip');if(c)travelTo(c.dataset.id)};
+let lastAnchor=null;
+function audioTick(){
+  // inside a moon system the moons sing; outside, the whole choir
+  const inSys=ship.anchor&&byId[ship.anchor].moons.length&&ship.pos.distanceTo(OBJ[ship.anchor].pos)<OBJ[ship.anchor].outer*1.6;
+  if(inSys&&SYS.id!==ship.anchor){if(SYS.id)sysLeave3D();sysEnter3D(ship.anchor)}
+  else if(!inSys&&SYS.id)sysLeave3D();
+  if(ship.anchor!==lastAnchor){lastAnchor=ship.anchor;renderMoonChips()}
+  if(!AC||!audioOn)return;
+  if(SYS.id){SYS.moons.forEach(sm=>sm.pos=moonPos(byId[SYS.id],sm.m,S.jd));updateSystemAudio()}
+  else updateAudio();
+}
+
+/* ---- HUD, panel, time ---- */
+function toast(t){const el=$('toast');el.textContent=t;el.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>el.style.opacity=0,3200)}
+function fmtSpeed(d){
+  if(d<1)return (d*24).toFixed(d*24<10?1:0)+' hours / s';
+  if(d<60)return d.toFixed(d<10?1:0)+' days / s';
+  if(d<730)return (d/30.44).toFixed(d<304?1:0)+' months / s';
+  const y=d/365.25;return (y<10?y.toFixed(1):Math.round(y))+' years / s';
+}
+function setTime(d){S.speed=d;$('speed').value=Math.max(0,Math.min(1000,Math.round((Math.log10(d)+2)/6*1000)));$('speedOut').textContent=fmtSpeed(d)}
+$('speed').oninput=e=>{S.speed=Math.pow(10,-2+e.target.value/1000*6);SYS.savedSpeed=null;$('speedOut').textContent=fmtSpeed(S.speed)};
+$('vol').oninput=e=>{S.vol=e.target.value/100;$('volOut').textContent=e.target.value+'%';if(AC&&audioOn)tgt(master.gain,S.vol,.05)};$('vol').oninput({target:$('vol')});
+$('verb').oninput=e=>{S.verb=e.target.value/100;$('verbOut').textContent=e.target.value+'%';setVerb()};$('verb').oninput({target:$('verb')});
+$('speak').onchange=e=>{S.speak=e.target.checked;if(!S.speak&&SYN)SYN.cancel()};
+document.querySelectorAll('#voices button').forEach(btn=>btn.onclick=()=>{S.voices=btn.dataset.v;document.querySelectorAll('#voices button').forEach(x=>x.setAttribute('aria-pressed',String(x===btn)));if(!audioOn)startAudio3D();applyVoiceMode()});
+function toggleNav(){$('panel').hidden?openNav():closeNav()}
+function openNav(){$('panel').hidden=false;$('navBtn').setAttribute('aria-expanded','true')}
+function closeNav(){$('panel').hidden=true;$('navBtn').setAttribute('aria-expanded','false')}
+$('navBtn').onclick=toggleNav;$('closeNav').onclick=closeNav;
+{
+  const grp=(t,list)=>`<h3 style="grid-column:1/-1">${t}</h3>`+list.map(b=>`<button data-id="${b.id}"><span class="sw" style="background:${b.color}"></span><span class="nm">${b.kind==='comet'?b.name.split(' ')[0]:b.god} <span>${b.kind==='comet'?'':b.name}</span></span></button>`).join('');
+  $('dest').innerHTML=`<button data-id="sun"><span class="sw" style="background:#ffe6b0"></span><span class="nm">Helios <span>Sun</span></span></button>`+
+    grp('Planets',BODIES.filter(b=>b.kind==='planet'))+grp('Dwarf planets &amp; asteroids',BODIES.filter(b=>b.kind==='minor'))+grp('Comets',BODIES.filter(b=>b.kind==='comet'));
+  $('dest').onclick=e=>{const c=e.target.closest('button');if(c)travelTo(c.dataset.id)};
+}
+function readout(ns){
+  const near=ns.who==='sun'?'Helios':ns.who.includes(':')?moonName(ns.who):(byId[ns.who].kind==='comet'?byId[ns.who].name.split(' ')[0]:byId[ns.who].god);
+  const anc=ship.anchor?byId[ship.anchor]:null;
+  let txt=ship.ap?`Travelling to <em>${ship.ap.id==='sun'?'Helios':ship.ap.id.includes(':')?moonName(ship.ap.id):(byId[ship.ap.id].kind==='comet'?byId[ship.ap.id].name.split(' ')[0]:byId[ship.ap.id].god)}</em>`:
+    anc?`In orbit with <em>${anc.god}</em>`:`Nearest: <em>${near}</em>`;
+  if(SYS.id)txt+=` · ${byId[SYS.id].moons.length} moon${byId[SYS.id].moons.length>1?'s':''} singing`;
+  $('nearTxt').innerHTML=txt;
+  const v=(ship.speed||0)*AU_KM/MAG*(ship.anchor?1:MAG), c=299792.458;
+  const sp=v>c?(v/c).toFixed(v/c<10?1:0)+'× light speed':Math.round(v).toLocaleString('en-GB')+' km/s';
+  const dist=ship.pos.length();
+  $('speedTxt').textContent=`${sp} · ${dist.toFixed(dist<2?3:1)} AU from the Sun`;
+}
+function dateStr(jd){const d=new Date((jd-2440587.5)*86400000);if(isNaN(d))return '—';const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const y=d.getUTCFullYear();return `${d.getUTCDate()} ${M[d.getUTCMonth()]} ${y<0?(-y+1)+' BCE':y}`}
+
+/* ---- main loop ---- */
+S.speed=1;setTime(1);S.vp='ship';
+computePositions();updateScene(0);
+placeNear('earth',OBJ.earth.r*9);
+let last3=performance.now(), lastA=0, lastU=0;
+function frame3(t){
+  const dt=Math.min(.1,(t-last3)/1000);last3=t;
+  const dtSim=S.playing?dt*S.speed:0;S.jd+=dtSim;
+  computePositions();updateScene(dtSim);
+  const ns=flight(dt);
+  updateLabels();
+  if(t-lastA>45){audioTick();lastA=t}
+  if(t-lastU>250){lastU=t;$('dateTxt').textContent=dateStr(S.jd);$('timeTxt').textContent=fmtSpeed(S.speed);readout(ns);resumeAudio()}
+  renderer.render(scene,camera);
+  requestAnimationFrame(frame3);
+}
+requestAnimationFrame(frame3);
+
 })();
 </script>
 
