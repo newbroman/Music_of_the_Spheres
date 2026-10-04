@@ -7,6 +7,7 @@
 - **3D flight:** https://newbroman.github.io/Music_of_the_Spheres/flight.html
 - **Dance:** https://newbroman.github.io/Music_of_the_Spheres/dance.html
 - **How it works (help and theory):** https://newbroman.github.io/Music_of_the_Spheres/help.html
+- **Po polsku (Polish):** [tarcza 2D](https://newbroman.github.io/Music_of_the_Spheres/pl/), [lot 3D](https://newbroman.github.io/Music_of_the_Spheres/pl/flight.html), [taniec](https://newbroman.github.io/Music_of_the_Spheres/pl/dance.html), [jak to działa](https://newbroman.github.io/Music_of_the_Spheres/pl/help.html)
 - **v1 benchmark (frozen):** https://newbroman.github.io/Music_of_the_Spheres/v1/ and [v1/flight.html](https://newbroman.github.io/Music_of_the_Spheres/v1/flight.html)
 
 A live orrery that you can hear. Every planet, moon, dwarf planet and comet sings with the voice of a Greek god. The music comes from the real motions of the solar system, and you choose where you stand and listen.
@@ -89,6 +90,10 @@ You can choose free glide (Kepler), Pythagorean diatonic or Pythagorean pentaton
 - Dwarf planets, asteroids and comets use rounded elements, so their positions are illustrative.
 - Only major moons are included, on circular orbits in their planet's equatorial plane.
 - Distances on the dial are logarithmic.
+
+## Polish version
+
+The `pl/` folder holds a Polish translation of all four pages. The English pages are the master copy. The Polish pages are generated from them by a translation step that swaps every visible string, uses Polish note names (B for B♭, H for B), Polish dates and decimal commas, and speaks the gods' introductions with a Polish speech voice when the device has one. Every page links to its counterpart in the other language.
 
 ## Technical
 
