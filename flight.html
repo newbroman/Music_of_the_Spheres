@@ -1013,15 +1013,28 @@ const FEMALE=/female|samantha|victoria|karen|moira|tessa|fiona|serena|kate|susan
 const MALE=/(^|\W)male|daniel|alex|fred|arthur|oliver|thomas|george|david|mark|ryan|aaron|gordon|rishi|james|tom|lee|oskar|reed|rocko|eddy|grandpa|guy|brian|google uk english male/i;
 function pickVoice(sex,seed){
   if(!SYN)return null;
-  const all=SYN.getVoices().filter(v=>/^en/i.test(v.lang));if(!all.length)return null;
+  let all=SYN.getVoices().filter(v=>/^en/i.test(v.lang));if(!all.length)return null;
+  // voices installed on the device only: network voices make phones reroute their audio mid-song
+  const local=all.filter(v=>v.localService);if(local.length)all=local;
   const gb=all.filter(v=>/en[-_]GB/i.test(v.lang));
   const pool=(list)=>list.filter(v=>sex==='f'?FEMALE.test(v.name)&&!/(^|\W)male/i.test(v.name.replace(/female/i,'')):MALE.test(v.name)&&!FEMALE.test(v.name));
-  let c=pool(gb);if(!c.length)c=pool(all);if(!c.length)c=gb.length?gb:all;
-  return c[seed%c.length];
+  let c=pool(gb);if(!c.length)c=pool(all);
+  // no clear male or female voice: use the device's own default rather than cycling through unknown ones
+  if(!c.length){const d=all.find(v=>v.default)||gb[0]||all[0];return d}
+  // phones: one steady voice per sex; computers can vary by god
+  return LOWPOWER?c[0]:c[seed%c.length];
 }
 if(SYN&&SYN.onvoiceschanged!==undefined)SYN.onvoiceschanged=()=>{};
 let speakTimer=0;
 document.addEventListener('pointerdown',()=>{if(audioOn&&AC&&AC.state!=='running')AC.resume().catch(()=>{})},true);
+// after speech on a phone, reopen the audio output: the speech engine can leave the music's stream
+// out of step (heard as crackle) until the output restarts, as switching apps does
+let refreshing=false;
+function refreshOutput(){
+  if(refreshing||!AC)return;refreshing=true;
+  tgt(master.gain,0,.03);
+  setTimeout(()=>AC.suspend().catch(()=>{}).then(()=>setTimeout(()=>AC.resume().catch(()=>{}).then(()=>{refreshing=false;if(audioOn)tgt(master.gain,S.vol,.12)}),180)),120);
+}
 function stopSpeech(){if(SYN)SYN.cancel();S.speaking=false}
 function speakGod(b){
   if(!S.speak||!SYN||!b.hv||!b.hv.say)return;
@@ -1030,7 +1043,7 @@ function speakGod(b){
   const u=new SpeechSynthesisUtterance(line);
   const v=pickVoice(sex,BODIES.indexOf(b));if(v){u.voice=v;u.lang=v.lang}else u.lang='en-GB';
   u.pitch=Math.max(0,Math.min(2,pitch));u.rate=rate;u.volume=1;
-  const done=()=>{S.speaking=false;if(audioOn&&AC)AC.resume().catch(()=>{})};
+  const done=()=>{S.speaking=false;if(audioOn&&AC){if(LOWPOWER)refreshOutput();else AC.resume().catch(()=>{})}};
   u.onstart=()=>{S.speaking=true;clearTimeout(speakTimer);speakTimer=setTimeout(done,line.length*90/rate+2500)};u.onend=u.onerror=done;
   SYN.speak(u);
 }
