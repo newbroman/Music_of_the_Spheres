@@ -31,7 +31,7 @@ button,select,input{font:inherit;color:inherit}
 #scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 #scene:active{cursor:grabbing}
 #labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
-.lbl{position:absolute;transform:translate(10px,-50%);font-family:var(--f-display);font-size:13px;color:var(--vellum);white-space:nowrap;pointer-events:auto;cursor:pointer;text-shadow:0 0 6px #000,0 0 2px #000;padding:2px 4px;border-radius:3px}
+.lbl{position:absolute;left:0;top:0;will-change:transform;font-family:var(--f-display);font-size:13px;color:var(--vellum);white-space:nowrap;pointer-events:auto;cursor:pointer;text-shadow:0 0 6px #000,0 0 2px #000;padding:2px 4px;border-radius:3px}
 .lbl:hover{color:var(--bronze)}
 .lbl.minor{font-size:11.5px;color:var(--vellum-dim)}
 .lbl.moon{font-family:var(--f-body);font-size:11.5px;color:var(--vellum-dim)}
@@ -407,7 +407,7 @@ const LASTV=new WeakMap();
 const tgt=(param,v,tc=.08)=>{const l=LASTV.get(param);if(l!==undefined&&Math.abs(l-v)<=Math.abs(v)*.002+1e-6)return;LASTV.set(param,v);param.setTargetAtTime(v,AC.currentTime,tc)};
 // phones and tablets: fewer simultaneous voices and stereo panning by default
 const LOWPOWER=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
-const MAXVOICES=LOWPOWER?6:10;
+const MAXVOICES=LOWPOWER?4:10, MAXMOONS=LOWPOWER?4:12;
 
 /* ---------- human voices: formant singers ---------- */
 // [freq Hz, level dB, bandwidth Hz] x5, classic choir formant tables; child from Peterson & Barney child means
@@ -919,12 +919,14 @@ function updateSystemAudio(){
   });
   // reference loudness: the moon that looks biggest from the planet's centre sings at full voice
   const ref=Math.max(...SYS.moons.map(sm=>sm.m.R/sm.m.a));
+  // only the loudest few moons sing at once on a phone
+  const mAllowed=new Set(SYS.moons.map(sm=>[sm.k,SYS.vp===sm.k?9:(sm.m.R/Math.max(audioDir(sm.pos,L).d,1))]).sort((a,c)=>c[1]-a[1]).slice(0,MAXMOONS).map(x=>x[0]));
   SYS.moons.forEach((sm,k)=>{
     const v=SYS.voices[k], mb=v.body, f=P[mb.id].f=melodyPitch(sysPitch(sm.m.P),moonPhase(b,sm.m));
     const isMe=SYS.vp===k;
     const a=audioDir(sm.pos,L);setPos(v.pan,a.x,a.y,a.z,.06);
     const g=v.gRel=isMe?.55:Math.min(1.6,Math.pow((sm.m.R/Math.max(a.d,1))/ref,law));
-    const want=!S.muted.has(mb.id)&&g>(v.part?.025:.035);
+    const want=!S.muted.has(mb.id)&&mAllowed.has(k)&&g>(v.part?.025:.035);
     if(want&&!v.part){v.part=S.voices==='human'?buildHumanPart(mb,v):buildInst(mb,v,true);v.mode=S.voices;v.born=now}
     else if(!want&&v.part&&now-v.born>2.5){killPart(v.part);v.part=null}
     if(!v.part){tgt(v.vol.gain,0,.1);return}
@@ -1061,7 +1063,7 @@ const canvas=$('scene');
 // phones: lighter graphics so the audio thread keeps its headroom
 const MOBILE=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
 const renderer=new THREE.WebGLRenderer({canvas,antialias:!MOBILE,logarithmicDepthBuffer:true});
-renderer.setPixelRatio(Math.min(MOBILE?1.5:2,window.devicePixelRatio||1));
+renderer.setPixelRatio(Math.min(MOBILE?1:2,window.devicePixelRatio||1));
 S.hrtf=!MOBILE;
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(62,1,1e-7,2e4);
@@ -1305,7 +1307,7 @@ function placeLabel(id,pos,show){
   const el=LBL[id];if(!show){el.hidden=true;return}
   pv.copy(pos).project(camera);
   if(pv.z>1||pv.z<-1||Math.abs(pv.x)>1.1||Math.abs(pv.y)>1.1){el.hidden=true;return}
-  el.hidden=false;el.style.left=((pv.x*.5+.5)*innerWidth)+'px';el.style.top=((-pv.y*.5+.5)*innerHeight)+'px';
+  el.hidden=false;el.style.transform=`translate3d(${((pv.x*.5+.5)*innerWidth+10).toFixed(1)}px,${((-pv.y*.5+.5)*innerHeight).toFixed(1)}px,0) translateY(-50%)`;
   el.classList.toggle('target',!!(ship.ap&&ship.ap.id===id));
 }
 function updateLabels(){
@@ -1421,13 +1423,13 @@ function dateStr(jd){const d=new Date((jd-2440587.5)*86400000);if(isNaN(d))retur
 S.speed=1;setTime(1);S.vp='ship';
 computePositions();updateScene(0);
 placeNear('earth',OBJ.earth.r*9);
-let last3=performance.now(), lastA=0, lastU=0, lastR=0;
+let last3=performance.now(), lastA=0, lastU=0, lastR=0, labelTick=0;
 function frame3(t){
   const dt=Math.min(.1,(t-last3)/1000);last3=t;
   const dtSim=S.playing?dt*S.speed:0;S.jd+=dtSim;
   computePositions();updateScene(dtSim);
   const ns=flight(dt);
-  updateLabels();
+  if(!MOBILE||(++labelTick&1))updateLabels();
   if(t-lastA>45){audioTick();lastA=t}
   if(t-lastU>250){lastU=t;$('dateTxt').textContent=dateStr(S.jd);$('timeTxt').textContent=fmtSpeed(S.speed);readout(ns);resumeAudio()}
   if(!MOBILE||t-lastR>=32){renderer.render(scene,camera);lastR=t}

@@ -529,7 +529,7 @@ const LASTV=new WeakMap();
 const tgt=(param,v,tc=.08)=>{const l=LASTV.get(param);if(l!==undefined&&Math.abs(l-v)<=Math.abs(v)*.002+1e-6)return;LASTV.set(param,v);param.setTargetAtTime(v,AC.currentTime,tc)};
 // phones and tablets: fewer simultaneous voices and stereo panning by default
 const LOWPOWER=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
-const MAXVOICES=LOWPOWER?6:10;
+const MAXVOICES=LOWPOWER?6:10, MAXMOONS=LOWPOWER?6:12;
 
 /* ---------- human voices: formant singers ---------- */
 // [freq Hz, level dB, bandwidth Hz] x5, classic choir formant tables; child from Peterson & Barney child means
@@ -1044,12 +1044,14 @@ function updateSystemAudio(){
   });
   // reference loudness: the moon that looks biggest from the planet's centre sings at full voice
   const ref=Math.max(...SYS.moons.map(sm=>sm.m.R/sm.m.a));
+  // only the loudest few moons sing at once on a phone
+  const mAllowed=new Set(SYS.moons.map(sm=>[sm.k,SYS.vp===sm.k?9:(sm.m.R/Math.max(audioDir(sm.pos,L).d,1))]).sort((a,c)=>c[1]-a[1]).slice(0,MAXMOONS).map(x=>x[0]));
   SYS.moons.forEach((sm,k)=>{
     const v=SYS.voices[k], mb=v.body, f=P[mb.id].f=melodyPitch(sysPitch(sm.m.P),moonPhase(b,sm.m));
     const isMe=SYS.vp===k;
     const a=audioDir(sm.pos,L);setPos(v.pan,a.x,a.y,a.z,.06);
     const g=v.gRel=isMe?.55:Math.min(1.6,Math.pow((sm.m.R/Math.max(a.d,1))/ref,law));
-    const want=!S.muted.has(mb.id)&&g>(v.part?.025:.035);
+    const want=!S.muted.has(mb.id)&&mAllowed.has(k)&&g>(v.part?.025:.035);
     if(want&&!v.part){v.part=S.voices==='human'?buildHumanPart(mb,v):buildInst(mb,v,true);v.mode=S.voices;v.born=now}
     else if(!want&&v.part&&now-v.born>2.5){killPart(v.part);v.part=null}
     if(!v.part){tgt(v.vol.gain,0,.1);return}
