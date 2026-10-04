@@ -48,21 +48,27 @@ button,select,input{font:inherit;color:inherit}
 .btn:hover{border-color:var(--bronze)}
 .btn.primary{background:linear-gradient(180deg,#d7a75d,#a87a37);color:#1a1206;font-weight:700;border-color:var(--bronze)}
 .btn.primary[aria-pressed="true"]{background:var(--glass);color:var(--bronze)}
-.bc{bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;max-width:calc(100vw - 32px);text-align:center}
-.readout{background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:7px 14px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-.readout .near{font-family:var(--f-display);font-size:16px}
+.bc{bottom:calc(env(safe-area-inset-bottom,0px) + 8px);left:10px;right:84px;display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center}
+.readout{background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:4px 12px;max-width:100%;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.readout .near{font-family:var(--f-display);font-size:14.5px}
 .readout .near em{font-style:normal;color:var(--bronze)}
 .readout .sub{font-family:var(--f-mono);font-size:11.5px;color:var(--vellum-dim);font-variant-numeric:tabular-nums}
-.chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.chips{display:flex;flex-wrap:nowrap;gap:6px;justify-content:safe center;overflow-x:auto;max-width:100%;scrollbar-width:none;padding:1px}
+.chips::-webkit-scrollbar{display:none}
+.chips:empty{display:none}
 .chip{appearance:none;background:var(--glass);border:1px solid var(--line);color:var(--vellum-dim);font-size:12px;padding:4px 10px;border-radius:999px;cursor:pointer}
 .chip:hover{color:var(--vellum);border-color:var(--bronze)}
-.thrust{position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);display:flex;flex-direction:column;gap:10px}
+.chip{flex:none;white-space:nowrap}
+.chip.on{color:var(--bronze);border-color:var(--bronze)}
+#courseChips .chip{color:var(--vellum)}
+.thrust{position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;flex-direction:column;gap:10px}
 .thrust button{width:58px;height:58px;border-radius:50%;background:var(--glass);border:1px solid var(--line);font-size:20px;color:var(--bronze);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none}
 .thrust button.on{background:rgba(201,152,79,.3)}
-.keys{position:fixed;left:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);font-size:11.5px;color:var(--vellum-dim);line-height:1.6;background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.keys{position:fixed;left:14px;top:calc(env(safe-area-inset-top,0px) + 62px);font-size:11.5px;color:var(--vellum-dim);line-height:1.6;background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
 .keys b{font-family:var(--f-mono);color:var(--vellum);font-weight:500}
 @media (hover:none){.keys{display:none}}
-@media (max-width:640px){.keys{display:none}.bc{bottom:calc(env(safe-area-inset-bottom,0px) + 92px)}}
+@media (max-width:640px){.keys{display:none}}
+@media (max-width:620px){.tl{top:calc(env(safe-area-inset-top,0px) + 58px)}.tl .t{font-size:15px}.tl .d{font-size:11px}}
 .cross{position:fixed;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;pointer-events:none;opacity:.55}
 .cross::before,.cross::after{content:"";position:absolute;background:var(--bronze)}
 .cross::before{left:10px;top:0;width:2px;height:7px;box-shadow:0 15px 0 var(--bronze)}
@@ -111,6 +117,7 @@ input[type=range]{width:100%;accent-color:var(--bronze)}
 
 <div class="hud bc">
   <div class="chips" id="moonChips"></div>
+  <div class="chips" id="courseChips"></div>
   <div class="readout"><div class="near" id="nearTxt">—</div><div class="sub" id="speedTxt">—</div></div>
 </div>
 
@@ -119,7 +126,7 @@ input[type=range]{width:100%;accent-color:var(--bronze)}
   <button id="bwd" aria-label="Fly backward">▼</button>
 </div>
 <div class="keys" id="keys">
-  <b>drag</b> look · <b>W</b>/<b>S</b> fly · <b>A</b>/<b>D</b> slide · <b>R</b>/<b>F</b> up/down · <b>Q</b>/<b>E</b> roll · <b>Shift</b> boost · <b>T</b> travel
+  <b>drag</b> look · <b>W</b>/<b>S</b> fly · <b>A</b>/<b>D</b> slide · <b>R</b>/<b>F</b> up/down · <b>Q</b>/<b>E</b> roll · <b>Shift</b> boost · <b>C</b> cruise · <b>T</b> travel
 </div>
 
 <aside class="panel" id="panel" hidden>
@@ -1174,7 +1181,7 @@ function nearestSurface(){
 function travelTo(id){
   const b=id.includes(':')||id==='sun'?null:byId[id];
   const name=id==='sun'?'Helios, the Sun':id.includes(':')?moonName(id):(b.kind==='comet'?b.name:b.god);
-  ship.ap={id,name};ship.vel.set(0,0,0);
+  ship.ap={id,name};ship.cruise=false;ship.vel.set(0,0,0);
   if(b&&S.speak&&audioOn)speakGod(b);
   toast(`Setting course for ${name}`);
   closeNav();
@@ -1194,19 +1201,20 @@ function flight(dt){
   ship.anchor=anchor;
   if(anchor){const o=OBJ[anchor];ship.pos.add(o.pos.clone().sub(o.prev))}
   if(ship.ap){
-    const T=targetInfo(ship.ap.id);
-    const stand=ship.ap.id==='sun'?SUN_R*9:T.r*(T.o&&T.o.b.id==='saturn'?11:7);
+    const above=ship.ap.id==='above';
+    const T=above?{pos:new THREE.Vector3(),r:SUN_R}:targetInfo(ship.ap.id);
+    const stand=above?ship.ap.goal.length():ship.ap.id==='sun'?SUN_R*9:T.r*(T.o&&T.o.b.id==='saturn'?11:7);
     const dirOff=T.pos.clone().normalize().multiplyScalar(-1);if(!isFinite(dirOff.x)||ship.ap.id==='sun')dirOff.copy(ship.pos).normalize();
-    const goal=T.pos.clone().add(dirOff.add(new THREE.Vector3(0,.35,0)).normalize().multiplyScalar(stand));
+    const goal=above?ship.ap.goal.clone():T.pos.clone().add(dirOff.add(new THREE.Vector3(0,.35,0)).normalize().multiplyScalar(stand));
     const d=goal.clone().sub(ship.pos), D=d.length();
     ship.pos.add(d.multiplyScalar(1-Math.exp(-dt*1.3)));
     tmpM.lookAt(ship.pos,T.pos,new THREE.Vector3(0,1,0));tmpQ.setFromRotationMatrix(tmpM);
     camera.quaternion.slerp(tmpQ,1-Math.exp(-dt*2.6));
-    if(D<stand*.04){toast(`Arrived at ${ship.ap.name}`);ship.ap=null}
+    if(D<stand*(above?.01:.04)){toast(above?'Above the plane of the planets':`Arrived at ${ship.ap.name}`);ship.ap=null}
   }else{
     const base=Math.min(40,Math.max(2e-6,ns.d*.55))*(keys.has('Shift')?5:1);
     const f=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion), r=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion), u=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
-    const th=(keys.has('w')||keys.has('ArrowUp')?1:0)-(keys.has('s')||keys.has('ArrowDown')?1:0)+hold;
+    const th=(keys.has('w')||keys.has('ArrowUp')?1:0)-(keys.has('s')||keys.has('ArrowDown')?1:0)+hold+(ship.cruise?1:0);
     const st=(keys.has('d')?1:0)-(keys.has('a')?1:0), vt=(keys.has('r')?1:0)-(keys.has('f')?1:0);
     const want=f.multiplyScalar(th).add(r.multiplyScalar(st)).add(u.multiplyScalar(vt)).multiplyScalar(base);
     ship.vel.lerp(want,1-Math.exp(-dt*4));
@@ -1232,11 +1240,13 @@ canvas.addEventListener('pointermove',e=>{if(!lookDrag)return;const dx=e.clientX
 const endLook=()=>{lookDrag=null};canvas.addEventListener('pointerup',endLook);canvas.addEventListener('pointercancel',endLook);
 addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;const k=e.key.length===1?e.key.toLowerCase():e.key;keys.add(k);
   if(['w','s','a','d','r','f','q','e','ArrowUp','ArrowDown'].includes(k))ship.ap=null;
+  if(k==='s'||k==='ArrowDown')ship.cruise=false;
+  if(k==='c')toggleCruise();
   if(k==='t')toggleNav();if(k==='Escape')closeNav();if(k.startsWith('Arrow'))e.preventDefault()});
 addEventListener('keyup',e=>{const k=e.key.length===1?e.key.toLowerCase():e.key;keys.delete(k)});
 addEventListener('blur',()=>keys.clear());
 function bindHold(el,v){
-  const on=e=>{e.preventDefault();hold=v;ship.ap=null;el.classList.add('on');resumeAudio()}, off=()=>{hold=0;el.classList.remove('on')};
+  const on=e=>{e.preventDefault();hold=v;ship.ap=null;if(v<0)ship.cruise=false;el.classList.add('on');resumeAudio()}, off=()=>{hold=0;el.classList.remove('on')};
   el.addEventListener('pointerdown',on);el.addEventListener('pointerup',off);el.addEventListener('pointerleave',off);el.addEventListener('pointercancel',off);
 }
 bindHold($('fwd'),1);bindHold($('bwd'),-1);
@@ -1287,6 +1297,30 @@ function renderMoonChips(){
   const b=byId[ship.anchor];el.innerHTML=b.moons.map((m,k)=>`<button class="chip" data-id="${b.id}:${k}">${m.name.split(' ')[0]}</button>`).join('')+`<button class="chip" data-id="${b.id}">${b.god}</button>`;
 }
 $('moonChips').onclick=e=>{const c=e.target.closest('.chip');if(c)travelTo(c.dataset.id)};
+// leaving a planet: inward, outward, cruise straight ahead, or rise above the plane
+const PLANETS=BODIES.filter(b=>b.kind==='planet').sort((a,c)=>a.el.a-c.el.a);
+function neighbours(){
+  const r=ship.pos.length();
+  if(ship.anchor&&byId[ship.anchor].kind==='planet'){const i=PLANETS.findIndex(b=>b.id===ship.anchor);return {inn:PLANETS[i-1]||null,out:PLANETS[i+1]||null}}
+  return {inn:[...PLANETS].reverse().find(b=>P[b.id].r<r*.98)||null,out:PLANETS.find(b=>P[b.id].r>r*1.02)||null};
+}
+function toggleCruise(){ship.cruise=!ship.cruise;if(ship.cruise){ship.ap=null;toast('Cruising ahead: drag to steer, ▼ or S to stop')}renderCourse()}
+function riseAbove(){
+  const H=Math.max(4,ship.pos.length()*1.6);
+  ship.ap={id:'above',name:'above the planets',goal:new THREE.Vector3(ship.pos.x*.15,H,ship.pos.z*.15+H*.3)};ship.cruise=false;ship.vel.set(0,0,0);
+  toast('Rising out of the plane of the planets');
+}
+let courseKey='';
+function renderCourse(){
+  const n=neighbours(), key=(n.inn?n.inn.id:'')+'|'+(n.out?n.out.id:'')+'|'+!!ship.cruise;
+  if(key===courseKey)return;courseKey=key;
+  $('courseChips').innerHTML=(n.inn?`<button class="chip" data-c="${n.inn.id}">◀ ${n.inn.god}</button>`:'')+
+    `<button class="chip${ship.cruise?' on':''}" data-c="cruise">${ship.cruise?'Stop cruising':'Cruise ahead'}</button>`+
+    `<button class="chip" data-c="above">Rise above</button>`+
+    (n.out?`<button class="chip" data-c="${n.out.id}">${n.out.god} ▶</button>`:'');
+}
+$('courseChips').onclick=e=>{const c=e.target.closest('.chip');if(!c)return;const v=c.dataset.c;resumeAudio();
+  if(v==='cruise')toggleCruise();else if(v==='above')riseAbove();else travelTo(v);};
 let lastAnchor=null;
 function audioTick(){
   // inside a moon system the moons sing; outside, the whole choir
@@ -1326,10 +1360,10 @@ $('navBtn').onclick=toggleNav;$('closeNav').onclick=closeNav;
 function readout(ns){
   const near=ns.who==='sun'?'Helios':ns.who.includes(':')?moonName(ns.who):(byId[ns.who].kind==='comet'?byId[ns.who].name.split(' ')[0]:byId[ns.who].god);
   const anc=ship.anchor?byId[ship.anchor]:null;
-  let txt=ship.ap?`Travelling to <em>${ship.ap.id==='sun'?'Helios':ship.ap.id.includes(':')?moonName(ship.ap.id):(byId[ship.ap.id].kind==='comet'?byId[ship.ap.id].name.split(' ')[0]:byId[ship.ap.id].god)}</em>`:
+  let txt=ship.ap?(ship.ap.id==='above'?'<em>Rising above the planets</em>':`Travelling to <em>${ship.ap.name}</em>`):ship.cruise?'<em>Cruising</em> · drag to steer':
     anc?`In orbit with <em>${anc.god}</em>`:`Nearest: <em>${near}</em>`;
   if(SYS.id)txt+=` · ${byId[SYS.id].moons.length} moon${byId[SYS.id].moons.length>1?'s':''} singing`;
-  $('nearTxt').innerHTML=txt;
+  $('nearTxt').innerHTML=txt;renderCourse();
   const v=(ship.speed||0)*AU_KM/MAG*(ship.anchor?1:MAG), c=299792.458;
   const sp=v>c?(v/c).toFixed(v/c<10?1:0)+'× light speed':Math.round(v).toLocaleString('en-GB')+' km/s';
   const dist=ship.pos.length();
