@@ -143,3 +143,7 @@ The app is in nine languages: English, Polski (`pl/`), Cymraeg (`cy/`), Deutsch 
 ## Technical
 
 Self-contained pages: `index.html` (the 2D dial, Canvas), `flight.html` (3D, three.js r128 from cdnjs), `dance.html` (the dance band) and `help.html` (the theory and a user guide). Both use vanilla JavaScript and the Web Audio API. There is no build step and nothing to install. Fonts come from Google Fonts. The dance bands' recorded instruments (`samples/`) come from the Fluid R3 General MIDI SoundFont by Frank Wen, as rendered by [midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
+
+## Copyright
+
+© 2026 Martin Hollingham. All rights reserved. See [LICENSE](LICENSE) for the terms and the third-party credits (FluidR3 GM SoundFont by Frank Wen, CC BY 3.0; three.js, MIT; Google Fonts, OFL; NASA JPL orbital data).
