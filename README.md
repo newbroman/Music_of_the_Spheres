@@ -8,6 +8,7 @@
 - **Dance:** https://newbroman.github.io/Music_of_the_Spheres/dance.html
 - **How it works (help and theory):** https://newbroman.github.io/Music_of_the_Spheres/help.html
 - **Po polsku (Polish):** [tarcza 2D](https://newbroman.github.io/Music_of_the_Spheres/pl/), [lot 3D](https://newbroman.github.io/Music_of_the_Spheres/pl/flight.html), [taniec](https://newbroman.github.io/Music_of_the_Spheres/pl/dance.html), [jak to działa](https://newbroman.github.io/Music_of_the_Spheres/pl/help.html)
+- **v2 benchmark (frozen 5 Oct 2026, before the philosophers redesign):** [dial](https://newbroman.github.io/Music_of_the_Spheres/v2/), [flight](https://newbroman.github.io/Music_of_the_Spheres/v2/flight.html), [dance](https://newbroman.github.io/Music_of_the_Spheres/v2/dance.html), [help](https://newbroman.github.io/Music_of_the_Spheres/v2/help.html), [po polsku](https://newbroman.github.io/Music_of_the_Spheres/v2/pl/)
 - **v1 benchmark (frozen):** https://newbroman.github.io/Music_of_the_Spheres/v1/ and [v1/flight.html](https://newbroman.github.io/Music_of_the_Spheres/v1/flight.html)
 
 A live orrery that you can hear. Every planet, moon, dwarf planet and comet sings with the voice of a Greek god. The music comes from the real motions of the solar system, and you choose where you stand and listen.
