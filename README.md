@@ -9,6 +9,7 @@
 - **How it works (help and theory):** https://newbroman.github.io/Music_of_the_Spheres/help.html
 - **Po polsku (Polish):** [tarcza 2D](https://newbroman.github.io/Music_of_the_Spheres/pl/), [lot 3D](https://newbroman.github.io/Music_of_the_Spheres/pl/flight.html), [taniec](https://newbroman.github.io/Music_of_the_Spheres/pl/dance.html), [jak to działa](https://newbroman.github.io/Music_of_the_Spheres/pl/help.html)
 - **Yn Gymraeg (Welsh):** [deial 2D](https://newbroman.github.io/Music_of_the_Spheres/cy/), [hedfan 3D](https://newbroman.github.io/Music_of_the_Spheres/cy/flight.html), [dawns](https://newbroman.github.io/Music_of_the_Spheres/cy/dance.html), [sut mae’n gweithio](https://newbroman.github.io/Music_of_the_Spheres/cy/help.html)
+- **Other languages:** [Deutsch](https://newbroman.github.io/Music_of_the_Spheres/de/), [Español](https://newbroman.github.io/Music_of_the_Spheres/es/), [Français](https://newbroman.github.io/Music_of_the_Spheres/fr/), [Italiano](https://newbroman.github.io/Music_of_the_Spheres/it/), [中文](https://newbroman.github.io/Music_of_the_Spheres/zh/), [日本語](https://newbroman.github.io/Music_of_the_Spheres/ja/)
 - **v2 benchmark (frozen 5 Oct 2026, before the philosophers redesign):** [dial](https://newbroman.github.io/Music_of_the_Spheres/v2/), [flight](https://newbroman.github.io/Music_of_the_Spheres/v2/flight.html), [dance](https://newbroman.github.io/Music_of_the_Spheres/v2/dance.html), [help](https://newbroman.github.io/Music_of_the_Spheres/v2/help.html), [po polsku](https://newbroman.github.io/Music_of_the_Spheres/v2/pl/)
 - **v1 benchmark (frozen):** https://newbroman.github.io/Music_of_the_Spheres/v1/ and [v1/flight.html](https://newbroman.github.io/Music_of_the_Spheres/v1/flight.html)
 
@@ -124,15 +125,20 @@ You can choose free glide (Kepler), Pythagorean diatonic or Pythagorean pentaton
 - Only major moons are included, on circular orbits in their planet's equatorial plane.
 - Distances on the dial are logarithmic.
 
-## Polish and Welsh versions
+## Languages
 
-The `pl/` folder holds a Polish translation of all four pages and `cy/` a Welsh one (Cymraeg). The English pages are the master copy, and the translated pages are generated from them by a translation step that swaps every visible string.
+The app is in nine languages: English, Polski (`pl/`), Cymraeg (`cy/`), Deutsch (`de/`), Español (`es/`), Français (`fr/`), Italiano (`it/`), 中文 (`zh/`, simplified Chinese) and 日本語 (`ja/`).
 
-- **Polish** uses Polish note names (B for B♭, H for B), Polish dates and decimal commas.
-- **Welsh** uses Welsh names for the planets and the zodiac, and Welsh dates.
-- **Speech:** the gods introduce themselves in the device's Polish or Welsh speech voice when it has one. Welsh voices are rare, so on a device without one the Welsh pages speak the English introductions instead.
-
-Every page links to its counterparts in the other two languages, and each language has its own installable app manifest.
+- **Language menu:** one button on every page lists the languages, each in its own name. The choice is remembered, and on a first visit the English pages offer the visitor's own browser language.
+- **Master copy:** the English pages are the master copy. Each translation is generated from them by swapping every visible string, so a missing string stops the build.
+- **Local conventions:**
+  - Note names: B and H in Polish and German, do–ré–mi in French, Spanish and Italian.
+  - Decimal commas where the language uses them.
+  - Local dates and number formats.
+  - Planet, zodiac, god and thinker names in each language's usual form, including the element names of the planets in Chinese and Japanese (水星 is "water star").
+- **Fonts:** Chinese and Japanese pages load Noto Sans and Noto Serif for their characters.
+- **Speech:** the gods introduce themselves in the device's voice for the language when it has one, otherwise in English.
+- **Installable apps:** each language has its own app manifest.
 
 ## Technical
 

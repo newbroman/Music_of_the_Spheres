@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#090b18">
+<link rel="icon" type="image/png" href="../icons/favicon-48.png">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<script>if('serviceWorker' in navigator){const h=location.hostname,b=h==='newbroman.github.io'?'/Music_of_the_Spheres/':(h==='localhost'||h==='127.0.0.1')?'/':null;if(b)addEventListener('load',()=>navigator.serviceWorker.register(b+'sw.js',{scope:b}).catch(()=>{}))}</script>
+<script>
+/* ---------- one language menu instead of a row of language links ---------- */
+(()=>{
+"use strict";
+const B='https://newbroman.github.io/Music_of_the_Spheres/';
+const ALL=[['en','English'],['pl','Polski'],['cy','Cymraeg'],['de','Deutsch'],['es','Español'],['fr','Français'],['it','Italiano'],['zh','中文'],['ja','日本語']];
+const AVAIL=/*LANGS*/["en", "pl", "cy", "de", "es", "fr", "it", "zh", "ja"]/*LANGS-END*/;
+const LANGS=ALL.filter(([c])=>AVAIL.includes(c));
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+const cur=(document.documentElement.lang||'en').slice(0,2);
+// the page within the app, whichever language folder it is in
+function page(){const m=location.pathname.match(/(?:^|\/)(?:(pl|cy|de|es|fr|it|zh|ja)\/)?([a-z]+\.html)?$/);const p=(m&&m[2])||'';return p==='index.html'?'':p}
+const href=c=>B+(c==='en'?'':c+'/')+page()+location.hash;
+const GLOBE='<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 12h18M12 3c2.6 2.6 3.9 5.6 3.9 9s-1.3 6.4-3.9 9c-2.6-2.6-3.9-5.6-3.9-9S9.4 5.6 12 3z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+function build(){
+  const links=[...document.querySelectorAll('body a[hreflang]')].filter(a=>!a.closest('#langMenu'));if(!links.length)return;
+  const first=links[0],compact=links.every(a=>a.textContent.trim().length<=3),name=(LANGS.find(l=>l[0]===cur)||ALL[0])[1];
+  const d=document.createElement('details');d.id='langMenu';d.className='langmenu';
+  const s=document.createElement('summary');s.className=first.className;
+  // the button keeps the look of the link it replaces
+  {const cs=getComputedStyle(first);['border','borderRadius','padding','font','color','background','letterSpacing','textTransform','minHeight','lineHeight','boxShadow'].forEach(k=>s.style[k]=cs[k]);s.style.display='inline-flex';s.style.alignItems='center'}
+s.innerHTML=GLOBE+(compact?cur.toUpperCase():name)+' ▾';s.setAttribute('aria-label','Language · '+name);
+  const m=document.createElement('div');m.className='lmenu';m.setAttribute('role','menu');
+  LANGS.forEach(([c,n])=>{const a=document.createElement('a');a.href=href(c);a.lang=c;a.hreflang=c;a.textContent=n;a.setAttribute('role','menuitem');if(c===cur){a.setAttribute('aria-current','true')}a.onclick=e=>{LS.set('mots.lang',c);if(c!==cur){e.preventDefault();location.href=href(c)}else{e.preventDefault();d.open=false}};m.appendChild(a)});
+  // keep the list on screen next to an edge
+  d.addEventListener('toggle',()=>{if(!d.open||innerWidth<=760)return;m.style.cssText='';const r=m.getBoundingClientRect();if(r.right>innerWidth-8)m.style.cssText='left:auto;right:0;transform:none';else if(r.left<8)m.style.cssText='left:0;transform:none'});
+  d.append(s,m);first.replaceWith(d);links.slice(1).forEach(a=>a.remove());
+  document.addEventListener('click',e=>{if(d.open&&!d.contains(e.target))d.open=false});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')d.open=false});
+}
+const css=document.createElement('style');
+css.textContent=`.langmenu{position:relative;display:inline-block}.langmenu summary{list-style:none;cursor:pointer;white-space:nowrap}.langmenu summary::-webkit-details-marker{display:none}
+.langmenu .lmenu{position:absolute;left:50%;transform:translateX(-50%);top:calc(100% + 6px);z-index:40;min-width:180px;display:flex;flex-direction:column;padding:6px;background:#13162a;border:1px solid #2b3050;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.langmenu .lmenu a{display:block!important;margin:0!important;border:0!important;background:none!important;box-shadow:none!important;padding:9px 12px!important;border-radius:6px!important;color:#e9e1cc!important;text-decoration:none!important;font:16px/1.3 "Alegreya Sans",system-ui,sans-serif!important;text-transform:none!important;letter-spacing:0!important;min-height:0!important}
+.langmenu .lmenu a:hover{background:#1d2140!important;color:#e9d093!important}.langmenu .lmenu a[aria-current="true"]{color:#e9d093!important}.langmenu .lmenu a[aria-current="true"]::after{content:" ✓"}
+@media (max-width:760px){.langmenu .lmenu{position:fixed;top:auto;width:min(300px,calc(100vw - 32px))}}
+#langHint{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:70;display:flex;gap:10px;align-items:center;background:#13162a;border:1px solid #c9984f;border-radius:999px;padding:6px 8px 6px 14px;color:#e9e1cc;font:15px/1.3 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+#langHint a{color:#e9d093;text-decoration:none;font-weight:600}#langHint button{appearance:none;border:0;background:transparent;color:#a39c89;font-size:18px;cursor:pointer;padding:4px 8px}`;
+document.head.appendChild(css);
+// on a first visit to the English pages, offer the visitor's own language if the app has it
+function hint(){
+  if(cur!=='en'||LS.get('mots.lang'))return;
+  const want=(navigator.languages||[navigator.language||'']).map(x=>String(x).slice(0,2).toLowerCase()).find(c=>c!=='en'&&AVAIL.includes(c));if(!want)return;
+  const n=LANGS.find(l=>l[0]===want)[1],h=document.createElement('div');h.id='langHint';
+  h.innerHTML=GLOBE+`<a href="${href(want)}" lang="${want}">${n} →</a><button type="button" aria-label="×">×</button>`;
+  h.querySelector('a').onclick=()=>LS.set('mots.lang',want);h.querySelector('button').onclick=()=>{LS.set('mots.lang','en');h.remove()};
+  document.body.appendChild(h);
+}
+const go=()=>{build();hint()};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();
+})();
+</script>
+<meta name="description" content="天球はどう歌うのか：ピタゴラス、プラトン、プトレマイオス、ケプラー、そして「天球の音楽」が太陽系の本当の動きをどのように音に変えるのか。">
+<link rel="alternate" hreflang="en" href="https://newbroman.github.io/Music_of_the_Spheres/help.html">
+<link rel="alternate" hreflang="pl" href="https://newbroman.github.io/Music_of_the_Spheres/pl/help.html">
+<link rel="alternate" hreflang="cy" href="https://newbroman.github.io/Music_of_the_Spheres/cy/help.html">
+<link rel="alternate" hreflang="de" href="https://newbroman.github.io/Music_of_the_Spheres/de/help.html">
+<link rel="alternate" hreflang="es" href="https://newbroman.github.io/Music_of_the_Spheres/es/help.html">
+<link rel="alternate" hreflang="fr" href="https://newbroman.github.io/Music_of_the_Spheres/fr/help.html">
+<link rel="alternate" hreflang="it" href="https://newbroman.github.io/Music_of_the_Spheres/it/help.html">
+<link rel="alternate" hreflang="zh" href="https://newbroman.github.io/Music_of_the_Spheres/zh/help.html">
+<title>天球はどう歌うのか</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=GFS+Didot&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a long-form reading page in the project's night-sky and bronze palette; a sticky contents rail on wide screens, inline diagrams drawn as SVG. Single dark theme, matching the three app pages. */
+:root{
+  --sky:#0c0e1a;--sky-2:#13162a;--sky-3:#1b1f38;--line:#2b3050;
+  --vellum:#e9e1cc;--vellum-dim:#a39c89;--bronze:#c9984f;--bronze-dim:#7f6236;--verdigris:#62a597;
+  --f-display:"GFS Didot","Didot","Bodoni 72",Georgia,serif;
+  --f-body:"Alegreya Sans","Gill Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{background:var(--sky);color:var(--vellum)}
+body{font-family:var(--f-body);font-size:17.5px;line-height:1.62;padding-inline:clamp(16px,4vw,48px);padding-block:22px 64px}
+[hidden]{display:none!important}
+a{color:var(--bronze)}a:hover{color:#e2b56d}
+:focus-visible{outline:2px solid var(--bronze);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto}
+header.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:14px 28px;border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:28px}
+.eyebrow{font-family:var(--f-display);color:var(--bronze);font-size:1.1rem}
+h1,h2,h3{font-family:var(--f-display);font-weight:400;text-wrap:balance;margin:0}
+h1{font-size:clamp(2.3rem,5.4vw,3.8rem);line-height:1.02}
+.lede{max-width:60ch;color:var(--vellum-dim);margin:.5rem 0 0;font-size:1.1rem}
+.links{display:flex;gap:8px;flex-wrap:wrap}
+.links a{color:var(--vellum-dim);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:7px 13px;font-size:.88rem}
+.links a:hover{color:var(--bronze);border-color:var(--bronze-dim)}
+.layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:48px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}.toc{position:static!important}}
+.toc{position:sticky;top:20px;font-size:.92rem;border-left:1px solid var(--line);padding-left:14px}
+.toc b{display:block;font-family:var(--f-display);font-weight:400;color:var(--bronze);font-size:1.05rem;margin-bottom:6px}
+.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;counter-reset:t}
+.toc li{counter-increment:t}
+.toc a{color:var(--vellum-dim);text-decoration:none}
+.toc a::before{content:counter(t,upper-roman) ". ";color:var(--bronze-dim);font-family:var(--f-display)}
+.toc a:hover{color:var(--vellum)}
+article{min-width:0}
+section{margin-bottom:56px}
+section > h2{font-size:clamp(1.7rem,3.4vw,2.3rem);margin-bottom:4px}
+.greek{font-family:var(--f-display);color:var(--bronze);font-size:1.05rem}
+article p,article li{max-width:68ch}
+article p{margin:.9em 0}
+article h3{font-size:1.35rem;margin:1.8em 0 .2em}
+article h3 small{font-family:var(--f-body);font-size:.85rem;color:var(--vellum-dim);margin-left:8px}
+blockquote{margin:1.2em 0;padding:.2em 0 .2em 18px;border-left:2px solid var(--bronze);color:var(--vellum);font-family:var(--f-display);font-size:1.15rem;max-width:62ch}
+blockquote cite{display:block;font-family:var(--f-body);font-style:normal;font-size:.85rem;color:var(--vellum-dim);margin-top:4px}
+figure{margin:1.6em 0;padding:16px;background:var(--sky-2);border:1px solid var(--line);border-radius:8px;max-width:760px}
+figure svg{display:block;width:100%;height:auto}
+figcaption{font-size:.88rem;color:var(--vellum-dim);margin-top:10px;max-width:68ch}
+.tablewrap{overflow-x:auto;max-width:860px}
+table{border-collapse:collapse;width:100%;min-width:520px;font-size:.96rem}
+th,td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--line)}
+th{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--vellum-dim);font-weight:500}
+td:first-child{font-family:var(--f-display);font-size:1.02rem}
+td.num{font-family:var(--f-mono);font-size:.88rem;white-space:nowrap;font-variant-numeric:tabular-nums}
+.callout{background:var(--sky-2);border:1px solid var(--line);border-left:3px solid var(--verdigris);border-radius:6px;padding:12px 16px;max-width:68ch;margin:1.2em 0}
+.callout p{margin:.4em 0}
+kbd{font-family:var(--f-mono);font-size:.85em;border:1px solid var(--line);border-radius:4px;padding:0 5px;background:var(--sky-3)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;max-width:860px;margin:1.2em 0}
+.card{background:var(--sky-2);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.card h3{margin:0;font-size:1.3rem}
+.card p{margin:0;font-size:.95rem;color:var(--vellum-dim)}
+.card a{font-size:.92rem}
+.foot{border-top:1px solid var(--line);padding-top:18px;font-size:.88rem;color:var(--vellum-dim)}
+.foot ul{padding-left:1.1em}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Noto+Serif+JP:wght@400;600&display=swap">
+<style>:root{--f-display:"GFS Didot","Noto Serif JP",Georgia,serif;--f-body:"Alegreya Sans","Noto Sans JP",system-ui,sans-serif}body{line-break:strict;word-break:normal;overflow-wrap:anywhere}</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div>
+    <div class="eyebrow">περὶ τῆς τῶν σφαιρῶν ἁρμονίας</div>
+    <h1>天球はどう歌うのか</h1>
+    <p class="lede">このアプリの背景にある古代の考え方と、アプリの各部分が太陽系の実際の動きをどのように音へ変えているのかを紹介します。</p>
+  </div>
+  <nav class="links" aria-label="アプリ"><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/">2D 星図</a><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/flight.html">3D 飛行</a><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/dance.html">天球の舞</a><a href="https://newbroman.github.io/Music_of_the_Spheres/pl/help.html" lang="pl" hreflang="pl">Polski</a><a href="https://newbroman.github.io/Music_of_the_Spheres/cy/help.html" lang="cy" hreflang="cy">Cymraeg</a></nav>
+</header>
+
+<div class="layout">
+<nav class="toc" aria-label="目次">
+  <b>目次</b>
+  <ol>
+    <li><a href="#idea">着想</a></li>
+    <li><a href="#history">ピタゴラスからケプラーへ</a></li>
+    <li><a href="#thinkers">思想家たちの天</a></li>
+    <li><a href="#sound">空が音になるしくみ</a></li>
+    <li><a href="#tuning">調律、旋法、黄道十二宮</a></li>
+    <li><a href="#voices">神々とその声</a></li>
+    <li><a href="#pages">3 つの聴き方</a></li>
+    <li><a href="#stage">ステージで：PA、MIDI、プロジェクター</a></li>
+    <li><a href="#tips">ヒントとトラブル対処</a></li>
+    <li><a href="#data">データ、精度、参考文献</a></li>
+  </ol>
+</nav>
+
+<article>
+
+<section id="idea">
+  <div class="greek">ἡ ἰδέα</div>
+  <h2>着想</h2>
+  <p>二千年ものあいだ、人々は天が音楽を奏でていると信じていました。惑星は巨大な透明の球体に乗って運ばれ、それぞれの球は固有の速さで回り、その速さがひとつの音になります。音が合わさって生まれるハーモニーは、あまりに完璧で、あるいはあまりに絶え間ないため、人間の耳には気づけないのだと考えられました。この考えは<em>天球の音楽</em>、ラテン語では<em>ムジカ・ウニヴェルサリス</em>と呼ばれます。</p>
+  <p>このアプリは、この考えを文字どおりに実現します。惑星、衛星、準惑星、彗星はすべて、画面に表示された日付における実際の軌道から計算され、それぞれが歌います。声を与えるのは、その天体の名の由来となった神です。動く速さ、見かけの大きさ、軌道の傾き、自転のしかたが、すべて音を形づくります。太陽系のどこに立って聴くかは、あなたが選べます。</p>
+</section>
+
+<section id="history">
+  <div class="greek">ἱστορία</div>
+  <h2>ピタゴラスからケプラーへ</h2>
+
+  <h3>ピタゴラス：ハーモニーは数である <small>紀元前 6 世紀</small></h3>
+  <p>伝えられるところでは、ピタゴラスは鍛冶場の槌の音が調和して響くのを聞き、その理由を槌の比率に見いだしたといいます。この話の真偽はともかく、彼の弟子たちによるとされる発見は本物です。音楽で協和する音程は、単純な整数の比になっているのです。弦を半分にすると 1 オクターヴ高く鳴ります。弦の 3 分の 2 では 5度、4 分の 3 では 4度になります。音楽が数であり、天が数に従って動くのなら、天もまた音楽なのかもしれません。</p>
+  <figure>
+    <svg viewBox="0 0 720 250" role="img" aria-label="1 本の弦を全長、3 分の 2、4 分の 3、2 分の 1 に分け、ユニゾン、5度、4度、オクターヴを鳴らす図。">
+      <style>.lbl{font-family:'Alegreya Sans',sans-serif;font-size:15px;fill:#e9e1cc}.dim{font-family:'Alegreya Sans',sans-serif;font-size:13px;fill:#a39c89}.rt{font-family:'IBM Plex Mono',monospace;font-size:14px;fill:#c9984f}</style>
+      <g>
+        <text x="20" y="48" class="lbl">弦の全長</text><text x="20" y="66" class="dim">基準となる音</text>
+        <line x1="190" y1="52" x2="620" y2="52" stroke="#c9984f" stroke-width="3"/><rect x="186" y="40" width="6" height="24" fill="#a39c89"/><rect x="618" y="40" width="6" height="24" fill="#a39c89"/>
+        <text x="640" y="57" class="rt">1 : 1</text>
+      </g>
+      <g>
+        <text x="20" y="102" class="lbl">4 分の 3</text><text x="20" y="120" class="dim">4度高い</text>
+        <line x1="190" y1="106" x2="512.5" y2="106" stroke="#c9984f" stroke-width="3"/><line x1="512.5" y1="106" x2="620" y2="106" stroke="#2b3050" stroke-width="3"/><rect x="186" y="94" width="6" height="24" fill="#a39c89"/><rect x="509" y="94" width="6" height="24" fill="#62a597"/>
+        <text x="640" y="111" class="rt">4 : 3</text>
+      </g>
+      <g>
+        <text x="20" y="156" class="lbl">3 分の 2</text><text x="20" y="174" class="dim">5度高い</text>
+        <line x1="190" y1="160" x2="476.7" y2="160" stroke="#c9984f" stroke-width="3"/><line x1="476.7" y1="160" x2="620" y2="160" stroke="#2b3050" stroke-width="3"/><rect x="186" y="148" width="6" height="24" fill="#a39c89"/><rect x="473" y="148" width="6" height="24" fill="#62a597"/>
+        <text x="640" y="165" class="rt">3 : 2</text>
+      </g>
+      <g>
+        <text x="20" y="210" class="lbl">2 分の 1</text><text x="20" y="228" class="dim">1 オクターヴ高い</text>
+        <line x1="190" y1="214" x2="405" y2="214" stroke="#c9984f" stroke-width="3"/><line x1="405" y1="214" x2="620" y2="214" stroke="#2b3050" stroke-width="3"/><rect x="186" y="202" width="6" height="24" fill="#a39c89"/><rect x="402" y="202" width="6" height="24" fill="#62a597"/>
+        <text x="640" y="219" class="rt">2 : 1</text>
+      </g>
+    </svg>
+    <figcaption>1 本の弦で示したピタゴラスの協和音程。緑の駒で弦を押さえると、ブロンズ色の部分が鳴ります。比は、弦の全長と鳴っている部分の長さの比です。アプリの調律に使われる音高は、すべてこれらの比から組み立てられています。</figcaption>
+  </figure>
+
+  <h3>プラトン：紡錘の輪に立つセイレーン <small>紀元前 375 年頃</small></h3>
+  <p>プラトンは『<em>国家</em>』の結末で「エルの神話」を語ります。エルは戦死した兵士で、生き返って、死者の魂が見せられたものを語ります。宇宙は巨大な「必然の紡錘」であり、異なる速さで回る 8 つの入れ子の輪でできています。それぞれの輪の縁にはセイレーンが立ってひとつの音を歌い、8 つの音が合わさってひとつのハーモニーになります。3 人の運命の女神もともに歌います。ラケシスは過去を、クロトは現在を、アトロポスは未来を歌うのです。</p>
+  <blockquote>それぞれの輪の上にはセイレーンがひとりずつ立ち、輪とともにめぐりながら、ひとつの声、ひとつの音を発していた。そして 8 つすべてから、ひとつのハーモニーの協和が生まれていた。<cite>プラトン『<em>国家</em>』第 10 巻（大意）</cite></blockquote>
+  <p>『<em>ティマイオス</em>』で、プラトンはさらに踏み込みます。世界そのものの魂は音楽的な比、つまり 1、2、3、4、8、9、27 の数列と、そのあいだを埋める比から組み立てられ、惑星の円はその魂から切り出されているというのです。天は単に音楽<em>のよう</em>なのではなく、その構造そのものが音階<em>なのです</em>。</p>
+  <figure>
+    <svg viewBox="0 0 720 440" role="img" aria-label="地球を囲む入れ子の円。プラトンの順序で、月、太陽、金星、水星、火星、木星、土星、恒星天。">
+      <style>.pl{font-family:'GFS Didot',Georgia,serif;font-size:16px;fill:#e9e1cc}.gr{font-family:'GFS Didot',Georgia,serif;font-size:13px;fill:#c9984f}</style>
+      <g fill="none" stroke-width="1.2">
+        <circle cx="225" cy="220" r="34" stroke="#3b4166"/><circle cx="225" cy="220" r="56" stroke="#3b4166"/><circle cx="225" cy="220" r="78" stroke="#3b4166"/><circle cx="225" cy="220" r="100" stroke="#3b4166"/><circle cx="225" cy="220" r="122" stroke="#3b4166"/><circle cx="225" cy="220" r="144" stroke="#3b4166"/><circle cx="225" cy="220" r="166" stroke="#3b4166"/><circle cx="225" cy="220" r="196" stroke="#c9984f" stroke-dasharray="2 5"/>
+      </g>
+      <circle cx="225" cy="220" r="11" fill="#74abdc"/>
+      <g>
+        <circle cx="249" cy="196" r="5" fill="#cfcac0"/><circle cx="265" cy="180" r="8" fill="#ffd98a"/><circle cx="280" cy="165" r="5" fill="#e9d093"/><circle cx="296" cy="149" r="4" fill="#bdb3a5"/><circle cx="312" cy="133" r="5" fill="#d46e4f"/><circle cx="327" cy="118" r="7" fill="#dcae7c"/><circle cx="342" cy="103" r="6" fill="#e6d08f"/>
+      </g>
+      <g stroke="#2b3050">
+        <line x1="249" y1="196" x2="470" y2="352"/><line x1="265" y1="180" x2="470" y2="308"/><line x1="280" y1="165" x2="470" y2="264"/><line x1="296" y1="149" x2="470" y2="220"/><line x1="312" y1="133" x2="470" y2="176"/><line x1="327" y1="118" x2="470" y2="132"/><line x1="342" y1="103" x2="470" y2="88"/><line x1="363" y1="81" x2="470" y2="44"/>
+      </g>
+      <text x="478" y="48" class="pl">恒星天</text>
+      <text x="478" y="92" class="pl">土星 <tspan class="gr">Φαίνων（明るく輝くもの）</tspan></text>
+      <text x="478" y="136" class="pl">木星 <tspan class="gr">Φαέθων（光り輝くもの）</tspan></text>
+      <text x="478" y="180" class="pl">火星 <tspan class="gr">Πυρόεις（炎のようなもの）</tspan></text>
+      <text x="478" y="224" class="pl">水星 <tspan class="gr">Στίλβων（きらめくもの）</tspan></text>
+      <text x="478" y="268" class="pl">金星 <tspan class="gr">Φωσφόρος</tspan></text>
+      <text x="478" y="312" class="pl">太陽 <tspan class="gr">Ἥλιος</tspan></text>
+      <text x="478" y="356" class="pl">月 <tspan class="gr">Σελήνη</tspan></text>
+      <text x="225" y="425" class="gr" text-anchor="middle">中心に地球</text>
+    </svg>
+    <figcaption>プラトンが『<em>ティマイオス</em>』で示した、地球から外側へ向かう天球の順序と、惑星の古いギリシア名。それぞれの惑星の光を表すこれらの名は、惑星が神々の名で呼ばれるようになる以前のものです。</figcaption>
+  </figure>
+
+  <h3>アリストテレス：ひとつの疑問 <small>紀元前 4 世紀</small></h3>
+  <p>誰もが賛成したわけではありません。アリストテレスは『<em>天体論</em>』で、これほど巨大な物体がこれほど速く動けば、地上の物を打ち砕くほどの大きな音がするはずだが、何も砕けていないのだから音は存在しない、と論じました。ピタゴラス派には答えが用意されていました。その音楽は私たちが生まれた瞬間から鳴り続けているので聞こえない。音は静けさとの対比でしか気づけないのだ、というのです。</p>
+
+  <h3>プトレマイオス：天の数学 <small>紀元 2 世紀</small></h3>
+  <p>アレクサンドリアのクラウディオス・プトレマイオスは、古代世界の標準的な天文学書と、音楽に関する重要な論考『<em>ハルモニア論</em>』の両方を著しました。その最終巻で彼は、音楽の協和を生む比が、魂と天の構造をも形づくっていると論じています。占星術の著作『<em>テトラビブロス</em>』では、惑星どうしの意味ある角度である古典的なアスペクト、すなわちコンジャンクション（合）、セクスタイル、スクエア、トライン、オポジションを定めました。アプリはこの 2 つの考えを結びつけ、各アスペクトに協和音程を鳴らさせています（<a href="#tuning">調律</a>を参照）。</p>
+
+  <h3>ボエティウス：3 種類の音楽 <small>紀元 6 世紀</small></h3>
+  <p>ローマの哲学者ボエティウスは、この考えを中世ヨーロッパに伝えました。彼は音楽を 3 種類に分けています。宇宙の音楽である<em>ムジカ・ムンダーナ</em>、身体と魂の調和である<em>ムジカ・フマーナ</em>、そして私たちが実際に演奏し耳にする音楽である<em>ムジカ・インストゥルメンターリス</em>です。彼以後の千年間、音楽は大学で算術、幾何学、天文学と並ぶ数学的な学問として教えられました。</p>
+
+  <h3>ケプラー：世界の調和 <small>1619 年</small></h3>
+  <p>ヨハネス・ケプラーは『<em>ハルモニケス・ムンディ</em>』（<em>世界の調和</em>）で、この考えに最も精密な形を与えました。当時ケプラーはすでに、惑星が楕円軌道を描き、太陽に近いところでは速く、遠いところでは遅く動くことを知っていました。彼は太陽から見た各惑星の角速度を、最も近づく近日点と最も遠ざかる遠日点で測り、それらの速さの比が音程に近いことを見いだしました。したがって、各惑星が歌うのはひとつの音ではなく、上がっては下がる短いフレーズなのです。この本には、ほとんどついでのように、惑星の公転周期と太陽からの距離を結びつける彼の第三法則も記されています。</p>
+  <p>ケプラーは、地球の速さが 1 年を通じて約半音しか変化しないことに気づきました。彼はそれを<em>ミ、ファ、ミ</em>という音節で書き表し、それは<em>悲惨（miseria）と飢饉（fames）</em>を意味するのだと冗談を言いました。私たちの住む場所の音だというわけです。</p>
+  <figure>
+    <svg viewBox="0 0 720 270" role="img" aria-label="一方の焦点に太陽がある楕円軌道。惑星は近日点では速く動いて高く歌い、遠日点ではゆっくり動いて低く歌う。">
+      <style>.k{font-family:'Alegreya Sans',sans-serif;font-size:15px;fill:#e9e1cc}.kd{font-family:'Alegreya Sans',sans-serif;font-size:13px;fill:#a39c89}</style>
+      <ellipse cx="360" cy="135" rx="250" ry="95" fill="none" stroke="#3b4166" stroke-width="1.5"/>
+      <circle cx="590" cy="135" r="0" fill="none"/>
+      <circle cx="555" cy="135" r="14" fill="#ffd98a"/><text x="555" y="168" class="kd" text-anchor="middle">太陽</text>
+      <circle cx="610" cy="135" r="7" fill="#c9984f"/><circle cx="110" cy="135" r="7" fill="#c9984f"/>
+      <path d="M612 108 q18 -6 26 -24" fill="none" stroke="#c9984f" stroke-width="2" marker-end="url(#ah)"/>
+      <path d="M108 160 q-6 10 -2 20" fill="none" stroke="#7f6236" stroke-width="2" marker-end="url(#ah2)"/>
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#c9984f"/></marker><marker id="ah2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#7f6236"/></marker></defs>
+      <text x="628" y="52" class="k" text-anchor="middle">近日点</text><text x="628" y="70" class="kd" text-anchor="middle">速い · 音が高い</text>
+      <text x="110" y="208" class="k" text-anchor="middle">遠日点</text><text x="110" y="226" class="kd" text-anchor="middle">遅い · 音が低い</text>
+      <g fill="#c9984f"><circle cx="660" cy="100" r="4"/><circle cx="676" cy="90" r="4"/><circle cx="692" cy="80" r="4"/></g>
+      <g fill="#7f6236"><circle cx="40" cy="120" r="4"/><circle cx="56" cy="126" r="4"/><circle cx="72" cy="132" r="4"/></g>
+      <text x="360" y="140" class="kd" text-anchor="middle">惑星が太陽へ落ちていくと音は上がり、遠ざかって昇っていくと音は下がる</text>
+    </svg>
+    <figcaption>アプリが刻一刻たどっているケプラーの考え方。惑星の音高は、その瞬間に太陽のまわりをどれだけ速く回っているかで決まります。そのため、水星や冥王星のような離心率の大きい軌道の惑星、そして何よりも彗星は、進むにつれて音が滑らかに上下します。</figcaption>
+  </figure>
+</section>
+
+<section id="thinkers">
+  <div class="greek">οἱ φιλόσοφοι</div>
+  <h2>思想家たちの天</h2>
+  <p>アプリを開くと、ピタゴラスからケプラーまでの思想家の年表が現れ、最後に現代の私たちが知る空が続きます。いずれかをタップすると、星図がその思想家の宇宙に変わります。この瞬間の実際の位置をもとに彼ら流に描かれ、彼らの規則に従って歌うのです。横に表示される解説では、その考えの要点、引用、そして何が原典に忠実で何が私たちの再構成なのかを紹介します。どの声もタップすれば単独で聴けます。</p>
+  <p>古代の宇宙はどれも 2 通りの聴き方ができます。<b>原典どおり</b>は原典に厳密に従います。各天球はひとつの音を保ち、アリストテレスの天は沈黙し、竪琴とモノコードはそのまま弾かれます。<b>アテネから聴く</b>は、その地に立つ人にはどう聞こえたかという私たちの解釈です。空は 1 日に 1 回頭上をめぐるので、それぞれの声は東から昇り、南を横切り、西に沈み、地平線の下ではくぐもって聞こえます。各天体は黄道十二宮に沿って進むにつれて改めて歌い、逆行するときには下降する装飾音を、新しい星座に入るときには華やかな装飾を添えます。プトレマイオスのループはテトラコルドの音をたどり、ニコマコスの惑星は動きながら弦をはじき、フラッドの合唱はモノコードの上で歌い、アリストテレスのハーモニーは耳が慣れるにつれて静寂へと消えていきます。</p>
+  <p>思想家たちは 2 つの陣営に分かれます。ピタゴラスの弟子たち、キケロ、プトレマイオス、そしてボエティウスの第一の順序では、毎日最も速く回る最も外側の天球が最も高く歌い、月が最も低く歌います。ニコマコス、そして後のケプラーにとっては、各惑星自身の公転が決め手です。公転が速いほど音は高くなるので、月が最も高く、土星が最も低くなります。アリストテレスは別格で、音はまったくありません。</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>思想家</th><th>見えるもの</th><th>聞こえるもの</th></tr></thead>
+    <tbody>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/#pythagoras">ピタゴラス</a></td><td>全音と半音の間隔で並ぶ、地球中心の天球</td><td>外側ほど高くなる：天球ごとに決まった音。地球から恒星まで 1 オクターヴ</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/#philolaus">フィロラオス</a></td><td>中心火と、そのまわりを毎日めぐる地球と隠れた対地球</td><td>中心火から響く炉のドローン。天体は外側ほど高くなる（私たちの再構成）</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/#plato">プラトン</a></td><td>必然の紡錘：8 つの色の輪と、それぞれに立つセイレーン</td><td>世界霊魂の数 1、2、3、4、9、8、27 と運命の女神たち</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/#aristotle">アリストテレス</a></td><td>四元素を囲む入れ子の水晶天球</td><td>沈黙</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/#cicero">キケロ</a></td><td>天の川から見た眺め。地球は小さく、静止している</td><td>7 つの音。月が最も低く、恒星が最も高い。その下に耳をつんざく轟音</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/#nicomachus">ニコマコス</a></td><td>7 弦の竪琴</td><td>逆の規則：土星が最も低く、月が最も高い。各弦は公転の速さに合わせてはじかれる</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/#ptolemy">プトレマイオス</a></td><td>従円上の周転円と、惑星の逆行ループ</td><td>彼のカノポス音階。地球が最も低く、土星が最も高い。アスペクトはオクターヴ、5度、4度を鳴らす</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/#boethius">ボエティウス</a></td><td>中世写本の図</td><td>彼が伝える 2 つの順序、キケロのものとニコマコスのものを選べる</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/#copernicus">コペルニクス</a></td><td>太陽を中心とする彼の円</td><td>平均速度から決まる惑星ごとの一定の音を、太陽から聴く</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/#fludd">ロバート・フラッド</a></td><td>地球から最高天に至る「神のモノコード」</td><td>2 オクターヴにわたり、フレットごとにはじかれる弦</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/#kepler">ケプラー</a></td><td>太陽をめぐる楕円と、彼のプラトン立体</td><td>実際の速さ：各惑星が自分の音程の中を滑らかに動く</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/#today">現代</a></td><td>太陽系全体を示すリアルタイムの太陽系儀</td><td>惑星、衛星、準惑星、彗星による完全な合唱</td></tr>
+    </tbody>
+  </table></div>
+  <p>解説は原典と照らし合わせて確認しています。プラトンの神話でどのセイレーンがどの音を歌うかのように、古代の文献に空白がある箇所では、アプリはその旨を明記し、注釈者の解釈またはアプリ独自の選択を示しています。</p>
+</section>
+
+<section id="sound">
+  <div class="greek">ἡ φωνή τοῦ οὐρανοῦ</div>
+  <h2>空が音になるしくみ</h2>
+  <p>各天体の位置は、表示された日付の軌道要素から計算され、決まった規則に従って音に変えられます。歌声に含まれるわずかな自然の揺らぎを除けば、ランダムな要素は一切ありません。</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>空で起きること</th><th>聞こえるもの</th><th>しくみ</th></tr></thead>
+    <tbody>
+      <tr><td>公転の速さ</td><td>音高</td><td>太陽のまわりの角速度を刻一刻と測り、それで音高を決めます。速いほど高く、惑星が水星から海王星まで約 4 オクターヴにわたるよう調整されています。地球の音高は<em>地球の音</em>スライダーで設定します。</td></tr>
+      <tr><td>見かけの大きさ</td><td>音量</td><td>天体の半径をあなたからの距離で割った値、つまりあなたの空でどれだけ大きく見えるかです。小さすぎて聞こえない声は、処理そのものが止まります。</td></tr>
+      <tr><td>あなたから見た方向</td><td>定位</td><td>それぞれの声は、天体がある方向に合わせて頭のまわりに配置されます。左、右、前、後ろ、上、下です。</td></tr>
+      <tr><td>軌道傾斜角</td><td>高さと揺れ</td><td>傾いた軌道の天体が惑星の公転面より上に昇ると、空間の中でより高い位置から、より明るい音色で聞こえ、音高もそれにつれて揺れます。</td></tr>
+      <tr><td>自転</td><td>脈動</td><td>惑星の 1 日の長さが穏やかな脈動を決めます。逆向きに自転する金星、天王星、冥王星は、逆向きのうねりで脈打ちます。</td></tr>
+      <tr><td>自転軸の傾き</td><td>揺らぎ</td><td>自転軸が傾いた天体は、1 日の周期で音高が揺らぎます。横倒しになっている天王星が最も大きく揺らぎます。</td></tr>
+      <tr><td>準惑星と小惑星</td><td>摂動</td><td>初期設定では歌いません。それぞれが最も近い惑星の音高を、小さな重力の引きのように引っ張ります。大きく近いものほど強く引きます。</td></tr>
+      <tr><td>衛星</td><td>旋律</td><td>各衛星の位相、つまり太陽に対する角度に応じて、音階をアーチ状にたどります。新月で基準の音、満月で 1 オクターヴ上、そしてまた戻ります。</td></tr>
+      <tr><td>彗星</td><td>息</td><td>彗星の大きさとはコマの大きさのことで、太陽に近づくと急激に大きくなります。そのため彗星はやわらかなささやきとして現れ、去るとともにまた消えていきます。</td></tr>
+      <tr><td>太陽</td><td>ドローン</td><td>ムーサたちを率いるアポロンが、基準の音とその 5度を保ちます。</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout"><p><b>なぜ速さから音高を決めるのか？</b> 速さはケプラーが用いたものであり、惑星が動くにつれて変化するものだからです。アプリは穏やかなべき乗則を使っています。別の惑星の 2 倍の速さで動く惑星は、3 分の 1 オクターヴを少し超えるだけ高く歌います。これにより、最も遅い外惑星も可聴域に収まり、しかも惑星の順序と滑らかな音の動きはすべて保たれます。</p></div>
+</section>
+
+<section id="tuning">
+  <div class="greek">ἁρμονία</div>
+  <h2>調律、旋法、黄道十二宮</h2>
+  <h3>ピタゴラス音律</h3>
+  <p>アプリは、ピタゴラス派と同じように、純正な 5度（3 : 2）を積み重ねて 1 オクターヴの中に折りたたむ方法で音階を調律します。現代の楽器は、代わりにオクターヴを 12 の等しい段階に分けています。ピタゴラス音律の 5度と 4度は完全に純正ですが、長3度はわずかに広く、和音に明るく古風な響きを与えます。音階を使わず、すべての音高が公転の速さに正確に従う<em>ケプラー：自由な滑奏</em>を選ぶこともできます。</p>
+  <h3>ギリシアの旋法</h3>
+  <p>ギリシアの旋法とは、オクターヴの中での全音と半音の並び方のパターンです。アポロンのドローンは 7 つのどれにでも置けます。古代の名称は後に中世の理論家によって割り当て直されたため、ギリシアの名称と現代の名称は一致せず、混乱しやすくなっています。</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>ギリシアの名称</th><th>白鍵で始まる音</th><th>同じ音階の現代の名称</th></tr></thead>
+    <tbody>
+      <tr><td>ドリア</td><td class="num">E</td><td>フリギア</td></tr>
+      <tr><td>フリギア</td><td class="num">D</td><td>ドリア</td></tr>
+      <tr><td>リディア</td><td class="num">C</td><td>イオニア（長音階）</td></tr>
+      <tr><td>ミクソリディア</td><td class="num">B</td><td>ロクリア</td></tr>
+      <tr><td>ヒポドリア</td><td class="num">A</td><td>エオリア（自然短音階）</td></tr>
+      <tr><td>ヒポフリギア</td><td class="num">G</td><td>ミクソリディア</td></tr>
+      <tr><td>ヒポリディア</td><td class="num">F</td><td>リディア</td></tr>
+    </tbody>
+  </table></div>
+  <h3>太陽の星座が調を決める</h3>
+  <p>黄道十二宮とは、太陽、月、惑星が通過する 12 の星座からなる帯です。地球から見ると、太陽はひと月にひとつの星座を進みます。アプリは星座ごとに調を 5度ずつ移すので、1 年で音楽は 5度圏を 1 周します。春分に太陽が位置するおひつじ座が基準の調です。秋分のてんびん座は最も遠い調で、春になると音楽は再び基準の調に戻ります。隣り合う星座の違いは 1 音だけなので、変化はいつも穏やかです。</p>
+  <h3>アスペクトが音程を歌う</h3>
+  <p>あなたが聴いている場所から見て 2 つの惑星が古典的な角度のいずれかをなすと、その 2 つの間で、対応する音程をなす 2 つの音がやわらかく鳴ります。角度が正確に一致するにつれて、両方の惑星の音もわずかに大きくなります。これは、『<em>テトラビブロス</em>』のアスペクトと『<em>ハルモニア論</em>』の協和音程という、プトレマイオスの 2 つの考えをアプリなりに解釈したものです。</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>アスペクト</th><th>角度</th><th>音程</th><th>比</th></tr></thead>
+    <tbody>
+      <tr><td>コンジャンクション（合）☌︎</td><td class="num">0°</td><td>ユニゾン</td><td class="num">1 : 1</td></tr>
+      <tr><td>セクスタイル ⚹︎</td><td class="num">60°</td><td>長6度</td><td class="num">5 : 3</td></tr>
+      <tr><td>スクエア □︎</td><td class="num">90°</td><td>4度</td><td class="num">4 : 3</td></tr>
+      <tr><td>トライン △︎</td><td class="num">120°</td><td>5度</td><td class="num">3 : 2</td></tr>
+      <tr><td>オポジション ☍︎</td><td class="num">180°</td><td>オクターヴ</td><td class="num">2 : 1</td></tr>
+    </tbody>
+  </table></div>
+  <p>アスペクトはあなた自身の聴く位置から測られるので、移動すると変化します。占星術師たちが描いた古典的な地球中心の空を聴くには、地球に立ってください。</p>
+</section>
+
+<section id="voices">
+  <div class="greek">αἱ φωναί τῶν θεῶν</div>
+  <h2>神々とその声</h2>
+  <p>各惑星には、ローマ人とギリシア人がその名を与えた神が割り当てられています。<em>人間の合唱</em>モードでは、それぞれの神が自分にふさわしい声で自分の名を歌います。歌い手は人間の声のモデルから合成されており、声帯のパルス、喉と口の共鳴、ビブラート、息づかいを備えています。フレーズの合間には、息を吸う音も聞こえます。</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>神</th><th>天体</th><th>声</th><th>性格</th></tr></thead>
+    <tbody>
+      <tr><td>ヘルメス Ἑρμῆς</td><td>水星</td><td>カウンターテナー</td><td>すばやく明るく、離心率の大きい軌道とともに飛び回る</td></tr>
+      <tr><td>アプロディーテー Ἀφροδίτη</td><td>金星</td><td>ソプラノ</td><td>温かく伸びやか。ゆっくりした脈動は逆向きに打つ</td></tr>
+      <tr><td>ガイア Γαῖα</td><td>地球</td><td>アルト</td><td>丸く温かい。その上で月のセレネが歌う</td></tr>
+      <tr><td>アレス Ἄρης</td><td>火星</td><td>テノール</td><td>力強く、恐怖と戦慄、フォボスとダイモスを従える</td></tr>
+      <tr><td>ゼウス Ζεύς</td><td>木星</td><td>バス</td><td>威厳に満ち、空で最も大きな合唱を率いる</td></tr>
+      <tr><td>クロノス Κρόνος</td><td>土星</td><td>バス</td><td>老いて暗く、震える声。時の父</td></tr>
+      <tr><td>ウラノス Οὐρανός</td><td>天王星</td><td>バス</td><td>深く、空気をはらんだ声。空そのもの</td></tr>
+      <tr><td>ポセイドン Ποσειδῶν</td><td>海王星</td><td>バス</td><td>惑星の中で最も低い声。海のようにうねる</td></tr>
+      <tr><td>準惑星、小惑星、衛星</td><td>冥王星、ケレス、ベスタなど</td><td>子ども</td><td>若い神々：ハデス、デメテル、ヘスティア、アテナ、ヘラ、エロス、エリス</td></tr>
+      <tr><td>彗星</td><td>ハレー、エンケなど</td><td>ささやき</td><td><em>コメーテース</em>、長い髪の星</td></tr>
+      <tr><td>アポロン Ἀπόλλων</td><td>太陽</td><td>バスとテノール</td><td>ドローンの上で自分の名を詠唱する</td></tr>
+    </tbody>
+  </table></div>
+  <p>天体をタップすると、その神が声に出して自己紹介することがあります。たとえば「わたしは輝くゼウス、オリュンポスの王です」。これには端末に備わった音声合成の声が使われます。</p>
+</section>
+
+<section id="pages">
+  <div class="greek">τρεῖς ὁδοί</div>
+  <h2>3 つの聴き方</h2>
+  <div class="cards">
+    <div class="card"><h3>思想家たちと 2D 星図</h3><p>それぞれ独自の宇宙をもつ思想家たちの年表と、現在の太陽系全体。アンティキテラ島の機械のブロンズの文字盤のように、黄道十二宮がまわりを囲みます。立つ場所を選び、天体をタップして単独で聴き、あるいは惑星の衛星系に入って、まわりをめぐる衛星の歌を聴きましょう。</p><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/">星図を開く →</a></div>
+    <div class="card"><h3>3D 飛行</h3><p>コックピットのまわりに合唱が配置された宇宙船で、太陽系を飛び回ります。どの天体へも移動でき、巡航したり、惑星の公転面の上へ昇ったりできます。木星や土星の衛星のあいだでは、衛星たちがあなたのまわりで歌います。</p><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/flight.html">離陸する →</a></div>
+    <div class="card"><h3>天球の舞</h3><p>太陽系が trance、house、jungle、techno を、あるいはウィンナ・ワルツ、スロー・ワルツ、タンゴ、サンバ、チャチャ、スウィング、ジャイヴ、ファンダンゴを、さらにはバッハ風の対位法や、モーツァルトからグラスまでほかの 6 人の作曲家のスタイルを演奏します。太陽がビートを刻み、ゼウスがベースを担い、木星の衛星は実際の 1 : 2 : 4 の共鳴でアルペジオを奏で、アスペクトがビルドとドロップを引き起こします。</p><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/dance.html">セットを始める →</a></div>
+  </div>
+  <h3>2D 星図の使い方</h3>
+  <ul>
+    <li><b>ハーモニーを始める</b>で音が鳴り始めます。星図をドラッグすると回転し、スクロールまたはピンチで拡大・縮小できます。</li>
+    <li><b>聴く位置：</b>太陽、任意の惑星（地球に立つと昔ながらの地球中心の眺めになります）、または彗星の上に立ち、どちらを向くかを選びます。</li>
+    <li><b>天体をタップ</b>すると、その天体を衛星とともに単独で聴けます。表示されるカードの<b>衛星系に入る</b>を押すと、惑星とその衛星をミニチュアの太陽系として拡大表示します。</li>
+    <li><b>声</b>では<em>楽器</em>と<em>人間の合唱</em>を切り替えられます。また、準惑星に惑星を揺らがせるか、子どもとして歌わせるかを選べます。</li>
+    <li><b>ハーモニー</b>には、調律、アポロンの旋法、黄道十二宮の調、アスペクト、大きさと距離の法則、神殿の残響、音量の設定があります。</li>
+  </ul>
+  <h3>3D で飛ぶ</h3>
+  <ul>
+    <li>ドラッグして<b>見回し</b>ます。パソコンでは <kbd>W</kbd>/<kbd>S</kbd> で前進・後退、<kbd>A</kbd>/<kbd>D</kbd> で横移動、<kbd>R</kbd>/<kbd>F</kbd> で上昇・下降、<kbd>Q</kbd>/<kbd>E</kbd> で横転、<kbd>Shift</kbd> で加速、<kbd>C</kbd> で巡航、<kbd>T</kbd> で「移動」を開きます。スマートフォンでは ▲ ▼ ボタンを使います。</li>
+    <li><b>移動</b>は、自動操縦で任意の天体へ連れて行きます。到着すると、その天体とともに軌道にとどまります。</li>
+    <li><b>離れるとき：</b>画面下部の帯には、◀ 内側（太陽寄りの隣の惑星へ）、外側 ▶、<em>前方へ巡航</em>、<em>上空へ</em>が表示されます。</li>
+    <li><b>速さ</b>は近くにあるものに応じて変わります。惑星のそばではゆっくり、惑星間では光速の何倍にもなります。</li>
+    <li>惑星と衛星は見つけやすいよう実際より大きく描かれています。軌道に沿った距離は正確です。</li>
+  </ul>
+  <h3>ダンスフロア</h3>
+  <ul>
+    <li><b>再生</b>を押してから、クラブ系のスタイル、<em>Trance</em>（138 BPM、短調）、<em>House</em>（124 BPM、現代のドリア）、<em>Jungle</em>（166 BPM、切り刻んだ breakbeat とうねる Reese bass）、<em>Techno</em>（130 BPM、暗い現代のフリギア）、または下記のボールルームやラテンのスタイルを選びます。</li>
+    <li><b>空の速さ</b>は、1 小節のあいだに何日分の公転運動が進むかを決めます。空が速いほどアスペクトが増え、ビルドとドロップも増えます。</li>
+    <li><b>和音進行</b>は、まず主和音、次に地球から見てゼウス、クロノス、ポセイドンがいる黄道十二宮の星座の和音です。</li>
+    <li><b>バンド</b>には、どの惑星がどの楽器を演奏するかが表示されます。スタイルによって変わります。どれでもミュートできます。</li>
+  </ul>
+  <p>ボールルームとラテンの各スタイルは、ダンスフロアで耳にするような編成のバンドが演奏します。使われる録音楽器は、スタイルを選んだときに読み込まれます。それでも演奏を動かしているのは同じ空です。和音は惑星の星座から決まり、木星の衛星は 1 : 2 : 4 の共鳴を保ち、アスペクトがビルドとドロップをもたらします。録音を読み込めない場合は、合成楽器が代わりに演奏します。</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>スタイル</th><th>ノリ</th><th>惑星の演奏のしかた</th></tr></thead>
+    <tbody>
+      <tr><td>ウィンナ・ワルツ</td><td class="num">3/4 · 174 BPM</td><td>ウィーンのオーケストラ。ズン・チャッ・チャッ：1 拍目にゼウスのコントラバス、2・3 拍目にクロノスのホルンとガイアのピッツィカートの弦が入り、その上で弦が歌います。アプロディーテーがソロ・ヴァイオリンを弾き、ドロップではフルートが加わります。アレスはティンパニ、ヘルメスはトライアングル、衛星たちはハープを担当します。リディア、つまり現代の長調です。</td></tr>
+      <tr><td>スロー・ワルツ</td><td class="num">3/4 · 90 BPM</td><td>同じオーケストラが、イングリッシュ・ワルツのゆったりしたテンポで、より長くレガートなフレーズを奏でます。</td></tr>
+      <tr><td>タンゴ</td><td class="num">4/4 · 118 BPM</td><td>オルケスタ・ティピカ。クロノスのバンドネオンがマルカートの和音を弾き、1 小節おきに引きずるように次の小節へなだれ込みます。ゼウスはコントラバスで 3-3-2 のハバネラを弾きます。ガイアとアレスがピアノ、アプロディーテーがソロ・ヴァイオリンで、ヘルメスはヴァイオリンでチチャーラを擦ります。短調です。</td></tr>
+      <tr><td>サンバ</td><td class="num">4/4 · 104 BPM</td><td>ホーダ・ジ・サンバ。ヘルメスのガンザー、ガイアのタンボリン、アレスのアゴゴの下で、アポロンのスルドが 2 拍目と 4 拍目に応えます。ゼウスは 7 弦ギター、クロノスはカヴァキーニョ、アプロディーテーはフルートを演奏します。</td></tr>
+      <tr><td>チャチャ</td><td class="num">4/4 · 120 BPM</td><td>キューバのチャランガ。クロノスのピアノ・モントゥーノとヴァイオリンの上で、アプロディーテーがフルートを吹きます。ゼウスはトゥンバオのベースを弾きます。ガイアはソン・クラーベ、アレスはコンガ、アポロンはティンバレスを演奏し、ヘルメスのギロが 4 拍目の裏で「チャチャ」を刻みます。</td></tr>
+      <tr><td>スウィング</td><td class="num">4/4 · 140 BPM</td><td>3 連符でスウィングする 8 分音符のビッグバンド。クロノスのサクソフォン・セクションがチャールストンのリズムを刻み、アプロディーテーがミュート・トランペットのソロを取ります。ゼウスはウォーキング・ベースを弾き、ヘルメス、ガイア、アポロンはライド、ブラシ、バスドラムです。ウラノスがトロンボーンを率い、ドロップではブラスが咆哮します。</td></tr>
+      <tr><td>ジャイヴ</td><td class="num">4/4 · 172 BPM</td><td>ジャンプ・ブルースのバンド。硬いスネアのバックビート、裏拍のピアノ、うなるサクソフォンで、より速いスウィングを演奏します。アプロディーテーはテナー・サクソフォンを吹き、衛星たちはエレキギターです。</td></tr>
+      <tr><td>ファンダンゴ</td><td class="num">3/4 · 168 BPM</td><td>フラメンコのグループ：カホン、カスタネット、パルマ、そしてラスゲアードでかき鳴らし、ピカードで弾き分けるギターに、アプロディーテーのカンテが加わります。アンダルシア終止：ゼウスとクロノスが 2 つの和音を選び、そのあとフリギアの第 2 音が長和音へと導いて基準に戻ります。</td></tr>
+    </tbody>
+  </table></div>
+  <h3>バッハ</h3>
+  <p><em>バッハ</em>スタイルは、バッハのインヴェンションやフーガの様式で対位法を書きます。アプロディーテーの星座が 2 小節の<em>主題</em>を作曲します。拍には和音の構成音を置き、そのあいだを 8 分音符と 16 分音符の順次進行でつなぎ、長い音で落ち着きます。彼女はまずヴァイオリンで主題を単独で提示します。1 小節後、アレスがオーボエで同じ旋律を応答として奏で、ヘルメスがチェンバロで主題を上下反転させた対主題を加えます。各声部は和音に従うので、旋律はコード進行の中をゼクエンツとしてそろって進みます。ゼウスはクロノスのチェンバロの和音の下で、チェロで通奏低音のウォーキング・ベースを弾きます。</p>
+  <p>形式を形づくるのは、やはり空です。イントロは提示部で、声部が 1 つずつ入ってきます。ビルドは<em>ストレット</em>となり、応答がわずか半小節後に詰めかけてきます。ドロップはクライマックスになります。バッハの祝祭的なカンタータのように、ペダルを効かせたフル・オルガン、ガイアのトランペット、アポロンのティンパニが響きます。ブレイクは応答が休む嬉遊部です。</p>
+  <h3>ほかの作曲家</h3>
+  <p>「コンサート」の列には、バッハのほかに 6 人の作曲家が並んでいます。どれも楽器を変えただけではなく、その作曲家が実際に用いた作曲法から組み立てられています。演奏するのはやはり惑星たちで、ビルドやクライマックスがいつ来るかを決めるのもやはり空です。</p>
+  <ul>
+    <li><b>モーツァルト</b>：8 小節の古典的な楽節で、属和音で終わる問いと、基準に戻る答えからなります。ゼウスがピアノでアルベルティ・バスを、アプロディーテーが彼女の星座から作曲されたヴァイオリンの旋律を弾きます。ガイアのオーボエが 3度で寄り添い、ヘルメスのフルートが各終止でトリルを奏でます。クライマックスではホルンとティンパニが加わります。</li>
+    <li><b>サティ</b>：『<em>ジムノペディ</em>』風のゆっくりした 3 拍子。1 拍目にバス音が置かれ、続いて 2 つの和声のあいだを揺れる浮遊感のある 七の和音が、まばらに下降する旋律の下で鳴ります。</li>
+    <li><b>ドビュッシー</b>：全音ずつ平行に滑る 九の和音、木星の衛星によるハープの響き、そしてフルートのアラベスク。音階を選ぶのは月です。満ちていくあいだは全音音階、欠けていくあいだは五音音階になります。</li>
+    <li><b>ペルト</b>：<em>ティンティナブリ</em>。ヴァイオリンの旋律は中心音に向かって一歩ずつ進み、フレーズは毎回 1 音ずつ長くなり、上からと下からと交互に近づきます。ピアノは各音に、基準の三和音のうち最も近い音で応え、チェロが下で旋律を鏡のように映し、鐘が時を告げます。</li>
+    <li><b>ライヒ</b>：フェイジング。3 台のマリンバが同じ 12 音のパターンを演奏します。2 台目は金星と地球のなす角度だけ、3 台目は火星の角度だけずらされるので、惑星が動くにつれてパターンが互いにずれていきます。手拍子は月によってずらされます。</li>
+    <li><b>グラス</b>：1 小節ごとに 1 音ずつ増えていく加算的なオルガンのアルペジオ。2 つずつ刻む左手に対して 3 つずつ刻み、オルガンのペダルの上で合唱とともに響きます。</li>
+  </ul>
+</section>
+
+<section id="stage">
+  <div class="greek">σκηνή</div>
+  <h2>ステージで</h2>
+  <p>どのページにも「録音」の隣に<b>ステージ</b>ボタンがあり、会場で天球の音楽を流すことができます。</p>
+  <h3>音声出力</h3>
+  <ul>
+    <li><b>ヘッドホン</b>：各神をあなたのまわりに完全な 3D で配置します。</li>
+    <li><b>スピーカー</b>：1 組のスピーカー向けの、シンプルな左右のステレオです。</li>
+    <li><b>PA</b>：ホールの PA 向けです。ステレオの幅を狭めているので、一方のスピーカーの近くに立っている人にもすべての神の声が聞こえます。</li>
+    <li><b>モノラル</b>：すべての音を両方のスピーカーから出します。モノラルの PA や 1 台のスピーカー向けです。</li>
+    <li><b>5.1</b>：5 台のスピーカーとサブウーファーによる本格的なサラウンド音響です。星図と 3D 飛行では、各神があなたのまわりの実際の方向から聞こえます。背後にある惑星はリア・スピーカーから鳴り、頭の向きを変えると空も回ります。ダンスのページでは、ドラムとベースは前方にとどまり、バンドの神々は惑星とともに部屋をめぐります。6 チャンネルの出力が必要です。マルチチャンネル PCM に設定した 5.1 レシーバーに HDMI で接続したパソコン、または 5.1 対応の USB サウンドカードを、Chrome または Edge で使ってください。スマートフォンではブラウザにステレオしか提供されず、ボタンにもその旨が表示されます。<em>スピーカーテスト</em>は、各スピーカーで順番にチャイムを鳴らし（左前、センター、右前、右後ろ、左後ろ、最後にサブウーファー）、配線を確認できるようにします。</li>
+  </ul>
+  <p>スマートフォンを PA につなぐには、ヘッドホン端子、または USB‑C オーディオアダプターからミキサーの 2 チャンネルへケーブルを引きます。ケーブルが長い場合は、ステレオ DI ボックスを使うとハムノイズを防げます。スマートフォンから HDMI でプロジェクターに映像を送っている場合、音声も同じケーブルで伝わります。HDMI オーディオ分離器を使えば、ミキサー用のライン出力を取り出せます。</p>
+  <h3>MIDI 出力（照明やシンセサイザー用）</h3>
+  <p>Chrome または Edge（Android、Windows、Mac、Linux。iPhone は不可）で<em>MIDIに接続</em>を押し、デバイスを選びます。USB MIDI インターフェース、MIDI-DMX 変換器、MIDI 入力を備えた照明卓のいずれも使えます。</p>
+  <ul>
+    <li>各神は専用のチャンネルで実際の音高で演奏します。1 ヘリオス（太陽）、2 ヘルメス、3 アプロディーテー、4 ガイア、5 アレス、6 ゼウス、7 クロノス、8 ウラノス、9 ポセイドン、10 木星の衛星、11 その他すべて。星図では、ドローンは持続音として送られ、その音量はそれぞれのチャンネルで CC 20 として送信されます。</li>
+    <li>チャンネル 16 はショーの構成を伝えます。CC 20 はセクションで、イントロ 0、グルーヴ 32、ビルド 64、ドロップ 96、ブレイク 127 です。CC 21 は全体の音量です。セクションが変わるたびにノートが送られます。36 イントロ、37 グルーヴ、38 ビルド、39 ドロップ、40 ブレイクです。</li>
+    <li><em>MIDIクロックを送信</em>は、ダンスのテンポ（1 拍あたり 24 パルス）をスタートとストップとともに送ります。</li>
+  </ul>
+  <h3>プロジェクター表示</h3>
+  <p>星図、ダンス、3D 飛行を全画面に表示し、操作パネルを隠します。隅にある小さなボタン、または Esc キーで元に戻ります。<em>画面をオンのままにする</em>を使うと、ショーの途中でスマートフォンがスリープしなくなります。</p>
+  <h3>アプリとしてインストールする</h3>
+  <p>Chrome で<em>アプリをインストール</em>または<em>ホーム画面に追加</em>を選びます。するとアプリは全画面で開き、すべてのページと楽器のコピーを保存するので、電波がなくても演奏できます。接続があるときには自動的に更新されます。</p>
+</section>
+
+<section id="tips">
+  <div class="greek">συμβουλαί</div>
+  <h2>ヒントとトラブル対処</h2>
+  <ul>
+    <li><b>ヘッドホンを使いましょう。</b>位置や高さ、そして移動にともなう合唱の回転が、ずっとはっきり聞こえます。</li>
+    <li><b>音が出ない場合</b>：ブラウザはタップした後でないと音を出せないので、<em>ハーモニーを始める</em>、<em>再生</em>、または惑星を押してください。スマートフォンがマナーモードになっていないかも確認してください。</li>
+    <li><b>Claude アプリ内</b>では、埋め込みプレビューが一部のスマートフォンで音を遮ることがあります。その場合は、ウェブリンクをスマートフォンのブラウザで開いてください。</li>
+    <li><b>スマートフォンで音が途切れる・ノイズが出る</b>のは、音声処理の性能が足りなくなっているためです。アプリはスマートフォンではすでに歌う声の数を減らしています。それでも聞こえる場合は、<em>タップすると神が名乗る</em>をオフにし、3D では<em>ヘッドホン用3Dサウンド</em>をオフのままにしてください。</li>
+    <li><b>録音</b>は、3 つのどのページでも、聞こえているとおりの音を記録します。押すと開始し（音も鳴り始めます）、もう一度押すと停止します。その後、録音を再生したり、音声ファイル（ほとんどのスマートフォンとパソコンでは .m4a、一部では .webm）として保存して、どこでも聴いたりできます。声による自己紹介は端末の音声合成の声で再生されるため、録音には含まれません。</li>
+    <li><b>音量はページごとに記憶されます</b>。そのため、2D 星図、3D 飛行、ダンスをそれぞれ別の音量にしておけます。</li>
+    <li><b>時間を速める</b>と、滑らかな音の動き、衛星の旋律、1 年を通じた調の移り変わりがよりはっきり聞こえます。</li>
+    <li><b>最初のバージョン</b>は、比較の基準として変更せずに残してあります：<a href="https://newbroman.github.io/Music_of_the_Spheres/v1/">v1 星図</a>と<a href="https://newbroman.github.io/Music_of_the_Spheres/v1/flight.html">v1 飛行</a>。</li>
+    <li><b>神々の自己紹介</b>には、端末の音声読み上げの声が使われます。英語のように聞こえる場合は、システムのテキスト読み上げ設定で日本語の音声をインストールしてください。日本語の音声がないと、神々は英語で話します。</li>
+  </ul>
+</section>
+
+<section id="data">
+  <div class="greek">ἀκρίβεια</div>
+  <h2>データ、精度、参考文献</h2>
+  <ul>
+    <li>惑星の位置には NASA JPL の近似ケプラー軌道要素を使っており、およそ 1800 年から 2050 年まで 1 度未満の精度で有効です。</li>
+    <li>準惑星、小惑星、彗星には丸めた軌道要素を使っているため、その位置は厳密なものではなく、目安です。</li>
+    <li>収録しているのは主な衛星だけで、それぞれ母惑星の赤道面にある円軌道上を回ります。星図上の衛星の軌道は縮尺どおりではありません。</li>
+    <li>黄道十二宮の星座は、主な恒星のカタログ上の位置を黄道座標に変換して描いています。調は、占星術師が用いるように、春分点から測った回帰黄道の十二宮に従います。</li>
+    <li>2D 星図では、水星とカイパーベルトが 1 画面に収まるよう、距離を対数で表示しています。</li>
+  </ul>
+  <div class="foot">
+    <p><b>参考文献</b></p>
+    <ul>
+      <li><a href="https://en.wikipedia.org/wiki/Musica_universalis">Musica universalis</a>：天球の音楽</li>
+      <li><a href="https://en.wikipedia.org/wiki/Myth_of_Er">エルの神話</a>：プラトン『<em>国家</em>』より</li>
+      <li><a href="https://en.wikipedia.org/wiki/Harmonices_Mundi">Harmonices Mundi</a>：ケプラー、1619 年</li>
+      <li><a href="https://en.wikipedia.org/wiki/Pythagorean_tuning">ピタゴラス音律</a></li>
+      <li><a href="https://ssd.jpl.nasa.gov/planets/approx_pos.html">JPL：惑星の近似位置</a></li>
+      <li>ソースコード：<a href="https://github.com/newbroman/Music_of_the_Spheres">github.com/newbroman/Music_of_the_Spheres</a></li>
+      <li>ダンスバンドの録音楽器は、Frank Wen による Fluid R3 General MIDI SoundFont を <a href="https://github.com/gleitz/midi-js-soundfonts">midi-js-soundfonts</a> がレンダリングしたもので、<a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a> のもとで使用しています。</li>
+    </ul>
+  </div>
+</section>
+
+</article>
+</div>
+</div>
+
+</body>
+</html>

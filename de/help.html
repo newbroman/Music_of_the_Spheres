@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#090b18">
+<link rel="icon" type="image/png" href="../icons/favicon-48.png">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<script>if('serviceWorker' in navigator){const h=location.hostname,b=h==='newbroman.github.io'?'/Music_of_the_Spheres/':(h==='localhost'||h==='127.0.0.1')?'/':null;if(b)addEventListener('load',()=>navigator.serviceWorker.register(b+'sw.js',{scope:b}).catch(()=>{}))}</script>
+<script>
+/* ---------- one language menu instead of a row of language links ---------- */
+(()=>{
+"use strict";
+const B='https://newbroman.github.io/Music_of_the_Spheres/';
+const ALL=[['en','English'],['pl','Polski'],['cy','Cymraeg'],['de','Deutsch'],['es','Español'],['fr','Français'],['it','Italiano'],['zh','中文'],['ja','日本語']];
+const AVAIL=/*LANGS*/["en", "pl", "cy", "de", "es", "fr", "it", "zh", "ja"]/*LANGS-END*/;
+const LANGS=ALL.filter(([c])=>AVAIL.includes(c));
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+const cur=(document.documentElement.lang||'en').slice(0,2);
+// the page within the app, whichever language folder it is in
+function page(){const m=location.pathname.match(/(?:^|\/)(?:(pl|cy|de|es|fr|it|zh|ja)\/)?([a-z]+\.html)?$/);const p=(m&&m[2])||'';return p==='index.html'?'':p}
+const href=c=>B+(c==='en'?'':c+'/')+page()+location.hash;
+const GLOBE='<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 12h18M12 3c2.6 2.6 3.9 5.6 3.9 9s-1.3 6.4-3.9 9c-2.6-2.6-3.9-5.6-3.9-9S9.4 5.6 12 3z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+function build(){
+  const links=[...document.querySelectorAll('body a[hreflang]')].filter(a=>!a.closest('#langMenu'));if(!links.length)return;
+  const first=links[0],compact=links.every(a=>a.textContent.trim().length<=3),name=(LANGS.find(l=>l[0]===cur)||ALL[0])[1];
+  const d=document.createElement('details');d.id='langMenu';d.className='langmenu';
+  const s=document.createElement('summary');s.className=first.className;
+  // the button keeps the look of the link it replaces
+  {const cs=getComputedStyle(first);['border','borderRadius','padding','font','color','background','letterSpacing','textTransform','minHeight','lineHeight','boxShadow'].forEach(k=>s.style[k]=cs[k]);s.style.display='inline-flex';s.style.alignItems='center'}
+s.innerHTML=GLOBE+(compact?cur.toUpperCase():name)+' ▾';s.setAttribute('aria-label','Language · '+name);
+  const m=document.createElement('div');m.className='lmenu';m.setAttribute('role','menu');
+  LANGS.forEach(([c,n])=>{const a=document.createElement('a');a.href=href(c);a.lang=c;a.hreflang=c;a.textContent=n;a.setAttribute('role','menuitem');if(c===cur){a.setAttribute('aria-current','true')}a.onclick=e=>{LS.set('mots.lang',c);if(c!==cur){e.preventDefault();location.href=href(c)}else{e.preventDefault();d.open=false}};m.appendChild(a)});
+  // keep the list on screen next to an edge
+  d.addEventListener('toggle',()=>{if(!d.open||innerWidth<=760)return;m.style.cssText='';const r=m.getBoundingClientRect();if(r.right>innerWidth-8)m.style.cssText='left:auto;right:0;transform:none';else if(r.left<8)m.style.cssText='left:0;transform:none'});
+  d.append(s,m);first.replaceWith(d);links.slice(1).forEach(a=>a.remove());
+  document.addEventListener('click',e=>{if(d.open&&!d.contains(e.target))d.open=false});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')d.open=false});
+}
+const css=document.createElement('style');
+css.textContent=`.langmenu{position:relative;display:inline-block}.langmenu summary{list-style:none;cursor:pointer;white-space:nowrap}.langmenu summary::-webkit-details-marker{display:none}
+.langmenu .lmenu{position:absolute;left:50%;transform:translateX(-50%);top:calc(100% + 6px);z-index:40;min-width:180px;display:flex;flex-direction:column;padding:6px;background:#13162a;border:1px solid #2b3050;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.langmenu .lmenu a{display:block!important;margin:0!important;border:0!important;background:none!important;box-shadow:none!important;padding:9px 12px!important;border-radius:6px!important;color:#e9e1cc!important;text-decoration:none!important;font:16px/1.3 "Alegreya Sans",system-ui,sans-serif!important;text-transform:none!important;letter-spacing:0!important;min-height:0!important}
+.langmenu .lmenu a:hover{background:#1d2140!important;color:#e9d093!important}.langmenu .lmenu a[aria-current="true"]{color:#e9d093!important}.langmenu .lmenu a[aria-current="true"]::after{content:" ✓"}
+@media (max-width:760px){.langmenu .lmenu{position:fixed;top:auto;width:min(300px,calc(100vw - 32px))}}
+#langHint{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:70;display:flex;gap:10px;align-items:center;background:#13162a;border:1px solid #c9984f;border-radius:999px;padding:6px 8px 6px 14px;color:#e9e1cc;font:15px/1.3 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+#langHint a{color:#e9d093;text-decoration:none;font-weight:600}#langHint button{appearance:none;border:0;background:transparent;color:#a39c89;font-size:18px;cursor:pointer;padding:4px 8px}`;
+document.head.appendChild(css);
+// on a first visit to the English pages, offer the visitor's own language if the app has it
+function hint(){
+  if(cur!=='en'||LS.get('mots.lang'))return;
+  const want=(navigator.languages||[navigator.language||'']).map(x=>String(x).slice(0,2).toLowerCase()).find(c=>c!=='en'&&AVAIL.includes(c));if(!want)return;
+  const n=LANGS.find(l=>l[0]===want)[1],h=document.createElement('div');h.id='langHint';
+  h.innerHTML=GLOBE+`<a href="${href(want)}" lang="${want}">${n} →</a><button type="button" aria-label="×">×</button>`;
+  h.querySelector('a').onclick=()=>LS.set('mots.lang',want);h.querySelector('button').onclick=()=>{LS.set('mots.lang','en');h.remove()};
+  document.body.appendChild(h);
+}
+const go=()=>{build();hint()};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();
+})();
+</script>
+<meta name="description" content="Wie die Sphären klingen: Pythagoras, Platon, Ptolemäus und Kepler, und wie Musik der Sphären die echten Bewegungen des Sonnensystems in Klang verwandelt.">
+<link rel="alternate" hreflang="en" href="https://newbroman.github.io/Music_of_the_Spheres/help.html">
+<link rel="alternate" hreflang="pl" href="https://newbroman.github.io/Music_of_the_Spheres/pl/help.html">
+<link rel="alternate" hreflang="cy" href="https://newbroman.github.io/Music_of_the_Spheres/cy/help.html">
+<link rel="alternate" hreflang="es" href="https://newbroman.github.io/Music_of_the_Spheres/es/help.html">
+<link rel="alternate" hreflang="fr" href="https://newbroman.github.io/Music_of_the_Spheres/fr/help.html">
+<link rel="alternate" hreflang="it" href="https://newbroman.github.io/Music_of_the_Spheres/it/help.html">
+<link rel="alternate" hreflang="zh" href="https://newbroman.github.io/Music_of_the_Spheres/zh/help.html">
+<link rel="alternate" hreflang="ja" href="https://newbroman.github.io/Music_of_the_Spheres/ja/help.html">
+<title>Wie die Sphären klingen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=GFS+Didot&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a long-form reading page in the project's night-sky and bronze palette; a sticky contents rail on wide screens, inline diagrams drawn as SVG. Single dark theme, matching the three app pages. */
+:root{
+  --sky:#0c0e1a;--sky-2:#13162a;--sky-3:#1b1f38;--line:#2b3050;
+  --vellum:#e9e1cc;--vellum-dim:#a39c89;--bronze:#c9984f;--bronze-dim:#7f6236;--verdigris:#62a597;
+  --f-display:"GFS Didot","Didot","Bodoni 72",Georgia,serif;
+  --f-body:"Alegreya Sans","Gill Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{background:var(--sky);color:var(--vellum)}
+body{font-family:var(--f-body);font-size:17.5px;line-height:1.62;padding-inline:clamp(16px,4vw,48px);padding-block:22px 64px}
+[hidden]{display:none!important}
+a{color:var(--bronze)}a:hover{color:#e2b56d}
+:focus-visible{outline:2px solid var(--bronze);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto}
+header.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:14px 28px;border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:28px}
+.eyebrow{font-family:var(--f-display);color:var(--bronze);font-size:1.1rem}
+h1,h2,h3{font-family:var(--f-display);font-weight:400;text-wrap:balance;margin:0}
+h1{font-size:clamp(2.3rem,5.4vw,3.8rem);line-height:1.02}
+.lede{max-width:60ch;color:var(--vellum-dim);margin:.5rem 0 0;font-size:1.1rem}
+.links{display:flex;gap:8px;flex-wrap:wrap}
+.links a{color:var(--vellum-dim);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:7px 13px;font-size:.88rem}
+.links a:hover{color:var(--bronze);border-color:var(--bronze-dim)}
+.layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:48px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}.toc{position:static!important}}
+.toc{position:sticky;top:20px;font-size:.92rem;border-left:1px solid var(--line);padding-left:14px}
+.toc b{display:block;font-family:var(--f-display);font-weight:400;color:var(--bronze);font-size:1.05rem;margin-bottom:6px}
+.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;counter-reset:t}
+.toc li{counter-increment:t}
+.toc a{color:var(--vellum-dim);text-decoration:none}
+.toc a::before{content:counter(t,upper-roman) ". ";color:var(--bronze-dim);font-family:var(--f-display)}
+.toc a:hover{color:var(--vellum)}
+article{min-width:0}
+section{margin-bottom:56px}
+section > h2{font-size:clamp(1.7rem,3.4vw,2.3rem);margin-bottom:4px}
+.greek{font-family:var(--f-display);color:var(--bronze);font-size:1.05rem}
+article p,article li{max-width:68ch}
+article p{margin:.9em 0}
+article h3{font-size:1.35rem;margin:1.8em 0 .2em}
+article h3 small{font-family:var(--f-body);font-size:.85rem;color:var(--vellum-dim);margin-left:8px}
+blockquote{margin:1.2em 0;padding:.2em 0 .2em 18px;border-left:2px solid var(--bronze);color:var(--vellum);font-family:var(--f-display);font-size:1.15rem;max-width:62ch}
+blockquote cite{display:block;font-family:var(--f-body);font-style:normal;font-size:.85rem;color:var(--vellum-dim);margin-top:4px}
+figure{margin:1.6em 0;padding:16px;background:var(--sky-2);border:1px solid var(--line);border-radius:8px;max-width:760px}
+figure svg{display:block;width:100%;height:auto}
+figcaption{font-size:.88rem;color:var(--vellum-dim);margin-top:10px;max-width:68ch}
+.tablewrap{overflow-x:auto;max-width:860px}
+table{border-collapse:collapse;width:100%;min-width:520px;font-size:.96rem}
+th,td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--line)}
+th{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--vellum-dim);font-weight:500}
+td:first-child{font-family:var(--f-display);font-size:1.02rem}
+td.num{font-family:var(--f-mono);font-size:.88rem;white-space:nowrap;font-variant-numeric:tabular-nums}
+.callout{background:var(--sky-2);border:1px solid var(--line);border-left:3px solid var(--verdigris);border-radius:6px;padding:12px 16px;max-width:68ch;margin:1.2em 0}
+.callout p{margin:.4em 0}
+kbd{font-family:var(--f-mono);font-size:.85em;border:1px solid var(--line);border-radius:4px;padding:0 5px;background:var(--sky-3)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;max-width:860px;margin:1.2em 0}
+.card{background:var(--sky-2);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.card h3{margin:0;font-size:1.3rem}
+.card p{margin:0;font-size:.95rem;color:var(--vellum-dim)}
+.card a{font-size:.92rem}
+.foot{border-top:1px solid var(--line);padding-top:18px;font-size:.88rem;color:var(--vellum-dim)}
+.foot ul{padding-left:1.1em}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div>
+    <div class="eyebrow">περὶ τῆς τῶν σφαιρῶν ἁρμονίας</div>
+    <h1>Wie die Sphären klingen</h1>
+    <p class="lede">Die antike Idee hinter der App, und wie jeder Teil davon die wirklichen Bewegungen des Sonnensystems in Klang verwandelt.</p>
+  </div>
+  <nav class="links" aria-label="Die App"><a href="https://newbroman.github.io/Music_of_the_Spheres/de/">2D-Scheibe</a><a href="https://newbroman.github.io/Music_of_the_Spheres/de/flight.html">3D-Flug</a><a href="https://newbroman.github.io/Music_of_the_Spheres/de/dance.html">Tanz</a><a href="https://newbroman.github.io/Music_of_the_Spheres/pl/help.html" lang="pl" hreflang="pl">Polski</a><a href="https://newbroman.github.io/Music_of_the_Spheres/cy/help.html" lang="cy" hreflang="cy">Cymraeg</a></nav>
+</header>
+
+<div class="layout">
+<nav class="toc" aria-label="Inhalt">
+  <b>Inhalt</b>
+  <ol>
+    <li><a href="#idea">Die Idee</a></li>
+    <li><a href="#history">Von Pythagoras bis Kepler</a></li>
+    <li><a href="#thinkers">Die Himmel der Denker</a></li>
+    <li><a href="#sound">Wie der Himmel zu Klang wird</a></li>
+    <li><a href="#tuning">Stimmung, Modi und Tierkreis</a></li>
+    <li><a href="#voices">Die Götter und ihre Stimmen</a></li>
+    <li><a href="#pages">Die drei Arten zu hören</a></li>
+    <li><a href="#stage">Auf der Bühne: PA, MIDI und Projektor</a></li>
+    <li><a href="#tips">Tipps und Fehlerbehebung</a></li>
+    <li><a href="#data">Daten, Genauigkeit und Lesestoff</a></li>
+  </ol>
+</nav>
+
+<article>
+
+<section id="idea">
+  <div class="greek">ἡ ἰδέα</div>
+  <h2>Die Idee</h2>
+  <p>Zweitausend Jahre lang glaubten die Menschen, der Himmel mache Musik. Die Planeten wurden von großen, durchsichtigen Sphären getragen. Jede Sphäre drehte sich mit ihrer eigenen Geschwindigkeit, und jede Geschwindigkeit war ein Ton. Zusammen ergaben die Töne eine Harmonie, die zu vollkommen oder zu beständig war, als dass menschliche Ohren sie bemerken könnten. Diese Idee heißt <em>Musik der Sphären</em>, auf Latein <em>musica universalis</em>.</p>
+  <p>Diese App nimmt die Idee wörtlich. Jeder Planet, jeder Mond, jeder Zwergplanet und jeder Komet wird für das angezeigte Datum aus seiner wirklichen Bahn berechnet, und jeder von ihnen singt. Der Gott, nach dem er benannt ist, leiht ihm die Stimme. Wie schnell er sich bewegt, wie groß er erscheint, wie seine Bahn geneigt ist und wie er rotiert, prägt den Klang. Du wählst, wo im Sonnensystem du stehst und zuhörst.</p>
+</section>
+
+<section id="history">
+  <div class="greek">ἱστορία</div>
+  <h2>Von Pythagoras bis Kepler</h2>
+
+  <h3>Pythagoras: Harmonie ist Zahl <small>6. Jahrhundert v. Chr.</small></h3>
+  <p>Der Überlieferung nach hörte Pythagoras Hämmer in einer Schmiede in Harmonie klingen und fand den Grund in ihren Größenverhältnissen. Was auch immer an der Geschichte wahr ist: Die Entdeckung, die seinen Anhängern zugeschrieben wird, ist echt. Die konsonanten Intervalle der Musik sind einfache Verhältnisse ganzer Zahlen. Halbiert man eine Saite, klingt sie eine Oktave höher. Zwei Drittel der Saite ergeben eine Quinte, drei Viertel eine Quarte. Wenn Musik Zahl ist und der Himmel sich nach Zahlen bewegt, dann könnte der Himmel Musik sein.</p>
+  <figure>
+    <svg viewBox="0 0 720 250" role="img" aria-label="Eine Saite, geteilt in ihre ganze Länge, zwei Drittel, drei Viertel und die Hälfte; sie lässt Prime, Quinte, Quarte und Oktave erklingen.">
+      <style>.lbl{font-family:'Alegreya Sans',sans-serif;font-size:15px;fill:#e9e1cc}.dim{font-family:'Alegreya Sans',sans-serif;font-size:13px;fill:#a39c89}.rt{font-family:'IBM Plex Mono',monospace;font-size:14px;fill:#c9984f}</style>
+      <g>
+        <text x="20" y="48" class="lbl">Ganze Saite</text><text x="20" y="66" class="dim">der Grundton</text>
+        <line x1="190" y1="52" x2="620" y2="52" stroke="#c9984f" stroke-width="3"/><rect x="186" y="40" width="6" height="24" fill="#a39c89"/><rect x="618" y="40" width="6" height="24" fill="#a39c89"/>
+        <text x="640" y="57" class="rt">1 : 1</text>
+      </g>
+      <g>
+        <text x="20" y="102" class="lbl">Drei Viertel</text><text x="20" y="120" class="dim">eine Quarte höher</text>
+        <line x1="190" y1="106" x2="512.5" y2="106" stroke="#c9984f" stroke-width="3"/><line x1="512.5" y1="106" x2="620" y2="106" stroke="#2b3050" stroke-width="3"/><rect x="186" y="94" width="6" height="24" fill="#a39c89"/><rect x="509" y="94" width="6" height="24" fill="#62a597"/>
+        <text x="640" y="111" class="rt">4 : 3</text>
+      </g>
+      <g>
+        <text x="20" y="156" class="lbl">Zwei Drittel</text><text x="20" y="174" class="dim">eine Quinte höher</text>
+        <line x1="190" y1="160" x2="476.7" y2="160" stroke="#c9984f" stroke-width="3"/><line x1="476.7" y1="160" x2="620" y2="160" stroke="#2b3050" stroke-width="3"/><rect x="186" y="148" width="6" height="24" fill="#a39c89"/><rect x="473" y="148" width="6" height="24" fill="#62a597"/>
+        <text x="640" y="165" class="rt">3 : 2</text>
+      </g>
+      <g>
+        <text x="20" y="210" class="lbl">Die Hälfte</text><text x="20" y="228" class="dim">eine Oktave höher</text>
+        <line x1="190" y1="214" x2="405" y2="214" stroke="#c9984f" stroke-width="3"/><line x1="405" y1="214" x2="620" y2="214" stroke="#2b3050" stroke-width="3"/><rect x="186" y="202" width="6" height="24" fill="#a39c89"/><rect x="402" y="202" width="6" height="24" fill="#62a597"/>
+        <text x="640" y="219" class="rt">2 : 1</text>
+      </g>
+    </svg>
+    <figcaption>Die pythagoreischen Konsonanzen auf einer einzigen Saite. Greift man die Saite am grünen Steg ab, klingt die bronzefarbene Länge. Die Verhältnisse beziehen sich auf die Länge der ganzen Saite zur klingenden Länge. Jeder Ton in der Stimmung der App ist aus diesen Verhältnissen aufgebaut.</figcaption>
+  </figure>
+
+  <h3>Platon: die Sirenen auf den Wirteln <small>um 375 v. Chr.</small></h3>
+  <p>Am Ende der <em>Politeia</em> erzählt Platon den Mythos des Er. Er ist ein in der Schlacht gefallener Soldat, der ins Leben zurückkehrt und beschreibt, was den Seelen der Toten gezeigt wird. Der Kosmos ist eine große Spindel der Notwendigkeit, gebildet aus acht ineinandergesteckten Wirteln, die sich mit unterschiedlicher Geschwindigkeit drehen. Auf dem Rand jedes Wirtels steht eine Sirene und singt einen einzigen Ton, und die acht Töne zusammen ergeben eine Harmonie. Die drei Moiren singen mit ihnen: Lachesis von der Vergangenheit, Klotho von der Gegenwart und Atropos von der Zukunft.</p>
+  <blockquote>Oben auf jedem der Kreise stand eine Sirene, die mit ihm herumgetragen wurde und einen einzigen Laut von sich gab, einen einzigen Ton; und aus allen acht zusammen erklang der Einklang einer einzigen Harmonie.<cite>Platon, <em>Politeia</em> X, sinngemäß</cite></blockquote>
+  <p>Im <em>Timaios</em> geht Platon noch weiter. Die Weltseele selbst ist aus musikalischen Proportionen aufgebaut, aus der Reihe 1, 2, 3, 4, 8, 9, 27 und den Verhältnissen, die die Lücken dazwischen füllen, und die Kreise der Planeten sind aus dieser Seele geschnitten. Der Himmel ist nicht bloß <em>wie</em> Musik: Seine Struktur <em>ist</em> eine musikalische Tonleiter.</p>
+  <figure>
+    <svg viewBox="0 0 720 440" role="img" aria-label="Ineinanderliegende Kreise um die Erde: Mond, Sonne, Venus, Merkur, Mars, Jupiter, Saturn und die Fixsterne, in Platons Reihenfolge.">
+      <style>.pl{font-family:'GFS Didot',Georgia,serif;font-size:16px;fill:#e9e1cc}.gr{font-family:'GFS Didot',Georgia,serif;font-size:13px;fill:#c9984f}</style>
+      <g fill="none" stroke-width="1.2">
+        <circle cx="225" cy="220" r="34" stroke="#3b4166"/><circle cx="225" cy="220" r="56" stroke="#3b4166"/><circle cx="225" cy="220" r="78" stroke="#3b4166"/><circle cx="225" cy="220" r="100" stroke="#3b4166"/><circle cx="225" cy="220" r="122" stroke="#3b4166"/><circle cx="225" cy="220" r="144" stroke="#3b4166"/><circle cx="225" cy="220" r="166" stroke="#3b4166"/><circle cx="225" cy="220" r="196" stroke="#c9984f" stroke-dasharray="2 5"/>
+      </g>
+      <circle cx="225" cy="220" r="11" fill="#74abdc"/>
+      <g>
+        <circle cx="249" cy="196" r="5" fill="#cfcac0"/><circle cx="265" cy="180" r="8" fill="#ffd98a"/><circle cx="280" cy="165" r="5" fill="#e9d093"/><circle cx="296" cy="149" r="4" fill="#bdb3a5"/><circle cx="312" cy="133" r="5" fill="#d46e4f"/><circle cx="327" cy="118" r="7" fill="#dcae7c"/><circle cx="342" cy="103" r="6" fill="#e6d08f"/>
+      </g>
+      <g stroke="#2b3050">
+        <line x1="249" y1="196" x2="470" y2="352"/><line x1="265" y1="180" x2="470" y2="308"/><line x1="280" y1="165" x2="470" y2="264"/><line x1="296" y1="149" x2="470" y2="220"/><line x1="312" y1="133" x2="470" y2="176"/><line x1="327" y1="118" x2="470" y2="132"/><line x1="342" y1="103" x2="470" y2="88"/><line x1="363" y1="81" x2="470" y2="44"/>
+      </g>
+      <text x="478" y="48" class="pl">Die Fixsterne</text>
+      <text x="478" y="92" class="pl">Saturn <tspan class="gr">Φαίνων, der Leuchtende</tspan></text>
+      <text x="478" y="136" class="pl">Jupiter <tspan class="gr">Φαέθων, der Strahlende</tspan></text>
+      <text x="478" y="180" class="pl">Mars <tspan class="gr">Πυρόεις, der Feurige</tspan></text>
+      <text x="478" y="224" class="pl">Merkur <tspan class="gr">Στίλβων, der Glänzende</tspan></text>
+      <text x="478" y="268" class="pl">Venus <tspan class="gr">Φωσφόρος</tspan></text>
+      <text x="478" y="312" class="pl">Die Sonne <tspan class="gr">Ἥλιος</tspan></text>
+      <text x="478" y="356" class="pl">Der Mond <tspan class="gr">Σελήνη</tspan></text>
+      <text x="225" y="425" class="gr" text-anchor="middle">Die Erde im Zentrum</text>
+    </svg>
+    <figcaption>Die Reihenfolge der Sphären von der Erde nach außen, wie Platon sie im <em>Timaios</em> angibt, mit den alten griechischen Namen der Planeten. Diese Namen, die das Licht jedes Planeten beschreiben, entstanden, bevor die Planeten die Namen von Göttern erhielten.</figcaption>
+  </figure>
+
+  <h3>Aristoteles: ein Zweifel <small>4. Jahrhundert v. Chr.</small></h3>
+  <p>Nicht alle stimmten zu. In <em>Über den Himmel</em> argumentierte Aristoteles, dass so gewaltige Körper, die sich so schnell bewegen, einen Schall erzeugen müssten, der laut genug wäre, um Dinge auf der Erde zu zerschmettern; und da nichts zerspringt, gibt es keinen Klang. Die Pythagoreer hatten eine Antwort parat: Wir hören die Musik nicht, weil sie seit dem Augenblick unserer Geburt erklingt, und einen Klang bemerken wir nur vor dem Hintergrund der Stille.</p>
+
+  <h3>Ptolemäus: die Mathematik des Himmels <small>2. Jahrhundert n. Chr.</small></h3>
+  <p>Claudius Ptolemäus von Alexandria schrieb sowohl die maßgebliche Astronomie der Antike als auch eine bedeutende Abhandlung über Musik, die <em>Harmonik</em>. Im letzten Buch argumentiert er, dass dieselben Verhältnisse, die musikalische Konsonanz hervorbringen, auch die Seele und den Himmel ordnen. In seinem astrologischen Werk, der <em>Tetrabiblos</em>, stellte er die klassischen Aspekte auf, die bedeutsamen Winkel zwischen Planeten: Konjunktion, Sextil, Quadrat, Trigon und Opposition. Die App verbindet diese beiden Ideen und lässt jeden Aspekt eine Konsonanz erklingen (siehe <a href="#tuning">Stimmung</a>).</p>
+
+  <h3>Boethius: drei Arten von Musik <small>6. Jahrhundert n. Chr.</small></h3>
+  <p>Der römische Philosoph Boethius gab die Idee an das mittelalterliche Europa weiter. Er beschrieb drei Arten von Musik: <em>musica mundana</em>, die Musik des Kosmos; <em>musica humana</em>, die Harmonie von Körper und Seele; und <em>musica instrumentalis</em>, die Musik, die wir tatsächlich spielen und hören. Tausend Jahre nach ihm wurde Musik an den Universitäten als mathematische Wissenschaft gelehrt, neben Arithmetik, Geometrie und Astronomie.</p>
+
+  <h3>Kepler: die Harmonie der Welt <small>1619</small></h3>
+  <p>Johannes Kepler gab der Idee in <em>Harmonices Mundi</em>, <em>Die Weltharmonik</em>, ihre genaueste Form. Zu diesem Zeitpunkt wusste Kepler, dass sich die Planeten auf Ellipsen bewegen, schneller nahe der Sonne und langsamer weit von ihr entfernt. Er maß die Winkelgeschwindigkeit jedes Planeten, von der Sonne aus gesehen, im Perihel, seinem sonnennächsten Punkt, und im Aphel, seinem sonnenfernsten Punkt. Er fand, dass die Verhältnisse zwischen diesen Geschwindigkeiten nahe an musikalischen Intervallen liegen. Jeder Planet singt daher nicht einen einzelnen Ton, sondern eine kurze auf- und absteigende Phrase. Das Buch enthält außerdem, fast beiläufig, sein drittes Gesetz der Planetenbewegung, das die Umlaufzeit jedes Planeten mit seinem Abstand von der Sonne verknüpft.</p>
+  <p>Kepler bemerkte, dass sich die Geschwindigkeit der Erde im Lauf des Jahres nur um etwa einen Halbton ändert. Er schrieb es als die Silben <em>mi, fa, mi</em> auf und scherzte, sie stünden für <em>Elend und Hunger</em>: der Ton des Ortes, an dem wir leben.</p>
+  <figure>
+    <svg viewBox="0 0 720 270" role="img" aria-label="Eine elliptische Bahn mit der Sonne in einem Brennpunkt; der Planet bewegt sich im Perihel schnell und singt höher, im Aphel langsam und tiefer.">
+      <style>.k{font-family:'Alegreya Sans',sans-serif;font-size:15px;fill:#e9e1cc}.kd{font-family:'Alegreya Sans',sans-serif;font-size:13px;fill:#a39c89}</style>
+      <ellipse cx="360" cy="135" rx="250" ry="95" fill="none" stroke="#3b4166" stroke-width="1.5"/>
+      <circle cx="590" cy="135" r="0" fill="none"/>
+      <circle cx="555" cy="135" r="14" fill="#ffd98a"/><text x="555" y="168" class="kd" text-anchor="middle">Sonne</text>
+      <circle cx="610" cy="135" r="7" fill="#c9984f"/><circle cx="110" cy="135" r="7" fill="#c9984f"/>
+      <path d="M612 108 q18 -6 26 -24" fill="none" stroke="#c9984f" stroke-width="2" marker-end="url(#ah)"/>
+      <path d="M108 160 q-6 10 -2 20" fill="none" stroke="#7f6236" stroke-width="2" marker-end="url(#ah2)"/>
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#c9984f"/></marker><marker id="ah2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#7f6236"/></marker></defs>
+      <text x="628" y="52" class="k" text-anchor="middle">Perihel</text><text x="628" y="70" class="kd" text-anchor="middle">schnell · höherer Ton</text>
+      <text x="110" y="208" class="k" text-anchor="middle">Aphel</text><text x="110" y="226" class="kd" text-anchor="middle">langsam · tieferer Ton</text>
+      <g fill="#c9984f"><circle cx="660" cy="100" r="4"/><circle cx="676" cy="90" r="4"/><circle cx="692" cy="80" r="4"/></g>
+      <g fill="#7f6236"><circle cx="40" cy="120" r="4"/><circle cx="56" cy="126" r="4"/><circle cx="72" cy="132" r="4"/></g>
+      <text x="360" y="140" class="kd" text-anchor="middle">der Ton steigt, wenn der Planet auf die Sonne zufällt, und sinkt, wenn er sich von ihr entfernt</text>
+    </svg>
+    <figcaption>Keplers Idee, der die App Augenblick für Augenblick folgt. Die Tonhöhe eines Planeten ergibt sich daraus, wie schnell er gerade um die Sonne schwingt. Planeten auf exzentrischen Bahnen wie Merkur und Pluto, und allen voran die Kometen, gleiten daher beim Laufen auf und ab.</figcaption>
+  </figure>
+</section>
+
+<section id="thinkers">
+  <div class="greek">οἱ φιλόσοφοι</div>
+  <h2>Die Himmel der Denker</h2>
+  <p>Die App öffnet mit einer Zeitleiste von Denkern, von Pythagoras bis Kepler, die mit dem Himmel endet, wie wir ihn heute kennen. Tippe auf einen, und die Scheibe wird zu seinem Kosmos: auf seine Weise gezeichnet, nach den wirklichen Positionen dieses Augenblicks, und singend nach seinen Regeln. Ein Lesetext daneben gibt seine Idee in Kürze wieder, ein Zitat und einen Hinweis darauf, was originalgetreu ist und was unsere Rekonstruktion. Du kannst auf jede Stimme tippen, um sie allein zu hören.</p>
+  <p>Jeder antike Kosmos lässt sich auf zwei Arten hören. <b>Wie sie es schrieben</b> hält sich streng an die Quellen: Jede Sphäre hält ihren einen Ton, die Himmel des Aristoteles sind stumm, und die Lyra und das Monochord werden einfach durchgespielt. <b>Von Athen aus gehört</b> ist unsere Deutung, wie es für jemanden klingen könnte, der dort steht. Der Himmel dreht sich einmal am Tag über uns, daher geht jede Stimme im Osten auf, quert den Süden und geht im Westen unter, unter dem Horizont gedämpft. Jeder Körper singt erneut, wenn er sich im Tierkreis weiterbewegt, mit einer fallenden Verzierung, wenn er rückläufig wird, und mit einem Schnörkel, wenn er in ein neues Zeichen eintritt. Die Schleifen des Ptolemäus durchlaufen die Töne seiner Tetrachorde, die Planeten des Nikomachos zupfen beim Wandern ihre Saiten, Fludds Chor singt über dem Monochord, und die Harmonie des Aristoteles verklingt zur Stille hin, während sich deine Ohren an sie gewöhnen.</p>
+  <p>Die Denker bilden zwei Lager. Für die Anhänger des Pythagoras, für Cicero, Ptolemäus und die erste Ordnung des Boethius singt die äußerste Sphäre, die sich jeden Tag am schnellsten dreht, am höchsten und der Mond am tiefsten. Für Nikomachos und später Kepler entscheidet die eigene Bahn jedes Planeten: Je schneller die Bahn, desto höher der Ton, sodass der Mond am höchsten und Saturn am tiefsten liegt. Aristoteles steht für sich: Es gibt überhaupt keinen Klang.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Denker</th><th>Was du siehst</th><th>Was du hörst</th></tr></thead>
+    <tbody>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/de/#pythagoras">Pythagoras</a></td><td>Erdzentrierte Sphären, im Abstand von Ganz- und Halbtönen</td><td>Nach außen ansteigend: ein fester Ton pro Sphäre, eine Oktave von der Erde bis zu den Sternen</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/de/#philolaus">Philolaos</a></td><td>Ein Zentralfeuer, um das die Erde und eine verborgene Gegenerde täglich kreisen</td><td>Ein Herdbordun vom Feuer; die Körper nach außen ansteigend (unsere Rekonstruktion)</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/de/#plato">Platon</a></td><td>Die Spindel der Notwendigkeit: acht farbige Wirtel mit je einer Sirene</td><td>Die Zahlen der Weltseele 1, 2, 3, 4, 9, 8, 27, dazu die Moiren</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/de/#aristotle">Aristoteles</a></td><td>Ineinanderliegende Kristallsphären um die vier Elemente</td><td>Stille</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/de/#cicero">Cicero</a></td><td>Der Blick von der Milchstraße, die Erde winzig und unbewegt</td><td>Sieben Töne, der Mond am tiefsten, die Sterne am höchsten, unter ohrenbetäubendem Dröhnen</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/de/#nicomachus">Nikomachos</a></td><td>Eine siebensaitige Lyra</td><td>Die umgekehrte Regel: Saturn am tiefsten, der Mond am höchsten, jede Saite im Tempo ihrer Bahn gezupft</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/de/#ptolemy">Ptolemäus</a></td><td>Epizykel auf Deferenten, mit den Rückwärtsschleifen der Planeten</td><td>Seine kanobische Skala, die Erde am tiefsten und Saturn am höchsten; Aspekte lassen Oktaven, Quinten und Quarten erklingen</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/de/#boethius">Boethius</a></td><td>Ein mittelalterliches Handschriftendiagramm</td><td>Beide Ordnungen, die er berichtet, die des Cicero und die des Nikomachos, zur Auswahl</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/de/#copernicus">Kopernikus</a></td><td>Seine sonnenzentrierten Kreise</td><td>Ein gleichmäßiger Ton pro Planet aus seiner mittleren Geschwindigkeit, von der Sonne aus gehört</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/de/#fludd">Robert Fludd</a></td><td>Das Göttliche Monochord, von der Erde bis zum Empyreum</td><td>Die Saite, Bund für Bund über zwei Oktaven gezupft</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/de/#kepler">Kepler</a></td><td>Ellipsen um die Sonne, mit seinen platonischen Körpern</td><td>Wahre Geschwindigkeiten: Jeder Planet gleitet durch sein eigenes Intervall</td></tr>
+      <tr><td><a href="https://newbroman.github.io/Music_of_the_Spheres/de/#today">Heute</a></td><td>Das lebendige Planetarium des ganzen Sonnensystems</td><td>Der volle Chor aus Planeten, Monden, Zwergplaneten und Kometen</td></tr>
+    </tbody>
+  </table></div>
+  <p>Die Lesetexte wurden an den Quellen geprüft. Wo die antiken Texte eine Lücke lassen, etwa welche Sirene in Platons Mythos welchen Ton singt, sagt die App das und gibt die Lesart der Kommentatoren oder ihre eigene Wahl an.</p>
+</section>
+
+<section id="sound">
+  <div class="greek">ἡ φωνή τοῦ οὐρανοῦ</div>
+  <h2>Wie der Himmel zu Klang wird</h2>
+  <p>Die Position jedes Körpers wird aus seinen Bahnelementen für das angezeigte Datum berechnet und dann nach einem festen Satz von Regeln in Klang verwandelt. Nichts ist zufällig, außer den kleinen, natürlichen Unregelmäßigkeiten der singenden Stimmen.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Was der Himmel tut</th><th>Was du hörst</th><th>Wie</th></tr></thead>
+    <tbody>
+      <tr><td>Bahngeschwindigkeit</td><td>Tonhöhe</td><td>Die Winkelgeschwindigkeit um die Sonne, in jedem Augenblick gemessen, bestimmt die Tonhöhe. Schneller heißt höher, so skaliert, dass die Planeten von Merkur bis hinab zu Neptun etwa vier Oktaven umspannen, wobei die Erde über den Regler <em>Ton der Erde</em> festgelegt wird.</td></tr>
+      <tr><td>Scheinbare Größe</td><td>Lautstärke</td><td>Der Radius des Körpers geteilt durch seine Entfernung von dir: wie groß er an deinem Himmel erscheint. Ist er zu schwach, um hörbar zu sein, verstummt die Stimme ganz.</td></tr>
+      <tr><td>Richtung von dir aus</td><td>Position</td><td>Jede Stimme wird rund um deinen Kopf dort platziert, wo der Körper steht: links, rechts, vorn, hinten, oben oder unten.</td></tr>
+      <tr><td>Bahnneigung</td><td>Höhe und Schwanken</td><td>Steigt ein geneigter Körper über die Ebene der Planeten, klingt er im Raum höher und im Klang heller, und seine Tonhöhe schwankt mit.</td></tr>
+      <tr><td>Rotation</td><td>Puls</td><td>Der Tag eines Planeten bestimmt einen sanften Puls. Körper, die sich rückwärts drehen, Venus, Uranus und Pluto, pulsieren in umgekehrten Anschwellungen.</td></tr>
+      <tr><td>Achsneigung</td><td>Taumeln</td><td>Ein geneigter Kreisel taumelt in der Tonhöhe mit seinem Tag. Uranus, der auf der Seite liegt, taumelt am stärksten.</td></tr>
+      <tr><td>Zwergplaneten und Asteroiden</td><td>Störung</td><td>Standardmäßig singen sie nicht. Jeder zieht an der Tonhöhe des nächsten Planeten, umso stärker, je größer und näher er ist, wie ein kleiner Gravitationszug.</td></tr>
+      <tr><td>Monde</td><td>Melodie</td><td>Die Phase jedes Mondes, sein Winkel zur Sonne, schreitet einen Bogen durch die Tonleiter ab: Grundton bei Neumond, die Oktave bei Vollmond und wieder zurück.</td></tr>
+      <tr><td>Kometen</td><td>Atem</td><td>Die Größe eines Kometen ist seine Koma, die beim Näherkommen an die Sonne stark wächst; Kometen blenden daher als leises Flüstern ein und verschwinden wieder, wenn sie sich entfernen.</td></tr>
+      <tr><td>Die Sonne</td><td>Bordun</td><td>Apollon, der Anführer der Musen, hält den Grundton und seine Quinte.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout"><p><b>Warum Tonhöhe aus Geschwindigkeit?</b> Geschwindigkeit ist das, was Kepler verwendete, und sie ist das, was sich ändert, wenn sich ein Planet bewegt. Die App nutzt ein sanftes Potenzgesetz: Ein Planet, der doppelt so schnell ist wie ein anderer, singt etwas mehr als eine Drittel-Oktave höher. So bleiben die langsamsten äußeren Planeten hörbar, während die Reihenfolge jedes Planeten und jedes Gleiten erhalten bleiben.</p></div>
+</section>
+
+<section id="tuning">
+  <div class="greek">ἁρμονία</div>
+  <h2>Stimmung, Modi und Tierkreis</h2>
+  <h3>Pythagoreische Stimmung</h3>
+  <p>Die App stimmt ihre Tonleiter so, wie es die Pythagoreer taten: indem sie reine Quinten (3 : 2) aufeinanderschichtet und in eine Oktave zurückfaltet. Moderne Instrumente teilen die Oktave stattdessen in zwölf gleiche Stufen. Pythagoreische Quinten und Quarten sind vollkommen rein, ihre großen Terzen dagegen etwas weit, was Akkorden eine helle, altertümliche Schärfe gibt. Du kannst auch <em>Kepler: freies Gleiten</em> wählen, bei dem jede Tonhöhe genau der Bahngeschwindigkeit folgt, ganz ohne Tonleiter.</p>
+  <h3>Die griechischen Modi</h3>
+  <p>Ein griechischer Modus ist ein Muster aus Ganz- und Halbtönen innerhalb der Oktave. Apollons Bordun kann in jedem von sieben stehen. Die antiken Namen wurden später von mittelalterlichen Theoretikern neu vergeben, sodass die griechischen und die modernen Namen nicht übereinstimmen, was verwirrend sein kann:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Griechischer Name</th><th>Läuft auf den weißen Tasten ab</th><th>Moderner Name für dieselbe Tonleiter</th></tr></thead>
+    <tbody>
+      <tr><td>Dorisch</td><td class="num">E</td><td>Phrygisch</td></tr>
+      <tr><td>Phrygisch</td><td class="num">D</td><td>Dorisch</td></tr>
+      <tr><td>Lydisch</td><td class="num">C</td><td>Ionisch (die Dur-Tonleiter)</td></tr>
+      <tr><td>Mixolydisch</td><td class="num">H</td><td>Lokrisch</td></tr>
+      <tr><td>Hypodorisch</td><td class="num">A</td><td>Äolisch (das natürliche Moll)</td></tr>
+      <tr><td>Hypophrygisch</td><td class="num">G</td><td>Mixolydisch</td></tr>
+      <tr><td>Hypolydisch</td><td class="num">F</td><td>Lydisch</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Das Zeichen der Sonne bestimmt die Tonart</h3>
+  <p>Der Tierkreis ist das Band aus zwölf Sternbildern, durch das Sonne, Mond und Planeten wandern. Von der Erde aus gesehen zieht die Sonne jeden Monat durch ein Zeichen. Die App rückt die Tonart für jedes Zeichen um eine Quinte weiter, sodass die Musik im Lauf eines Jahres einmal den Quintenzirkel umrundet. Der Widder, in dem die Sonne zur Frühlings-Tagundnachtgleiche steht, ist das Zuhause. Die Waage, zur Herbst-Tagundnachtgleiche, ist die am weitesten entfernte Tonart, und der Frühling bringt die Musik wieder heim. Benachbarte Zeichen unterscheiden sich in nur einem Ton, sodass der Wechsel stets sanft ist.</p>
+  <h3>Aspekte singen ihre Intervalle</h3>
+  <p>Stehen zwei Planeten, von deinem Hörposten aus gesehen, in einem der klassischen Winkel, erklingt ein leises Tonpaar mit dem entsprechenden Intervall zwischen ihnen, und beide Planeten schwellen leicht an, wenn der Winkel exakt wird. Das ist die Lesart der App von Ptolemäus’ Doppelidee: den Aspekten der <em>Tetrabiblos</em> und den Konsonanzen der <em>Harmonik</em>.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Aspekt</th><th>Winkel</th><th>Intervall</th><th>Verhältnis</th></tr></thead>
+    <tbody>
+      <tr><td>Konjunktion ☌︎</td><td class="num">0°</td><td>Prime</td><td class="num">1 : 1</td></tr>
+      <tr><td>Sextil ⚹︎</td><td class="num">60°</td><td>Große Sexte</td><td class="num">5 : 3</td></tr>
+      <tr><td>Quadrat □︎</td><td class="num">90°</td><td>Quarte</td><td class="num">4 : 3</td></tr>
+      <tr><td>Trigon △︎</td><td class="num">120°</td><td>Quinte</td><td class="num">3 : 2</td></tr>
+      <tr><td>Opposition ☍︎</td><td class="num">180°</td><td>Oktave</td><td class="num">2 : 1</td></tr>
+    </tbody>
+  </table></div>
+  <p>Da Aspekte von deinem eigenen Hörposten aus gemessen werden, ändern sie sich, wenn du dich bewegst. Stell dich auf die Erde, um den klassischen, erdzentrierten Himmel zu hören, den die Astrologen beschrieben.</p>
+</section>
+
+<section id="voices">
+  <div class="greek">αἱ φωναί τῶν θεῶν</div>
+  <h2>Die Götter und ihre Stimmen</h2>
+  <p>Jeder Planet erhält den Gott, nach dem ihn Römer und Griechen benannt haben, und im Modus <em>Menschenchor</em> singt jeder Gott seinen eigenen Namen in einer Stimme, die zu ihm passt. Die Sänger werden aus einem Modell der menschlichen Stimme synthetisiert, mit Stimmlippenimpulsen, den Resonanzen von Rachen und Mund, Vibrato und Atem. Zwischen den Phrasen atmen sie außerdem hörbar ein.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Gott</th><th>Körper</th><th>Stimme</th><th>Charakter</th></tr></thead>
+    <tbody>
+      <tr><td>Hermes Ἑρμῆς</td><td>Merkur</td><td>Countertenor</td><td>Flink und hell, mit seiner exzentrischen Bahn umherschießend</td></tr>
+      <tr><td>Aphrodite Ἀφροδίτη</td><td>Venus</td><td>Sopran</td><td>Warm und getragen; ihr langsamer Puls läuft rückwärts</td></tr>
+      <tr><td>Gaia Γαῖα</td><td>Erde</td><td>Alt</td><td>Rund und warm, mit Selene, dem Mond, die über ihr singt</td></tr>
+      <tr><td>Ares Ἄρης</td><td>Mars</td><td>Tenor</td><td>Kraftvoll, mit Phobos und Deimos, Furcht und Schrecken, an seiner Seite</td></tr>
+      <tr><td>Zeus Ζεύς</td><td>Jupiter</td><td>Bass</td><td>Gebieterisch, mit dem breitesten Chor am Himmel</td></tr>
+      <tr><td>Kronos Κρόνος</td><td>Saturn</td><td>Bass</td><td>Uralt, dunkel und bebend: der Vater der Zeit</td></tr>
+      <tr><td>Uranos Οὐρανός</td><td>Uranus</td><td>Bass</td><td>Tief und luftig: der Himmel selbst</td></tr>
+      <tr><td>Poseidon Ποσειδῶν</td><td>Neptun</td><td>Bass</td><td>Die tiefste Planetenstimme, rollend wie das Meer</td></tr>
+      <tr><td>Zwergplaneten, Asteroiden, Monde</td><td>Pluto, Ceres, Vesta und andere</td><td>Kinder</td><td>Die jungen Götter: Hades, Demeter, Hestia, Athene, Hera, Eros, Eris</td></tr>
+      <tr><td>Kometen</td><td>Halley, Encke und andere</td><td>Flüstern</td><td><em>Kometes</em>, der langhaarige Stern</td></tr>
+      <tr><td>Apollon Ἀπόλλων</td><td>Die Sonne</td><td>Bass und Tenor</td><td>Singt seinen Namen auf dem Bordun</td></tr>
+    </tbody>
+  </table></div>
+  <p>Tippst du auf einen Körper, kann sich sein Gott laut vorstellen, zum Beispiel „Ich bin Zeus, der strahlende König des Olymp“. Dafür werden die Sprachstimmen deines Geräts verwendet.</p>
+</section>
+
+<section id="pages">
+  <div class="greek">τρεῖς ὁδοί</div>
+  <h2>Die drei Arten zu hören</h2>
+  <div class="cards">
+    <div class="card"><h3>Die Denker und die 2D-Scheibe</h3><p>Eine Zeitleiste von Denkern, jeder mit seinem eigenen Kosmos, und das ganze heutige Sonnensystem, vom Tierkreis umringt wie die Bronzescheibe des Antikythera-Mechanismus. Wähle, wo du stehst, tippe auf einen Körper, um ihn allein zu hören, oder betritt das System eines Planeten, um seine Monde um dich kreisen zu hören.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/de/">Scheibe öffnen →</a></div>
+    <div class="card"><h3>3D-Flug</h3><p>Fliege mit einem Schiff durch das Sonnensystem, mit dem Chor rund um dein Cockpit platziert. Reise zu jedem Körper, starte den Reiseflug oder steige über die Ebene der Planeten auf. Zwischen den Monden von Jupiter oder Saturn singen die Monde um dich herum.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/de/flight.html">Abheben →</a></div>
+    <div class="card"><h3>Tanz</h3><p>Das Sonnensystem spielt Trance, House, Jungle oder Techno, oder einen Wiener oder Langsamen Walzer, Tango, Samba, Cha-Cha, Swing, Jive oder Fandango, oder Kontrapunkt im Stil Bachs und sechs weitere Komponisten, von Mozart bis Glass. Die Sonne hält den Schlag, Zeus den Bass, Jupiters Monde arpeggieren in ihrer wirklichen 1 : 2 : 4-Resonanz, und Aspekte lösen Aufbauten und Drops aus.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/de/dance.html">Set starten →</a></div>
+  </div>
+  <h3>Die 2D-Scheibe benutzen</h3>
+  <ul>
+    <li><b>Harmonie beginnen</b> startet den Klang. Ziehe an der Scheibe, um sie zu drehen, und scrolle oder spreize zwei Finger, um zu zoomen.</li>
+    <li><b>Hörposten:</b> Stell dich auf die Sonne, auf einen beliebigen Planeten (auf der Erde bekommst du die alte erdzentrierte Ansicht) oder auf einen Kometen, und wähle, in welche Richtung du blickst.</li>
+    <li><b>Tippe auf einen Körper</b>, um ihn allein mit seinen Monden zu hören. Auf seiner Karte führt dich <b>Ins System von …</b> zu einem Planeten und seinen Monden, als wären sie ein kleines Sonnensystem.</li>
+    <li><b>Stimmen</b> wechselt zwischen <em>Instrumenten</em> und <em>Menschenchor</em> und lässt die Zwergplaneten entweder die Planeten ins Schwanken bringen oder als Kinder singen.</li>
+    <li><b>Harmonie</b> enthält die Stimmung, Apollons Modus, die Tierkreis-Tonart, die Aspekte, das Gesetz von Größe und Entfernung, das Tempelecho und die Lautstärke.</li>
+  </ul>
+  <h3>Im 3D-Flug fliegen</h3>
+  <ul>
+    <li><b>Umsehen</b> durch Ziehen. Am Computer fliegen <kbd>W</kbd>/<kbd>S</kbd> vorwärts und rückwärts, <kbd>A</kbd>/<kbd>D</kbd> gleiten seitwärts, <kbd>R</kbd>/<kbd>F</kbd> steigen und sinken, <kbd>Q</kbd>/<kbd>E</kbd> rollen, <kbd>Shift</kbd> gibt Schub, <kbd>C</kbd> startet den Reiseflug und <kbd>T</kbd> öffnet Reise. Auf dem Handy nutze die Tasten ▲ ▼.</li>
+    <li><b>Reise</b> bringt dich per Autopilot zu jedem Körper. Sobald du ankommst, bleibst du mit ihm in der Umlaufbahn.</li>
+    <li><b>Aufbrechen:</b> Die Leiste am unteren Rand bietet ◀ einwärts zum nächsten Planeten Richtung Sonne, auswärts ▶, <em>Reiseflug starten</em> und <em>Aufsteigen</em>.</li>
+    <li><b>Die Geschwindigkeit</b> passt sich an das an, was in deiner Nähe ist: langsam neben einem Planeten, ein Vielfaches der Lichtgeschwindigkeit zwischen ihnen.</li>
+    <li>Planeten und Monde werden größer als in Wirklichkeit gezeichnet, damit du sie findest. Die Abstände entlang ihrer Bahnen sind wahrheitsgetreu.</li>
+  </ul>
+  <h3>Die Tanzfläche</h3>
+  <ul>
+    <li><b>Abspielen</b>, dann wähle einen Club-Stil, <em>Trance</em> (138 BPM, Moll), <em>House</em> (124 BPM, das moderne Dorisch), <em>Jungle</em> (166 BPM, zerhackte Breakbeats und ein rollender Reese-Bass) oder <em>Techno</em> (130 BPM, das dunkle moderne Phrygisch), oder einen der Ballsaal- und Latin-Stile weiter unten.</li>
+    <li><b>Himmelstempo</b> legt fest, wie viele Tage Bahnbewegung pro Takt vergehen. Ein schnellerer Himmel bringt mehr Aspekte, also mehr Aufbauten und Drops.</li>
+    <li><b>Die Akkordfolge</b>: zuerst die Tonika, dann die Akkorde, auf denen Zeus, Kronos und Poseidon im Tierkreis stehen, von der Erde aus gesehen.</li>
+    <li><b>Die Band</b> zeigt, welcher Planet welches Instrument spielt. Sie ändert sich mit dem Stil. Du kannst jeden davon stummschalten.</li>
+  </ul>
+  <p>Jeder Ballsaal- und Latin-Stil wird von der Art Band gespielt, die du auf der Tanzfläche hören würdest, mit aufgenommenen Instrumenten, die beim Wählen des Stils geladen werden. Derselbe Himmel treibt sie weiterhin an: Die Akkorde stammen aus den Zeichen der Planeten, Jupiters Monde behalten ihre 1 : 2 : 4-Resonanz, und Aspekte bringen Aufbauten und Drops. Lassen sich die Aufnahmen nicht laden, springen synthetisierte Instrumente ein.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Stil</th><th>Charakter</th><th>Wie die Planeten ihn spielen</th></tr></thead>
+    <tbody>
+      <tr><td>Wiener Walzer</td><td class="num">3/4 · 174 BPM</td><td>Ein Wiener Orchester. Um-ta-ta: Zeus’ Kontrabässe auf der Eins, dann Kronos’ Hörner und Gaias Pizzicato-Streicher auf Zwei und Drei, mit singenden Streichern darüber. Aphrodite spielt Solovioline, beim Drop kommt die Flöte hinzu. Ares spielt die Pauken, Hermes das Triangel und die Monde die Harfe. Lydisch, das moderne Dur.</td></tr>
+      <tr><td>Langsamer Walzer</td><td class="num">3/4 · 90 BPM</td><td>Dasselbe Orchester im gemächlichen Tempo des englischen Walzers, mit längeren, gebundeneren Phrasen.</td></tr>
+      <tr><td>Tango</td><td class="num">4/4 · 118 BPM</td><td>Eine orquesta típica. Kronos’ Bandoneons spielen Marcato-Akkorde und schleppen in jeden zweiten Takt. Zeus spielt die 3-3-2-Habanera auf dem Kontrabass. Gaia und Ares sind das Klavier, Aphrodite ist die Solovioline, und Hermes kratzt die Violinen-Chicharra. Moll.</td></tr>
+      <tr><td>Samba</td><td class="num">4/4 · 104 BPM</td><td>Eine roda de samba. Apollons Surdo antwortet auf Zwei und Vier, unter Hermes’ Ganzá, Gaias Tamborim und Ares’ Agogô-Glocken. Zeus spielt die siebensaitige Gitarre, Kronos das Cavaquinho und Aphrodite die Flöte.</td></tr>
+      <tr><td>Cha-Cha</td><td class="num">4/4 · 120 BPM</td><td>Eine kubanische Charanga. Aphrodite spielt die Flöte über Kronos’ Piano-Montuno und den Violinen. Zeus spielt einen Tumbao-Bass. Gaia spielt die Son-Clave, Ares die Congas und Apollon die Timbales, und Hermes’ Güiro markiert das „Cha-Cha“ auf Vier-und.</td></tr>
+      <tr><td>Swing</td><td class="num">4/4 · 140 BPM</td><td>Eine Big Band mit triolisch geswingten Achteln. Kronos’ Saxofonsatz spielt einen Charleston-Rhythmus, und Aphrodite übernimmt das Solo mit gedämpfter Trompete. Zeus spielt den Walking-Bass, und Hermes, Gaia und Apollon sind Ride, Besen und Bassdrum. Uranos führt die Posaunen an, und beim Drop schreit das Blech.</td></tr>
+      <tr><td>Jive</td><td class="num">4/4 · 172 BPM</td><td>Eine Jump-Blues-Band. Sie spielt schnelleren Swing mit hartem Snare-Backbeat, Klavier auf den Off-Beats und hupenden Saxofonen. Aphrodite spielt das Tenorsaxofon, und die Monde sind eine E-Gitarre.</td></tr>
+      <tr><td>Fandango</td><td class="num">3/4 · 168 BPM</td><td>Eine Flamenco-Gruppe: Cajón, Kastagnetten, Palmas und eine Gitarre mit Rasgueado-Schlägen und Picado-Läufen, dazu Aphrodites Cante. Die andalusische Kadenz: Zeus und Kronos wählen zwei Akkorde, dann führt die phrygische zweite Stufe heim zu einem Durakkord.</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Bach</h3>
+  <p>Der Stil <em>Bach</em> schreibt Kontrapunkt in der Art einer Bach’schen Invention oder Fuge. Aphrodites Zeichen komponiert ein zweitaktiges <em>Thema</em>: Akkordtöne auf den Schlägen und Läufe in Stufen dazwischen, in Achteln und Sechzehnteln, die auf einem langen Ton heimkehren. Sie stellt es allein auf der Violine vor. Ares antwortet einen Takt später mit derselben Linie auf der Oboe, und Hermes fügt das Thema umgekehrt auf dem Cembalo als Kontrasubjekt hinzu. Jede Stimme folgt den Akkorden, sodass sich die Linien als Sequenz gemeinsam durch die Akkordfolge bewegen. Zeus spielt auf dem Cello einen schreitenden Continuo-Bass, unter Kronos’ Cembaloakkorden.</p>
+  <p>Der Himmel prägt weiterhin die Form. Das Intro ist die Exposition, in der die Stimmen nacheinander einsetzen. Ein Aufbau wird zur <em>Engführung</em>, in der die Antwort schon nach einem halben Takt nachdrängt. Der Drop wird zum Höhepunkt: die volle Orgel mit ihrem Pedal, Gaias Trompete und Apollons Pauken, wie in Bachs festlichen Kantaten. Der Break ist ein Zwischenspiel, in dem die Antwort schweigt.</p>
+  <h3>Die anderen Komponisten</h3>
+  <p>Neben Bach hat die Konzert-Reihe sechs weitere Komponisten. Jeder ist aus der Arbeitsweise dieses Komponisten aufgebaut, nicht nur durch einen Wechsel der Instrumente. Die Planeten sind weiterhin die Band, und der Himmel entscheidet weiterhin, wann die Aufbauten und Höhepunkte kommen.</p>
+  <ul>
+    <li><b>Mozart</b>: eine achttaktige klassische Periode, eine Frage, die auf der Dominante endet, und eine Antwort, die heimkehrt. Zeus spielt auf dem Klavier einen Albertibass und Aphrodite die Violinmelodie, komponiert aus ihrem Zeichen. Gaias Oboe folgt in Terzen, und Hermes’ Flöte trillert an jeder Kadenz. Hörner und Pauken setzen beim Höhepunkt ein.</li>
+    <li><b>Satie</b>: ein langsamer Dreier in der Art der <em>Gymnopédies</em>. Ein Basston fällt auf die Eins, dann ein schwebender Septakkord, der zwischen zwei Harmonien pendelt, unter einer spärlichen, fallenden Melodie.</li>
+    <li><b>Debussy</b>: Nonenakkorde, die in Ganztonschritten parallel gleiten, Harfenwogen von Jupiters Monden und eine Flötenarabeske. Der Mond wählt die Tonleiter: die Ganztonleiter, solange er zunimmt, die Pentatonik, solange er abnimmt.</li>
+    <li><b>Pärt</b>: <em>Tintinnabuli</em>. Die Violinmelodie bewegt sich Schritt für Schritt auf einen Zentralton zu, in Phrasen, die jedes Mal um einen Ton wachsen, abwechselnd von oben und von unten sich nähernd. Das Klavier antwortet auf jeden Ton mit dem nächstliegenden Ton des Grunddreiklangs, ein Cello spiegelt die Linie unten, und eine Glocke markiert die Zeit.</li>
+    <li><b>Reich</b>: Phasing. Drei Marimbas spielen dasselbe Zwölftonmuster. Die zweite ist um den Winkel zwischen Venus und Erde verschoben, die dritte um den zu Mars, sodass die Muster gegeneinander gleiten, während sich die Planeten bewegen. Das Klatschen wird vom Mond phasenverschoben.</li>
+    <li><b>Glass</b>: additive Orgelarpeggien, die in jedem Takt um einen Ton wachsen, in Dreiern gegen eine linke Hand in Zweiern, über einem Orgelpedal, mit einem Chor.</li>
+  </ul>
+</section>
+
+<section id="stage">
+  <div class="greek">σκηνή</div>
+  <h2>Auf der Bühne</h2>
+  <p>Jede Seite hat neben Aufnehmen eine Schaltfläche <b>Bühne</b>, um die Sphären für einen Raum zu spielen.</p>
+  <h3>Tonausgabe</h3>
+  <ul>
+    <li><b>Kopfhörer</b>: volle 3D-Platzierung jedes Gottes rund um dich.</li>
+    <li><b>Lautsprecher</b>: schlichtes Links und Rechts, für ein Lautsprecherpaar.</li>
+    <li><b>PA</b>: für eine PA in einem Saal. Das Stereo wird verengt, damit auch Leute, die nahe an einem Lautsprecher stehen, jeden Gott hören.</li>
+    <li><b>Mono</b>: alles auf beiden Lautsprechern, für eine Mono-PA oder einen einzelnen Lautsprecher.</li>
+    <li><b>5.1</b>: echter Raumklang auf fünf Lautsprechern und einem Subwoofer. Auf der Scheibe und im 3D-Flug kommt jeder Gott aus seiner wirklichen Richtung rund um dich: Planeten hinter dir klingen aus den hinteren Lautsprechern, und wenn du den Kopf drehst, dreht sich der Himmel. Auf der Tanzseite bleiben Drums und Bass vorn, während die Götter der Band mit ihren Planeten durch den Raum kreisen. Es braucht einen Sechskanal-Ausgang: einen Computer, der per HDMI an einen 5.1-Receiver mit Mehrkanal-PCM angeschlossen ist, oder eine 5.1-USB-Soundkarte, in Chrome oder Edge. Handys geben dem Browser nur Stereo, und die Schaltfläche sagt das auch. <em>Lautsprecher testen</em> spielt nacheinander in jedem Lautsprecher einen Klang (vorn links, Mitte, vorn rechts, hinten rechts, hinten links, dann den Subwoofer), damit du die Verkabelung prüfen kannst.</li>
+  </ul>
+  <p>Um ein Handy an eine PA anzuschließen, führe ein Kabel von der Kopfhörerbuchse oder von einem USB‑C-Audioadapter zu zwei Kanälen des Mischpults. Eine Stereo-DI-Box verhindert Brummen bei langen Kabelwegen. Speist das Handy einen Projektor per HDMI, läuft der Ton über dasselbe Kabel. Ein HDMI-Audio-Extractor liefert dir einen Line-Ausgang für das Mischpult.</p>
+  <h3>MIDI-Ausgang, für Licht oder Synthesizer</h3>
+  <p>In Chrome oder Edge (Android, Windows, Mac oder Linux, aber nicht iPhone) drücke <em>MIDI verbinden</em> und wähle ein Gerät. Ein USB-MIDI-Interface, eine MIDI-zu-DMX-Box oder ein Lichtpult mit MIDI-Eingang funktionieren alle.</p>
+  <ul>
+    <li>Jeder Gott spielt auf einem eigenen Kanal mit seiner wirklichen Tonhöhe: 1 Helios (Sonne), 2 Hermes, 3 Aphrodite, 4 Gaia, 5 Ares, 6 Zeus, 7 Kronos, 8 Uranos, 9 Poseidon, 10 Jupiters Monde, 11 alles andere. Auf der Scheibe sind die Bordune gehaltene Töne, und ihre Lautstärke wird auf ihrem eigenen Kanal als CC 20 gesendet.</li>
+    <li>Kanal 16 trägt die Form der Show. CC 20 ist der Abschnitt: Intro 0, Groove 32, Aufbau 64, Drop 96, Break 127. CC 21 ist die Gesamtlautstärke. Eine Note markiert jeden Abschnittswechsel: 36 Intro, 37 Groove, 38 Aufbau, 39 Drop, 40 Break.</li>
+    <li><em>MIDI-Clock senden</em> sendet das Tanztempo (24 Impulse pro Schlag), mit Start und Stopp.</li>
+  </ul>
+  <h3>Projektoransicht</h3>
+  <p>Sie füllt den Bildschirm mit der Scheibe, dem Tanz oder dem 3D-Flug und blendet die Bedienelemente aus. Eine kleine Schaltfläche in der Ecke oder Esc bringt sie zurück. <em>Bildschirm wach halten</em> verhindert, dass das Handy mitten in der Show in den Ruhezustand geht.</p>
+  <h3>Als App installieren</h3>
+  <p>Wähle in Chrome <em>App installieren</em> oder <em>Zum Startbildschirm hinzufügen</em>. Die App öffnet sich dann im Vollbild und behält eine Kopie jeder Seite und jedes Instruments, sodass sie ohne Empfang spielt. Sie aktualisiert sich selbst, sobald eine Verbindung besteht.</p>
+</section>
+
+<section id="tips">
+  <div class="greek">συμβουλαί</div>
+  <h2>Tipps und Fehlerbehebung</h2>
+  <ul>
+    <li><b>Trag Kopfhörer.</b> Positionen, Höhe und das Drehen des Chors, wenn du dich bewegst, sind viel deutlicher.</li>
+    <li><b>Kein Ton?</b> Browser erlauben Ton erst nach einem Tippen, also drücke <em>Harmonie beginnen</em>, <em>Abspielen</em> oder einen Planeten. Prüfe, ob dein Handy stummgeschaltet ist.</li>
+    <li><b>In der Claude-App</b> kann die eingebettete Vorschau auf manchen Handys den Ton blockieren. Öffne stattdessen die Weblinks im Browser deines Handys.</li>
+    <li><b>Knistern auf einem Handy</b> bedeutet, dass dem Handy die Rechenleistung für Audio knapp wird. Die App singt auf Handys bereits mit weniger Stimmen. Hörst du es trotzdem, schalte <em>Götter stellen sich vor</em> aus und lass im 3D-Flug <em>3D-Klang für Kopfhörer</em> ausgeschaltet.</li>
+    <li><b>Aufnehmen</b> erfasst genau das, was du hörst, auf jeder der drei Seiten. Drücke es zum Starten (es startet auch den Ton) und noch einmal zum Beenden. Du kannst die Aufnahme dann abspielen und als Audiodatei speichern (.m4a auf den meisten Handys und Computern, .webm auf manchen), um sie überall zu hören. Gesprochene Vorstellungen stammen von der Sprachstimme deines Geräts und sind deshalb nicht enthalten.</li>
+    <li><b>Die gesprochenen Vorstellungen der Götter</b> nutzen die Sprachstimmen deines Geräts. Klingen sie englisch, installiere in den Text-to-Speech-Einstellungen deines Systems eine deutsche Stimme; ohne sie sprechen die Götter Englisch.</li>
+    <li><b>Jede Seite merkt sich ihre eigene Lautstärke</b>, sodass 2D-Scheibe, 3D-Flug und Tanz auf unterschiedlichen Pegeln stehen können.</li>
+    <li><b>Das Beschleunigen der Zeit</b> bringt die Glissandi, die Melodien der Monde und das Wandern der Tonart durch das Jahr hervor.</li>
+    <li><b>Die erste Version</b> bleibt unverändert als Vergleichsmaßstab erhalten: <a href="https://newbroman.github.io/Music_of_the_Spheres/v1/">v1-Scheibe</a> und <a href="https://newbroman.github.io/Music_of_the_Spheres/v1/flight.html">v1-Flug</a>.</li>
+  </ul>
+</section>
+
+<section id="data">
+  <div class="greek">ἀκρίβεια</div>
+  <h2>Daten, Genauigkeit und Lesestoff</h2>
+  <ul>
+    <li>Die Planetenpositionen nutzen die genäherten Keplerschen Bahnelemente des NASA JPL, gültig auf einen Bruchteil eines Grades genau von etwa 1800 bis 2050.</li>
+    <li>Zwergplaneten, Asteroiden und Kometen nutzen gerundete Bahnelemente, ihre Positionen sind daher anschaulich statt exakt.</li>
+    <li>Nur die großen Monde sind enthalten, auf Kreisbahnen in der Äquatorebene ihres Planeten. Die Mondbahnen auf der Scheibe sind nicht maßstabsgetreu.</li>
+    <li>Die Tierkreis-Sternbilder werden aus den katalogisierten Positionen ihrer Hauptsterne gezeichnet, umgerechnet auf die Ekliptik. Die Tonart folgt den tropischen Zeichen, vom Frühlingspunkt aus gemessen, wie Astrologen sie verwenden.</li>
+    <li>Auf der 2D-Scheibe sind die Entfernungen logarithmisch, damit Merkur und der Kuipergürtel auf einen Bildschirm passen.</li>
+  </ul>
+  <div class="foot">
+    <p><b>Weiterführende Literatur</b></p>
+    <ul>
+      <li><a href="https://en.wikipedia.org/wiki/Musica_universalis">Musica universalis</a>, die Musik der Sphären</li>
+      <li><a href="https://en.wikipedia.org/wiki/Myth_of_Er">Der Mythos des Er</a>, aus Platons <em>Politeia</em></li>
+      <li><a href="https://en.wikipedia.org/wiki/Harmonices_Mundi">Harmonices Mundi</a>, Kepler, 1619</li>
+      <li><a href="https://en.wikipedia.org/wiki/Pythagorean_tuning">Pythagoreische Stimmung</a></li>
+      <li><a href="https://ssd.jpl.nasa.gov/planets/approx_pos.html">JPL: genäherte Positionen der Planeten</a></li>
+      <li>Quellcode: <a href="https://github.com/newbroman/Music_of_the_Spheres">github.com/newbroman/Music_of_the_Spheres</a></li>
+      <li>Die aufgenommenen Instrumente der Tanzbands stammen aus dem Fluid R3 General MIDI SoundFont von Frank Wen, gerendert von <a href="https://github.com/gleitz/midi-js-soundfonts">midi-js-soundfonts</a>, unter <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.</li>
+    </ul>
+  </div>
+</section>
+
+</article>
+</div>
+</div>
+
+</body>
+</html>
