@@ -8,6 +8,7 @@
 - **Dance:** https://newbroman.github.io/Music_of_the_Spheres/dance.html
 - **How it works (help and theory):** https://newbroman.github.io/Music_of_the_Spheres/help.html
 - **Po polsku (Polish):** [tarcza 2D](https://newbroman.github.io/Music_of_the_Spheres/pl/), [lot 3D](https://newbroman.github.io/Music_of_the_Spheres/pl/flight.html), [taniec](https://newbroman.github.io/Music_of_the_Spheres/pl/dance.html), [jak to działa](https://newbroman.github.io/Music_of_the_Spheres/pl/help.html)
+- **Yn Gymraeg (Welsh):** [deial 2D](https://newbroman.github.io/Music_of_the_Spheres/cy/), [hedfan 3D](https://newbroman.github.io/Music_of_the_Spheres/cy/flight.html), [dawns](https://newbroman.github.io/Music_of_the_Spheres/cy/dance.html), [sut mae’n gweithio](https://newbroman.github.io/Music_of_the_Spheres/cy/help.html)
 - **v2 benchmark (frozen 5 Oct 2026, before the philosophers redesign):** [dial](https://newbroman.github.io/Music_of_the_Spheres/v2/), [flight](https://newbroman.github.io/Music_of_the_Spheres/v2/flight.html), [dance](https://newbroman.github.io/Music_of_the_Spheres/v2/dance.html), [help](https://newbroman.github.io/Music_of_the_Spheres/v2/help.html), [po polsku](https://newbroman.github.io/Music_of_the_Spheres/v2/pl/)
 - **v1 benchmark (frozen):** https://newbroman.github.io/Music_of_the_Spheres/v1/ and [v1/flight.html](https://newbroman.github.io/Music_of_the_Spheres/v1/flight.html)
 
@@ -107,7 +108,7 @@ Every page has a **Stage** button next to Record:
 
 ## Install and offline
 
-The site is a PWA: `manifest.webmanifest` (and `pl/manifest.webmanifest`), icons in `icons/`, and `sw.js`. The service worker caches every page, the 3D library, the fonts and all the recorded instruments, so an installed copy plays without a connection. It fetches pages fresh when online. `ANDROID.md` explains how to wrap the site for Google Play as a Trusted Web Activity. Store images are in `store/`, and the privacy policy is `privacy.html`.
+The site is a PWA: `manifest.webmanifest` (and `pl/` and `cy/` ones), icons in `icons/`, and `sw.js`. The service worker caches every page, the 3D library, the fonts and all the recorded instruments, so an installed copy plays without a connection. It fetches pages fresh when online. `ANDROID.md` explains how to wrap the site for Google Play as a Trusted Web Activity. Store images are in `store/`, and the privacy policy is `privacy.html`.
 
 ## Tuning
 
@@ -120,9 +121,15 @@ You can choose free glide (Kepler), Pythagorean diatonic or Pythagorean pentaton
 - Only major moons are included, on circular orbits in their planet's equatorial plane.
 - Distances on the dial are logarithmic.
 
-## Polish version
+## Polish and Welsh versions
 
-The `pl/` folder holds a Polish translation of all four pages. The English pages are the master copy. The Polish pages are generated from them by a translation step that swaps every visible string, uses Polish note names (B for B♭, H for B), Polish dates and decimal commas, and speaks the gods' introductions with a Polish speech voice when the device has one. Every page links to its counterpart in the other language.
+The `pl/` folder holds a Polish translation of all four pages and `cy/` a Welsh one (Cymraeg). The English pages are the master copy, and the translated pages are generated from them by a translation step that swaps every visible string.
+
+- **Polish** uses Polish note names (B for B♭, H for B), Polish dates and decimal commas.
+- **Welsh** uses Welsh names for the planets and the zodiac, and Welsh dates.
+- **Speech:** the gods introduce themselves in the device's Polish or Welsh speech voice when it has one. Welsh voices are rare, so on a device without one the Welsh pages speak the English introductions instead.
+
+Every page links to its counterparts in the other two languages, and each language has its own installable app manifest.
 
 ## Technical
 
