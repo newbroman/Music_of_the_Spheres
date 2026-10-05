@@ -15,6 +15,10 @@ A live orrery that you can hear. Every planet, moon, dwarf planet and comet sing
 
 Headphones give the best result. Every page has a **Record** button that saves what you hear as an audio file (.m4a or .webm). Browsers only allow sound after a tap, so press **Begin the harmony** or tap a planet.
 
+## The thinkers
+
+The app opens on a timeline of thinkers: Pythagoras, Philolaus, Plato, Aristotle, Cicero, Nicomachus, Ptolemy, Boethius, Copernicus, Robert Fludd, Kepler, and the sky today. Each one's cosmos is drawn their own way from the real positions of the moment (Plato's Spindle of Necessity, Ptolemy's epicycles, Nicomachus's lyre, Fludd's Divine Monochord, Kepler's ellipses and Platonic solids) and sings by their own rules. A reading gives each idea, a quotation and a note on what is faithful and what is reconstruction. Links such as `index.html#plato` open a thinker directly.
+
 ## The idea
 
 In Plato's Myth of Er, a Siren rides each celestial sphere singing a single note, and together they make one harmony. In 1619, Johannes Kepler's *Harmonices Mundi* gave the idea numbers. He read each planet's angular speed at perihelion and aphelion as a musical interval. This app does the same thing live, from orbital elements, for the whole solar system.
