@@ -17,20 +17,39 @@ To list it on Google Play, the same site is wrapped as a **Trusted Web Activity*
 
 ## 2. Prove the site and the app belong together (removes Chrome's address bar)
 
-Android looks for the proof at the root of the domain, `https://newbroman.github.io/.well-known/assetlinks.json`. A project site such as `/Music_of_the_Spheres/` cannot serve that path. It needs the user-site repository `newbroman.github.io`.
+Android looks for the proof at the root of the domain: `https://newbroman.github.io/.well-known/assetlinks.json`. That file already exists in the `newbroman.github.io` repository, for another app (`io.github.newbroman.twa`). So the Spheres entry is **added** to it, not written over it.
 
 Put the zip's `assetlinks.json` in your Downloads folder, then run:
 
 ```bash
-cd ~ && gh repo create newbroman/newbroman.github.io --public --clone && cd newbroman.github.io
-mkdir -p .well-known && cp ~/Downloads/assetlinks.json .well-known/ && touch .nojekyll
-printf '<!doctype html><meta http-equiv="refresh" content="0;url=Music_of_the_Spheres/">\n' > index.html
-git add -A && git commit -m "Digital asset links for the Music of the Spheres app" && git push -u origin HEAD
+cd ~ && { [ -d newbroman.github.io ] || git clone https://github.com/newbroman/newbroman.github.io; } && cd newbroman.github.io && git pull
+python3 - <<'PY'
+import json,os
+p='.well-known/assetlinks.json';cur=json.load(open(p))
+new=json.load(open(os.path.expanduser('~/Downloads/assetlinks.json')))
+have={e['target']['package_name'] for e in cur}
+cur+=[e for e in new if e['target']['package_name'] not in have]
+json.dump(cur,open(p,'w'),indent=2)
+print('apps now listed:',[e['target']['package_name'] for e in cur])
+PY
+git add .well-known/assetlinks.json && git commit -m "Asset links: add Music of the Spheres app" && git push
 ```
 
-(If you don't have the `gh` tool, create the repository `newbroman.github.io` on github.com, then clone it and run the rest.) After a minute, <https://newbroman.github.io/.well-known/assetlinks.json> should show the file.
+After a minute, <https://newbroman.github.io/.well-known/assetlinks.json> should list both apps.
 
-Once Play is set up, Google re-signs the app (Play App Signing). Then add the second fingerprint from **Play Console → Test and release → App integrity → App signing key certificate (SHA-256)** to the `sha256_cert_fingerprints` list in that file and push again. Without it, the Play-installed app shows an address bar.
+Once Play is set up, Google re-signs the app (Play App Signing). Its key has a second fingerprint, which must be added too, or the Play-installed app shows an address bar. Copy it from **Play Console → Test and release → App integrity → App signing key certificate (SHA-256)**, then run:
+
+```bash
+cd ~/newbroman.github.io && git pull && python3 - <<'PY'
+import json;p='.well-known/assetlinks.json';a=json.load(open(p))
+fp=input('Paste the Play app signing SHA-256: ').strip()
+for e in a:
+    t=e['target']
+    if t['package_name']=='io.github.newbroman.spheres' and fp not in t['sha256_cert_fingerprints']:t['sha256_cert_fingerprints'].append(fp)
+json.dump(a,open(p,'w'),indent=2);print('done')
+PY
+git commit -am "Asset links: Play signing key for Music of the Spheres" && git push
+```
 
 ## 3. Google Play Console
 
@@ -38,8 +57,8 @@ Once Play is set up, Google re-signs the app (Play App Signing). Then add the se
 2. **Create app**: Music of the Spheres, *App*, *Free*.
 3. **Store listing**:
    - Icon: `icons/icon-512.png`.
-   - Feature graphic (1024×500).
-   - At least two phone screenshots.
+   - Feature graphic (1024×500): `store/feature-graphic.png`.
+   - Phone screenshots: `store/1-dial.png` to `store/4-flight.png`.
    - Short description, for example: *Hear the solar system sung by the Greek gods, as Pythagoras, Plato, Ptolemy and Kepler imagined it.*
 4. **Privacy policy**: `https://newbroman.github.io/Music_of_the_Spheres/privacy.html`.
 5. **App content**:
