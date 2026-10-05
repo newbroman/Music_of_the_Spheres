@@ -70,6 +70,7 @@ body:not(.thinking) .thinker-only{display:none!important}
 .info .reading blockquote cite{display:block;font-family:var(--f-body);font-style:normal;font-size:.8rem;color:var(--vellum-dim);margin-top:4px}
 .info .reading .doubt{font-size:.85rem;color:var(--vellum-dim)}
 .info .reading .seg{max-width:420px}
+.info .interp{margin:.2rem 0 .7rem}.info .interp .seg{max-width:420px}.info .interp .small{margin:.35rem 0 0}
 .vlist{display:flex;flex-direction:column;gap:2px}
 .vrow2{appearance:none;display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px;border-radius:5px;border:1px solid transparent;background:transparent;color:var(--vellum);cursor:pointer;text-align:left;font:inherit}
 .vrow2:hover{background:var(--sky-3)}.vrow2.on{border-color:var(--bronze);background:var(--sky-3)}.vrow2.mute{opacity:.5}
@@ -515,7 +516,7 @@ const S={
   vp:'sun', face:'vernal', turn:0, hrtf:!(matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent)),
   tuning:'dia', mode:'E', drone:true, F:330, dist:0.5, verb:0.4, vol:0.7,
   groups:{planet:{on:true,vol:1,label:'Planets'},minor:{on:true,vol:.8,label:'Dwarfs & asteroids'},comet:{on:true,vol:.9,label:'Comets'},moons:{on:true,vol:.8,label:'Moons'},belt:{on:true,vol:.7,label:'Belt bells'}},
-  thinker:'today', muted:new Set(), solo:new Set(), sel:'earth', audition:null, voices:'instrument', minorMode:'wobble', zodiacKey:true, aspects:true, speak:true, speaking:false,
+  thinker:'today', interp:(()=>{try{return localStorage.getItem('mots.interp')||'athens'}catch(e){return 'athens'}})(), muted:new Set(), solo:new Set(), sel:'earth', audition:null, voices:'instrument', minorMode:'wobble', zodiacKey:true, aspects:true, speak:true, speaking:false,
   az:-0.35, tilt:58*DEG, rmax:40, labelsAll:false
 };
 
@@ -1688,7 +1689,7 @@ $('audBack').onclick=()=>{if(S.thinker!=='today'&&SIR.solo){SIR.solo=null;render
 /*THINKERS-START*/
 /*TXT-START*/
 const TT={
-  ui:{timeline:'Whose heavens?',tone:'tone',prime:'Prime Mover',today:'Today',see:'What you see',hear:'What you hear',doubt:'Our reconstruction',voices:'The voices',tapSolo:'tap a voice to hear it alone',all:'All voices',from:'Listening from',earth:'the Earth',sun:'the Sun',fire:'the Earth, circling the central fire',silent:'silent',hidden:'never seen from our side of the Earth',reply:'Hear the Pythagorean reply',orderCicero:"Cicero's order",orderNico:"Nicomachus's order",soloing:'Hearing alone:',back:'All voices',extras:'Extras',hint:'tap a body or a voice to hear it alone · drag to turn',aspect:'in aspect',kepTitle:"Each planet's song this moment",kepSpan:'span',now:'now',hearsNote:'Listening here as this thinker imagined: the panel keeps only time, voices, echo and volume.'},
+  ui:{timeline:'Whose heavens?',tone:'tone',prime:'Prime Mover',today:'Today',see:'What you see',hear:'What you hear',doubt:'Our reconstruction',voices:'The voices',tapSolo:'tap a voice to hear it alone',all:'All voices',from:'Listening from',earth:'the Earth',sun:'the Sun',fire:'the Earth, circling the central fire',silent:'silent',hidden:'never seen from our side of the Earth',reply:'Hear the Pythagorean reply',orderCicero:"Cicero's order",orderNico:"Nicomachus's order",soloing:'Hearing alone:',back:'All voices',extras:'Extras',hint:'tap a body or a voice to hear it alone · drag to turn',aspect:'in aspect',kepTitle:"Each planet's song this moment",kepSpan:'span',now:'now',east:'E · rising',west:'setting · W',south:'south: the meridian',asWritten:'As they wrote it',athens:'Heard from Athens',athensPlace:'Athens, under the turning sky',writtenNote:'Only what the sources say: each sphere holds its note, Aristotle’s heavens are silent, the lyre and the monochord are simply played through.',athensNote:'Our interpretation: you stand at Athens as the sky turns overhead, each body sings again as it moves along the zodiac (falling when it goes backward), and new signs bring a flourish. Ptolemy’s loops walk his tetrachords; Aristotle’s harmony fades into his silence.',hearsNote:'Listening here as this thinker imagined: the panel keeps only time, voices, echo and volume.'},
   bodies:{moon:'Moon',mercury:'Mercury',venus:'Venus',sun:'Sun',mars:'Mars',jupiter:'Jupiter',saturn:'Saturn',stars:'Fixed stars',earth:'Earth',fire:'Central fire',counter:'Counter-earth',water:'Water',air:'Air',efire:'Fire',elements:'Fire and air',earthwater:'Earth and water',emp1:'Lower empyrean',emp2:'Middle empyrean',emp3:'Upper empyrean',fates:'The Fates',mercven:'Mercury and Venus',heaven:'Heaven',lachesis:'Lachesis (past)',clotho:'Clotho (present)',atropos:'Atropos (future)'},
   pythagoras:{name:'Pythagoras',when:'c. 530 BC',work:'as reported by Pliny (Natural History II) and Censorinus',
     idea:'The founder of the idea. Music is number: the octave, fifth and fourth are the simple ratios 2:1, 3:2 and 4:3. If the heavens move by number, they must sound. His followers measured the cosmos in musical steps.',
@@ -1711,9 +1712,9 @@ const TT={
   aristotle:{name:'Aristotle',when:'c. 350 BC',work:'On the Heavens II.9',
     idea:'The great doubter. Bodies so vast moving so fast would make a sound loud enough to shatter stone on Earth. Nothing shatters, so there is no sound. The stars do not rush through anything: they are carried by their spheres, like the parts of a ship carried along by it.',
     see:'The Earth inside its four elements (earth, water, air and fire), and around them the nested crystal spheres that carry the planets, with the Prime Mover beyond the outermost.',
-    hear:'Nothing. That is the point. The Pythagoreans replied that we cannot hear the music because it has sounded since we were born, and a sound is only noticed against silence.',
+    hear:'Almost nothing. You hear the Pythagorean harmony fade away as your ears grow used to it, as the Pythagoreans said happens to us all, until only Aristotle’s silence is left. It wakes for a moment when the Sun enters a new sign.',
     quote:'The theory that the movement of the stars produces a harmony… is nevertheless untrue.',cite:'Aristotle, On the Heavens II.9 (Stocks)',
-    doubt:'The silence is faithful. The spheres drawn are the eight main ones; his full system needed fifty-five.'},
+    doubt:'Aristotle denied the sound entirely; the fading harmony is the Pythagorean reply he reports, made audible. The spheres drawn are the eight main ones; his full system needed fifty-five.'},
   cicero:{name:'Cicero',when:'51 BC',work:'The Dream of Scipio (Republic VI)',
     idea:'Scipio dreams he is lifted to the Milky Way and looks down on a tiny Earth. He hears a great sweet sound: the outermost, fastest sphere sings highest, the Moon lowest, and the eight spheres make seven notes, because two move together.',
     see:'The view from the Milky Way: the starry sphere, the planets on their spheres and the Earth far below, still and silent.',
@@ -1770,10 +1771,10 @@ const THINK={
   philolaus:{model:'siren',listen:'fire',base:164.81,voices:[['fire',.5,''],['counter',1,''],['moon',LIM,''],['sun',MIN3,''],['mercury',4/3,''],['venus',3/2,''],['mars',128/81,''],['jupiter',16/9,''],['saturn',2,''],['stars',2*MIN3,'']]},
   plato:{model:'siren',listen:'earth',base:73.42,voices:[['moon',1,'1'],['sun',2,'2'],['venus',3,'3'],['mercury',4,'4'],['mars',9,'9'],['jupiter',8,'8'],['saturn',27,'27'],['stars',6,'6']],
     fates:[['lachesis',2],['clotho',3],['atropos',4]]},
-  aristotle:{model:'silence',listen:'earth',voices:[]},
+  aristotle:{model:'habit',listen:'earth',voices:[]},
   cicero:{model:'siren',listen:'earth',base:220,roar:true,voices:[['moon',1,'A'],['mercury',MIN3,'C'],['venus',MIN3,'C'],['sun',4/3,'D'],['mars',3/2,'E'],['jupiter',128/81,'F'],['saturn',16/9,'G'],['stars',2,'a']]},
-  nicomachus:{model:'lyre',listen:'earth',base:164.81,voices:[['saturn',1,'hypate'],['jupiter',LIM,'parhypate'],['mars',MIN3,'lichanos'],['sun',4/3,'mese'],['venus',1024/729,'trite'],['mercury',128/81,'paranete'],['moon',16/9,'nete']]},
-  ptolemy:{model:'siren',listen:'earth',base:13.75,aspects:true,voices:[['earthwater',8,'proslambanomenos'],['elements',9,'hypate hypaton'],['moon',12,'hypate meson'],['mercury',16,'mese'],['venus',16,'mese'],['sun',18,'paramese'],['mars',64/3,'nete synemmenon'],['jupiter',24,'nete diezeugmenon'],['saturn',32,'nete hyperbolaion']]},
+  nicomachus:{model:'lyre',listen:'earth',athSpeed:3,base:164.81,voices:[['saturn',1,'hypate'],['jupiter',LIM,'parhypate'],['mars',MIN3,'lichanos'],['sun',4/3,'mese'],['venus',1024/729,'trite'],['mercury',128/81,'paranete'],['moon',16/9,'nete']]},
+  ptolemy:{model:'siren',listen:'earth',athSpeed:8,base:13.75,aspects:true,voices:[['earthwater',8,'proslambanomenos'],['elements',9,'hypate hypaton'],['moon',12,'hypate meson'],['mercury',16,'mese'],['venus',16,'mese'],['sun',18,'paramese'],['mars',64/3,'nete synemmenon'],['jupiter',24,'nete diezeugmenon'],['saturn',32,'nete hyperbolaion']]},
   boethius:{model:'siren',listen:'earth',base:220,orders:{
     cicero:[['moon',1,'proslambanomenos'],['mercury',9/8,'hypate hypaton'],['venus',MIN3,'parhypate hypaton'],['sun',4/3,'lichanos hypaton'],['mars',3/2,'hypate meson'],['jupiter',128/81,'parhypate meson'],['saturn',16/9,'lichanos meson'],['heaven',2,'mese']],
     nicomachus:[['saturn',3/2,'hypate meson'],['jupiter',128/81,'parhypate meson'],['mars',16/9,'lichanos meson'],['sun',2,'mese'],['venus',2*LIM,'trite synemmenon'],['mercury',2*MIN3,'paranete synemmenon'],['moon',8/3,'nete synemmenon']]}},
@@ -1815,36 +1816,88 @@ function voicePos(who){
 const lonOf=v=>Math.atan2(v.y,v.x);
 
 /* ---- the Siren choir ---- */
-const SIR={v:{},solo:null,boe:'cicero',roar:null,fl:{},plk:{},sweep:0,nextSweep:0,asp:[]};
-const VOW_OF={moon:'u',sun:'a',mercury:'i',venus:'ah',mars:'e',jupiter:'a',saturn:'u',stars:'i',heaven:'i',earth:'o',earthwater:'o',elements:'ae',fire:'o',lachesis:'a',clotho:'o',atropos:'u'};
-function thinkerVoices(){const th=THINK[S.thinker];if(S.thinker==='boethius')return th.orders[SIR.boe];return th.voices||[]}
-function voiceF(w,r){return THINK[S.thinker].base*r}
+const SIR={v:{},solo:null,boe:'cicero',roar:null,plk:{},asp:[],lastT:0,habT0:0,habRenew:0,handNext:0,sunSign:null};
+const VOW_OF={moon:'u',sun:'a',mercury:'i',venus:'ah',mars:'e',jupiter:'a',saturn:'u',stars:'i',heaven:'i',earth:'o',earthwater:'o',elements:'ae',fire:'o',lachesis:'a',clotho:'o',atropos:'u',emp3:'i',water:'o',air:'ae',efire:'e',emp1:'i',emp2:'i'};
+const STILL=new Set(['stars','heaven','earth','earthwater','elements','fire','counter','water','air','efire','emp1','emp2','emp3','lachesis','clotho','atropos']);
+const FATES=['lachesis','clotho','atropos'];
+function thinkerVoices(){const th=THINK[S.thinker];if(S.thinker==='boethius')return th.orders[SIR.boe];if(th.model==='habit')return THINK.pythagoras.voices;return th.voices||[]}
+function baseOf(){const th=THINK[S.thinker];return th.model==='habit'?THINK.pythagoras.base:th.base}
+function voiceF(w,r){return baseOf()*r}
+// Ptolemy: a planet's advance and retreat on its epicycle walks down the movable notes of a tetrachord below its fixed note
+const TETRA=[1,8/9,64/81,3/4];
+function ptolemyStep(w){
+  const g=geo(w);if(!g)return 0;
+  if(w==='moon'){const s=geo('sun'),e=Math.abs(((lonOf(g)-lonOf(s))/DEG+540)%360-180);return Math.round(e/180*3)}
+  if(w==='sun'||!byId[w])return 0;
+  const a=byId[w].el.a,d=Math.hypot(g.x,g.y,g.z),lo=Math.abs(1-a),hi=1+a;return Math.max(0,Math.min(3,Math.round((1-(d-lo)/(hi-lo))*3)));
+}
+function curF(w,r){const v=SIR.v[w];return v&&v.fcur?v.fcur:voiceF(w,r)}
+/* where the voices are: under the turning sky at Athens when time runs slowly, otherwise around the Earth */
+const ATHENS={lat:37.97*DEG,lon:23.73};
+function lst(){return ((280.46061837+360.98564736629*(S.jd-2451545)+ATHENS.lon)%360+360)%360*DEG}
+const athens=()=>S.interp!=='text';
+const diurnalOn=()=>athens()&&S.thinker!=='today'&&!isBodyModel()&&S.speed<=2;
+function horiz(v){
+  const lam=Math.atan2(v.y,v.x),bet=Math.atan2(v.z,Math.hypot(v.x,v.y)),eps=23.44*DEG;
+  const x=Math.cos(bet)*Math.cos(lam),y=Math.cos(bet)*Math.sin(lam),z=Math.sin(bet);
+  const ye=y*Math.cos(eps)-z*Math.sin(eps),ze=y*Math.sin(eps)+z*Math.cos(eps);
+  const ra=Math.atan2(ye,x),dec=Math.asin(Math.max(-1,Math.min(1,ze))),H=lst()-ra,phi=ATHENS.lat;
+  const alt=Math.asin(Math.sin(phi)*Math.sin(dec)+Math.cos(phi)*Math.cos(dec)*Math.cos(H));
+  const az=Math.atan2(Math.sin(H),Math.cos(H)*Math.sin(phi)-Math.tan(dec)*Math.cos(phi))+Math.PI;
+  return {alt,az};
+}
+function dirFor(w){
+  if(!diurnalOn()){const a=audioDir(voicePos(w),P.earth);return {x:a.x,y:a.y,z:a.z,up:1}}
+  const v=geo(w);
+  if(!v){if(['stars','heaven','emp1','emp2','emp3'].includes(w))return {x:0,y:1,z:0,up:1};if(w==='fire'||w==='counter')return {x:0,y:-1,z:0,up:.6};return {x:0,y:-.2,z:-.98,up:1}}
+  const {alt,az}=horiz(v),south=-Math.cos(alt)*Math.cos(az),west=-Math.cos(alt)*Math.sin(az);
+  return {x:west,y:Math.sin(alt),z:-south,up:alt>0?1:.3,alt};
+}
+/* each body's real motion along the zodiac: speed, direction, sign */
+function motion(v,w,dtR){
+  const g=geo(w);if(!g){v.rate=STILL.has(w)&&!FATES.includes(w)?.22:0;v.retro=false;v.ingress=false;return}
+  const lon=lonOf(g)/DEG,sg=Math.floor(((lon%360)+360)%360/30);
+  if(v.lon===undefined||Math.abs(S.jd-v.jd)>40){v.lon=lon;v.jd=S.jd;v.omega=0;v.sign=sg;v.rate=0;return}
+  const dj=S.jd-v.jd;if(Math.abs(dj)>1e-7){const d=((lon-v.lon+540)%360)-180,om=d/dj;v.omega+=(om-v.omega)*.25;v.lon=lon;v.jd=S.jd}
+  v.ingress=sg!==v.sign;v.sign=sg;v.retro=v.omega<0;
+  v.rate=S.playing?Math.min(6,.8*Math.sqrt(Math.abs(v.omega)*S.speed)):0;
+  if(!athens()){v.rate=0;v.ingress=false}
+}
 function buildSiren(v,f,vowel){
   const I={srcs:[]};I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,.3);
   I.o1=AC.createOscillator();I.o1.type='sawtooth';I.o1.frequency.value=f;I.o2=AC.createOscillator();I.o2.type='triangle';I.o2.frequency.value=f;I.o2.detune.value=7;
   const src=mkGain(.3);I.o1.connect(src);I.o2.connect(mkGain(.9,src));const form=mkGain(1);
   (VOWELS[vowel]||VOWELS.a).slice(0,2).forEach(([F,g],k)=>{const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=F;bp.Q.value=[6,9][k];src.connect(bp);bp.connect(mkGain(g*2,form))});
-  src.connect(mkGain(.18,form));const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2800;form.connect(lp);lp.connect(I.g);
+  src.connect(mkGain(.18,form));I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.frequency.value=2800;form.connect(I.lp);
+  I.art=mkGain(.5,I.g);I.lp.connect(I.art);
   I.vib=AC.createOscillator();I.vib.frequency.value=4.5+Math.random()*1.2;I.vd=mkGain(f*.005);I.vib.connect(I.vd);I.vd.connect(I.o1.frequency);I.vd.connect(I.o2.frequency);
   I.srcs.push(I.o1,I.o2,I.vib);I.srcs.forEach(o=>o.start());return I;
 }
+// a sung attack: a swell with a short ornament into the note, rising when the body moves forward, falling when it moves backward
+function articulate(I,f,retro,flourish){
+  const now=AC.currentTime,a=I.art.gain;a.cancelScheduledValues(now);a.setValueAtTime(a.value,now);a.linearRampToValueAtTime(1,now+.035);a.setTargetAtTime(.5,now+.14,.35);
+  [I.o1,I.o2].forEach(o=>{const p=o.frequency;p.cancelScheduledValues(now);
+    if(flourish){[1,9/8,81/64,9/8,1].forEach((m,k)=>p.setTargetAtTime(f*m,now+k*.13,.025))}
+    else{p.setValueAtTime(f*(retro?9/8:8/9),now);p.setTargetAtTime(f,now+.03,.04)}
+    LASTV.set(p,f)});
+}
 function sirenBody(who,f){
-  const fate=['lachesis','clotho','atropos'].includes(who);
+  const fate=FATES.includes(who);
   const words=fate?{lachesis:'l a k e s i: s',clotho:'k l o: t o:',atropos:'a t r o p o: s'}[who]:(VOW_OF[who]==='u'?'u:':VOW_OF[who]==='i'?'i:':VOW_OF[who]==='o'?'o:':'a:');
-  return {id:'siren:'+who,kind:'minor',tiltWob:0,hv:{type:fate?'alto':f<300?'alto':'soprano',tilt:1.15,vib:[5.2,.025],breath:.09,jit:.004,syl:fate?.8:1.8,rest:fate?2.2:1.0,ens:.15,words}};
+  return {id:'siren:'+who,kind:'minor',tiltWob:0,hv:{type:fate?'alto':f<300?'alto':'soprano',tilt:1.15,vib:[5.2,.025],breath:.09,jit:.004,syl:fate?.8:.7,rest:fate?2.2:.35,ens:.15,words}};
 }
 // a plucked string, for the lyre and the monochord
-function strPluck(v,f,lvl,dec){
-  const t=AC.currentTime+.03,o=AC.createOscillator(),o2=AC.createOscillator();o.type='sawtooth';o2.type='triangle';o.frequency.value=f;o2.frequency.value=f*2.003;
-  const lp=AC.createBiquadFilter();lp.type='lowpass';lp.Q.value=.8;lp.frequency.setValueAtTime(Math.min(9000,f*10),t);lp.frequency.setTargetAtTime(f*1.6,t,dec*.3);
+function strPluck(dest,f,lvl,dec,harm){
+  const t=AC.currentTime+.02,o=AC.createOscillator(),o2=AC.createOscillator();o.type=harm?'triangle':'sawtooth';o2.type='triangle';o.frequency.value=f;o2.frequency.value=f*2.003;
+  const lp=AC.createBiquadFilter();lp.type='lowpass';lp.Q.value=.8;lp.frequency.setValueAtTime(Math.min(9000,f*(harm?4:10)),t);lp.frequency.setTargetAtTime(f*1.6,t,dec*.3);
   const g=mkGain(0);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(lvl,t+.004);g.gain.setTargetAtTime(0,t+.004,dec);
-  o.connect(lp);o2.connect(mkGain(.25,lp));lp.connect(g);g.connect(v.vol);o.start(t);o2.start(t);o.stop(t+dec*6);o2.stop(t+dec*6);
+  o.connect(lp);o2.connect(mkGain(.25,lp));lp.connect(g);g.connect(dest);o.start(t);o2.start(t);o.stop(t+dec*6);o2.stop(t+dec*6);
 }
 function sirenVoice(who){
   let v=SIR.v[who];if(v)return v;
-  v=SIR.v[who]={pan:mkPanner(!LOWPOWER),part:null,mode:null};v.vol=mkGain(0,v.pan);return v;
+  v=SIR.v[who]={pan:mkPanner(!LOWPOWER),part:null,mode:null,ph:Math.random()};v.vol=mkGain(0,v.pan);v.pl=mkGain(1,v.pan);return v;
 }
-function killSirens(){Object.values(SIR.v).forEach(v=>{if(v.part){killPart(v.part);v.part=null}tgt(v.vol.gain,0,.1)});if(SIR.roar){const r=SIR.roar;tgt(r.g.gain,0,.3);setTimeout(()=>{try{r.src.stop()}catch(e){}},900);SIR.roar=null}}
+function killSirens(){Object.values(SIR.v).forEach(v=>{if(v.part){killPart(v.part);v.part=null}tgt(v.vol.gain,0,.1);v.lon=undefined});if(SIR.roar){const r=SIR.roar;tgt(r.g.gain,0,.3);setTimeout(()=>{try{r.src.stop()}catch(e){}},900);SIR.roar=null}}
 function hushWorld(){
   if(!AC)return;
   BODIES.forEach(b=>{const v=V[b.id];if(!v)return;if(v.part){killPart(v.part);v.part=null;v.mode=null}tgt(v.vol.gain,0,.1);tgt(v.moonVol.gain,0,.1);
@@ -1859,8 +1912,9 @@ function ptolemyAspects(){
   return out.sort((x,y)=>y.str-x.str).slice(0,3);
 }
 function thinkerAudio(){
-  const th=THINK[S.thinker],now=AC.currentTime,E=P.earth;
-  const ang=Math.atan2(-E.y,-E.x)+S.turn*DEG;setListener(ang);
+  const th=THINK[S.thinker],now=AC.currentTime,E=P.earth,model=th.model;
+  const tR=performance.now(),dtR=Math.min(.25,(tR-(SIR.lastT||tR))/1000);SIR.lastT=tR;
+  setListener(diurnalOn()?Math.PI/2+S.turn*DEG:Math.atan2(-E.y,-E.x)+S.turn*DEG);
   const list=thinkerVoices().slice();if(th.fates&&!LOWPOWER)th.fates.forEach(([w,r])=>list.push([w,r,'']));
   const want=new Set(list.map(x=>x[0]));
   Object.keys(SIR.v).forEach(w=>{if(!want.has(w)){const v=SIR.v[w];if(v.part){killPart(v.part);v.part=null}tgt(v.vol.gain,0,.15)}});
@@ -1868,42 +1922,63 @@ function thinkerAudio(){
   const swell={};SIR.asp.forEach(a=>{swell[a.a]=Math.max(swell[a.a]||0,a.str);swell[a.b]=Math.max(swell[a.b]||0,a.str)});
   // Cicero: the roar that deafens us, like the cataracts of the Nile
   if(th.roar&&!SIR.roar){const src=AC.createBufferSource();src.buffer=noiseBuf;src.loop=true;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=260;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=90;bp.Q.value=.7;const g=mkGain(0,bus);src.connect(lp);lp.connect(g);src.connect(bp);bp.connect(mkGain(1.4,g));src.start();SIR.roar={src,g}}
-  if(SIR.roar)tgt(SIR.roar.g.gain,SIR.solo?0:.16,.6);
-  let built=0;const humanCap=LOWPOWER?6:99;let humans=0;
+  if(SIR.roar)tgt(SIR.roar.g.gain,SIR.solo?0:.14,.6);
+  // Aristotle: the Pythagorean harmony fades as the ear grows used to it, waking briefly when the Sun enters a new sign
+  let habit=1;
+  if(model==='habit'){const sv=geo('sun'),sg=Math.floor((((lonOf(sv)/DEG)%360)+360)%360/30);
+    if(SIR.sunSign!==null&&sg!==SIR.sunSign&&tR-SIR.habRenew>25000){SIR.habT0=tR-3000;SIR.habRenew=tR}SIR.sunSign=sg;
+    if(!SIR.habT0)SIR.habT0=tR;habit=athens()?Math.max(0,Math.exp(-(tR-SIR.habT0)/9000)):0}
+  // Fludd: the hand of God sweeps the whole monochord when the Sun enters a new sign
+  if(model==='monochord'&&!athens()){const n=list.length;if(now>=(SIR.nextSweep||0)){const k=(SIR.sweep||0)%(2*n-2),i=k<n?k:2*n-2-k,[w,r]=list[i],v=sirenVoice(w);
+    if(!SIR.solo||SIR.solo===w)strPluck(v.pl,voiceF(w,r),['moon','mercury','venus','sun','mars','jupiter','saturn'].includes(w)?.07:.05,1.8);SIR.plk[w]=performance.now();SIR.sweep=(SIR.sweep||0)+1;SIR.nextSweep=Math.max(now,SIR.nextSweep||0)+(i===7?.9:.45)}
+    list.forEach(([w])=>{const v=sirenVoice(w);const d=dirFor(w);setPos(v.pan,d.x,d.y,d.z,.15);if(v.part){killPart(v.part);v.part=null}tgt(v.vol.gain,0,.2)});return}
+  if(model==='monochord'){const sv=geo('sun'),sg=Math.floor((((lonOf(sv)/DEG)%360)+360)%360/30);
+    if((SIR.sunSign!==null&&sg!==SIR.sunSign&&tR>SIR.handNext)||!SIR.handNext){SIR.handNext=tR+12000;list.forEach(([w,r],k)=>setTimeout(()=>{const v=SIR.v[w];if(v&&audioOn&&S.thinker==='fludd'&&(!SIR.solo||SIR.solo===w)){strPluck(v.pl,voiceF(w,r),.05,1.6);SIR.plk[w]=performance.now()}},k*170))}
+    SIR.sunSign=sg}
+  let built=0,humans=0;const humanCap=LOWPOWER?6:99;
   list.forEach(([w,r])=>{
-    const v=sirenVoice(w),f=voiceF(w,r),silent=w==='counter';
-    const pos=voicePos(w),a=audioDir(pos,E);setPos(v.pan,a.x,a.y,a.z,.15);
-    const fate=['lachesis','clotho','atropos'].includes(w);
-    let lvl=silent?0:(SIR.solo?(SIR.solo===w?.11:0):fate?.03*(.6+.4*Math.sin(now*.25+r*2)):.07);
-    lvl*=1+.7*(swell[w]||0);
-    if(th.model==='lyre'||th.model==='monochord'){tgt(v.vol.gain,silent?0:(SIR.solo&&SIR.solo!==w?0:1),.1);v.f=f;return}
-    const mode=S.voices==='human'&&humans<humanCap?'human':'instrument';if(mode==='human')humans++;
+    const v=sirenVoice(w),silent=w==='counter',fate=FATES.includes(w);
+    motion(v,w,dtR);
+    let f=voiceF(w,r);if(th.aspects&&athens())f*=TETRA[ptolemyStep(w)];v.fcur=f;
+    const d=dirFor(w);setPos(v.pan,d.x,d.y,d.z,.15);v.up=d.up;
+    const soloMute=SIR.solo&&SIR.solo!==w;
+    // articulation: each body sings again every time it moves a little further along the zodiac
+    v.ph=(v.ph||0)+v.rate*dtR;let art=false;if(v.ph>=1){v.ph-=Math.floor(v.ph);art=true}
+    const flourish=v.ingress&&!STILL.has(w);if(flourish)art=true;
+    if(model==='lyre'&&!athens()){tgt(v.vol.gain,0,.1);const per=w==='moon'?27.32:w==='sun'?365.25:byId[w].Pyears*365.25,gap=.55*Math.pow(per/27.32,.22);if(!v.next||now>v.next+2)v.next=now+Math.random()*gap;
+      if(now>=v.next){v.next+=gap*(.9+Math.random()*.2);if(!soloMute){strPluck(v.pl,f,.042,1.4);SIR.plk[w]=performance.now()}}return}
+    if(model==='lyre'){tgt(v.vol.gain,0,.1);if(art&&!silent&&!soloMute){strPluck(v.pl,v.retro?f*2:f,(v.retro?.026:.045)*d.up,v.retro?.5:1.4,v.retro);SIR.plk[w]=performance.now()}return}
+    if(model==='monochord'&&art&&!STILL.has(w)&&!soloMute){strPluck(v.pl,f,.035*d.up,1.5);SIR.plk[w]=performance.now()}
+    if(model==='monochord'&&STILL.has(w)&&!['earth','emp3'].includes(w)){tgt(v.vol.gain,0,.2);return}
+    const mode=S.voices==='human'&&!STILL.has(w)&&humans<humanCap?'human':'instrument';if(mode==='human')humans++;
     if(v.part&&v.mode!==mode){killPart(v.part);v.part=null}
-    if(!v.part&&!silent&&built<3){v.part=mode==='human'?buildHumanPart(sirenBody(w,f),v):buildSiren(v,f,VOW_OF[w]);v.mode=mode;built++}
-    if(v.part){if(v.mode==='instrument'){tgt(v.part.o1.frequency,f,.2);tgt(v.part.o2.frequency,f,.2)}else humanTick(v.part.h,f,1,now)}
-    v.f=f;tgt(v.vol.gain,lvl*(v.mode==='human'?.9:1),.25);
+    if(!v.part&&!silent&&built<3){v.part=mode==='human'?buildHumanPart(sirenBody(w,f),v):buildSiren(v,f,VOW_OF[w]);v.mode=mode;built++;if(mode==='human')v.part.h.next=now+.2;v.lastArt=tR}
+    if(!v.part){tgt(v.vol.gain,0,.15);return}
+    if(v.mode==='instrument'&&!athens())tgt(v.part.art.gain,.8,.3);
+    if(v.mode==='instrument'){if(art)articulate(v.part,f,v.retro,flourish);else{tgt(v.part.o1.frequency,f,.12);tgt(v.part.o2.frequency,f,.12)}tgt(v.part.lp.frequency,d.up<1?900:v.retro?1700:2800,.3)}
+    else{const h=v.part.h,ff=f*Math.pow(2,h.shift||0);tgt(h.o1.frequency,ff,.08);if(h.o2)tgt(h.o2.frequency,ff,.08);
+      if((art||!athens()||tR-(v.lastArt||0)>5500)&&now+.12>=h.next){schedulePhrase(h,now+.05,f,1);v.lastArt=tR}}
+    if(art)v.lastArt=tR;
+    let lvl=silent||soloMute?0:SIR.solo===w?.13:fate?.03*(.6+.4*Math.sin(now*.25+r*2)):STILL.has(w)?.05:athens()?.15:.06;
+    if(model==='monochord'&&STILL.has(w))lvl=.03;
+    lvl*=(1+.7*(swell[w]||0))*v.up*habit;
+    tgt(v.vol.gain,lvl*(v.mode==='human'?.85:1),.25);
   });
-  // Nicomachus: each planet plucks its lyre string, quicker the quicker its own orbit
-  if(th.model==='lyre'){list.forEach(([w,r])=>{const v=SIR.v[w];const per=w==='moon'?27.32:w==='sun'?365.25:byId[w].Pyears*365.25;
-    const gap=.55*Math.pow(per/27.32,.22);if(!v.next||now>v.next+2)v.next=now+Math.random()*gap;
-    if(now>=v.next){v.next+=gap*(.9+Math.random()*.2);strPluck(v,v.f,.042,1.4);SIR.plk[w]=performance.now()}})}
-  // Fludd: the hand of God plucks the monochord, fret by fret, up two octaves and down again
-  if(th.model==='monochord'){const n=list.length;if(now>=SIR.nextSweep){const k=SIR.sweep%(2*n-2),i=k<n?k:2*n-2-k;const [w]=list[i],v=SIR.v[w];
-    if(!SIR.solo||SIR.solo===w)strPluck(v,v.f,['moon','mercury','venus','sun','mars','jupiter','saturn'].includes(w)?.07:.05,1.8);SIR.plk[w]=performance.now();SIR.sweep++;SIR.nextSweep=Math.max(now,SIR.nextSweep)+(i===7?.9:.45)}}
 }
 
 /* ---- switching thinker ---- */
 let SAVED=null;
 function setThinker(id){
   if(!THINK[id]||S.thinker===id)return;
-  if(S.thinker==='today')SAVED={vp:S.vp,face:S.face};
+  if(S.thinker==='today')SAVED={vp:S.vp,face:S.face,speed:S.speed};
   if(SYS.id)leaveSystem();
-  S.audition=null;SIR.solo=null;
+  S.audition=null;SIR.solo=null;SIR.habT0=0;SIR.sunSign=null;SIR.handNext=0;
+  const wasGeo=S.thinker!=='today'&&!isBodyModel();
   S.thinker=id;
   if(AC){killSirens();hushWorld();stopSpeech()}
-  if(id==='today'){if(SAVED){S.vp=SAVED.vp;S.face=SAVED.face}}
-  else if(isBodyModel()){S.vp='sun';S.face='vernal'}
-  else S.vp='earth';
+  if(id==='today'){if(SAVED){S.vp=SAVED.vp;S.face=SAVED.face;setSpeed(SAVED.speed)}}
+  else if(isBodyModel()){S.vp='sun';S.face='vernal';if(wasGeo&&SAVED)setSpeed(SAVED.speed)}
+  else{S.vp='earth';if(athens())setSpeed(THINK[id].athSpeed||2.4/24)}
   $('vp').value=S.vp;$('face').value=S.face;
   document.body.classList.toggle('thinking',id!=='today');
   try{history.replaceState(null,'',id==='today'?location.pathname:'#'+id)}catch(e){}
@@ -1936,12 +2011,14 @@ function thinkerInfoHTML(){
       (th.fates?`<p class="small">${TT.bodies.fates}: ${th.fates.map(([w,r])=>bodyName(w)+' '+nn(th.base*r)).join(' · ')}</p>`:'')+
       (th.aspects?`<p class="small" id="tAsp"></p>`:'');
   }
+  const interp=th.model==='bodies'?'':`<div class="interp"><div class="seg" id="interpSeg"><button data-i="text" aria-pressed="${!athens()}">${TT.ui.asWritten}</button><button data-i="athens" aria-pressed="${athens()}">${TT.ui.athens}</button></div><p class="small">${athens()?TT.ui.athensNote:TT.ui.writtenNote}</p></div>`;
   const acts=(id==='boethius'?`<div class="seg" id="boeSeg"><button data-o="cicero" aria-pressed="${SIR.boe==='cicero'}">${TT.ui.orderCicero}</button><button data-o="nicomachus" aria-pressed="${SIR.boe==='nicomachus'}">${TT.ui.orderNico}</button></div>`:'')+
     (id==='aristotle'?`<button class="btn" id="replyBtn" style="border-color:var(--bronze);color:var(--bronze)">${TT.ui.reply}</button>`:'');
   return `<div class="reading">
       <div class="greek">${t.when} · ${t.work}</div>
       <h3>${t.name}</h3>
-      <div class="sub">${TT.ui.from} ${listen}</div>
+      <div class="sub">${TT.ui.from} ${athens()&&th.model!=='bodies'?TT.ui.athensPlace:listen}</div>
+      ${interp}
       <p class="idea">${t.idea}</p>
       <div class="sh"><div><h4>${TT.ui.see}</h4><p>${t.see}</p></div><div><h4>${TT.ui.hear}</h4><p>${t.hear}</p></div></div>
       ${t.quote?`<blockquote>“${t.quote}”<cite>${t.cite}</cite></blockquote>`:''}
@@ -1953,6 +2030,7 @@ function colorOf(w){return byId[w]?byId[w].color:{moon:'#cfd6e0',sun:'#ffd98a',s
 function wireThinkerInfo(){
   $('info').querySelectorAll('.vrow2').forEach(b=>b.onclick=()=>thinkerTap(b.dataset.w));
   const bs=$('boeSeg');if(bs)bs.querySelectorAll('button').forEach(b=>b.onclick=()=>{SIR.boe=b.dataset.o;killSirens();SIR.solo=null;renderInfo();if(!audioOn)startAudio()});
+  const is=$('interpSeg');if(is)is.querySelectorAll('button').forEach(b=>b.onclick=()=>{S.interp=b.dataset.i;try{localStorage.setItem('mots.interp',S.interp)}catch(e){}killSirens();SIR.habT0=0;SIR.sunSign=null;SIR.handNext=0;if(athens())setSpeed(THINK[S.thinker].athSpeed||2.4/24);renderInfo();if(!audioOn)startAudio()});
   const rp=$('replyBtn');if(rp)rp.onclick=()=>{setThinker('pythagoras');if(!audioOn)startAudio()};
 }
 function tickThinkerInfo(){
@@ -1965,8 +2043,9 @@ const SCR={};
 function dot(g,x,y,r,c,glow){if(glow){const gr=g.createRadialGradient(x,y,0,x,y,r*3.2);gr.addColorStop(0,hexA(c,.55*glow));gr.addColorStop(1,hexA(c,0));g.fillStyle=gr;g.beginPath();g.arc(x,y,r*3.2,0,TAU);g.fill()}g.fillStyle=c;g.beginPath();g.arc(x,y,r,0,TAU);g.fill()}
 function ring(g,r,c,w,dash){g.strokeStyle=c;g.lineWidth=w||1;g.setLineDash(dash||[]);g.beginPath();g.arc(CX,CY,r,0,TAU);g.stroke();g.setLineDash([])}
 function label(g,txt,x,y,c,size,align,font){g.fillStyle=c||'rgba(233,225,204,.85)';g.font=`${size||12}px ${font||'"Alegreya Sans",sans-serif'}`;g.textAlign=align||'left';g.textBaseline='middle';g.fillText(txt,x,y)}
-const scrPt=(lon,r)=>({x:CX+r*Math.cos(lon+S.az),y:CY-r*Math.sin(lon+S.az)});
-function pulse(w,t){if(SIR.solo&&SIR.solo!==w)return .15;const p=SIR.plk[w];if(p)return Math.max(.25,1-(t-p)/900);return .55+.45*Math.sin(t/700+w.length)}
+const rotAng=()=>diurnalOn()&&S.thinker!=='philolaus'?Math.PI/2-lst():S.az;
+const scrPt=(lon,r)=>({x:CX+r*Math.cos(lon+rotAng()),y:CY-r*Math.sin(lon+rotAng())});
+function pulse(w,t){if(SIR.solo&&SIR.solo!==w)return .15;const v=SIR.v[w],p=Math.max(SIR.plk[w]||0,v&&v.lastArt||0);if(p)return Math.max(.25,1-(t-p)/900);return .5}
 function placeBody(g,w,lon,r,t,size){const p=scrPt(lon,r);SCR[w]=p;dot(g,p.x,p.y,size||4.5,colorOf(w),pulse(w,t));return p}
 function noteTag(g,w,p,txt){label(g,txt,p.x+9,p.y-1,'rgba(233,225,204,.88)',12)}
 function geoNoteRings(g,t,radii,order,withNames){
@@ -2037,6 +2116,8 @@ const D_THINK={
     g.fillStyle='rgba(127,98,54,.35)';g.strokeStyle='rgba(201,152,79,.8)';g.lineWidth=2;g.beginPath();g.ellipse(CX,bot+RR*.12,w*.62,RR*.2,0,0,TAU);g.fill();g.stroke();
     g.beginPath();g.moveTo(x0-w*.08,bot);g.bezierCurveTo(x0-w*.32,CY,x0-w*.02,top+RR*.1,x0-w*.14,top-RR*.12);g.moveTo(x0+w*1.08,bot);g.bezierCurveTo(x0+w*1.32,CY,x0+w*1.02,top+RR*.1,x0+w*1.14,top-RR*.12);g.stroke();
     g.lineWidth=5;g.beginPath();g.moveTo(x0-w*.14,top);g.lineTo(x0+w*1.14,top);g.stroke();
+    const zr=RR*.17,zx=CX,zy=top-RR*.3;ring2(g,{x:zx,y:zy},zr);for(let k=0;k<12;k++){const a=k*TAU/12+rotAng();g.strokeStyle='rgba(201,152,79,.4)';g.beginPath();g.moveTo(zx+zr*.86*Math.cos(a),zy-zr*.86*Math.sin(a));g.lineTo(zx+zr*Math.cos(a),zy-zr*Math.sin(a));g.stroke()}
+    list.forEach(([wh],k)=>{const v=geo(wh);if(!v)return;const a=lonOf(v)+rotAng(),rr=zr*(.25+.1*k),age=(t-(SIR.plk[wh]||-9999))/1000;dot(g,zx+rr*Math.cos(a),zy-rr*Math.sin(a),2.6,colorOf(wh),age<1?1-age:.2)});
     list.forEach(([wh,r,nm],k)=>{const x=x0+w*(k+.5)/n,age=(t-(SIR.plk[wh]||-9999))/1000,amp=age<2?7*Math.exp(-age*2.2)*Math.sin(t/14+k):0;
       g.strokeStyle=hexA(colorOf(wh),.85);g.lineWidth=1.6;g.beginPath();g.moveTo(x,top);g.quadraticCurveTo(x+amp,(top+bot)/2,x,bot);g.stroke();
       SCR[wh]={x,y:(top+bot)/2};dot(g,x,top-12,4,colorOf(wh),age<1.5?1-age/1.5:.2);
@@ -2045,7 +2126,7 @@ const D_THINK={
   ptolemy(g,t){
     drawStarsBg(g,.6);const sh={moon:.14,mercury:.27,venus:.4,sun:.52,mars:.65,jupiter:.79,saturn:.93};
     g.fillStyle='rgba(116,171,220,.12)';g.beginPath();g.arc(CX,CY,RR*.07,0,TAU);g.fill();earthAt(g,CX,CY,5);
-    const E=P.earth,rot=v=>({x:v.x*Math.cos(S.az)-v.y*Math.sin(S.az),y:v.x*Math.sin(S.az)+v.y*Math.cos(S.az)});const sp=v=>({x:CX+v.x,y:CY-v.y});
+    const E=P.earth,ra=rotAng(),rot=v=>({x:v.x*Math.cos(ra)-v.y*Math.sin(ra),y:v.x*Math.sin(ra)+v.y*Math.cos(ra)});const sp=v=>({x:CX+v.x,y:CY-v.y});
     ['moon','sun'].forEach(w=>{const r=RR*sh[w];ring(g,r,hexA(colorOf(w),.3),1)});
     // trails over the last synodic period show the loops
     if(!D_THINK.trail||Math.abs(D_THINK.trail.jd-S.jd)>.5){const tr={jd:S.jd};const SYN={mercury:116,venus:584,mars:780,jupiter:399,saturn:378};
@@ -2056,9 +2137,9 @@ const D_THINK={
       ring(g,defR,hexA(b.color,.18),1,[3,4]);const c=sp(rot(epiC));g.strokeStyle=hexA(b.color,.45);g.lineWidth=1;g.beginPath();g.arc(c.x,c.y,epiR,0,TAU);g.stroke();dot(g,c.x,c.y,1.5,hexA(b.color,.7));
       const tr=D_THINK.trail[w];g.strokeStyle=hexA(b.color,.35);g.beginPath();tr.forEach((q,k)=>{const z=sp(rot({x:q.x*s,y:q.y*s}));k?g.lineTo(z.x,z.y):g.moveTo(z.x,z.y)});g.stroke();
       const pos=sp(rot({x:(p.x-E.x)*s,y:(p.y-E.y)*s}));g.strokeStyle=hexA(b.color,.3);g.beginPath();g.moveTo(c.x,c.y);g.lineTo(pos.x,pos.y);g.stroke();
-      SCR[w]=pos;dot(g,pos.x,pos.y,4.5,b.color,pulse(w,t));const vv=thinkerVoices().find(x=>x[0]===w);noteTag(g,w,pos,bodyName(w)+' · '+nn(voiceF(w,vv[1])));
+      SCR[w]=pos;dot(g,pos.x,pos.y,4.5,b.color,pulse(w,t));const vv=thinkerVoices().find(x=>x[0]===w);noteTag(g,w,pos,bodyName(w)+' · '+nn(curF(w,vv[1])));
     });
-    ['moon','sun'].forEach(w=>{const v=geo(w),p=scrPt(lonOf(v),RR*sh[w]);SCR[w]=p;dot(g,p.x,p.y,w==='sun'?7:4.5,colorOf(w),pulse(w,t));const vv=thinkerVoices().find(x=>x[0]===w);noteTag(g,w,p,bodyName(w)+' · '+nn(voiceF(w,vv[1])))});
+    ['moon','sun'].forEach(w=>{const v=geo(w),p=scrPt(lonOf(v),RR*sh[w]);SCR[w]=p;dot(g,p.x,p.y,w==='sun'?7:4.5,colorOf(w),pulse(w,t));const vv=thinkerVoices().find(x=>x[0]===w);noteTag(g,w,p,bodyName(w)+' · '+nn(curF(w,vv[1])))});
     SIR.asp.forEach(a=>{const p=SCR[a.a],q=SCR[a.b];if(!p||!q)return;g.strokeStyle=`rgba(201,152,79,${.25+.6*a.str})`;g.lineWidth=1+a.str*2;g.beginPath();g.moveTo(p.x,p.y);g.lineTo(q.x,q.y);g.stroke();label(g,a.sym+'︎',(p.x+q.x)/2,(p.y+q.y)/2,'rgba(201,152,79,1)',15,'center','"GFS Didot",Georgia,serif')});
   },
   boethius(g,t){
@@ -2106,10 +2187,17 @@ const D_THINK={
   }
 };
 function ring2(g,p,r){g.strokeStyle='rgba(207,214,224,.4)';g.lineWidth=1;g.beginPath();g.arc(p.x,p.y,r,0,TAU);g.stroke()}
+function drawHorizon(g){
+  const w=RR*1.15;g.fillStyle='rgba(7,8,15,.42)';g.fillRect(CX-w,CY,2*w,RR*1.15);
+  g.strokeStyle='rgba(98,165,151,.7)';g.lineWidth=1.2;g.setLineDash([6,5]);g.beginPath();g.moveTo(CX-w,CY);g.lineTo(CX+w,CY);g.stroke();g.setLineDash([]);
+  label(g,TT.ui.east,CX-w+4,CY-10,'rgba(98,165,151,.95)',12,'left');label(g,TT.ui.west,CX+w-4,CY-10,'rgba(98,165,151,.95)',12,'right');
+  label(g,TT.ui.south,CX,CY-RR*1.12,'rgba(98,165,151,.8)',11,'center');
+}
 function drawThinker(t){
   const g=cx2;g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,W,H);
   Object.keys(SCR).forEach(k=>delete SCR[k]);
   const f=D_THINK[S.thinker];if(f)f(g,t);
+  if(diurnalOn()&&!['philolaus','nicomachus','fludd'].includes(S.thinker))drawHorizon(g);
   screen={};Object.assign(screen,SCR);
 }
 
