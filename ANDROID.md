@@ -11,6 +11,7 @@ To list it on Google Play, the same site is wrapped as a **Trusted Web Activity*
    - Package ID: `io.github.newbroman.spheres`
    - App name: `Music of the Spheres`, short name: `Spheres`
    - Display mode: `standalone`. Keep "Notification delegation" off.
+   - Google Play billing: **on** (for the supporter purchase, see step 4).
    - Signing key: **Create new**. PWABuilder makes the key and gives it back in the zip.
 3. Download the zip. Keep `signing.keystore` and `signing-key-info.txt` somewhere safe and backed up. Every future update must be signed with the same key.
 4. The zip also contains `assetlinks.json` and the `.aab` file that goes to Play.
@@ -67,6 +68,25 @@ git commit -am "Asset links: Play signing key for Music of the Spheres" && git p
    - Content rating questionnaire: all "no", which gives *Everyone*.
    - Target audience: 13+ is simplest.
 6. **Testing**: new personal developer accounts must run a closed test with at least **12 testers for 14 days** before going to production. Upload the `.aab` to a closed testing track, add testers by email, and after 14 days apply for production.
+
+## 4. Supporter purchase (unlocks the Stage panel in the Play app)
+
+In the Play app, the Stage panel (PA, 5.1, MIDI for lights, projector view) opens with a one-off supporter purchase at one of three amounts. The website keeps it free. The code is already in the site. It recognises the Play app because Android opens the site from `android-app://io.github.newbroman.spheres`, and it uses Google Play Billing through Chrome's Digital Goods API.
+
+1. In PWABuilder's Android options, switch **Google Play billing on** before downloading the package.
+2. In the Play Console, set up a **payments profile** (Settings → Payments profile).
+3. Under **Monetize with Play → Products → One-time products**, create three products with exactly these IDs, and make each one active:
+
+   | Product ID | Name | Price |
+   |---|---|---|
+   | `supporter_small` | Supporter | £1.99 |
+   | `supporter_medium` | Friend | £4.99 |
+   | `supporter_large` | Patron | £9.99 |
+
+   The app shows Play's own price for each one, in the buyer's currency.
+4. Add your testers as **licence testers** (Settings → License testing). They can then buy without being charged.
+
+Each purchase is consumed straight away. Google counts that as acknowledging it, so no server is needed and nothing is refunded after three days. The app remembers on the phone that you are a supporter. Anyone who clears Chrome's data for the site loses the unlock, and you can send them a refund or ask them to buy again.
 
 ## Updating
 

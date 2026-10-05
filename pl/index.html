@@ -502,8 +502,52 @@ MOTS.projector=proj;
 /* --- the Stage button and panel --- */
 function msgOut(t){const n=document.getElementById('stOutNote');if(n)n.textContent=t}
 function syncOut(){const tb=document.getElementById('stTest');if(tb)tb.hidden=mode!=='5.1';document.querySelectorAll('#stOut button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===mode)));const n=document.getElementById('stOutNote');if(n)n.textContent=T.outNote[mode]||''}
+/* --- supporters: in the Google Play app the Stage panel opens with a one-off supporter purchase (the website keeps it free) --- */
+const TS={
+ en:{t:'Become a supporter',b:'In the app, the Stage panel (PA and 5.1 sound, MIDI for lights, the projector view) is for supporters. Choose any amount: each one opens the panel for good on this device and helps keep the project going.',s:'Supporter',m:'Friend',l:'Patron',ok:'Thank you! The Stage panel is open.',fail:'The purchase didn’t go through, and nothing was charged.',na:'Purchases aren’t available just now. Check you are online and signed in to Google Play.',c:'Not now'},
+ pl:{t:'Zostań wspierającym',b:'W aplikacji panel Scena (dźwięk na nagłośnienie i 5.1, MIDI do świateł, widok projektora) jest dla wspierających. Wybierz dowolną kwotę: każda otwiera panel na stałe na tym urządzeniu i pomaga rozwijać projekt.',s:'Wspierający',m:'Przyjaciel',l:'Mecenas',ok:'Dziękuję! Panel Scena jest otwarty.',fail:'Zakup się nie udał i nic nie zostało pobrane.',na:'Zakupy są teraz niedostępne. Sprawdź połączenie z internetem i logowanie do Google Play.',c:'Nie teraz'},
+ cy:{t:'Dewch yn gefnogwr',b:'Yn yr ap, mae’r panel Llwyfan (sain PA a 5.1, MIDI ar gyfer goleuadau, golwg taflunydd) ar gyfer cefnogwyr. Dewiswch unrhyw swm: mae pob un yn agor y panel am byth ar y ddyfais hon ac yn helpu i gadw’r prosiect i fynd.',s:'Cefnogwr',m:'Cyfaill',l:'Noddwr',ok:'Diolch! Mae’r panel Llwyfan ar agor.',fail:'Ni aeth y pryniant drwodd, ac ni chodwyd dim.',na:'Nid oes modd prynu ar hyn o bryd. Gwiriwch eich bod ar-lein ac wedi mewngofnodi i Google Play.',c:'Dim nawr'},
+ de:{t:'Unterstützer werden',b:'In der App ist das Bühnen-Panel (PA- und 5.1-Ton, MIDI für Licht, Projektoransicht) für Unterstützer. Wählen Sie einen beliebigen Betrag: Jeder öffnet das Panel dauerhaft auf diesem Gerät und hilft, das Projekt weiterzuführen.',s:'Unterstützer',m:'Freund',l:'Mäzen',ok:'Danke! Das Bühnen-Panel ist geöffnet.',fail:'Der Kauf ist nicht zustande gekommen; es wurde nichts berechnet.',na:'Käufe sind gerade nicht möglich. Prüfen Sie, ob Sie online und bei Google Play angemeldet sind.',c:'Nicht jetzt'},
+ es:{t:'Hazte mecenas',b:'En la aplicación, el panel Escenario (sonido para PA y 5.1, MIDI para luces, vista de proyector) es para quienes apoyan el proyecto. Elige cualquier cantidad: cada una abre el panel para siempre en este dispositivo y ayuda a mantener el proyecto.',s:'Apoyo',m:'Amigo',l:'Mecenas',ok:'¡Gracias! El panel Escenario está abierto.',fail:'La compra no se completó y no se ha cobrado nada.',na:'Las compras no están disponibles ahora. Comprueba que tienes conexión y has iniciado sesión en Google Play.',c:'Ahora no'},
+ fr:{t:'Devenir soutien',b:'Dans l’application, le panneau Scène (son pour sono et 5.1, MIDI pour les lumières, vue projecteur) est réservé aux soutiens. Choisissez un montant : chacun ouvre le panneau pour de bon sur cet appareil et aide à faire vivre le projet.',s:'Soutien',m:'Ami',l:'Mécène',ok:'Merci ! Le panneau Scène est ouvert.',fail:'L’achat n’a pas abouti, et rien n’a été débité.',na:'Les achats sont indisponibles pour le moment. Vérifiez que vous êtes en ligne et connecté à Google Play.',c:'Plus tard'},
+ it:{t:'Diventa sostenitore',b:'Nell’app, il pannello Palco (suono per impianto PA e 5.1, MIDI per le luci, vista proiettore) è per i sostenitori. Scegli un importo qualsiasi: ognuno apre il pannello per sempre su questo dispositivo e aiuta a portare avanti il progetto.',s:'Sostenitore',m:'Amico',l:'Mecenate',ok:'Grazie! Il pannello Palco è aperto.',fail:'L’acquisto non è andato a buon fine e non è stato addebitato nulla.',na:'Gli acquisti non sono disponibili ora. Controlla di essere online e di aver eseguito l’accesso a Google Play.',c:'Non ora'},
+ zh:{t:'成为支持者',b:'在应用中，舞台面板（扩声与 5.1 声音、灯光 MIDI、投影视图）供支持者使用。任选一个金额：每一个都会在此设备上永久打开该面板，并帮助项目继续发展。',s:'支持者',m:'朋友',l:'赞助人',ok:'谢谢！舞台面板已打开。',fail:'购买未完成，未产生任何扣款。',na:'目前无法购买。请确认已联网并登录 Google Play。',c:'以后再说'},
+ ja:{t:'サポーターになる',b:'アプリでは、ステージパネル（PA・5.1 サラウンド、照明用 MIDI、プロジェクター表示）はサポーター向けです。金額はどれでもかまいません。どれを選んでも、この端末でパネルがずっと使えるようになり、プロジェクトの継続を支えます。',s:'サポーター',m:'フレンド',l:'パトロン',ok:'ありがとうございます！ステージパネルが使えるようになりました。',fail:'購入は完了しませんでした。料金は請求されていません。',na:'現在は購入できません。オンラインで Google Play にログインしているか確認してください。',c:'今はしない'}};
+const SUP={pkg:'io.github.newbroman.spheres',bill:'https://play.google.com/billing',skus:[['supporter_small','s','£1.99'],['supporter_medium','m','£4.99'],['supporter_large','l','£9.99']],svc:null};
+const ts=()=>TS[(document.documentElement.lang||'en').slice(0,2)]||TS.en;
+// the Play app opens the site with an android-app referrer; remembered for this visit only, so the same site in Chrome stays free
+const SS={get:k=>{try{return sessionStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{sessionStorage.setItem(k,v)}catch(e){}}};
+if(document.referrer.startsWith('android-app://'+SUP.pkg))SS.set('mots.play','1');
+const inPlayApp=()=>SS.get('mots.play')==='1'||/[?&]playapp=1/.test(location.search);
+const isSupporter=()=>LS.get('mots.supporter')==='1';
+MOTS.stageLocked=()=>inPlayApp()&&!isSupporter();
+async function billing(){if(SUP.svc)return SUP.svc;if(!('getDigitalGoodsService' in window))return null;try{SUP.svc=await window.getDigitalGoodsService(SUP.bill)}catch(e){SUP.svc=null}return SUP.svc}
+// purchases are consumed at once: Google counts that as acknowledgement (no server needed), and the device remembers the supporter
+async function settle(svc){try{const ps=await svc.listPurchases();let any=false;for(const p of ps){if(SUP.skus.some(s=>s[0]===p.itemId)){try{await svc.consume(p.purchaseToken)}catch(e){}any=true}}if(any)LS.set('mots.supporter','1');return any}catch(e){return false}}
+async function buy(sku,msg){
+  const svc=await billing();if(!svc){msg(ts().na);return false}
+  try{const rq=new PaymentRequest([{supportedMethods:SUP.bill,data:{sku}}],{total:{label:'Total',amount:{currency:'GBP',value:'0'}}});
+    const r=await rq.show();const tok=r.details&&r.details.purchaseToken;
+    try{if(tok)await svc.consume(tok)}catch(e){}
+    LS.set('mots.supporter','1');await r.complete('success');return true}
+  catch(e){msg(ts().fail);return false}
+}
+function supportPanel(){
+  let p=document.getElementById('stPanel');if(p){p.remove();return}
+  const S=ts();p=document.createElement('div');p.id='stPanel';p.setAttribute('role','dialog');p.setAttribute('aria-label',S.t);
+  p.innerHTML=`<h2>${S.t}</h2><p class="n" style="margin-top:0">${S.b}</p><div class="row" id="stTiers">${SUP.skus.map(([id,k,pr])=>`<button type="button" class="b" data-sku="${id}"><b>${S[k]}</b> <span>${pr}</span></button>`).join('')}</div><p class="n" id="stSupMsg" hidden></p><div class="row"><button type="button" class="b" id="stClose">${S.c}</button></div>`;
+  document.body.appendChild(p);
+  const msg=t=>{const m=p.querySelector('#stSupMsg');m.textContent=t;m.hidden=false};
+  p.querySelector('#stClose').onclick=()=>p.remove();
+  p.querySelectorAll('#stTiers button').forEach(b=>b.onclick=async()=>{p.querySelectorAll('#stTiers button').forEach(x=>x.disabled=true);
+    if(await buy(b.dataset.sku,msg)){msg(S.ok);setTimeout(()=>{p.remove();openPanel()},1400)}else p.querySelectorAll('#stTiers button').forEach(x=>x.disabled=false)});
+  // the store's own prices (in the buyer's currency), and any purchase left unfinished last time
+  billing().then(async svc=>{if(!svc)return;if(await settle(svc)){p.remove();openPanel();return}
+    try{const d=await svc.getDetails(SUP.skus.map(s=>s[0]));for(const it of d){const b=p.querySelector(`[data-sku="${it.itemId}"] span`);if(b&&it.price)b.textContent=new Intl.NumberFormat(document.documentElement.lang||'en',{style:'currency',currency:it.price.currency}).format(it.price.value)}}catch(e){}});
+}
 function openPanel(){
   let p=document.getElementById('stPanel');if(p){p.remove();return}
+  if(MOTS.stageLocked()){supportPanel();return}
   p=document.createElement('div');p.id='stPanel';p.setAttribute('role','dialog');p.setAttribute('aria-label',T.title);
   p.innerHTML=`<h2>${T.title}</h2>
   <h3>${T.output}</h3><div class="seg" id="stOut">${['hrtf','stereo','pa','mono','5.1'].map(v=>`<button type="button" data-v="${v}" aria-pressed="false">${T[v]}</button>`).join('')}</div><p class="n" id="stOutNote"></p><button type="button" class="b" id="stTest" hidden style="margin-top:8px">${T.test}</button>
