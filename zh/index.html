@@ -911,8 +911,8 @@ async function toPage(pg){
   if(pg===curPg)return pg==='dial'?null:frame&&frame.contentWindow;
   if(curPg!=='dial')dropFrame();
   curPg=pg;
-  if(pg==='dial'){await A().start();return null}
-  A().stop();const w=await framed(pg);
+  if(pg==='dial'){MOTS.hold=false;await A().start();return null}
+  A().stop();MOTS.hold=true;const w=await framed(pg);
   if(pg==='flight')await w.MOTS.app.start();
   return w;
 }
@@ -962,7 +962,7 @@ async function start(){
 }
 function stop(){
   clearTimeout(timer);clearInterval(tick);gen++;removeEventListener('keydown',key,true);removeEventListener('pointermove',wake);
-  dropFrame();if(el){el.remove();el=null}document.documentElement.classList.remove('mots-show');
+  dropFrame();MOTS.hold=false;if(el){el.remove();el=null}document.documentElement.classList.remove('mots-show');
   if(curPg!=='dial'){curPg='dial';try{A().start()}catch(e){}}
   if(window.MOTS&&MOTS.projector&&document.documentElement.classList.contains('mots-proj'))MOTS.projector(false);
 }
@@ -2831,6 +2831,8 @@ function drawThinker(t){
 /* ---------- loop ---------- */
 let last=performance.now(), lastAudio=0, lastUI=0, beltAcc=0;
 function frame(t){
+  // while the show plays another page over this one, this page rests so the music keeps perfect time
+  if(window.MOTS&&MOTS.hold){last=t;requestAnimationFrame(frame);return}
   const dt=Math.min(.1,(t-last)/1000);last=t;
   if(S.playing)S.jd+=dt*S.speed*S.dir;
   computePositions();
