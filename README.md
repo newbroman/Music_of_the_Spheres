@@ -18,6 +18,8 @@ Headphones give the best result. Every page has a **Record** button that saves w
 
 ## The thinkers
 
+The dial opens on Plato, heard from Athens. On a first visit a short slideshow tours the app (the dial, the thinkers, today’s sky, the 3D flight, the dance page and the Stage panel) and its button starts the music: browsers only allow sound after a tap. The tour can be switched off, and reopened from the Extras menu. A link with a thinker’s name (for example `#kepler`, or `#today`) opens straight on that thinker without the tour.
+
 The app opens on a timeline of thinkers: Pythagoras, Philolaus, Plato, Aristotle, Cicero, Nicomachus, Ptolemy, Boethius, Copernicus, Robert Fludd, Kepler, and the sky today. Each one's cosmos is drawn their own way from the real positions of the moment (Plato's Spindle of Necessity, Ptolemy's epicycles, Nicomachus's lyre, Fludd's Divine Monochord, Kepler's ellipses and Platonic solids) and sings by their own rules. A reading gives each idea, a quotation and a note on what is faithful and what is reconstruction. Links such as `index.html#plato` open a thinker directly.
 
 ## The idea

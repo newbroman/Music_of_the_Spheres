@@ -524,6 +524,98 @@ btn.onclick=async()=>{
 })();
 </script>
 <script>
+/*TOUR-START*//* ---------- the welcome tour: a short slideshow over the live dial, ending in Plato's heavens heard from Athens ---------- */
+(()=>{
+"use strict";
+const T={img:'tour/en/',kicker:'Welcome',begin:'Begin with Plato, heard from Athens',skip:'Skip',next:'Next',prev:'Back',show:'Show this tour at the start',tour:'Tour of the app',tapNote:'The sound starts with your tap: browsers wait for a touch before playing music.',
+  slides:[
+   {h:'Music of the Spheres',p:'For two thousand years, thinkers believed the planets made music as they moved. Here you can hear it, drawn from the real sky at this moment.',alt:'Plato’s cosmos as eight nested whorls, seen from Athens'},
+   {h:'Whose heavens?',p:'Twelve thinkers, from Pythagoras to Kepler, each pictured the cosmos in their own way. Choose one to see their universe and hear it by their rules: as they wrote it, or as you might have heard it standing in Athens.',alt:'Ptolemy’s cosmos of epicycles'},
+   {h:'The sky today',p:'The whole solar system as we know it now, each planet sung by its Greek god. Pitch follows the orbit, loudness the distance, and moons, asteroids and comets join the choir. Choose where in the solar system you listen from.',alt:'The solar system today on the dial'},
+   {h:'Fly through it',p:'Take a ship through the solar system in 3D. The choir turns around you as you fly, and each god greets you when you arrive.',alt:'The Earth seen from the ship in the 3D flight'},
+   {h:'Dance of the Spheres',p:'The planets become a band: trance and techno, a Viennese waltz or a tango, or Bach, Mozart, Satie, Debussy, Pärt, Reich and Glass. When the planets align, the music builds and drops.',alt:'The dance page with the planets as a band'},
+   {h:'On stage',p:'Play it through a PA, drive the lights over MIDI, put the cosmos on a projector, and install it as an app that works without a signal.',alt:'The Stage panel: output, MIDI and projector'}
+  ]};
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+const css=document.createElement('style');
+css.textContent=`
+#tour{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:16px;background:radial-gradient(ellipse at 50% 40%,rgba(9,11,24,.72),rgba(5,6,12,.94));-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);opacity:0;transition:opacity .5s}
+#tour.on{opacity:1}
+#tour .tc{position:relative;width:min(1040px,100%);max-height:calc(100dvh - 32px);overflow:auto;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);background:#0d1022;border:1px solid rgba(201,152,79,.55);border-radius:14px;box-shadow:0 20px 70px rgba(0,0,0,.7)}
+#tour .ti{position:relative;overflow:hidden;background:#05060c;min-height:340px;border-radius:14px 0 0 14px}
+#tour .ti img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transform:scale(1.04);transition:opacity .8s,transform 9s linear}
+#tour .ti img.cur{opacity:1;transform:scale(1.12)}
+#tour .tt{padding:28px 28px 22px;display:flex;flex-direction:column;gap:12px;color:#e9e1cc;font:17px/1.55 "Alegreya Sans",system-ui,sans-serif}
+#tour .k{font:600 12px/1 "Alegreya Sans",system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#c9984f}
+#tour h2{margin:0;font:400 clamp(28px,3.6vw,40px)/1.1 "GFS Didot",Georgia,serif;color:#f1e3bf}
+#tour .tp{margin:0;min-height:7.8em;color:#d8cfb8}
+#tour .dots{display:flex;gap:8px;margin-top:auto;padding-top:6px}
+#tour .dots button{appearance:none;border:0;padding:0;width:26px;height:4px;border-radius:2px;background:#2b3050;cursor:pointer;position:relative;overflow:hidden}
+#tour .dots button i{position:absolute;inset:0;width:0;background:#c9984f}
+#tour .dots button.done i{width:100%}
+#tour .dots button.cur i{animation:tourbar var(--dur,8s) linear forwards}
+#tour.paused .dots button.cur i{animation-play-state:paused}
+@keyframes tourbar{to{width:100%}}
+#tour .nav{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#tour .b{appearance:none;border:1px solid #2b3050;background:transparent;color:#e9e1cc;border-radius:999px;padding:9px 16px;font:inherit;font-size:15px;cursor:pointer;min-height:42px}
+#tour .b:hover{border-color:#c9984f;color:#e9d093}
+#tour .go{width:100%;border:0;background:linear-gradient(180deg,#e2b468,#c9984f);color:#1a1408;font-weight:700;font-size:16px;padding:13px 18px;min-height:50px;border-radius:999px;cursor:pointer;box-shadow:0 6px 22px rgba(201,152,79,.35)}
+#tour .go:hover{filter:brightness(1.07)}
+#tour .note{margin:0;font-size:13px;color:#8f897a}
+#tour label{display:flex;gap:8px;align-items:center;font-size:14px;color:#a39c89;cursor:pointer}
+#tour .skip{position:absolute;top:10px;right:10px;z-index:2;background:rgba(5,6,12,.6)}
+@media (max-width:760px){#tour{padding:10px}#tour .tc{grid-template-columns:1fr}#tour .ti{min-height:0;aspect-ratio:16/10;border-radius:14px 14px 0 0}#tour .tt{padding:18px 18px 16px;gap:10px}#tour .tp{min-height:0}}
+@media (prefers-reduced-motion:reduce){#tour .ti img{transition:opacity .3s;transform:none!important}#tour .dots button.cur i{animation:none;width:100%}}
+`;
+document.head.appendChild(css);
+const DUR=8000;let el=null,i=0,timer=null,paused=false;
+function show(n){
+  const N=T.slides.length;i=(n+N)%N;const s=T.slides[i];
+  el.querySelectorAll('.ti img').forEach((im,k)=>im.classList.toggle('cur',k===i));
+  el.querySelector('h2').textContent=s.h;el.querySelector('.tp').textContent=s.p;el.querySelector('.k').textContent=i===0?T.kicker:(i+1)+' / '+N;
+  el.querySelectorAll('.dots button').forEach((d,k)=>{d.classList.toggle('cur',k===i);d.classList.toggle('done',k<i);d.setAttribute('aria-current',k===i?'step':'false');const b=d.querySelector('i');b.style.animation='none';void b.offsetWidth;b.style.animation=''});
+  clearTimeout(timer);if(!paused)timer=setTimeout(()=>show(i+1),DUR);
+}
+function pause(p){paused=p;el.classList.toggle('paused',p);clearTimeout(timer);if(!p)timer=setTimeout(()=>show(i+1),DUR)}
+function close(){if(!el)return;clearTimeout(timer);el.classList.remove('on');const e=el;el=null;setTimeout(()=>e.remove(),450);document.removeEventListener('keydown',key)}
+function begin(){
+  close();
+  const chip=document.querySelector('.tl-chip[data-t="plato"]');if(chip&&chip.getAttribute('aria-pressed')!=='true')chip.click();
+  const at=document.querySelector('#interpSeg button[data-i="athens"]');if(at&&at.getAttribute('aria-pressed')!=='true')at.click();
+  const b=document.getElementById('begin');if(b&&b.getAttribute('aria-pressed')!=='true')b.click();
+}
+function key(e){if(!el)return;if(e.key==='ArrowRight'){pause(true);show(i+1)}else if(e.key==='ArrowLeft'){pause(true);show(i-1)}else if(e.key==='Escape')close()}
+function open(){
+  if(el)return;
+  el=document.createElement('div');el.id='tour';el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');el.setAttribute('aria-label',T.tour);
+  el.innerHTML=`<div class="tc"><div class="ti">${T.slides.map((s,k)=>`<img src="${T.img}${k+1}.webp" alt="${s.alt}" decoding="async"${k?' loading="eager"':' fetchpriority="high"'}>`).join('')}<button type="button" class="b skip">${T.skip}</button></div>
+  <div class="tt"><div class="k"></div><h2></h2><p class="tp" aria-live="polite"></p>
+  <div class="nav"><button type="button" class="b prev">← ${T.prev}</button><button type="button" class="b next">${T.next} →</button></div>
+  <button type="button" class="go">${T.begin}</button><p class="note">${T.tapNote}</p>
+  <label><input type="checkbox" class="again"${LS.get('mots.tour')==='0'?'':' checked'}> ${T.show}</label>
+  <div class="dots">${T.slides.map((s,k)=>`<button type="button" aria-label="${k+1}: ${s.h}"><i></i></button>`).join('')}</div></div></div>`;
+  document.body.appendChild(el);
+  el.querySelector('.go').onclick=begin;el.querySelector('.skip').onclick=close;
+  el.querySelector('.next').onclick=()=>{pause(true);show(i+1)};el.querySelector('.prev').onclick=()=>{pause(true);show(i-1)};
+  el.querySelectorAll('.dots button').forEach((d,k)=>d.onclick=()=>{pause(true);show(k)});
+  el.querySelector('.again').onchange=e=>LS.set('mots.tour',e.target.checked?'1':'0');
+  el.addEventListener('click',e=>{if(e.target===el)close()});
+  let x0=null;const ti=el.querySelector('.ti');ti.addEventListener('pointerdown',e=>{x0=e.clientX});ti.addEventListener('pointerup',e=>{if(x0!==null&&Math.abs(e.clientX-x0)>40){pause(true);show(i+(e.clientX<x0?1:-1))}x0=null});
+  el.querySelector('.tc').addEventListener('pointerenter',e=>{if(e.pointerType==='mouse')pause(true)});
+  document.addEventListener('keydown',key);
+  el.style.setProperty('--dur',DUR+'ms');paused=false;
+  requestAnimationFrame(()=>{el.classList.add('on');show(0);el.querySelector('.go').focus({preventScroll:true})});
+}
+window.MOTS=window.MOTS||{};window.MOTS.tour=open;
+// a "Tour" entry in the Extras menu
+const menu=document.querySelector('.extras .menu');
+if(menu){const a=document.createElement('a');a.href='#';a.textContent=T.tour;a.onclick=e=>{e.preventDefault();const d=menu.closest('details');if(d)d.open=false;open()};menu.prepend(a)}
+// at the start, unless the page was opened on a particular thinker or the visitor turned it off
+if(!location.hash&&LS.get('mots.tour')!=='0'&&!/[?&]notour\b/.test(location.search))open();
+})();
+/*TOUR-END*/
+</script>
+<script>
 (()=>{
 'use strict';
 const DEG=Math.PI/180, TAU=Math.PI*2, J2000=2451545.0;
@@ -2392,7 +2484,8 @@ function frame(t){
 }
 computePositions();resize();renderRoster();renderTimeline();
 $('timeline').addEventListener('click',e=>{const c=e.target.closest('.tl-chip');if(c)setThinker(c.dataset.t)});
-{const h=location.hash.slice(1);if(THINK[h]&&h!=='today')setThinker(h);else renderInfo()}
+// the app opens on Plato's heavens, heard from Athens, unless the address names another thinker (or #today)
+{const h=location.hash.slice(1);if(h==='today'||!THINK[h]){if(h!=='today'){S.interp='athens';setThinker('plato')}else renderInfo()}else setThinker(h)}
 requestAnimationFrame(frame);
 })();
 </script>
