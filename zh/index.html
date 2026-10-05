@@ -359,7 +359,7 @@ AudioNode.prototype.connect=function(t,...r){
 };
 MOTS.onOut=fn=>{outFns.push(fn);if(mode)fn(mode)};
 MOTS.setOut=m=>{if(m==='5.1'&&!surOK()){msgOut(T.s51No.replace('{n}',MOTS.surround?MOTS.surround.channels():2));return}mode=m;LS.set('mots.out',m);if(MOTS.surround&&SUR.cfg)surApply(m==='5.1');setWidth();outFns.forEach(f=>f(m));syncOut()};
-MOTS.outMode=()=>mode;
+MOTS.outMode=()=>mode;MOTS.audioCtx=()=>ctx;
 MOTS.defaultOut=m=>{if(!mode)mode=m;syncOut()};
 
 /* --- 5.1 surround: each registered voice is placed among five speakers by its direction from the listener --- */
@@ -493,9 +493,9 @@ html.mots-proj #motsProjX{display:block;visibility:visible!important}html.mots-p
 document.head.appendChild(css);
 const X=document.createElement('button');X.id='motsProjX';X.type='button';X.textContent='✕';X.title=X.ariaLabel=T.exit;document.body.appendChild(X);
 let idleT=null;const wake=()=>{document.documentElement.classList.remove('idle');clearTimeout(idleT);idleT=setTimeout(()=>document.documentElement.classList.add('idle'),3000)};
-function proj(on){const h=document.documentElement;h.classList.toggle('mots-proj',on);
-  if(on){const p=document.getElementById('stPanel');if(p)p.remove();wake();addEventListener('pointermove',wake);if(h.requestFullscreen&&!document.fullscreenElement)h.requestFullscreen().catch(()=>{});lock(true)}
-  else{removeEventListener('pointermove',wake);h.classList.remove('idle');if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{});lock(awakeOn)}
+function proj(on,o={}){const h=document.documentElement;h.classList.toggle('mots-proj',on);
+  if(on){const p=document.getElementById('stPanel');if(p)p.remove();wake();addEventListener('pointermove',wake);if(!o.noFS&&h.requestFullscreen&&!document.fullscreenElement)h.requestFullscreen().catch(()=>{});lock(true)}
+  else{removeEventListener('pointermove',wake);h.classList.remove('idle');if(!o.noFS&&document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{});lock(awakeOn)}
   dispatchEvent(new Event('resize'))}
 X.onclick=()=>proj(false);
 addEventListener('keydown',e=>{if(e.key==='Escape'&&document.documentElement.classList.contains('mots-proj'))proj(false)});
@@ -746,6 +746,231 @@ if(menu){const a=document.createElement('a');a.href='#';a.textContent=T.tour;a.o
 if(!location.hash&&LS.get('mots.tour')!=='0'&&!/[?&]notour\b/.test(location.search))open();
 })();
 /*TOUR-END*/
+</script>
+<script>
+/*SHOW-START*//* ---------- the self-running show: about forty minutes through the app, with captions, played live ---------- */
+(()=>{
+"use strict";
+const T={show:'Show',title:'The self-running show',pause:'Pause',play:'Play',prev:'Previous',next:'Next',exit:'End the show',tap:'Tap to start the sound',youHear:'You hear',
+ S:{
+  intro:{k:'A tour of the app',h:'Music of the Spheres',p:'The real solar system, sung by the Greek gods, and heard as twelve thinkers imagined it.'},
+  idea:{k:'The oldest idea in astronomy',h:'The planets make music',p:'For two thousand years, from Pythagoras to Kepler, thinkers believed the planets made music as they moved. This is Plato’s cosmos, drawn over the real sky above Athens tonight.'},
+  orb:{k:'Shakespeare, The Merchant of Venice (1596–97)',h:'“There’s not the smallest orb which thou behold’st / But in his motion like an angel sings”',p:'By Shakespeare’s day the idea was already two thousand years old.'},
+  parts:{k:'In this show',h:'Five movements',p:'How the sky becomes sound · The thinkers, from Pythagoras to Kepler · A flight through the choir · The planets as a band, from the club to Bach and Glass · On stage'},
+  ch1:{k:'I',h:'How the sky becomes sound',p:'Nothing here is random: every voice comes from where the planets really are.'},
+  pitch:{k:'Pitch',h:'Faster planets sing higher',p:'Each planet’s pitch follows its speed round the Sun: Mercury, the quickest, highest; Neptune lowest. The notes are tuned in Pythagorean ratios, the tuning the ancients used.'},
+  sun:{k:'Where you stand',h:'Listening from the Sun',p:'Loudness follows size and distance from you, and each voice comes from its real direction. Here you listen from the Sun, with the planets all around.'},
+  zeus:{k:'The voices',h:'Each planet is sung by its god',p:'Jupiter is Zeus, a bass singing a broad “aw”. Hermes is a countertenor, Aphrodite a soprano, Gaia an alto, Ares a tenor, Kronos a bass.'},
+  moons:{k:'Moons',h:'Io, Europa and Ganymede: 1 : 2 : 4',p:'Moons sing as children. Jupiter’s three great moons orbit in a 1 : 2 : 4 resonance, and you can hear the rhythm.'},
+  saturn:{k:'Where you stand',h:'Listening from Saturn',p:'Move your listening post and the whole sky turns around you: the Sun is now far away, and Jupiter sings close by.'},
+  aspects:{k:'Key and aspects',h:'The zodiac sets the key',p:'The Sun’s sign of the zodiac sets the key. When two planets stand in an aspect, they sing its interval: opposition an octave, trine a fifth, square a fourth.'},
+  year:{k:'Time',h:'A year a second',p:'Speed up time and the planets race round the Sun, their voices sliding as their distances change.'},
+  web:{k:'How it is made',h:'A web page, not a studio',p:'Every voice is synthesised live by the browser from NASA JPL orbital data. The band plays recorded orchestral samples (Fluid R3, CC BY 3.0). It runs on any phone or computer, in nine languages.'},
+  ch2:{k:'II',h:'The thinkers',p:'Twelve heavens over two thousand years. Each thinker pictured the cosmos differently, so each has their own drawing and their own rules for sound.'},
+  written:{k:'Two ways to listen',h:'As they wrote it',p:'Only what the sources say: Plato’s Sirens each hold a single note.'},
+  athens:{k:'Two ways to listen',h:'Heard from Athens',p:'Our interpretation: you stand in Athens as the real sky turns overhead, and each body sings as it moves.'},
+  realtime:{k:'Time',h:'Real time',p:'And at its true pace, the sky turns once a day.'},
+  ch3:{k:'III',h:'The flight',p:'Take a ship through the solar system in 3D. The choir is placed around you and turns with you.'},
+  gaia:{k:'Departure',h:'In orbit with Gaia',p:'The Earth, with the Moon singing above her.'},
+  tosat:{k:'Travelling',h:'To Kronos',p:'Setting course for Saturn. Near a planet, time slows so you can hear its moons.'},
+  cruise:{k:'Cruising',h:'Through the choir',p:'On headphones, or in 5.1 surround, the gods move around you as the ship turns.'},
+  above:{k:'Rising',h:'Above the planets',p:'The whole solar system below, every god singing at once.'},
+  ch4:{k:'IV',h:'The band',p:'The same real sky now plays as a band, from the club to the ballroom and the concert hall.'},
+  trance:{k:'Club · Trance',h:'The sky drives the music',p:'The Sun’s sign sets the key; Zeus, Kronos and Poseidon choose the chords; Aphrodite writes the melody. When planets come into aspect, the music builds, then drops.'},
+  waltz:{k:'Ballroom · Viennese waltz',h:'An orchestra',p:'Each style is played by its own kind of band, on recorded instruments.'},
+  tango:{k:'Ballroom · Tango',h:'Bandoneons and strings',p:''},
+  samba:{k:'Latin · Samba',h:'Surdo, agogô and guitar',p:''},
+  swing:{k:'Ballroom · Swing',h:'A big band',p:''},
+  fandango:{k:'Flamenco · Fandango',h:'Guitar, castanets and palmas',p:''},
+  bach:{k:'Concert · Bach',h:'Counterpoint',p:'Aphrodite’s sign composes a subject; the oboe answers, the harpsichord inverts it; a build becomes a stretto, and the climax brings the organ.'},
+  mozart:{k:'Concert · Mozart',h:'An eight-bar period',p:'A question ending on the dominant, an answer coming home, over an Alberti bass.'},
+  satie:{k:'Concert · Satie',h:'A slow three',p:'A bass note, a floating seventh chord, a sparse falling melody, as in the Gymnopédies.'},
+  debussy:{k:'Concert · Debussy',h:'Gliding chords',p:'Ninth chords slide in parallel; the Moon chooses the scale, whole-tone while she waxes, pentatonic while she wanes.'},
+  part:{k:'Concert · Pärt',h:'Tintinnabuli',p:'A melody moving step by step towards a central note, with a bell voice ringing the home triad.'},
+  reich:{k:'Concert · Reich',h:'Phasing',p:'Three marimbas play one pattern, shifted by the real angles of Venus and Mars, so the patterns slide apart as the planets move.'},
+  glass:{k:'Concert · Glass',h:'Additive arpeggios',p:'Organ figures that grow by a note each bar, threes against twos.'},
+  ch5:{k:'V',h:'On stage',p:'Built to perform.'},
+  stage:{k:'The Stage panel',h:'Headphones, PA, 5.1, lights',p:'Output for headphones, speakers, a PA or true 5.1 surround; MIDI out so the lights follow each god; projector view; and a Record button.'},
+  langs:{k:'Everywhere',h:'Nine languages, offline',p:'English · Polski · Cymraeg · Deutsch · Español · Français · Italiano · 中文 · 日本語. Install it from the browser and it plays without a signal.'},
+  end:{k:'Listen for yourself',h:'Music of the Spheres',p:'newbroman.github.io/Music_of_the_Spheres'}
+ }};
+const A=()=>window.MOTS&&MOTS.app;
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+// the scenes: page, seconds, caption (a key of T.S, or a thinker's own texts), card = a full title card, and what to do
+const SC=[
+ {pg:'dial',d:16,c:'intro',card:1,go:a=>{a.thinker('plato');a.interp('athens');a.speed(1/48)}},
+ {pg:'dial',d:34,c:'idea'},
+ {pg:'dial',d:28,c:'orb'},
+ {pg:'dial',d:26,c:'parts'},
+ {pg:'dial',d:12,c:'ch1',card:1,go:a=>{a.thinker('today');a.listenFrom('earth');a.speed(20)}},
+ {pg:'dial',d:42,c:'pitch',go:a=>a.speed(60)},
+ {pg:'dial',d:40,c:'sun',go:a=>a.listenFrom('sun')},
+ {pg:'dial',d:40,c:'zeus',go:a=>a.audition('jupiter')},
+ {pg:'dial',d:35,c:'moons'},
+ {pg:'dial',d:38,c:'saturn',go:a=>{a.unaudition();a.listenFrom('saturn')}},
+ {pg:'dial',d:40,c:'aspects',go:a=>{a.listenFrom('earth');a.speed(30)}},
+ {pg:'dial',d:35,c:'year',go:a=>a.speed(365)},
+ {pg:'dial',d:35,c:'web',go:a=>a.speed(20)},
+ {pg:'dial',d:14,c:'ch2',card:1,go:a=>{a.interp('athens');a.thinker('pythagoras')}},
+ {pg:'dial',d:60,th:'pythagoras'},
+ {pg:'dial',d:50,th:'philolaus'},
+ {pg:'dial',d:75,th:'plato'},
+ {pg:'dial',d:38,c:'written',go:a=>{a.thinker('plato');a.interp('text')}},
+ {pg:'dial',d:30,c:'athens',go:a=>a.interp('athens')},
+ {pg:'dial',d:85,th:'aristotle'},
+ {pg:'dial',d:50,th:'cicero'},
+ {pg:'dial',d:55,th:'nicomachus'},
+ {pg:'dial',d:70,th:'ptolemy'},
+ {pg:'dial',d:45,th:'boethius'},
+ {pg:'dial',d:45,th:'copernicus'},
+ {pg:'dial',d:55,th:'fludd'},
+ {pg:'dial',d:85,th:'kepler'},
+ {pg:'dial',d:40,c:'realtime',go:a=>{a.thinker('plato');a.interp('athens');a.speed(1/86400)}},
+ {pg:'dial',d:12,c:'ch3',card:1,go:a=>a.speed(1/48)},
+ {pg:'flight',d:30,c:'gaia'},
+ {pg:'flight',d:65,c:'tosat',go:a=>a.travel('saturn')},
+ {pg:'flight',d:50,c:'cruise',go:a=>a.cruise()},
+ {pg:'flight',d:55,c:'above',go:a=>{a.uncruise();a.above()}},
+ {pg:'dial',d:12,c:'ch4',card:1},
+ {pg:'dance',d:95,c:'trance',dance:'trance',sky:800},
+ {pg:'dance',d:45,c:'waltz',dance:'waltz',sky:500},
+ {pg:'dance',d:30,c:'tango',dance:'tango'},
+ {pg:'dance',d:30,c:'samba',dance:'samba'},
+ {pg:'dance',d:30,c:'swing',dance:'swing'},
+ {pg:'dance',d:30,c:'fandango',dance:'fandango'},
+ {pg:'dance',d:70,c:'bach',dance:'baroque'},
+ {pg:'dance',d:45,c:'mozart',dance:'mozart'},
+ {pg:'dance',d:45,c:'satie',dance:'satie'},
+ {pg:'dance',d:45,c:'debussy',dance:'debussy'},
+ {pg:'dance',d:45,c:'part',dance:'part'},
+ {pg:'dance',d:60,c:'reich',dance:'reich',sky:900},
+ {pg:'dance',d:50,c:'glass',dance:'glass',sky:500},
+ {pg:'dial',d:12,c:'ch5',card:1,go:a=>{a.thinker('plato');a.interp('athens');a.speed(1/48)}},
+ {pg:'dial',d:40,c:'stage'},
+ {pg:'dial',d:35,c:'langs'},
+ {pg:'dial',d:60,c:'end',card:1}
+];
+// captions and music get a little more room so the whole show runs about forty minutes
+SC.forEach(x=>{if(!x.card)x.d=Math.round(x.d*1.1)});
+const TOTAL=SC.reduce((s,x)=>s+x.d,0);
+const css=document.createElement('style');
+css.textContent=`
+html.mots-show #motsProjX,html.mots-show #langHint{display:none!important}
+html.mots-proj #motsShow,html.mots-proj #motsShow *{visibility:visible!important}
+#motsShow{position:fixed;inset:0;z-index:9500;pointer-events:none;font-family:"Alegreya Sans",system-ui,sans-serif;color:#F1E6C8}
+#motsShow iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#05060c;opacity:0;transition:opacity .9s}
+#motsShow iframe.on{opacity:1}
+#motsShow .card{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vh;text-align:center;padding:6vh 8vw;background:radial-gradient(ellipse at 50% 45%,rgba(20,24,48,.84),rgba(5,6,12,.95));opacity:0;transition:opacity 1.2s}
+#motsShow .card.on{opacity:1}
+#motsShow .card .k{font-size:clamp(14px,1.6vw,26px);letter-spacing:.3em;text-transform:uppercase;color:#D4A657}
+#motsShow .card h1{margin:0;font:400 clamp(36px,6.4vw,112px)/1.05 "GFS Didot",Georgia,serif;color:#F1E6C8}
+#motsShow .card p{margin:0;max-width:62ch;font-size:clamp(16px,1.9vw,32px);line-height:1.45;color:#C9C0A8}
+#motsShow .cap{position:absolute;left:4vw;bottom:7vh;max-width:min(48vw,880px);padding:2.4vh 2vw;border-radius:14px;background:linear-gradient(180deg,rgba(9,11,24,.74),rgba(9,11,24,.9));border-left:3px solid #D4A657;opacity:0;transform:translateY(12px);transition:opacity .8s,transform .8s}
+#motsShow .cap.on{opacity:1;transform:none}
+#motsShow .cap .k{font-size:clamp(12px,1.1vw,20px);letter-spacing:.24em;text-transform:uppercase;color:#D4A657;margin-bottom:.6vh}
+#motsShow .cap h2{margin:0 0 1vh;font:400 clamp(24px,2.8vw,50px)/1.12 "GFS Didot",Georgia,serif;color:#F1E6C8}
+#motsShow .cap p{margin:0;font-size:clamp(14px,1.35vw,24px);line-height:1.45;color:#D8CFB8}
+#motsShow .cap p+p{margin-top:1vh}
+#motsShow .cap .y{color:#D4A657}
+#motsShow .bar{position:absolute;right:2vw;bottom:2.5vh;display:flex;gap:8px;align-items:center;pointer-events:auto;background:rgba(9,11,24,.78);border:1px solid #2b3050;border-radius:999px;padding:6px 10px;transition:opacity .6s}
+#motsShow.idle .bar{opacity:0}
+#motsShow .bar button{appearance:none;border:0;background:transparent;color:#F1E6C8;font-size:20px;width:42px;height:42px;border-radius:50%;cursor:pointer}
+#motsShow .bar button:hover{background:#1d2140;color:#E9D093}
+#motsShow .bar .t{font:14px/1 "IBM Plex Mono",ui-monospace,monospace;color:#A39C89;padding:0 6px;min-width:110px;text-align:center}
+#motsShow .prog{position:absolute;left:0;bottom:0;height:3px;background:#D4A657;width:0;transition:width 1s linear}
+#motsShow .tap{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:auto;appearance:none;border:0;background:#D4A657;color:#14110A;font:700 20px/1 "Alegreya Sans",system-ui,sans-serif;padding:18px 28px;border-radius:999px;cursor:pointer;display:none}
+@media (max-width:760px){#motsShow .cap{left:3vw;right:3vw;max-width:none;bottom:10vh}}
+`;
+document.head.appendChild(css);
+let el=null,frame=null,curPg='dial',i=-1,left=0,timer=null,tick=null,paused=false,elapsed=0,idleT=null,gen=0;
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function capFor(sc){
+  if(sc.th){const t=A().tt[sc.th];return {k:`${t.when} · ${t.work}`,h:t.name,p:t.idea,y:t.hear}}
+  return T.S[sc.c];
+}
+function caption(sc){
+  const c=capFor(sc),card=el.querySelector('.card'),cap=el.querySelector('.cap'),g=gen;
+  card.classList.remove('on');cap.classList.remove('on');
+  setTimeout(()=>{if(!el||g!==gen)return;
+    if(sc.card){card.innerHTML=`<div class="k">${esc(c.k)}</div><h1>${esc(c.h)}</h1>${c.p?`<p>${esc(c.p)}</p>`:''}`;card.classList.add('on')}
+    else{cap.innerHTML=`<div class="k">${esc(c.k)}</div><h2>${esc(c.h)}</h2>${c.p?`<p>${esc(c.p)}</p>`:''}${c.y?`<p><span class="y">${esc(T.youHear)}:</span> ${esc(c.y)}</p>`:''}`;cap.classList.add('on')}
+  },sc.card?400:700);
+}
+// the flight and the dance pages run in a frame over the dial (same site), so the show can drive them
+function framed(pg){
+  return new Promise(res=>{
+    frame=document.createElement('iframe');frame.dataset.pg=pg;frame.allow='autoplay; fullscreen; midi';frame.title=pg;
+    frame.src=(pg==='flight'?'flight.html':'dance.html')+'?show=1';el.insertBefore(frame,el.firstChild);
+    frame.onload=async()=>{const w=frame.contentWindow;for(let k=0;k<50&&!(w.MOTS&&w.MOTS.projector&&(pg==='dance'||w.MOTS.app));k++)await wait(100);
+      try{w.MOTS.projector(true,{noFS:true})}catch(e){}
+      frame.classList.add('on');res(w)};
+  });
+}
+function dropFrame(){if(!frame)return;const f=frame;frame=null;try{const w=f.contentWindow;w.MOTS&&w.MOTS.app&&w.MOTS.app.stop()}catch(e){}f.classList.remove('on');setTimeout(()=>f.remove(),900)}
+async function toPage(pg){
+  if(pg===curPg)return pg==='dial'?null:frame&&frame.contentWindow;
+  if(curPg!=='dial')dropFrame();
+  curPg=pg;
+  if(pg==='dial'){await A().start();return null}
+  A().stop();const w=await framed(pg);
+  if(pg==='flight')await w.MOTS.app.start();
+  return w;
+}
+async function danceDo(w,sc){
+  const d=w.document,b=d.querySelector(`#style button[data-v="${sc.dance}"]`);if(b)b.click();
+  if(sc.sky!=null){const s=d.getElementById('dpb');if(s){s.value=sc.sky;s.dispatchEvent(new Event('input'))}}
+  if(!w.__showPlaying){await wait(150);const pl=d.getElementById('play');if(pl){pl.click();w.__showPlaying=true}}
+}
+async function run(n){
+  clearTimeout(timer);gen++;i=Math.max(0,Math.min(SC.length-1,n));const sc=SC[i],g=gen;
+  elapsed=SC.slice(0,i).reduce((s,x)=>s+x.d,0);left=sc.d;caption(sc);
+  try{
+    const w=await toPage(sc.pg);if(g!==gen)return;
+    if(sc.pg==='dial'){if(sc.go)await sc.go(A());if(sc.th){A().interp('athens');A().thinker(sc.th)}}
+    else if(sc.pg==='flight'&&sc.go)await sc.go(w.MOTS.app);
+    else if(sc.pg==='dance')await danceDo(w,sc);
+  }catch(e){console.warn('show',e)}
+  checkSound();if(!paused)arm();
+}
+function arm(){clearTimeout(timer);timer=setTimeout(()=>{if(i<SC.length-1)run(i+1);else stop()},left*1000)}
+function fmt(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+function tickUI(){if(!el)return;if(!paused)left=Math.max(0,left-1);const done=elapsed+(SC[i]?SC[i].d-left:0);
+  el.querySelector('.t').textContent=fmt(done)+' / '+fmt(TOTAL);el.querySelector('.prog').style.width=(100*done/TOTAL)+'%'}
+// a browser may hold the sound back until it gets a tap: offer one
+const ctxOf=()=>{try{const w=frame?frame.contentWindow:window;return w.MOTS&&w.MOTS.audioCtx&&w.MOTS.audioCtx()}catch(e){return null}};
+function checkSound(){setTimeout(()=>{if(!el)return;const c=ctxOf();el.querySelector('.tap').style.display=c&&c.state==='suspended'?'block':'none'},1800)}
+function pause(p){paused=p;const b=el.querySelector('.pp');b.textContent=p?'▶':'❚❚';b.title=p?T.play:T.pause;if(p)clearTimeout(timer);else arm()}
+function wake(){if(!el)return;el.classList.remove('idle');clearTimeout(idleT);idleT=setTimeout(()=>el&&el.classList.add('idle'),3000)}
+function key(e){if(!el)return;if(e.key===' '){e.preventDefault();pause(!paused)}else if(e.key==='ArrowRight'){e.preventDefault();run(i+1)}else if(e.key==='ArrowLeft'){e.preventDefault();run(i-1)}else if(e.key==='Escape')stop()}
+async function start(){
+  if(el)return;const tour=document.getElementById('tour');if(tour)tour.remove();
+  document.documentElement.classList.add('mots-show');
+  el=document.createElement('div');el.id='motsShow';
+  el.innerHTML=`<div class="card"></div><div class="cap"></div><button type="button" class="tap">${T.tap}</button><div class="bar"><button type="button" class="pv" title="${T.prev}" aria-label="${T.prev}">⏮</button><button type="button" class="pp" title="${T.pause}" aria-label="${T.pause}">❚❚</button><button type="button" class="nx" title="${T.next}" aria-label="${T.next}">⏭</button><span class="t"></span><button type="button" class="x" title="${T.exit}" aria-label="${T.exit}">✕</button></div><div class="prog"></div>`;
+  document.body.appendChild(el);
+  el.querySelector('.pv').onclick=()=>run(i-1);el.querySelector('.nx').onclick=()=>run(i+1);el.querySelector('.pp').onclick=()=>pause(!paused);el.querySelector('.x').onclick=stop;
+  el.querySelector('.tap').onclick=()=>{const c=ctxOf();if(c)c.resume();el.querySelector('.tap').style.display='none'};
+  addEventListener('keydown',key,true);addEventListener('pointermove',wake);wake();
+  if(window.MOTS&&MOTS.projector)MOTS.projector(true);
+  paused=false;curPg='dial';tick=setInterval(tickUI,1000);
+  try{await A().start()}catch(e){}
+  await run(0);
+}
+function stop(){
+  clearTimeout(timer);clearInterval(tick);gen++;removeEventListener('keydown',key,true);removeEventListener('pointermove',wake);
+  dropFrame();if(el){el.remove();el=null}document.documentElement.classList.remove('mots-show');
+  if(curPg!=='dial'){curPg='dial';try{A().start()}catch(e){}}
+  if(window.MOTS&&MOTS.projector&&document.documentElement.classList.contains('mots-proj'))MOTS.projector(false);
+}
+window.MOTS=window.MOTS||{};MOTS.show={start,stop,scenes:SC,total:TOTAL};
+// a Show button beside Stage, and an entry in the Extras menu
+const add=()=>{
+  const st=document.getElementById('stageBtn');if(st&&!document.getElementById('showBtn')){const b=document.createElement('button');b.type='button';b.id='showBtn';b.className=st.className;b.style.cssText=st.style.cssText;b.textContent='▶ '+T.show;b.title=T.title;b.onclick=start;st.insertAdjacentElement('afterend',b)}
+  const menu=document.querySelector('.extras .menu');if(menu&&!document.getElementById('showLink')){const a=document.createElement('a');a.href='#';a.id='showLink';a.textContent=T.title;a.onclick=e=>{e.preventDefault();const d=menu.closest('details');if(d)d.open=false;start()};menu.prepend(a)}
+};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(add,0));else setTimeout(add,0);
+})();
+/*SHOW-END*/
 </script>
 <script>
 (()=>{
@@ -2629,6 +2854,15 @@ computePositions();resize();renderRoster();renderTimeline();
 $('timeline').addEventListener('click',e=>{const c=e.target.closest('.tl-chip');if(c)setThinker(c.dataset.t)});
 // the app opens on Plato's heavens, heard from Athens, unless the address names another thinker (or #today)
 {const h=location.hash.slice(1);if(h==='today'||!THINK[h]){if(h!=='today'){S.interp='athens';setThinker('plato')}else renderInfo()}else setThinker(h)}
+// hooks for the self-running show
+window.MOTS=window.MOTS||{};
+MOTS.app={tt:TT,think:THINK,
+  thinker:id=>{if(SYS.id)leaveSystem();if(S.audition)endAudition();setThinker(id)},
+  interp:m=>{const b=document.querySelector('#interpSeg button[data-i="'+m+'"]');if(b&&b.getAttribute('aria-pressed')!=='true')b.click()},
+  start:()=>audioOn?Promise.resolve():startAudio(),stop:()=>{if(audioOn)stopAudio()},playing:()=>audioOn,
+  audition:id=>audition(id),unaudition:()=>{if(S.audition)endAudition()},select:id=>select(id),
+  speed:d=>setSpeed(d),listenFrom:id=>{if(SYS.id)leaveSystem();S.vp=id;$('vp').value=id;renderInfo()},
+  playTime:on=>{if(S.playing!==on)$('play').click()}};
 requestAnimationFrame(frame);
 })();
 </script>

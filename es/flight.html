@@ -205,7 +205,7 @@ AudioNode.prototype.connect=function(t,...r){
 };
 MOTS.onOut=fn=>{outFns.push(fn);if(mode)fn(mode)};
 MOTS.setOut=m=>{if(m==='5.1'&&!surOK()){msgOut(T.s51No.replace('{n}',MOTS.surround?MOTS.surround.channels():2));return}mode=m;LS.set('mots.out',m);if(MOTS.surround&&SUR.cfg)surApply(m==='5.1');setWidth();outFns.forEach(f=>f(m));syncOut()};
-MOTS.outMode=()=>mode;
+MOTS.outMode=()=>mode;MOTS.audioCtx=()=>ctx;
 MOTS.defaultOut=m=>{if(!mode)mode=m;syncOut()};
 
 /* --- 5.1 surround: each registered voice is placed among five speakers by its direction from the listener --- */
@@ -339,9 +339,9 @@ html.mots-proj #motsProjX{display:block;visibility:visible!important}html.mots-p
 document.head.appendChild(css);
 const X=document.createElement('button');X.id='motsProjX';X.type='button';X.textContent='✕';X.title=X.ariaLabel=T.exit;document.body.appendChild(X);
 let idleT=null;const wake=()=>{document.documentElement.classList.remove('idle');clearTimeout(idleT);idleT=setTimeout(()=>document.documentElement.classList.add('idle'),3000)};
-function proj(on){const h=document.documentElement;h.classList.toggle('mots-proj',on);
-  if(on){const p=document.getElementById('stPanel');if(p)p.remove();wake();addEventListener('pointermove',wake);if(h.requestFullscreen&&!document.fullscreenElement)h.requestFullscreen().catch(()=>{});lock(true)}
-  else{removeEventListener('pointermove',wake);h.classList.remove('idle');if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{});lock(awakeOn)}
+function proj(on,o={}){const h=document.documentElement;h.classList.toggle('mots-proj',on);
+  if(on){const p=document.getElementById('stPanel');if(p)p.remove();wake();addEventListener('pointermove',wake);if(!o.noFS&&h.requestFullscreen&&!document.fullscreenElement)h.requestFullscreen().catch(()=>{});lock(true)}
+  else{removeEventListener('pointermove',wake);h.classList.remove('idle');if(!o.noFS&&document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{});lock(awakeOn)}
   dispatchEvent(new Event('resize'))}
 X.onclick=()=>proj(false);
 addEventListener('keydown',e=>{if(e.key==='Escape'&&document.documentElement.classList.contains('mots-proj'))proj(false)});
@@ -1937,6 +1937,10 @@ function frame3(t){
   requestAnimationFrame(frame3);
 }
 requestAnimationFrame(frame3);
+// hooks for the self-running show
+window.MOTS=window.MOTS||{};
+MOTS.app={start:()=>audioOn?Promise.resolve():startAudio3D(),stop:()=>{if(audioOn)stopAudio3D()},
+  travel:id=>{resumeAudio();travelTo(id)},cruise:()=>{resumeAudio();if(!ship.cruise)toggleCruise()},uncruise:()=>{if(ship.cruise)toggleCruise()},above:()=>{resumeAudio();riseAbove()}};
 
 })();
 </script>
