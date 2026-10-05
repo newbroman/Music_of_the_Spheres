@@ -83,6 +83,9 @@ input[type=range]{width:100%;accent-color:var(--bronze)}
 .mb[aria-pressed="true"]{background:#5a2b2b;color:#f2c7c7;border-color:#8a4444}
 .foot{font-size:.82rem;color:var(--vellum-dim);max-width:90ch}
 @media (prefers-reduced-motion:reduce){.toast,.meter i{transition:none}}
+.recb{appearance:none;border:1px solid var(--bronze-dim);color:var(--bronze);border-radius:999px;padding:11px 18px;font-size:.85rem;letter-spacing:.04em;white-space:nowrap}
+.rec{background:transparent;cursor:pointer;font:inherit}
+.rec.on{background:#5a2b2b;color:#f2c7c7;border-color:#8a4444}
 </style>
 </head>
 <body>
@@ -98,6 +101,7 @@ input[type=range]{width:100%;accent-color:var(--bronze)}
 
   <section class="deck" aria-label="Transport">
     <button class="play" id="play" aria-pressed="false">Play</button>
+    <button class="recb rec" id="recBtn" data-start="#play" data-name="dance-of-the-spheres" aria-pressed="false">Record</button>
     <div class="styles" id="style">
       <div class="sgrp"><span class="lab">Club</span><div class="seg"><button data-v="trance" aria-pressed="true">Trance</button><button data-v="house" aria-pressed="false">House</button><button data-v="techno" aria-pressed="false">Techno</button></div></div>
       <div class="sgrp"><span class="lab">Ballroom &amp; Latin</span><div class="seg"><button data-v="waltz" aria-pressed="false">Waltz</button><button data-v="tango" aria-pressed="false">Tango</button><button data-v="samba" aria-pressed="false">Samba</button><button data-v="chacha" aria-pressed="false">Cha-cha</button><button data-v="swing" aria-pressed="false">Swing</button><button data-v="jive" aria-pressed="false">Jive</button><button data-v="fandango" aria-pressed="false">Fandango</button></div></div>
@@ -134,6 +138,63 @@ input[type=range]{width:100%;accent-color:var(--bronze)}
   </div>
   <p class="foot">Pitches use Pythagorean tuning in the style's Greek mode: Hypodorian (minor) for trance and tango, Phrygian (the modern Dorian) for house and cha-cha, Dorian (the modern Phrygian) for techno and fandango, Lydian (the modern major) for the waltz, and Hypophrygian (the modern Mixolydian) for samba, swing and jive. The waltz and fandango are in three; swing and jive swing their eighths in triplets. The fandango follows the Andalusian cadence, with the sky choosing its first two chords. The key follows the Sun's sign. Builds start when an aspect between planets tightens and drop as it comes exact. If the sky stays quiet for 32 bars, the band builds anyway. Headphones recommended. The ballroom and Latin bands play recorded instruments from the Fluid R3 General MIDI SoundFont by Frank Wen (<a href="https://creativecommons.org/licenses/by/3.0/" style="color:inherit">CC BY 3.0</a>).</p>
 </div>
+<script>
+/* ---------- recorder: captures the page's own sound output to an audio file ---------- */
+(()=>{
+"use strict";
+const T={rec:'Record',stop:'Stop',save:'Save recording',close:'Close',none:'Recording is not supported in this browser.',start:'Start the sound first, then record.',done:'Your recording'};
+// every connection to the speakers is also sent to a recording tap, whichever page or style made it
+let ctx=null;const _c=AudioNode.prototype.connect;
+AudioNode.prototype.connect=function(t,...r){
+  const res=_c.call(this,t,...r);
+  try{if(t instanceof AudioDestinationNode&&this.context.createMediaStreamDestination){const c=this.context;if(!c.__rec)c.__rec=c.createMediaStreamDestination();_c.call(this,c.__rec);ctx=c}}catch(e){}
+  return res;
+};
+const btn=document.getElementById('recBtn');if(!btn)return;
+const label=()=>{btn.innerHTML='<span aria-hidden="true">●</span> '+T.rec};label();
+let mr=null,chunks=[],t0=0,tick=0,lastURL=null;
+const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+const TYPES=['audio/mp4;codecs=mp4a.40.2','audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'];
+const pick=()=>TYPES.find(x=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(x))||'';
+const ext=t=>/mp4/.test(t)?'m4a':/ogg/.test(t)?'ogg':'webm';
+function panel(){
+  let p=document.getElementById('recPanel');if(p)return p;
+  p=document.createElement('div');p.id='recPanel';p.setAttribute('role','dialog');
+  p.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;width:min(420px,calc(100% - 32px));background:#13162a;color:#e9e1cc;border:1px solid #c9984f;border-radius:10px;padding:12px 14px;font:15px/1.4 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5)';
+  document.body.appendChild(p);return p;
+}
+function note(msg){const p=panel();p.innerHTML=`<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><span>${msg}</span><button id="recClose" style="appearance:none;border:1px solid #2b3050;background:transparent;color:#a39c89;border-radius:6px;padding:6px 10px;cursor:pointer">${T.close}</button></div>`;p.querySelector('#recClose').onclick=()=>p.remove()}
+function show(blob,type){
+  if(lastURL)URL.revokeObjectURL(lastURL);lastURL=URL.createObjectURL(blob);
+  const d=new Date(),stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
+  const name=(typeof window.recName==='function'?window.recName():btn.dataset.name||'music-of-the-spheres')+'-'+stamp+'.'+ext(type);
+  const p=panel();
+  p.innerHTML=`<div style="font-family:'GFS Didot',Georgia,serif;color:#c9984f;margin-bottom:6px">${T.done} · ${clock((performance.now()-t0)/1000)}</div>
+    <audio controls src="${lastURL}" style="width:100%;display:block"></audio>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <a href="${lastURL}" download="${name}" style="flex:1;text-align:center;text-decoration:none;background:linear-gradient(180deg,#d7a75d,#a87a37);color:#1a1206;font-weight:700;border-radius:999px;padding:9px 14px">${T.save}</a>
+      <button id="recClose" style="appearance:none;border:1px solid #2b3050;background:transparent;color:#a39c89;border-radius:999px;padding:9px 14px;cursor:pointer">${T.close}</button>
+    </div>
+    <div style="font-size:12px;color:#a39c89;margin-top:6px;word-break:break-all">${name}</div>`;
+  p.querySelector('#recClose').onclick=()=>p.remove();
+}
+btn.onclick=async()=>{
+  if(mr){mr.stop();return}
+  if(!window.MediaRecorder){note(T.none);return}
+  // start the sound if it is not already playing
+  if(!ctx||ctx.state!=='running'){const s=document.querySelector(btn.dataset.start);if(s&&s.getAttribute('aria-pressed')!=='true')s.click();await new Promise(r=>setTimeout(r,500))}
+  if(!ctx||!ctx.__rec){note(T.start);return}
+  const type=pick();chunks=[];
+  try{mr=new MediaRecorder(ctx.__rec.stream,type?{mimeType:type,audioBitsPerSecond:192000}:undefined)}catch(e){try{mr=new MediaRecorder(ctx.__rec.stream)}catch(e2){mr=null;note(T.none);return}}
+  const used=mr.mimeType||type||'audio/webm';
+  mr.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+  mr.onstop=()=>{clearInterval(tick);btn.classList.remove('on');btn.setAttribute('aria-pressed','false');label();mr=null;show(new Blob(chunks,{type:used.split(';')[0]}),used)};
+  const old=document.getElementById('recPanel');if(old)old.remove();
+  mr.start(1000);t0=performance.now();btn.classList.add('on');btn.setAttribute('aria-pressed','true');
+  const upd=()=>{btn.innerHTML='<span aria-hidden="true">■</span> '+T.stop+' '+clock((performance.now()-t0)/1000)};upd();tick=setInterval(upd,250);
+};
+})();
+</script>
 <script>
 (()=>{
 'use strict';
@@ -396,6 +457,7 @@ const STYLES={
 const D={style:'trance',bpm:138,dpb:3,vol:.7,playing:false,step:0,section:'intro',secBar:0,secLen:8,energy:.4,lastDrop:-99,prevMax:0,
   mute:new Set(),prog:[0,5,3,4],progInfo:[],motif:null,motifKey:'',tomPat:null,tomKey:'',acid:null,acidKey:''};
 const STY=()=>STYLES[D.style];
+const RECBASE='dance-of-the-spheres-';
 // each style's output level, so the acoustic styles sit as loud as the club ones
 const outGain=()=>D.vol*.42*(STY().gain||1);
 // steps per bar: four sixteenths per beat, three beats for the waltz and fandango
@@ -1015,6 +1077,7 @@ function readouts(){
 }
 
 /* ---- controls ---- */
+window.recName=()=>RECBASE+D.style;
 function syncPlay(){$('play').setAttribute('aria-pressed',String(D.playing));$('play').textContent=D.playing?'Stop':'Play'}
 $('play').onclick=()=>D.playing?stopDance():startDance();
 document.querySelectorAll('#style button').forEach(b=>b.onclick=()=>setStyle(b.dataset.v));

@@ -12,7 +12,7 @@
 
 A live orrery that you can hear. Every planet, moon, dwarf planet and comet sings with the voice of a Greek god. The music comes from the real motions of the solar system, and you choose where you stand and listen.
 
-Headphones give the best result. Browsers only allow sound after a tap, so press **Begin the harmony** or tap a planet.
+Headphones give the best result. Every page has a **Record** button that saves what you hear as an audio file (.m4a or .webm). Browsers only allow sound after a tap, so press **Begin the harmony** or tap a planet.
 
 ## The idea
 

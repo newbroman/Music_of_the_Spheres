@@ -46,6 +46,8 @@ button,select,input{font:inherit;color:inherit}
 .begin{appearance:none;border:1px solid var(--bronze);background:linear-gradient(180deg,#d7a75d,#a87a37);color:#1a1206;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:.85rem;padding:14px 22px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:10px;white-space:nowrap}
 .fly3d{color:var(--bronze);text-decoration:none;border:1px solid var(--bronze-dim);border-radius:999px;padding:13px 18px;font-size:.85rem;letter-spacing:.04em;white-space:nowrap}
 .fly3d:hover{border-color:var(--bronze)}
+.rec{background:transparent;cursor:pointer;font:inherit}
+.rec.on{background:#5a2b2b;color:#f2c7c7;border-color:#8a4444}
 .begin[aria-pressed="true"]{background:transparent;color:var(--bronze)}
 .begin .dot{width:9px;height:9px;border-radius:50%;background:currentColor}
 .begin[aria-pressed="true"] .dot{animation:pulse 1.6s ease-in-out infinite}
@@ -149,6 +151,7 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
     <button class="begin" id="begin" aria-pressed="false"><span class="dot"></span><span id="beginLabel">Begin the harmony</span></button>
+      <button class="fly3d rec" id="recBtn" data-start="#begin" data-name="music-of-the-spheres" aria-pressed="false">Record</button>
       <a class="fly3d" href="https://newbroman.github.io/Music_of_the_Spheres/flight.html">Fly through it in 3D →</a>
       <a class="fly3d" href="https://newbroman.github.io/Music_of_the_Spheres/dance.html">Dance →</a>
       <a class="fly3d" href="https://newbroman.github.io/Music_of_the_Spheres/help.html">How it works</a>
@@ -275,6 +278,63 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
   </section>
 </div>
 
+<script>
+/* ---------- recorder: captures the page's own sound output to an audio file ---------- */
+(()=>{
+"use strict";
+const T={rec:'Record',stop:'Stop',save:'Save recording',close:'Close',none:'Recording is not supported in this browser.',start:'Start the sound first, then record.',done:'Your recording'};
+// every connection to the speakers is also sent to a recording tap, whichever page or style made it
+let ctx=null;const _c=AudioNode.prototype.connect;
+AudioNode.prototype.connect=function(t,...r){
+  const res=_c.call(this,t,...r);
+  try{if(t instanceof AudioDestinationNode&&this.context.createMediaStreamDestination){const c=this.context;if(!c.__rec)c.__rec=c.createMediaStreamDestination();_c.call(this,c.__rec);ctx=c}}catch(e){}
+  return res;
+};
+const btn=document.getElementById('recBtn');if(!btn)return;
+const label=()=>{btn.innerHTML='<span aria-hidden="true">●</span> '+T.rec};label();
+let mr=null,chunks=[],t0=0,tick=0,lastURL=null;
+const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+const TYPES=['audio/mp4;codecs=mp4a.40.2','audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'];
+const pick=()=>TYPES.find(x=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(x))||'';
+const ext=t=>/mp4/.test(t)?'m4a':/ogg/.test(t)?'ogg':'webm';
+function panel(){
+  let p=document.getElementById('recPanel');if(p)return p;
+  p=document.createElement('div');p.id='recPanel';p.setAttribute('role','dialog');
+  p.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;width:min(420px,calc(100% - 32px));background:#13162a;color:#e9e1cc;border:1px solid #c9984f;border-radius:10px;padding:12px 14px;font:15px/1.4 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5)';
+  document.body.appendChild(p);return p;
+}
+function note(msg){const p=panel();p.innerHTML=`<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><span>${msg}</span><button id="recClose" style="appearance:none;border:1px solid #2b3050;background:transparent;color:#a39c89;border-radius:6px;padding:6px 10px;cursor:pointer">${T.close}</button></div>`;p.querySelector('#recClose').onclick=()=>p.remove()}
+function show(blob,type){
+  if(lastURL)URL.revokeObjectURL(lastURL);lastURL=URL.createObjectURL(blob);
+  const d=new Date(),stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
+  const name=(typeof window.recName==='function'?window.recName():btn.dataset.name||'music-of-the-spheres')+'-'+stamp+'.'+ext(type);
+  const p=panel();
+  p.innerHTML=`<div style="font-family:'GFS Didot',Georgia,serif;color:#c9984f;margin-bottom:6px">${T.done} · ${clock((performance.now()-t0)/1000)}</div>
+    <audio controls src="${lastURL}" style="width:100%;display:block"></audio>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <a href="${lastURL}" download="${name}" style="flex:1;text-align:center;text-decoration:none;background:linear-gradient(180deg,#d7a75d,#a87a37);color:#1a1206;font-weight:700;border-radius:999px;padding:9px 14px">${T.save}</a>
+      <button id="recClose" style="appearance:none;border:1px solid #2b3050;background:transparent;color:#a39c89;border-radius:999px;padding:9px 14px;cursor:pointer">${T.close}</button>
+    </div>
+    <div style="font-size:12px;color:#a39c89;margin-top:6px;word-break:break-all">${name}</div>`;
+  p.querySelector('#recClose').onclick=()=>p.remove();
+}
+btn.onclick=async()=>{
+  if(mr){mr.stop();return}
+  if(!window.MediaRecorder){note(T.none);return}
+  // start the sound if it is not already playing
+  if(!ctx||ctx.state!=='running'){const s=document.querySelector(btn.dataset.start);if(s&&s.getAttribute('aria-pressed')!=='true')s.click();await new Promise(r=>setTimeout(r,500))}
+  if(!ctx||!ctx.__rec){note(T.start);return}
+  const type=pick();chunks=[];
+  try{mr=new MediaRecorder(ctx.__rec.stream,type?{mimeType:type,audioBitsPerSecond:192000}:undefined)}catch(e){try{mr=new MediaRecorder(ctx.__rec.stream)}catch(e2){mr=null;note(T.none);return}}
+  const used=mr.mimeType||type||'audio/webm';
+  mr.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+  mr.onstop=()=>{clearInterval(tick);btn.classList.remove('on');btn.setAttribute('aria-pressed','false');label();mr=null;show(new Blob(chunks,{type:used.split(';')[0]}),used)};
+  const old=document.getElementById('recPanel');if(old)old.remove();
+  mr.start(1000);t0=performance.now();btn.classList.add('on');btn.setAttribute('aria-pressed','true');
+  const upd=()=>{btn.innerHTML='<span aria-hidden="true">■</span> '+T.stop+' '+clock((performance.now()-t0)/1000)};upd();tick=setInterval(upd,250);
+};
+})();
+</script>
 <script>
 (()=>{
 'use strict';
