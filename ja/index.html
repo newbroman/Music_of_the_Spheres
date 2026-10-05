@@ -941,7 +941,11 @@ function checkSound(){setTimeout(()=>{if(!el)return;const c=ctxOf();el.querySele
 function pause(p){paused=p;const b=el.querySelector('.pp');b.textContent=p?'▶':'❚❚';b.title=p?T.play:T.pause;if(p)clearTimeout(timer);else arm()}
 function wake(){if(!el)return;el.classList.remove('idle');clearTimeout(idleT);idleT=setTimeout(()=>el&&el.classList.add('idle'),3000)}
 function key(e){if(!el)return;if(e.key===' '){e.preventDefault();pause(!paused)}else if(e.key==='ArrowRight'){e.preventDefault();run(i+1)}else if(e.key==='ArrowLeft'){e.preventDefault();run(i-1)}else if(e.key==='Escape')stop()}
+// outside the website itself (a preview, say) the show opens on the website, where it can drive every page
+const SITE='https://newbroman.github.io/Music_of_the_Spheres/';
+const onSite=()=>/(^|\.)github\.io$|^localhost$|^127\.0\.0\.1$/.test(location.hostname);
 async function start(){
+  if(!onSite()){window.open(SITE+((document.documentElement.lang||'en').slice(0,2)==='en'?'':document.documentElement.lang.slice(0,2)+'/')+'index.html?show=1','_blank','noopener');return}
   if(el)return;const tour=document.getElementById('tour');if(tour)tour.remove();
   document.documentElement.classList.add('mots-show');
   el=document.createElement('div');el.id='motsShow';
@@ -967,7 +971,12 @@ const add=()=>{
   const st=document.getElementById('stageBtn');if(st&&!document.getElementById('showBtn')){const b=document.createElement('button');b.type='button';b.id='showBtn';b.className=st.className;b.style.cssText=st.style.cssText;b.textContent='▶ '+T.show;b.title=T.title;b.onclick=start;st.insertAdjacentElement('afterend',b)}
   const menu=document.querySelector('.extras .menu');if(menu&&!document.getElementById('showLink')){const a=document.createElement('a');a.href='#';a.id='showLink';a.textContent=T.title;a.onclick=e=>{e.preventDefault();const d=menu.closest('details');if(d)d.open=false;start()};menu.prepend(a)}
 };
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(add,0));else setTimeout(add,0);
+const boot=()=>{add();
+  // opened as ?show=1: one tap starts the show (browsers need it for sound)
+  if(/[?&]show=1\b/.test(location.search)&&onSite()){const t=document.getElementById('tour');if(t)t.remove();const b=document.createElement('button');b.type='button';b.textContent='▶ '+T.title;
+    b.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9600;appearance:none;border:0;background:#D4A657;color:#14110A;font:700 24px/1 "Alegreya Sans",system-ui,sans-serif;padding:22px 34px;border-radius:999px;cursor:pointer;box-shadow:0 10px 40px rgba(0,0,0,.6)';
+    b.onclick=()=>{b.remove();start()};document.body.appendChild(b)}};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,50));else setTimeout(boot,50);
 })();
 /*SHOW-END*/
 </script>
