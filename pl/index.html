@@ -1605,9 +1605,10 @@ function drawSystem(g,t){
   // listener
   const L=sysListener(), lp=sysProj(L.x,L.y,L.z);drawListener(g,lp,sysFacing()+S.az);
 }
+// the speed slider runs logarithmically from real time (one second of sky per second) to 10,000 days a second
+const SPMIN=Math.log10(1/86400),SPMAX=4,spFrom=v=>Math.pow(10,SPMIN+v/1000*(SPMAX-SPMIN)),spTo=d=>Math.max(0,Math.min(1000,Math.round((Math.log10(d)-SPMIN)/(SPMAX-SPMIN)*1000)));
 function setSpeed(d){
-  const v=Math.max(0,Math.min(1000,Math.round((Math.log10(d)+1)/5*1000)));
-  $('speed').value=v;S.speed=Math.pow(10,-1+v/1000*5);if(d<.1)S.speed=d;$('speedOut').textContent=fmtSpeed(S.speed);
+  $('speed').value=spTo(d);S.speed=Math.max(1/86400,d);$('speedOut').textContent=fmtSpeed(S.speed);
 }
 function sysInfoHTML(){
   const b=byId[SYS.id];
@@ -1799,12 +1800,17 @@ if(window.MOTS&&MOTS.onOut){MOTS.defaultOut(S.hrtf?'hrtf':'stereo');setOutUI(MOT
 document.querySelectorAll('#spatial button').forEach(b=>b.onclick=()=>{if(window.MOTS&&MOTS.setOut)MOTS.setOut(b.dataset.v);else setOutUI(b.dataset.v)});
 function fmtSpeed(d){return fmtSpeedEn(d).replace('.',',')}
 function fmtSpeedEn(d){
+  if(d*86400<1.5)return 'czas rzeczywisty';
+  if(d*1440<1)return Math.round(d*86400)+'× czas rzeczywisty';
+  if(d<1/24)return (d*1440).toFixed(d*1440<10?1:0)+' min/s';
   if(d<1)return (d*24).toFixed(d*24<10?1:0)+' godz./s';
   if(d<60)return d.toFixed(d<10?1:0)+' dni/s';
   if(d<730)return (d/30.44).toFixed(d<304?1:0)+' mies./s';
   const y=d/365.25;return (y<10?y.toFixed(1):Math.round(y))+' lat/s';
 }
-$('speed').oninput=e=>{S.speed=Math.pow(10,-1+(+e.target.value)/1000*5);$('speedOut').textContent=fmtSpeed(S.speed)};$('speed').oninput({target:$('speed')});
+$('speed').oninput=e=>{S.speed=spFrom(+e.target.value);$('speedOut').textContent=fmtSpeed(S.speed)};setSpeed(20);
+// a Real time button beside Today: the sky turns at its true pace
+{const rt=document.createElement('button');rt.className='btn';rt.id='realTime';rt.textContent='Czas rzeczywisty';rt.onclick=()=>setSpeed(1/86400);$('today').insertAdjacentElement('afterend',rt)}
 $('play').onclick=()=>{S.playing=!S.playing;$('play').textContent=S.playing?'Pauza':'Start'};
 $('rev').onclick=()=>{S.dir*=-1;$('rev').textContent=S.dir>0?'◀ Wstecz':'Naprzód ▶'};
 $('today').onclick=()=>{S.jd=jdNow()};
@@ -2301,7 +2307,7 @@ function setThinker(id){
   if(AC){killSirens();hushWorld();stopSpeech()}
   if(id==='today'){if(SAVED){S.vp=SAVED.vp;S.face=SAVED.face;setSpeed(SAVED.speed)}}
   else if(isBodyModel()){S.vp='sun';S.face='vernal';if(wasGeo&&SAVED)setSpeed(SAVED.speed)}
-  else{S.vp='earth';if(athens())setSpeed(THINK[id].athSpeed||2.4/24)}
+  else{S.vp='earth';if(athens())setSpeed(THINK[id].athSpeed||1/48)}
   $('vp').value=S.vp;$('face').value=S.face;
   document.body.classList.toggle('thinking',id!=='today');
   try{history.replaceState(null,'',id==='today'?location.pathname:'#'+id)}catch(e){}
@@ -2353,7 +2359,7 @@ function colorOf(w){return byId[w]?byId[w].color:{moon:'#cfd6e0',sun:'#ffd98a',s
 function wireThinkerInfo(){
   $('info').querySelectorAll('.vrow2').forEach(b=>b.onclick=()=>thinkerTap(b.dataset.w));
   const bs=$('boeSeg');if(bs)bs.querySelectorAll('button').forEach(b=>b.onclick=()=>{SIR.boe=b.dataset.o;killSirens();SIR.solo=null;renderInfo();if(!audioOn)startAudio()});
-  const is=$('interpSeg');if(is)is.querySelectorAll('button').forEach(b=>b.onclick=()=>{S.interp=b.dataset.i;try{localStorage.setItem('mots.interp',S.interp)}catch(e){}killSirens();SIR.habT0=0;SIR.sunSign=null;SIR.handNext=0;if(athens())setSpeed(THINK[S.thinker].athSpeed||2.4/24);renderInfo();if(!audioOn)startAudio()});
+  const is=$('interpSeg');if(is)is.querySelectorAll('button').forEach(b=>b.onclick=()=>{S.interp=b.dataset.i;try{localStorage.setItem('mots.interp',S.interp)}catch(e){}killSirens();SIR.habT0=0;SIR.sunSign=null;SIR.handNext=0;if(athens())setSpeed(THINK[S.thinker].athSpeed||1/48);renderInfo();if(!audioOn)startAudio()});
   const rp=$('replyBtn');if(rp)rp.onclick=()=>{setThinker('pythagoras');if(!audioOn)startAudio()};
 }
 function tickThinkerInfo(){
