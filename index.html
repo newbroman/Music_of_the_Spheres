@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#090b18">
+<link rel="icon" type="image/png" href="icons/favicon-48.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script>if('serviceWorker' in navigator){const h=location.hostname,b=h==='newbroman.github.io'?'/Music_of_the_Spheres/':(h==='localhost'||h==='127.0.0.1')?'/':null;if(b)addEventListener('load',()=>navigator.serviceWorker.register(b+'sw.js',{scope:b}).catch(()=>{}))}</script>
 <link rel="alternate" hreflang="pl" href="https://newbroman.github.io/Music_of_the_Spheres/pl/">
 <meta name="description" content="Hear the music of the spheres as each thinker imagined it, from Pythagoras, Plato and Ptolemy to Kepler, drawn from the real sky of the moment, and the whole solar system today sung by the Greek gods.">
 <title>Music of the Spheres</title>
@@ -220,7 +225,7 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
         <div class="field"><label for="face">Face toward</label><select id="face"></select></div>
         <div class="field"><label for="turn">Turn your head <output id="turnOut">0°</output></label><input id="turn" type="range" min="-180" max="180" step="1" value="0"></div>
         <div class="field"><span class="lab">Output</span>
-          <div class="seg" id="spatial"><button data-v="hrtf" aria-pressed="true">Headphones · 3D</button><button data-v="stereo" aria-pressed="false">Speakers · stereo</button></div>
+          <div class="seg" id="spatial"><button data-v="hrtf" aria-pressed="true">Headphones · 3D</button><button data-v="stereo" aria-pressed="false">Speakers</button><button data-v="pa" aria-pressed="false">PA</button><button data-v="mono" aria-pressed="false">Mono</button></div>
         </div>
       </section>
 
@@ -311,6 +316,148 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
   </section>
 </div>
 
+<script>
+/*STAGE-START*//* ---------- stage: sound output for headphones, speakers or a PA; MIDI out for lights; projector view ---------- */
+(()=>{
+"use strict";
+const T={stage:'Stage',title:'Live and stage',output:'Output',hrtf:'Headphones',stereo:'Speakers',pa:'PA',mono:'Mono',
+  outNote:{hrtf:'Full 3D placement, for headphones.',stereo:'Plain left and right, for a pair of speakers.',pa:'For a PA in a room: the stereo is narrowed so people near one speaker still hear every god.',mono:'Everything in both speakers: for a mono PA, or a single speaker.'},
+  midi:'MIDI out',midiOff:'Off',midiConnect:'Connect MIDI',midiNone:'No MIDI devices found. Plug one in, then press Connect again.',midiNo:'This browser has no Web MIDI. Use Chrome or Edge on Android, Windows, Mac or Linux (not iPhone).',midiDenied:'MIDI permission was refused.',
+  clock:'Send MIDI clock',midiMap:'What is sent',
+  map:'Each god plays on its own MIDI channel, with its real pitch: 1 Helios (Sun), 2 Hermes, 3 Aphrodite, 4 Gaia, 5 Ares, 6 Zeus, 7 Kronos, 8 Ouranos, 9 Poseidon, 10 Jupiter’s moons, 11 everything else. On a lighting desk, any note on a channel can fire that god’s cue. Channel 16 carries the show: CC 20 the section (intro 0, groove 32, build 64, drop 96, break 127), CC 21 the overall loudness, and a note at each section change (36 intro, 37 groove, 38 build, 39 drop, 40 break). Drones on the dial also send CC 20 on their own channel for their loudness.',
+  proj:'Projector view',projNote:'Full screen with the controls hidden. Tap the corner button or press Esc to come back.',exit:'Exit projector view',
+  awake:'Keep the screen awake',close:'Close'};
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+const MOTS=window.MOTS=window.MOTS||{};
+
+/* --- output stage: every connection to the speakers passes through a width matrix --- */
+let ctx=null,mode=LS.get('mots.out'),inNode=null,an=null,G=null;const outFns=[];
+const _c=AudioNode.prototype.connect;
+function build(c){
+  ctx=c;inNode=c.createGain();inNode.channelCount=2;inNode.channelCountMode='explicit';inNode.channelInterpretation='speakers';
+  const sp=c.createChannelSplitter(2),mg=c.createChannelMerger(2);_c.call(inNode,sp);
+  G={ll:c.createGain(),lr:c.createGain(),rl:c.createGain(),rr:c.createGain()};
+  _c.call(sp,G.ll,0);_c.call(sp,G.lr,0);_c.call(sp,G.rl,1);_c.call(sp,G.rr,1);
+  _c.call(G.ll,mg,0,0);_c.call(G.rl,mg,0,0);_c.call(G.lr,mg,0,1);_c.call(G.rr,mg,0,1);
+  _c.call(mg,c.destination);an=c.createAnalyser();an.fftSize=1024;_c.call(inNode,an);setWidth(true);
+}
+const WIDTH={hrtf:1,stereo:1,pa:.55,mono:0};
+function setWidth(now){if(!G)return;const w=WIDTH[mode]??1,a=(1+w)/2,b=(1-w)/2,t=ctx.currentTime,tc=now?.001:.08;
+  G.ll.gain.setTargetAtTime(a,t,tc);G.rr.gain.setTargetAtTime(a,t,tc);G.lr.gain.setTargetAtTime(b,t,tc);G.rl.gain.setTargetAtTime(b,t,tc)}
+AudioNode.prototype.connect=function(t,...r){
+  try{if(t instanceof AudioDestinationNode&&!r.length){if(!inNode||ctx!==this.context)build(this.context);return _c.call(this,inNode)}}catch(e){}
+  return _c.call(this,t,...r);
+};
+MOTS.onOut=fn=>{outFns.push(fn);if(mode)fn(mode)};
+MOTS.setOut=m=>{mode=m;LS.set('mots.out',m);setWidth();outFns.forEach(f=>f(m));syncOut()};
+MOTS.outMode=()=>mode;
+MOTS.defaultOut=m=>{if(!mode)mode=m;syncOut()};
+
+/* --- MIDI out --- */
+const CH={sun:0,mercury:1,venus:2,earth:3,mars:4,jupiter:5,saturn:6,uranus:7,neptune:8,'jupiter-moons':9,io:9,europa:9,ganymede:9,callisto:9};
+const CTL=15,SEC={intro:0,groove:1,build:2,drop:3,break:4};
+let access=null,out=null,clockOn=LS.get('mots.clock')==='1';
+const M=MOTS.midi={on:false};
+const chOf=id=>CH[id]??10;
+const toMs=t=>{if(!ctx||t==null)return performance.now();try{const o=ctx.getOutputTimestamp();if(o&&o.performanceTime)return o.performanceTime+(t-o.contextTime)*1000}catch(e){}return performance.now()+(t-ctx.currentTime)*1000};
+const send=(d,ms)=>{if(!out)return;try{out.send(d,ms&&ms>performance.now()?ms:undefined)}catch(e){}};
+const noteOf=f=>Math.max(0,Math.min(127,Math.round(69+12*Math.log2(f/440))));
+const lastPitched={};
+M.hit=(id,t,f,lvl,len)=>{if(!out)return;const ch=chOf(id),ms=toMs(t);
+  if(!f){if(Math.abs((lastPitched[ch]||-1e9)-ms)<12)return}else lastPitched[ch]=ms;
+  const n=f?noteOf(f):60,v=Math.max(1,Math.min(127,Math.round(30+(lvl||.5)*160)));
+  send([0x90|ch,n,v],ms);send([0x80|ch,n,0],ms+Math.max(60,Math.min(4000,(len||.2)*1000)))};
+const held={};
+M.hold=(id,f,level)=>{if(!out||!(id in CH))return;const ch=chOf(id),h=held[id]||(held[id]={n:-1,cc:-1});
+  const on=level>.02&&f>0,n=on?noteOf(f):-1;
+  if(n!==h.n){if(h.n>=0)send([0x80|ch,h.n,0]);if(n>=0)send([0x90|ch,n,Math.max(1,Math.min(127,Math.round(40+level*120)))]);h.n=n}
+  const cc=Math.min(127,Math.round(Math.min(1,level*1.6)*127));if(Math.abs(cc-h.cc)>=3||(cc===0&&h.cc!==0)){send([0xB0|ch,20,cc]);h.cc=cc}};
+M.section=(name,t)=>{if(!out)return;const k=SEC[name];if(k==null)return;const ms=toMs(t);send([0xB0|CTL,20,[0,32,64,96,127][k]],ms);send([0x90|CTL,36+k,100],ms);send([0x80|CTL,36+k,0],ms+200)};
+let tempo=0,running=false,clockT=null,nextTick=0;
+M.transport=(play,bpm)=>{tempo=bpm||tempo;if(play&&!running){running=true;if(out&&clockOn)send([0xFA]);nextTick=performance.now()+20;startClock()}
+  else if(!play&&running){running=false;if(out&&clockOn)send([0xFC]);stopClock()}};
+function startClock(){stopClock();if(!clockOn||!out||!tempo)return;clockT=setInterval(()=>{const now=performance.now(),per=60000/tempo/24;if(nextTick<now-200)nextTick=now;while(nextTick<now+100){send([0xF8],nextTick);nextTick+=per}},25)}
+function stopClock(){if(clockT){clearInterval(clockT);clockT=null}}
+function allOff(){if(!out)return;for(let c=0;c<16;c++){send([0xB0|c,123,0]);send([0xB0|c,20,0])}Object.keys(held).forEach(k=>delete held[k])}
+// overall loudness on channel 16, CC 21
+let lastL=-1;setInterval(()=>{if(!out||!an)return;const b=new Float32Array(an.fftSize);an.getFloatTimeDomainData(b);let q=0;for(const x of b)q+=x*x;
+  const v=Math.min(127,Math.round(Math.sqrt(q/b.length)*700));if(Math.abs(v-lastL)>=2){send([0xB0|CTL,21,v]);lastL=v}},50);
+async function connectMIDI(){
+  if(!navigator.requestMIDIAccess){msg(T.midiNo);return}
+  try{access=access||await navigator.requestMIDIAccess({sysex:false});access.onstatechange=fillOuts;fillOuts();if(!access.outputs.size)msg(T.midiNone);else msg('')}
+  catch(e){msg(T.midiDenied)}
+}
+function pickOut(id){allOff();stopClock();out=null;M.on=false;
+  if(access&&id){out=access.outputs.get(id)||null;if(out){M.on=true;LS.set('mots.midiOut',out.name);if(running&&clockOn){send([0xFA]);startClock()}}}
+  else LS.set('mots.midiOut','');}
+function fillOuts(){const s=document.getElementById('stMidi');if(!s||!access)return;const want=LS.get('mots.midiOut');
+  s.innerHTML=`<option value="">${T.midiOff}</option>`+[...access.outputs.values()].map(o=>`<option value="${o.id}">${o.name.replace(/</g,'&lt;')}</option>`).join('');
+  const m=[...access.outputs.values()].find(o=>out?o.id===out.id:o.name===want);if(m){s.value=m.id;if(!out)pickOut(m.id)}s.hidden=false}
+function msg(t){const e=document.getElementById('stMidiMsg');if(e){e.textContent=t;e.hidden=!t}}
+
+/* --- projector view and screen wake lock --- */
+const CANVAS=['orrery','dial','scene'].map(i=>document.getElementById(i)).find(Boolean);
+const css=document.createElement('style');
+css.textContent=`html.mots-proj,html.mots-proj body{overflow:hidden!important}
+html.mots-proj body *{visibility:hidden!important}
+html.mots-proj #${CANVAS?CANVAS.id:'none'}{visibility:visible!important;position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important;aspect-ratio:auto!important;z-index:9000!important;background:#05060c!important}
+#motsProjX{position:fixed;top:12px;right:12px;z-index:9001;appearance:none;border:1px solid #c9984f;background:rgba(10,12,24,.7);color:#e9e1cc;border-radius:999px;width:44px;height:44px;font:20px/1 system-ui,sans-serif;cursor:pointer;transition:opacity .6s;display:none}
+html.mots-proj #motsProjX{display:block;visibility:visible!important}html.mots-proj.idle #motsProjX{opacity:0}html.mots-proj.idle{cursor:none}
+#stPanel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;width:min(460px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;background:#13162a;color:#e9e1cc;border:1px solid #c9984f;border-radius:12px;padding:14px 16px;font:15px/1.45 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+#stPanel h2{font:600 20px/1.2 "Cormorant Garamond",Georgia,serif;margin:0 0 10px;color:#e9d093}#stPanel h3{font:600 12px/1 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#a39c89;margin:14px 0 6px}
+#stPanel .seg{display:flex;flex-wrap:wrap;border:1px solid #2b3050;border-radius:8px;overflow:hidden}#stPanel .seg button{flex:1 1 auto;appearance:none;border:0;border-right:1px solid #2b3050;background:transparent;color:#e9e1cc;padding:9px 10px;font:inherit;cursor:pointer;min-height:40px}
+#stPanel .seg button:last-child{border-right:0}#stPanel .seg button[aria-pressed="true"]{background:#2a2414;color:#e9d093}
+#stPanel .b{appearance:none;border:1px solid #c9984f;background:transparent;color:#e9d093;border-radius:999px;padding:9px 16px;font:inherit;cursor:pointer;min-height:40px}
+#stPanel select{width:100%;margin-top:6px;background:#0c0e1c;color:#e9e1cc;border:1px solid #2b3050;border-radius:8px;padding:8px;font:inherit}
+#stPanel .n{color:#a39c89;font-size:14px;margin:6px 0 0}#stPanel label{display:flex;gap:8px;align-items:center;margin-top:8px;cursor:pointer}#stPanel details{margin-top:8px;color:#a39c89;font-size:14px}#stPanel summary{cursor:pointer;color:#e9e1cc}
+#stPanel .row{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:14px}`;
+document.head.appendChild(css);
+const X=document.createElement('button');X.id='motsProjX';X.type='button';X.textContent='✕';X.title=X.ariaLabel=T.exit;document.body.appendChild(X);
+let idleT=null;const wake=()=>{document.documentElement.classList.remove('idle');clearTimeout(idleT);idleT=setTimeout(()=>document.documentElement.classList.add('idle'),3000)};
+function proj(on){const h=document.documentElement;h.classList.toggle('mots-proj',on);
+  if(on){const p=document.getElementById('stPanel');if(p)p.remove();wake();addEventListener('pointermove',wake);if(h.requestFullscreen&&!document.fullscreenElement)h.requestFullscreen().catch(()=>{});lock(true)}
+  else{removeEventListener('pointermove',wake);h.classList.remove('idle');if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{});lock(awakeOn)}
+  dispatchEvent(new Event('resize'))}
+X.onclick=()=>proj(false);
+addEventListener('keydown',e=>{if(e.key==='Escape'&&document.documentElement.classList.contains('mots-proj'))proj(false)});
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&document.documentElement.classList.contains('mots-proj'))proj(false)});
+let awakeOn=LS.get('mots.awake')!=='0',sentinel=null;
+async function lock(on){try{if(on&&!sentinel&&navigator.wakeLock){sentinel=await navigator.wakeLock.request('screen');sentinel.addEventListener('release',()=>{sentinel=null})}else if(!on&&sentinel){await sentinel.release();sentinel=null}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&(awakeOn||document.documentElement.classList.contains('mots-proj')))lock(true)});
+// the screen stays awake once sound has started, if asked
+addEventListener('pointerdown',()=>{if(awakeOn)lock(true)},{once:true});
+MOTS.projector=proj;
+
+/* --- the Stage button and panel --- */
+function syncOut(){document.querySelectorAll('#stOut button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===mode)));const n=document.getElementById('stOutNote');if(n)n.textContent=T.outNote[mode]||''}
+function openPanel(){
+  let p=document.getElementById('stPanel');if(p){p.remove();return}
+  p=document.createElement('div');p.id='stPanel';p.setAttribute('role','dialog');p.setAttribute('aria-label',T.title);
+  p.innerHTML=`<h2>${T.title}</h2>
+  <h3>${T.output}</h3><div class="seg" id="stOut">${['hrtf','stereo','pa','mono'].map(v=>`<button type="button" data-v="${v}" aria-pressed="false">${T[v]}</button>`).join('')}</div><p class="n" id="stOutNote"></p>
+  <h3>${T.midi}</h3><button type="button" class="b" id="stMidiGo">${T.midiConnect}</button><select id="stMidi" hidden aria-label="${T.midi}"></select><p class="n" id="stMidiMsg" hidden></p>
+  <label><input type="checkbox" id="stClock"${clockOn?' checked':''}> ${T.clock}</label>
+  <details><summary>${T.midiMap}</summary><p>${T.map}</p></details>
+  <h3>${T.proj}</h3><p class="n" style="margin-top:0">${T.projNote}</p>
+  <label><input type="checkbox" id="stAwake"${awakeOn?' checked':''}> ${T.awake}</label>
+  <div class="row"><button type="button" class="b" id="stProj">${T.proj}</button><button type="button" class="b" id="stClose">${T.close}</button></div>`;
+  document.body.appendChild(p);syncOut();
+  p.querySelectorAll('#stOut button').forEach(b=>b.onclick=()=>MOTS.setOut(b.dataset.v));
+  p.querySelector('#stMidiGo').onclick=connectMIDI;if(access)fillOuts();
+  p.querySelector('#stMidi').onchange=e=>pickOut(e.target.value);
+  p.querySelector('#stClock').onchange=e=>{clockOn=e.target.checked;LS.set('mots.clock',clockOn?'1':'0');if(clockOn&&running){send([0xFA]);startClock()}else{if(running)send([0xFC]);stopClock()}};
+  p.querySelector('#stAwake').onchange=e=>{awakeOn=e.target.checked;LS.set('mots.awake',awakeOn?'1':'0');lock(awakeOn)};
+  p.querySelector('#stProj').onclick=()=>proj(true);
+  p.querySelector('#stClose').onclick=()=>p.remove();
+}
+addEventListener('keydown',e=>{if(e.key==='Escape'){const p=document.getElementById('stPanel');if(p)p.remove()}});
+const rec=document.getElementById('recBtn');
+if(rec){const b=document.createElement('button');b.type='button';b.id='stageBtn';b.className=rec.className.replace(/\brec\b/,'').trim();b.textContent=T.stage;b.setAttribute('aria-haspopup','dialog');b.onclick=openPanel;rec.insertAdjacentElement('afterend',b)}
+// remember a MIDI device chosen earlier: reconnect quietly if the browser already allows it
+if(LS.get('mots.midiOut')&&navigator.permissions&&navigator.requestMIDIAccess)navigator.permissions.query({name:'midi'}).then(s=>{if(s.state==='granted')connectMIDI()}).catch(()=>{});
+})();
+/*STAGE-END*/
+</script>
 <script>
 /* ---------- recorder: captures the page's own sound output to an audio file ---------- */
 (()=>{
@@ -965,7 +1112,15 @@ function computeWobble(now,dt){
   if(S.thinker==='today')BODIES.forEach(b=>{const p=P[b.id];WOB[b.id].c+=60*(p.r>0?p.z/p.r:0)});
 }
 
+// MIDI out: each planet's drone as a held note on its own channel, its loudness as CC 20 (sent a frame late, which lights never notice)
+function midiHolds(){
+  const lv=g=>Math.min(1,g*8),sir=typeof SIR!=='undefined'&&SIR.v?SIR.v:{};
+  BODIES.forEach(b=>{if(b.kind!=='planet')return;const v=V[b.id],w=sir[b.id];
+    MOTS.midi.hold(b.id,P[b.id].f,Math.max(v&&v.vol?lv(v.vol.gain.value):0,w&&w.vol?Math.min(1,w.vol.gain.value*3):0))});
+  if(sunV&&sunV.vol)MOTS.midi.hold('sun',droneFreqs()[0],lv(sunV.vol.gain.value));
+}
 function updateAudio(){
+  if(window.MOTS&&MOTS.midi.on)midiHolds();
   if(SYS.id){updateSystemAudio();return}
   if(S.thinker!=='today'&&!isBodyModel()){thinkerAudio();return}
   const L=listenerPos(), ang=facingAngle(), now=AC.currentTime;setListener(ang);
@@ -1471,11 +1626,11 @@ $('vp').onchange=e=>{S.vp=e.target.value;if(S.vp!=='sun'&&S.face==='vernal'){}re
 $('face').onchange=e=>{S.face=e.target.value};
 $('turn').oninput=e=>{S.turn=+e.target.value;$('turnOut').textContent=(S.turn>0?'+':'')+S.turn+'°'+(S.turn===0?' ahead':Math.abs(S.turn)===180?' behind':S.turn>0?' left':' right')};
 $('turn').oninput({target:$('turn')});
-document.querySelectorAll('#spatial button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.v==='hrtf')===S.hrtf)));
-document.querySelectorAll('#spatial button').forEach(b=>b.onclick=()=>{
-  S.hrtf=b.dataset.v==='hrtf';document.querySelectorAll('#spatial button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
-  if(AC)PANNERS.forEach(({p,hrtfOK})=>{if(hrtfOK)p.panningModel=S.hrtf?'HRTF':'equalpower'})
-});
+// headphones, speakers, PA or mono: the choice is shared with the Stage panel and remembered
+const setOutUI=m=>{S.hrtf=m==='hrtf';document.querySelectorAll('#spatial button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.v===m)));
+  if(AC)PANNERS.forEach(({p,hrtfOK})=>{if(hrtfOK)p.panningModel=S.hrtf?'HRTF':'equalpower'})};
+if(window.MOTS&&MOTS.onOut){MOTS.defaultOut(S.hrtf?'hrtf':'stereo');setOutUI(MOTS.outMode());MOTS.onOut(setOutUI)}else setOutUI(S.hrtf?'hrtf':'stereo');
+document.querySelectorAll('#spatial button').forEach(b=>b.onclick=()=>{if(window.MOTS&&MOTS.setOut)MOTS.setOut(b.dataset.v);else setOutUI(b.dataset.v)});
 function fmtSpeed(d){
   if(d<1)return (d*24).toFixed(d*24<10?1:0)+' hours / s';
   if(d<60)return d.toFixed(d<10?1:0)+' days / s';

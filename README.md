@@ -85,6 +85,30 @@ In Plato's Myth of Er, a Siren rides each celestial sphere singing a single note
 - **Stereo:** each planet sits in the stereo field where it stands around the Sun.
 - **Comets:** a comet near the Sun adds a whoosh every eight bars.
 
+## On stage
+
+Every page has a **Stage** button next to Record:
+
+- **Output.**
+  - *Headphones*: full 3D placement.
+  - *Speakers*: plain stereo.
+  - *PA*: stereo narrowed so that people near one speaker still hear every god.
+  - *Mono*: for a mono PA or a single speaker.
+
+  The choice is shared by all pages and remembered.
+- **MIDI out** (Web MIDI, in Chrome or Edge, not iPhone).
+  - Each god plays on its own channel at its real pitch: 1 Sun, 2 Mercury, 3 Venus, 4 Earth, 5 Mars, 6 Jupiter, 7 Saturn, 8 Uranus, 9 Neptune, 10 Jupiter's moons, 11 the rest.
+  - On the dial, the drones are held notes, with their loudness as CC 20.
+  - Channel 16 carries the section as CC 20 (0, 32, 64, 96, 127), the overall loudness as CC 21, and a note at each section change (36 to 40).
+  - Optional MIDI clock follows the dance tempo.
+
+  This drives a lighting desk or a MIDI-to-DMX box.
+- **Projector view.** The canvas fills the screen with the controls hidden, and the screen is kept awake.
+
+## Install and offline
+
+The site is a PWA: `manifest.webmanifest` (and `pl/manifest.webmanifest`), icons in `icons/`, and `sw.js`. The service worker caches every page, the 3D library, the fonts and all the recorded instruments, so an installed copy plays without a connection. It fetches pages fresh when online. `ANDROID.md` explains how to wrap the site for Google Play as a Trusted Web Activity. Store images are in `store/`, and the privacy policy is `privacy.html`.
+
 ## Tuning
 
 You can choose free glide (Kepler), Pythagorean diatonic or Pythagorean pentatonic tuning. Apollo's drone can sit in the Dorian, Phrygian, Lydian, Mixolydian, Hypodorian, Hypophrygian or Hypolydian mode.
