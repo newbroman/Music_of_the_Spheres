@@ -97,6 +97,7 @@ Every page has a **Stage** button next to Record:
   - *Speakers*: plain stereo.
   - *PA*: stereo narrowed so that people near one speaker still hear every god.
   - *Mono*: for a mono PA or a single speaker.
+  - *5.1*: true surround on a six-channel output (a computer over HDMI to a 5.1 receiver, or a 5.1 USB card; phones are stereo only). Each registered voice is placed among L, C, R, Ls and Rs by its direction from the listener, with the bass in the LFE channel; on the dance page the band circles the room with the planets while drums and bass stay in front. *Test speakers* chimes each speaker in turn.
 
   The choice is shared by all pages and remembered.
 - **MIDI out** (Web MIDI, in Chrome or Edge, not iPhone).

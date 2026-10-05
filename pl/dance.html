@@ -149,8 +149,8 @@ input[type=range]{width:100%;accent-color:var(--bronze)}
 /* ---------- stage: sound output for headphones, speakers or a PA; MIDI out for lights; projector view ---------- */
 (()=>{
 "use strict";
-const T={stage:'Scena',title:'Na żywo i na scenie',output:'Wyjście',hrtf:'Słuchawki',stereo:'Głośniki',pa:'Nagłośnienie',mono:'Mono',
-  outNote:{hrtf:'Pełne rozmieszczenie 3D, do słuchawek.',stereo:'Zwykłe lewo i prawo, do pary głośników.',pa:'Do nagłośnienia w sali: stereo jest zawężone, by osoby przy jednym głośniku słyszały każdego boga.',mono:'Wszystko w obu głośnikach: do nagłośnienia mono albo jednego głośnika.'},
+const T={stage:'Scena',title:'Na żywo i na scenie',output:'Wyjście',hrtf:'Słuchawki',stereo:'Głośniki',pa:'Nagłośnienie',mono:'Mono','5.1':'5.1',s51No:'5.1 wymaga wyjścia z sześcioma kanałami, a to urządzenie ma ich {n}. Podłącz komputer do amplitunera 5.1 przez HDMI (ustawionego na wielokanałowy PCM) albo użyj karty dźwiękowej USB 5.1. Telefony dają przeglądarce tylko stereo.',test:'Test głośników',
+  outNote:{'5.1':'Prawdziwy dźwięk przestrzenny: każdy bóg dochodzi ze swojego kierunku w sali, z przodu, z boku lub z tyłu, a bas idzie do subwoofera. Głośniki w standardowym układzie 5.1; przyciskiem „Test głośników” sprawdzisz podłączenie.',hrtf:'Pełne rozmieszczenie 3D, do słuchawek.',stereo:'Zwykłe lewo i prawo, do pary głośników.',pa:'Do nagłośnienia w sali: stereo jest zawężone, by osoby przy jednym głośniku słyszały każdego boga.',mono:'Wszystko w obu głośnikach: do nagłośnienia mono albo jednego głośnika.'},
   midi:'Wyjście MIDI',midiOff:'Wyłączone',midiConnect:'Połącz MIDI',midiNone:'Nie znaleziono urządzeń MIDI. Podłącz je i naciśnij „Połącz” ponownie.',midiNo:'Ta przeglądarka nie obsługuje Web MIDI. Użyj Chrome lub Edge na Androidzie, Windows, Macu albo Linuksie (nie na iPhonie).',midiDenied:'Odmówiono dostępu do MIDI.',
   clock:'Wysyłaj zegar MIDI',midiMap:'Co jest wysyłane',
   map:'Każdy bóg gra na własnym kanale MIDI, swoją prawdziwą wysokością: 1 Helios (Słońce), 2 Hermes, 3 Afrodyta, 4 Gaja, 5 Ares, 6 Zeus, 7 Kronos, 8 Uranos, 9 Posejdon, 10 księżyce Jowisza, 11 wszystko inne. Na konsoli oświetleniowej dowolna nuta na kanale może wywołać scenę danego boga. Kanał 16 niesie przebieg występu: CC 20 to część (wstęp 0, groove 32, narastanie 64, drop 96, przerwa 127), CC 21 ogólna głośność, a przy każdej zmianie części wysyłana jest nuta (36 wstęp, 37 groove, 38 narastanie, 39 drop, 40 przerwa). Na tarczy burdony wysyłają też CC 20 na własnym kanale jako swoją głośność.',
@@ -178,9 +178,79 @@ AudioNode.prototype.connect=function(t,...r){
   return _c.call(this,t,...r);
 };
 MOTS.onOut=fn=>{outFns.push(fn);if(mode)fn(mode)};
-MOTS.setOut=m=>{mode=m;LS.set('mots.out',m);setWidth();outFns.forEach(f=>f(m));syncOut()};
+MOTS.setOut=m=>{if(m==='5.1'&&!surOK()){msgOut(T.s51No.replace('{n}',MOTS.surround?MOTS.surround.channels():2));return}mode=m;LS.set('mots.out',m);if(MOTS.surround&&SUR.cfg)surApply(m==='5.1');setWidth();outFns.forEach(f=>f(m));syncOut()};
 MOTS.outMode=()=>mode;
 MOTS.defaultOut=m=>{if(!mode)mode=m;syncOut()};
+
+/* --- 5.1 surround: each registered voice is placed among five speakers by its direction from the listener --- */
+// channel order (Web Audio 5.1): 0 L, 1 R, 2 C, 3 LFE, 4 Ls, 5 Rs. Speaker angles, left positive: C 0, L 30, Ls 110, Rs -110, R -30
+const RING=[[0,2],[30,0],[110,4],[250,5],[330,1],[360,2]];
+let maxCh=0;try{const tc=new (window.AudioContext||window.webkitAudioContext)();maxCh=tc.destination.maxChannelCount||2;tc.close&&tc.close()}catch(e){}
+const SUR={cfg:null,items:[],merger:null,out6:null,lfe:null,timer:null,on:false};
+const surOK=()=>(SUR.cfg?SUR.cfg.ctx.destination.maxChannelCount:maxCh)>=6;
+function surGains(az,spread){ // az in degrees, left positive; returns gains for channels 0..5
+  az=((az%360)+360)%360;const g=[0,0,0,0,0,0];
+  for(let k=0;k<RING.length-1;k++){const [a0,c0]=RING[k],[a1,c1]=RING[k+1];if(az>=a0&&az<=a1){const t=(az-a0)/(a1-a0);g[c0]+=Math.cos(t*Math.PI/2);g[c1]+=Math.sin(t*Math.PI/2);break}}
+  if(spread>0)for(const c of [0,1,2,4,5])g[c]=Math.sqrt((1-spread)*g[c]*g[c]+spread/5);
+  return g;
+}
+function lv(prm,def){try{return prm?prm.value:def}catch(e){return def}}
+function azOf(it){
+  if(it.az){const a=it.az();return a==null?null:[a,0]}
+  const p=it.node,L=SUR.cfg.ctx.listener;
+  const x=lv(p.positionX,0),y=lv(p.positionY,0),z=lv(p.positionZ,0);
+  let fx=lv(L.forwardX,0),fy=lv(L.forwardY,0),fz=lv(L.forwardZ,-1);const ux=lv(L.upX,0),uy=lv(L.upY,1),uz=lv(L.upZ,0);
+  const rx=fy*uz-fz*uy,ry=fz*ux-fx*uz,rz=fx*uy-fy*ux;
+  const front=x*fx+y*fy+z*fz,right=x*rx+y*ry+z*rz,len=Math.hypot(front,right);
+  return [Math.atan2(-right,front)*180/Math.PI,Math.max(0,Math.min(1,1-len/.15))];
+}
+function surTick(){if(!SUR.on)return;const t=SUR.cfg.ctx.currentTime;
+  for(const it of SUR.items){const r=azOf(it);if(!r)continue;const g=surGains(r[0],r[1]);it.g.forEach((n,k)=>{if(n)n.gain.setTargetAtTime(g[k],t,.06)})}}
+function surBuild(){const c=SUR.cfg.ctx;if(SUR.merger)return;
+  SUR.merger=c.createChannelMerger(6);
+  SUR.lfeIn=c.createGain();const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=110;_c.call(SUR.lfeIn,lp);_c.call(lp,(SUR.lfeG=c.createGain()));SUR.lfeG.gain.value=.6;_c.call(SUR.lfeG,SUR.merger,0,3);
+  // a soft safety clip replaces the stereo limiter, which cannot carry six channels
+  SUR.out6=c.createWaveShaper();const n=1024,cv=new Float32Array(n);for(let i=0;i<n;i++){const x=i/(n-1)*2-1;cv[i]=Math.tanh(x*1.6)/Math.tanh(1.6)}SUR.out6.curve=cv;
+  SUR.items.forEach(wire);
+}
+function wire(it){const c=SUR.cfg.ctx;if(it.g||!SUR.merger)return;
+  it.gR=c.createGain();it.gR.gain.value=SUR.on?1:0;_c.call(it.in,it.gR);
+  it.g=[0,1,2,3,4,5].map(k=>{if(k===3)return null;const n=c.createGain();n.gain.value=0;_c.call(it.gR,n);_c.call(n,SUR.merger,0,k);return n});
+  _c.call(it.gR,SUR.lfeIn);
+  if(SUR.cfg.verb){it.gV=c.createGain();it.gV.gain.value=SUR.on?.7:0;_c.call(it.in,it.gV);_c.call(it.gV,SUR.cfg.verb)}
+}
+MOTS.surround={
+  supported:surOK,channels:()=>SUR.cfg?SUR.cfg.ctx.destination.maxChannelCount:maxCh,
+  // a page hands over its output chain: master (volume), lim (its stereo limiter), entry (where six-channel voices join), verb (reverb input), bypass [[from,to,alt]] links to reroute in 5.1
+  attach(cfg){SUR.cfg=cfg;if(mode==='5.1'&&!surApply(true)){mode='stereo';outFns.forEach(f=>f(mode));syncOut()}},
+  // a voice's panner: sources connected to it are split between its stereo path and the surround speakers
+  add(node,opts={}){const c=node.context,it={node,az:opts.az||null};it.in=c.createGain();it.gS=c.createGain();_c.call(it.in,it.gS);_c.call(it.gS,node);it.gS.gain.value=SUR.on?0:1;
+    node.__sur=it;SUR.items.push(it);if(SUR.merger)wire(it);return node}
+};
+function surApply(on){const C=SUR.cfg;if(!C)return;const c=C.ctx,t=c.currentTime;
+  if(on&&!surOK())return false;
+  surBuild();
+  if(on===SUR.on)return true;
+  SUR.on=on;const d=c.destination;
+  if(on){d.channelCount=6;d.channelCountMode='explicit';d.channelInterpretation='speakers';
+    try{C.master.disconnect(C.lim)}catch(e){}(C.bypass||[]).forEach(([a,b,alt])=>{try{a.disconnect(b)}catch(e){}a.connect(alt)});
+    _c.call(SUR.merger,C.entry);C.master.connect(SUR.out6);_c.call(SUR.out6,d);if(c.__rec)_c.call(SUR.out6,c.__rec);
+    SUR.timer=setInterval(surTick,50);surTick()}
+  else{clearInterval(SUR.timer);try{SUR.merger.disconnect()}catch(e){}try{C.master.disconnect(SUR.out6)}catch(e){}try{SUR.out6.disconnect()}catch(e){}
+    (C.bypass||[]).forEach(([a,b,alt])=>{try{a.disconnect(alt)}catch(e){}a.connect(b)});C.master.connect(C.lim);
+    d.channelCount=2;d.channelCountMode='explicit';d.channelInterpretation='speakers'}
+  SUR.items.forEach(it=>{it.gS.gain.setTargetAtTime(on?0:1,t,.05);if(it.gR)it.gR.gain.setTargetAtTime(on?1:0,t,.05);if(it.gV)it.gV.gain.setTargetAtTime(on?.7:0,t,.05)});
+  return true;
+}
+// a soft chime in each speaker in turn, to check the wiring: L, C, R, Rs, Ls, then the subwoofer
+MOTS.surround._s=SUR;
+MOTS.surround.test=()=>{const C=SUR.cfg;if(!C||!SUR.on)return false;const c=C.ctx;let t=c.currentTime+.1;
+  [[0,880],[2,880],[1,880],[5,660],[4,660],[3,55]].forEach(([ch,f])=>{const o=c.createOscillator(),g=c.createGain();o.frequency.value=f;o.type=ch===3?'sine':'triangle';
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.35,t+.03);g.gain.setValueAtTime(.35,t+.6);g.gain.exponentialRampToValueAtTime(.001,t+.95);o.connect(g);_c.call(g,SUR.merger,0,ch);o.start(t);o.stop(t+1);t+=1.1});
+  return true};
+// redirect connections into a registered panner to its splitter
+const _c2=AudioNode.prototype.connect;
+AudioNode.prototype.connect=function(t,...r){if(t&&t.__sur&&this!==t.__sur.gS)return _c.call(this,t.__sur.in,...r);return _c2.call(this,t,...r)};
 
 /* --- MIDI out --- */
 const CH={sun:0,mercury:1,venus:2,earth:3,mars:4,jupiter:5,saturn:6,uranus:7,neptune:8,'jupiter-moons':9,io:9,europa:9,ganymede:9,callisto:9};
@@ -258,12 +328,13 @@ addEventListener('pointerdown',()=>{if(awakeOn)lock(true)},{once:true});
 MOTS.projector=proj;
 
 /* --- the Stage button and panel --- */
-function syncOut(){document.querySelectorAll('#stOut button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===mode)));const n=document.getElementById('stOutNote');if(n)n.textContent=T.outNote[mode]||''}
+function msgOut(t){const n=document.getElementById('stOutNote');if(n)n.textContent=t}
+function syncOut(){const tb=document.getElementById('stTest');if(tb)tb.hidden=mode!=='5.1';document.querySelectorAll('#stOut button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===mode)));const n=document.getElementById('stOutNote');if(n)n.textContent=T.outNote[mode]||''}
 function openPanel(){
   let p=document.getElementById('stPanel');if(p){p.remove();return}
   p=document.createElement('div');p.id='stPanel';p.setAttribute('role','dialog');p.setAttribute('aria-label',T.title);
   p.innerHTML=`<h2>${T.title}</h2>
-  <h3>${T.output}</h3><div class="seg" id="stOut">${['hrtf','stereo','pa','mono'].map(v=>`<button type="button" data-v="${v}" aria-pressed="false">${T[v]}</button>`).join('')}</div><p class="n" id="stOutNote"></p>
+  <h3>${T.output}</h3><div class="seg" id="stOut">${['hrtf','stereo','pa','mono','5.1'].map(v=>`<button type="button" data-v="${v}" aria-pressed="false">${T[v]}</button>`).join('')}</div><p class="n" id="stOutNote"></p><button type="button" class="b" id="stTest" hidden style="margin-top:8px">${T.test}</button>
   <h3>${T.midi}</h3><button type="button" class="b" id="stMidiGo">${T.midiConnect}</button><select id="stMidi" hidden aria-label="${T.midi}"></select><p class="n" id="stMidiMsg" hidden></p>
   <label><input type="checkbox" id="stClock"${clockOn?' checked':''}> ${T.clock}</label>
   <details><summary>${T.midiMap}</summary><p>${T.map}</p></details>
@@ -271,7 +342,7 @@ function openPanel(){
   <label><input type="checkbox" id="stAwake"${awakeOn?' checked':''}> ${T.awake}</label>
   <div class="row"><button type="button" class="b" id="stProj">${T.proj}</button><button type="button" class="b" id="stClose">${T.close}</button></div>`;
   document.body.appendChild(p);syncOut();
-  p.querySelectorAll('#stOut button').forEach(b=>b.onclick=()=>MOTS.setOut(b.dataset.v));
+  p.querySelectorAll('#stOut button').forEach(b=>b.onclick=()=>MOTS.setOut(b.dataset.v));p.querySelector('#stTest').onclick=()=>MOTS.surround.test();
   p.querySelector('#stMidiGo').onclick=connectMIDI;if(access)fillOuts();
   p.querySelector('#stMidi').onchange=e=>pickOut(e.target.value);
   p.querySelector('#stClock').onchange=e=>{clockOn=e.target.checked;LS.set('mots.clock',clockOn?'1':'0');if(clockOn&&running){send([0xFA]);startClock()}else{if(running)send([0xFC]);stopClock()}};
@@ -692,6 +763,9 @@ function initDanceAudio(){
   BODIES.filter(b=>b.kind==='planet').concat([{id:'sun'}]).forEach(b=>{const p=AC.createStereoPanner();PAN[b.id]=p});
   ['sun','mercury','earth','mars'].forEach(id=>PAN[id].connect(drumBus));
   ['jupiter','saturn','venus','uranus','neptune'].forEach(id=>PAN[id].connect(musicBus));
+  // 5.1: the band's gods circle the room with their planets (the vernal point ahead); drums and bass stay at the front
+  if(window.MOTS&&MOTS.surround){['jupiter','saturn','venus','uranus','neptune'].forEach(id=>MOTS.surround.add(PAN[id],{az:()=>P[id]?Math.atan2(P[id].y,P[id].x)*180/Math.PI:null}));
+    MOTS.surround.attach({ctx:AC,master,lim,entry:duck,bypass:[[musicLP,glue,master]]})}
   buildPads();buildSub();
 }
 function noise(t,dur){const s=AC.createBufferSource();s.buffer=noiseBuf;s.start(t,Math.random()*1.5,dur+.05);return s}
