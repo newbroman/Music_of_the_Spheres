@@ -1291,12 +1291,16 @@ const NOTE=['C','Cis','D','Es','E','F','Fis','G','Gis','A','B','H'];
 const PY={C:1,D:9/8,E:81/64,F:4/3,G:3/2,A:27/16,B:243/128};
 const C_BASE=440*16/27/16; // Pythagorean C0 relative to A=440
 const SETS={dia:['C','D','E','F','G','A','B'],pent:['C','D','E','G','A']};
-function quantize(f){
+// with an id, a body keeps its note until it is clearly (20 cents) nearer another, so a planet on a boundary does not flicker between two notes
+const QH={};
+function quantize(f,id){
   if(S.tuning==='free')return f;
   const set=SETS[S.tuning].map(n=>Math.log2(PY[n]));set.push(1);
   const sh=keyShift(), l=Math.log2(f/C_BASE)-sh, o=Math.floor(l), fr=l-o;
   let best=set[0],bd=9;for(const s of set){const d=Math.abs(s-fr);if(d<bd){bd=d;best=s}}
-  return C_BASE*Math.pow(2,o+best+sh);
+  let q=o+best;
+  if(id){const k=S.tuning+'/'+sh,h=QH[id];if(h&&h.k===k&&Math.abs(l-h.q)<=Math.abs(l-q)+20/1200)q=h.q;QH[id]={q,k}}
+  return C_BASE*Math.pow(2,q+sh);
 }
 /* ---------- the zodiac ---------- */
 const SIGNS=[['Κριός','Widder','♈'],['Ταῦρος','Stier','♉'],['Δίδυμοι','Zwillinge','♊'],['Καρκίνος','Krebs','♋'],['Λέων','Löwe','♌'],['Παρθένος','Jungfrau','♍'],['Ζυγός','Waage','♎'],['Σκορπίος','Skorpion','♏'],['Τοξότης','Schütze','♐'],['Αἰγόκερως','Steinbock','♑'],['Ὑδροχόος','Wassermann','♒'],['Ἰχθύες','Fische','♓']];
@@ -1323,7 +1327,7 @@ function noteName(f){
 
 /* ---------- frame state ---------- */
 const P={}; // positions this frame
-function computePositions(){BODIES.forEach(b=>{const p=posAt(b.el,S.jd);p.f=(S.thinker==='kepler'||S.thinker==='sonic')&&KEP6.has(b.id)?kepF(b,p.om):S.thinker==='copernicus'&&KEP6.has(b.id)?copF(b):quantize(rawPitch(p.om));if(b.kind==='comet')p.act=Math.min(1,Math.pow(1.6/p.r,2));P[b.id]=p});}
+function computePositions(){BODIES.forEach(b=>{const p=posAt(b.el,S.jd);p.f=(S.thinker==='kepler'||S.thinker==='sonic')&&KEP6.has(b.id)?kepF(b,p.om):S.thinker==='copernicus'&&KEP6.has(b.id)?copF(b):quantize(rawPitch(p.om),b.id);if(b.kind==='comet')p.act=Math.min(1,Math.pow(1.6/p.r,2));P[b.id]=p});}
 function listenerPos(){return S.vp==='sun'?{x:0,y:0,z:0}:P[S.vp]}
 function facingAngle(){
   const L=listenerPos();let ang=0;
@@ -1347,7 +1351,9 @@ const V={};
 // the temple echo: four damped feedback delays spread across the stereo field, a fraction of the
 // cost of a convolution reverb
 function makeTemple(input,output){
-  const pre=mkGain(.5);input.connect(pre);
+  const pre=mkGain(.5);
+  // two Schroeder all-pass diffusers soften the attack of the echo, so it blooms like a room rather than repeating
+  let src=input;[[.0047,.6],[.0017,.6]].forEach(([dt,g])=>{const s=AC.createGain(),d=AC.createDelay(.05),o=AC.createGain(),fb=AC.createGain(),ff=AC.createGain();d.delayTime.value=dt;fb.gain.value=g;ff.gain.value=-g;src.connect(s);s.connect(d);d.connect(o);o.connect(fb);fb.connect(s);src.connect(ff);ff.connect(o);src=o});src.connect(pre);
   [[.0437,-.8],[.0531,.8],[.0617,-.35],[.0719,.35]].forEach(([dt,pan])=>{
     const d=AC.createDelay(.2);d.delayTime.value=dt*1.9;
     // Q is set flat (-3 dB): the default resonant peak pushed the loop gain past 1 near 2 kHz and the echo grew into a scream
