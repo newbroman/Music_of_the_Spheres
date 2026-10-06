@@ -117,6 +117,22 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
 @media (pointer:coarse){.mb{width:2.4rem;height:2.4rem}.mrow{min-height:var(--tap)}}
 .foot{font-size:.84rem;color:var(--vellum-dim);max-width:90ch}
 @media (prefers-reduced-motion:reduce){.toast,.meter i{transition:none}}
+.floor-lyric{position:absolute;left:50%;bottom:9%;transform:translateX(-50%);width:max-content;max-width:min(86%,46rem);text-align:center;pointer-events:none;opacity:0;transition:opacity .35s;font-family:var(--f-display);font-size:clamp(1.15rem,.8rem + 1.5vw,2.9rem);line-height:1.25;color:var(--vellum-dim);text-shadow:0 1px 10px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9);text-wrap:balance}
+.floor-lyric.show{opacity:1}
+.floor-lyric span{transition:color .12s}
+.floor-lyric span.done{color:var(--vellum)}
+.floor-lyric span.on{color:#f3d9a4;text-shadow:0 0 14px rgba(201,152,79,.9),0 1px 10px rgba(0,0,0,.95)}
+.floor-lyric.chant{font-size:clamp(1.4rem,1rem + 2vw,3.6rem);letter-spacing:.04em}
+.mots-proj .floor-lyric{font-size:clamp(1.6rem,1rem + 2.6vw,4.4rem);bottom:12%}
+@media (max-width:560px){.floor-lyric{bottom:6%;font-size:1rem}}
+.vt{display:flex;align-items:center;gap:.35rem;margin:.2rem 0 .05rem;font-size:.74rem}
+.vt .vtl{color:var(--vellum-dim);text-transform:uppercase;letter-spacing:.06em;font-size:.66rem}
+.vt button{appearance:none;background:transparent;border:1px solid var(--line-2);padding:.1rem .5rem;min-height:1.5rem;cursor:pointer;color:var(--vellum-dim);font-size:.74rem;border-radius:0}
+.vt button:first-of-type{border-radius:5px 0 0 5px}.vt button:last-of-type{border-radius:0 5px 5px 0;border-left:0}
+.vt button[aria-pressed="true"]{background:rgba(201,152,79,.18);color:#f3d9a4}
+@media (pointer:coarse){.vt button{min-height:2rem;padding:.2rem .7rem}}
+@media (prefers-reduced-motion:reduce){.floor-lyric,.floor-lyric span{transition:none}}
+
 .recb{appearance:none;border:1px solid var(--bronze-dim);color:var(--bronze);border-radius:999px;padding:.7rem 1.1rem;min-height:var(--tap);font-size:.85rem;letter-spacing:.04em;white-space:nowrap}
 .recb:hover{border-color:var(--bronze);background:rgba(201,152,79,.08)}
 .rec{background:transparent;cursor:pointer;font:inherit}
@@ -1752,6 +1768,386 @@ function frame(t){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+/* ================= VOICE: the spheres sing words ================= */
+// Aphrodite sings the hooks; when two planets stand in an aspect the two gods chant their names.
+// A formant singer (ported from the dial's human voices) given a melody: one pitch and one grid
+// position per syllable, locked to the scheduler's clock, in the sky's key and chords.
+// All text lives here, per page language, so the translation builds leave the English page untouched.
+const VL={
+en:{ui:{vocals:'Vocals',words:'Words',chops:'Chops'},
+  lines:{
+    hook:['The sky turns, the gods sing',"dhe 'skai 'ternz dhe 'godz 'sing"],
+    hookB:['Hear the spheres align',"'hir dhe 'sfirz a.'lain"],
+    pd1a:['Not the smallest orb which thou behold’st',"'not dhe 'smo:.lest 'orb wich 'dhau bi.'holdst"],
+    pd1b:['But in his motion like an angel sings',"bat 'in hiz 'mo.shen 'laik an 'ein.djel 'singz"],
+    pd2a:['The heavenly motions are a song',"dhe 'hev.en.li 'mo.shenz 'ar a 'song"],
+    pd2b:['A song for many voices',"a 'song for 'men.i 'voi.sez"],
+    brk:['On every sphere a Siren sings one note, the eight make one harmony',"on 'ev.ri 'sfir a 'sai.ren 'singz 'wan 'not dhe 'eit 'meik 'wan 'har.mo.ni"],
+    brk2:['A music too great for mortal ears to hear',"a 'myu.zik 'tu 'greit for 'mor.tal 'irz tu 'hir"],
+    build:['The spheres align',"dhe 'sfirz a.'lain"],
+    harmonia:['harmonía',"har.mo.'ni:.a"],kosmos:['kósmos',"'kos.mos"]},
+  gods:{mercury:"'her.mes",venus:"a.fro.'dai.ti",earth:"'gai.a",mars:"'e:.riz",jupiter:"'zyu:s",saturn:"'kro.nos",uranus:"u.'ra.nos",neptune:"po.'sai.don"}},
+pl:{ui:{vocals:'Wokal',words:'Słowa',chops:'Sample'},
+  lines:{
+    hook:['Niebo się kręci, bogowie śpiewają',"'nye.bo she 'kren.chi bo.'go.vye shpye.'va.yon"],
+    hookB:['Słuchaj, sfery się łączą',"'swu.khai 'sfe.ri she 'won.chon"],
+    pd1a:['Nie ma kuli tak małej na niebie',"nye 'ma 'ku.li tak 'ma.wei na 'nye.bye"],
+    pd1b:['by w swym biegu jak anioł nie śpiewała',"bi f sfim 'bye.gu yak 'a.nyow nye shpye.'va.wa"],
+    pd2a:['Ruchy niebios to pieśń',"'ru.khi 'nye.byos to 'pyeshny"],
+    pd2b:['pieśń na wiele głosów',"'pyeshny na 'vye.le 'gwo.suf"],
+    brk:['Na każdej sferze śpiewa Syrena, a osiem tworzy jedną harmonię',"na 'kazh.dei 'sfe.zhe 'shpye.va si.'re.na a 'o.shem 'tfo.zhi 'yed.non har.'mo.nye"],
+    brk2:['Muzyka zbyt wielka, by ją usłyszeć',"mu.'zi.ka zbit 'vyel.ka bi yon u.'swi.shech"],
+    build:['Sfery się łączą',"'sfe.ri she 'won.chon"],
+    harmonia:['harmonia',"har.'mo.nya"],kosmos:['kosmos',"'kos.mos"]},
+  gods:{mercury:"'her.mes",venus:"a.fro.'di.ta",earth:"'ga.ya",mars:"'a.res",jupiter:"'ze.us",saturn:"'kro.nos",uranus:"u.'ra.nos",neptune:"po.'sei.don"}},
+cy:{ui:{vocals:'Llais',words:'Geiriau',chops:'Darnau'},
+  lines:{
+    hook:['Mae’r awyr yn troi, mae’r duwiau’n canu',"mair 'au.ir in 'troi mair 'di.wyain 'ka.ni"],
+    hookB:['Clyw y sfferau’n uno',"'kliu i 'sfe.rain 'i.no"],
+    pd1a:['Nid oes y belen leiaf yn y nen',"nid 'ois i 'be.len 'lei.af in i 'nen"],
+    pd1b:['nad yw’n canu fel angel wrth droi',"nad 'iun 'ka.ni fel 'an.gel urth 'droi"],
+    pd2a:['Cân yw symudiad y nef',"'ka:n iu si.'mid.yad i 'ne:v"],
+    pd2b:['cân i lawer o leisiau',"'ka:n i 'lau.er o 'lei.shai"],
+    brk:['Ar bob sffêr mae Seiren yn canu, a’r wyth yn un harmoni',"ar 'bob 'sfe:r mai 'sei.ren in 'ka.ni ar 'uith in 'i:n har.'mo.ni"],
+    brk2:['Cerddoriaeth rhy fawr i’n clustiau ei chlywed',"ker.'dhor.yaith rhi 'vaur in 'klist.yai i 'khli.wed"],
+    build:['Mae’r sfferau’n uno',"mair 'sfe.rain 'i.no"],
+    harmonia:['harmonia',"har.'mo.ni.a"],kosmos:['cosmos',"'kos.mos"]},
+  gods:{mercury:"'her.mes",venus:"a.fro.'di.te",earth:"'gai.a",mars:"'a.res",jupiter:"'ze.us",saturn:"'kro.nos",uranus:"u.'ra.nos",neptune:"po.'sei.don"}},
+de:{ui:{vocals:'Gesang',words:'Worte',chops:'Chops'},
+  lines:{
+    hook:['Der Himmel dreht sich, die Götter singen',"der 'him.mel 'dre:t zikh di 'goe.ter 'zing.en"],
+    hookB:['Hört die Sphären klingen',"'hoert di 'sfe:.ren 'kling.en"],
+    pd1a:['Nicht die kleinste Kugel, die du siehst',"'nikht di 'klain.ste 'ku.gel di du 'zi:st"],
+    pd1b:['die nicht im Lauf wie ein Engel singt',"di 'nikht im 'lauf vi ain 'eng.el 'zingt"],
+    pd2a:['Die Bahnen des Himmels sind ein Lied',"di 'ba:.nen des 'him.mels zint ain 'li:t"],
+    pd2b:['ein Lied für viele Stimmen',"ain 'li:t fuer 'fi:.le 'shtim.men"],
+    brk:['Auf jeder Sphäre singt eine Sirene, und die acht sind eine Harmonie',"auf 'ye.der 'sfe:.re 'zingt 'ai.ne zi.'re:.ne unt di 'akht zint 'ai.ne har.mo.'ni:"],
+    brk2:['Eine Musik, zu groß für unser Ohr',"'ai.ne mu.'zi:k tsu 'gro:s fuer 'un.zer 'o:r"],
+    build:['Die Sphären finden sich',"di 'sfe:.ren 'fin.den zikh"],
+    harmonia:['Harmonia',"har.mo.'ni:.a"],kosmos:['Kosmos',"'kos.mos"]},
+  gods:{mercury:"'her.mes",venus:"a.fro.'di:.te",earth:"'gai.a",mars:"'a:.res",jupiter:"'tsois",saturn:"'kro.nos",uranus:"'u.ra.nos",neptune:"po.'zai.don"}},
+es:{ui:{vocals:'Voz',words:'Palabras',chops:'Cortes'},
+  lines:{
+    hook:['El cielo gira, los dioses cantan',"el 'sye.lo 'khi.ra los 'dyo.ses 'kan.tan"],
+    hookB:['Oíd, las esferas se alinean',"o.'id las es.'fe.ras se a.li.'ne.an"],
+    pd1a:['No hay esfera tan pequeña en el cielo',"no 'ai es.'fe.ra tan pe.'ke.nya en el 'sye.lo"],
+    pd1b:['que al girar no cante como un ángel',"ke al khi.'rar no 'kan.te 'ko.mo un 'an.khel"],
+    pd2a:['Los cielos se mueven en un canto',"los 'sye.los se 'mwe.ven en un 'kan.to"],
+    pd2b:['un canto a muchas voces',"un 'kan.to a 'mu.chas 'vo.ses"],
+    brk:['En cada esfera canta una Sirena, y las ocho son una armonía',"en 'ka.da es.'fe.ra 'kan.ta 'u.na si.'re.na i las 'o.cho son 'u.na ar.mo.'ni.a"],
+    brk2:['Una música que el oído no alcanza a oír',"'u.na 'mu.si.ka ke el o.'i.do no al.'kan.sa a o.'ir"],
+    build:['Las esferas se alinean',"las es.'fe.ras se a.li.'ne.an"],
+    harmonia:['armonía',"ar.mo.'ni.a"],kosmos:['cosmos',"'kos.mos"]},
+  gods:{mercury:"'er.mes",venus:"a.fro.'di.ta",earth:"'khe.a",mars:"'a.res",jupiter:"'se.us",saturn:"'kro.no",uranus:"u.'ra.no",neptune:"po.sei.'don"}},
+fr:{ui:{vocals:'Voix',words:'Paroles',chops:'Chops'},
+  lines:{
+    hook:['Le ciel tourne, les dieux chantent',"le 'syel 'tur.ne le 'dyoe 'shan.te"],
+    hookB:['Écoutez, les sphères s’alignent',"e.ku.'te le 'sfer sa.'li.nye"],
+    pd1a:['Pas le moindre astre que tu vois là-haut',"pa le 'mwan.dre 'as.tre ke tu 'vwa la.'o"],
+    pd1b:['qui ne chante, en tournant, comme un ange',"ki ne 'shan.te an tur.'nan kom an 'anzh"],
+    pd2a:['Les mouvements du ciel sont un chant',"le mu.ve.'man du 'syel son an 'shan"],
+    pd2b:['un chant à plusieurs voix',"an 'shan a plu.'zyoer 'vwa"],
+    brk:['Sur chaque sphère une Sirène chante, et les huit font une harmonie',"sur 'shak 'sfer u.ne si.'ren 'shan.te e le 'wit fon u.ne ar.mo.'ni"],
+    brk2:['Une musique trop grande pour nos oreilles',"u.ne mu.'zik tro 'grand pur no zo.'rey"],
+    build:['Les sphères s’alignent',"le 'sfer sa.'li.nye"],
+    harmonia:['harmonia',"ar.mo.'ni.a"],kosmos:['cosmos',"kos.'mos"]},
+  gods:{mercury:"er.'mes",venus:"a.fro.'dit",earth:"ga.'ya",mars:"a.'res",jupiter:"'zoes",saturn:"kro.'nos",uranus:"u.ra.'nos",neptune:"po.ze.i.'don"}},
+it:{ui:{vocals:'Voce',words:'Parole',chops:'Chops'},
+  lines:{
+    hook:['Il cielo gira, gli dei cantano',"il 'che.lo 'dji.ra lyi 'dei 'kan.ta.no"],
+    hookB:['Udite, le sfere si allineano',"u.'di.te le 'sfe.re si al.'li.ne.a.no"],
+    pd1a:['Non c’è sfera sì piccola nel cielo',"non 'che 'sfe.ra si 'pik.ko.la nel 'che.lo"],
+    pd1b:['che nel suo moto non canti come un angelo',"ke nel 'su.o 'mo.to non 'kan.ti 'ko.me un 'an.dje.lo"],
+    pd2a:['I moti del cielo sono un canto',"i 'mo.ti del 'che.lo 'so.no un 'kan.to"],
+    pd2b:['un canto a più voci',"un 'kan.to a 'pyu 'vo.chi"],
+    brk:['Su ogni sfera canta una Sirena, e le otto sono un’armonia',"su 'o.nyi 'sfe.ra 'kan.ta 'u.na si.'re.na e le 'ot.to 'so.no u.nar.mo.'ni.a"],
+    brk2:['Una musica troppo grande per le nostre orecchie',"'u.na 'mu.zi.ka 'trop.po 'gran.de per le 'nos.tre o.'rek.kye"],
+    build:['Le sfere si allineano',"le 'sfe.re si al.'li.ne.a.no"],
+    harmonia:['armonia',"ar.mo.'ni.a"],kosmos:['cosmo',"'kos.mo"]},
+  gods:{mercury:"'er.mes",venus:"a.fro.'di.te",earth:"'dje.a",mars:"'a.res",jupiter:"'dze.us",saturn:"'kro.no",uranus:"u.'ra.no",neptune:"po.sei.'do.ne"}},
+zh:{ui:{vocals:'人声',words:'歌词',chops:'切片'},
+  lines:{
+    hook:['天|在|转，|神|在|唱',"'tyen dzai 'dzhwan 'shen dzai 'chang"],
+    hookB:['听，|星|球|相|连',"'ting 'shing chyou 'shyang 'lyen"],
+    pd1a:['最|小|的|星|球',"'dzwei 'shyao de 'shing 'chyou"],
+    pd1b:['也|如|天|使|歌|唱',"ye 'ru 'tyen shi 'ge 'chang"],
+    pd2a:['天|体|的|运|行|是|歌',"'tyen 'ti de 'yun 'shing shi 'ge"],
+    pd2b:['多|声|的|歌',"'dwo 'sheng de 'ge"],
+    brk:['每|个|星|球|有|海|妖|歌|唱，|八|音|合|为|一',"'mei ge 'shing 'chyou you 'hai 'yao 'ge 'chang 'ba 'yin 'he wei 'yi"],
+    brk2:['乐|声|太|大，|人|耳|听|不|见',"'yue 'sheng 'tai 'da 'ren 'er 'ting bu 'djyen"],
+    build:['星|球|相|连',"'shing 'chyou 'shyang 'lyen"],
+    harmonia:['和|谐',"'he 'shye"],kosmos:['宇|宙',"'yu 'dzhou"]},
+  gods:{mercury:"'he er 'mo si",venus:"'a fo 'lwo di 'te",earth:"'gai 'ya",mars:"'a 'rwei si",jupiter:"'dzhou 'si",saturn:"'ke lwo 'nwo si",uranus:"'u la 'nwo si",neptune:"'bo 'sai 'dong"}},
+ja:{ui:{vocals:'歌声',words:'歌詞',chops:'チョップ'},
+  lines:{
+    hook:['空が|回り、|神々が|歌う',"'so.ra.ga ma.'wa.ri ka.mi.'ga.mi.ga u.'ta.u"],
+    hookB:['聴け、|星が|並ぶ',"'ki.ke 'ho.shi.ga na.'ra.bu"],
+    pd1a:['どんな|小さな|星も',"'don.na chi.'i.sa.na 'ho.shi.mo"],
+    pd1b:['天使の|ように|歌う',"'ten.shi.no 'yo:.ni u.'ta.u"],
+    pd2a:['天の|運行は|歌',"'ten.no un.'ko:.wa u.'ta"],
+    pd2b:['多くの|声の|歌',"'o:.ku.no 'ko.e.no u.'ta"],
+    brk:['星|ごとに|セイレーンが|歌い、|八つで|一つの|調べ',"'ho.shi 'go.to.ni sei.'re:n.ga u.'ta.i 'yat.tsu.de hi.'to.tsu.no shi.'ra.be"],
+    brk2:['耳には|大きすぎる|音楽',"mi.'mi.ni.wa 'o:.ki.su.gi.ru 'on.ga.ku"],
+    build:['星が|並ぶ',"'ho.shi.ga na.'ra.bu"],
+    harmonia:['ハルモニア',"ha.ru.'mo.ni.a"],kosmos:['コスモス',"'ko.su.mo.su"]},
+  gods:{mercury:"'he.ru.me.su",venus:"a.fu.ro.'di:.te:",earth:"'ga.i.a",mars:"'a.re.su",jupiter:"'ze.u.su",saturn:"'ku.ro.no.su",uranus:"'u.ra.no.su",neptune:"po.'sei.don"}}
+};
+const VLANG=(()=>{const l=(document.documentElement.lang||'en').slice(0,2);return VL[l]?l:'en'})();
+const VX={L:VL[VLANG],mode:'words',lead:null,chant:null,pan:null,plans:[],busyUntil:0,line:null,cue:[],drops:0,breaks:0,chants:0,noise:null,jit:null,inhale:null,rev:null,dly:null,capEl:null,hideAt:0};
+try{const v=localStorage.getItem('mots.vocals');if(v==='chops'||v==='words')VX.mode=v}catch(e){}
+const CLUB=()=>['trance','house','techno','jungle'].includes(D.style);
+const wordsOn=()=>VX.mode==='words'&&CLUB();
+
+/* ---- the singer: formant tables for five vowels (from the dial), plus rounded front vowels ö and ü ---- */
+const FT={
+ bass:{a:[[600,0,60],[1040,-7,70],[2250,-9,110],[2450,-9,120],[2750,-20,130]],e:[[400,0,40],[1620,-12,80],[2400,-9,100],[2800,-12,120],[3100,-18,120]],i:[[250,0,60],[1750,-30,90],[2600,-16,100],[3050,-22,120],[3340,-28,120]],o:[[400,0,40],[750,-11,80],[2400,-21,100],[2600,-20,120],[2900,-40,120]],u:[[350,0,40],[600,-20,80],[2400,-32,100],[2675,-28,120],[2950,-36,120]]},
+ tenor:{a:[[650,0,80],[1080,-6,90],[2650,-7,120],[2900,-8,130],[3250,-22,140]],e:[[400,0,70],[1700,-14,80],[2600,-12,100],[3200,-14,120],[3580,-20,120]],i:[[290,0,40],[1870,-15,90],[2800,-18,100],[3250,-20,120],[3540,-30,120]],o:[[400,0,40],[800,-10,80],[2600,-12,100],[2800,-12,120],[3000,-26,120]],u:[[350,0,40],[600,-20,60],[2700,-17,100],[2900,-14,120],[3300,-26,120]]},
+ ct:{a:[[660,0,80],[1120,-6,90],[2750,-23,120],[3000,-24,130],[3350,-38,140]],e:[[440,0,70],[1800,-14,80],[2700,-18,100],[3000,-20,120],[3300,-20,120]],i:[[270,0,40],[1850,-24,90],[2900,-24,100],[3350,-36,120],[3590,-36,120]],o:[[430,0,40],[820,-10,80],[2700,-26,100],[3000,-22,120],[3300,-34,120]],u:[[370,0,40],[630,-20,60],[2750,-23,100],[3000,-30,120],[3400,-34,120]]},
+ alto:{a:[[800,0,80],[1150,-4,90],[2800,-20,120],[3500,-36,130],[4950,-60,140]],e:[[400,0,60],[1600,-24,80],[2700,-30,120],[3300,-35,150],[4950,-60,200]],i:[[350,0,50],[1700,-20,100],[2700,-30,120],[3700,-36,150],[4950,-60,200]],o:[[450,0,70],[800,-9,80],[2830,-16,100],[3500,-28,130],[4950,-55,135]],u:[[325,0,50],[700,-12,60],[2530,-30,170],[3500,-40,180],[4950,-64,200]]},
+ soprano:{a:[[800,0,80],[1150,-6,90],[2900,-32,120],[3900,-20,130],[4950,-50,140]],e:[[350,0,60],[2000,-20,100],[2800,-15,120],[3600,-40,150],[4950,-56,200]],i:[[270,0,60],[2140,-12,90],[2950,-26,100],[3900,-26,120],[4950,-44,120]],o:[[450,0,70],[800,-11,80],[2830,-22,100],[3800,-22,130],[4950,-50,135]],u:[[325,0,50],[700,-16,60],[2700,-35,170],[3800,-40,180],[4950,-60,200]]},
+ child:{a:[[1030,0,110],[1370,-5,120],[3170,-20,160],[4300,-30,200],[5200,-45,220]],e:[[690,0,90],[2610,-14,130],[3570,-22,170],[4400,-32,200],[5200,-45,220]],i:[[370,0,60],[3200,-16,130],[3730,-20,170],[4500,-34,200],[5300,-46,220]],o:[[680,0,90],[1060,-8,110],[3180,-26,160],[4300,-34,200],[5200,-48,220]],u:[[430,0,60],[1170,-16,90],[3260,-30,160],[4300,-38,200],[5200,-50,220]]}
+};
+// ö sits between o and e, ü between u and i: the lips round an e or an i
+Object.values(FT).forEach(T=>{const mix=(A,B)=>A.map((x,k)=>[Math.sqrt(x[0]*B[k][0]),(x[1]+B[k][1])/2,(x[2]+B[k][2])/2]);T.oe=mix(T.o,T.e);T.ue=mix(T.u,T.i)});
+const NASAL={m:[[270,0,60],[1000,-18,150],[2300,-26,200],[3000,-30,200],[3600,-40,200]],n:[[270,0,60],[1500,-18,150],[2500,-26,200],[3000,-30,200],[3600,-40,200]],ng:[[300,0,60],[900,-14,150],[2200,-24,200],[3000,-30,200],[3600,-40,200]],l:[[360,0,60],[1300,-10,120],[2700,-18,150],[3200,-24,150],[3600,-34,160]]};
+const RANGE={bass:[82,330],tenor:[130,523],ct:[175,700],alto:[175,700],soprano:[262,1046],child:[262,1046]};
+// fricatives: [centre Hz, noise level, unvoiced]; th as in thin, dh as in this, sh/zh as in ship/vision, kh the German or Welsh ch, lh the Welsh ll
+const FRIC={s:[6500,.35,true],z:[5500,.22,false],f:[2500,.22,true],v:[2500,.14,false],th:[3800,.22,true],dh:[3800,.12,false],sh:[3200,.38,true],zh:[3000,.22,false],h:[1500,0,true],kh:[1800,.28,true],lh:[3000,.28,true]};
+const PLOS={p:[900,true],t:[3500,true],k:[1800,true],b:[800,false],d:[3000,false],g:[1600,false]};
+const AFFR={ch:['t','sh'],ts:['t','s'],dj:['d','zh'],dz:['d','z']};
+const GLIDE={w:'u',y:'i'};
+const VOWS=['a','e','i','o','u','oe','ue'];
+const PHON=['ng','ny','ch','ts','dj','dz','sh','zh','th','dh','kh','lh','rh','ph','oe','ue','a','e','i','o','u','b','d','f','g','h','k','l','m','n','p','r','s','t','v','w','y','z'];
+// a syllable: onset consonants, one or two vowels (a diphthong), coda consonants; a leading ' marks stress, : a long vowel
+function parseSyl(s){
+  const stress=s.startsWith("'");if(stress)s=s.slice(1);const long=s.includes(':');s=s.replace(/:/g,'');
+  const toks=[];let i=0;while(i<s.length){const p=PHON.find(q=>s.startsWith(q,i));if(!p){i++;continue}toks.push(p==='rh'?'r':p==='ph'?'f':p);i+=p.length}
+  const vi=toks.findIndex(x=>VOWS.includes(x));
+  if(vi<0)return {on:toks,v:[],off:[],stress,long};
+  let vj=vi+1;if(VOWS.includes(toks[vj]))vj++;
+  return {on:toks.slice(0,vi),v:toks.slice(vi,vj),off:toks.slice(vj),stress,long};
+}
+// a line: [display text, phoneme words]; words are split by | when present (Chinese, Japanese), else by spaces
+function parseLine(key,def){
+  const [text,phon]=def;const words=text.includes('|')?text.split('|'):text.split(/\s+/);
+  const pw=phon.trim().split(/\s+/);const syls=[];
+  pw.forEach((w,wi)=>w.split('.').forEach(s=>{const p=parseSyl(s);p.word=Math.min(wi,words.length-1);syls.push(p)}));
+  return {key,text:text.replace(/\|/g,''),words,syls};
+}
+const GLOT={};
+function glottal(tilt){const key=tilt.toFixed(2);if(GLOT[key])return GLOT[key];const N=64,re=new Float32Array(N),im=new Float32Array(N);for(let n=1;n<N;n++)im[n]=Math.pow(n,-tilt)*(n%2?1:.82);return GLOT[key]=AC.createPeriodicWave(re,im)}
+const NF=LOWPOWER?3:4;
+function vxInit(){
+  if(VX.noise)return;
+  const ns=AC.createBufferSource();ns.buffer=noiseBuf;ns.loop=true;VX.noise=mkG(1);ns.connect(VX.noise);ns.start();
+  const jl=AC.createBiquadFilter();jl.type='lowpass';jl.frequency.value=7;VX.noise.connect(jl);VX.jit=mkG(1);jl.connect(VX.jit);
+  const ib=AC.createBiquadFilter();ib.type='bandpass';ib.frequency.value=1600;ib.Q.value=.6;VX.noise.connect(ib);VX.inhale=mkG(.16);ib.connect(VX.inhale);
+  // the chant voices sit where their planet stands; everything goes through the music bus, so the kick ducks the singers too
+  VX.pan=AC.createStereoPanner();VX.pan.connect(musicBus);
+  VX.rev=mkG(.3,revSend);VX.dly=mkG(.12,dlySend);
+}
+// one singer, built once and re-voiced per phrase (the glottal wave, formant table and range follow the god who sings)
+function makeSinger(spec,dest){
+  const h={spec,type:spec.type,form:FT[spec.type],busy:0,bps:[],bgs:[]};
+  h.out=mkG(0,dest);h.out.connect(VX.rev);h.out.connect(VX.dly);h.src=mkG(1);
+  for(let k=0;k<NF;k++){const bp=AC.createBiquadFilter();bp.type='bandpass';const g=mkG(0,h.out);h.src.connect(bp);bp.connect(g);h.bps.push(bp);h.bgs.push(g)}
+  h.vg=mkG(0,h.src);
+  h.o1=AC.createOscillator();h.o1.setPeriodicWave(glottal(spec.tilt));h.o1.connect(h.vg);
+  h.vib=AC.createOscillator();h.vib.frequency.value=spec.vib[0];h.vibD=mkG(0);h.vib.connect(h.vibD);h.vibD.connect(h.o1.frequency);
+  h.jit=mkG(0);VX.jit.connect(h.jit);h.jit.connect(h.o1.frequency);
+  if(!LOWPOWER){h.o2=AC.createOscillator();h.o2.setPeriodicWave(glottal(spec.tilt));h.o2.detune.value=9;h.o2g=mkG(spec.ens||.2,h.vg);h.o2.connect(h.o2g);h.vibD.connect(h.o2.frequency);h.jit.connect(h.o2.frequency);h.o2.start()}
+  h.bg=mkG(spec.breath,h.src);VX.noise.connect(h.bg);
+  h.fin=mkG(1);VX.noise.connect(h.fin);h.fr=AC.createBiquadFilter();h.fr.type='bandpass';h.fr.Q.value=1.2;h.fg=mkG(0,h.out);h.fin.connect(h.fr);h.fr.connect(h.fg);
+  h.ig=mkG(0,dest);VX.inhale.connect(h.ig);
+  h.o1.start();h.vib.start();setFormants(h,h.form.a,AC.currentTime,.001);
+  return h;
+}
+function revoice(h,spec){
+  if(h.type===spec.type&&h.spec===spec)return;h.spec=spec;h.type=spec.type;h.form=FT[spec.type];
+  h.o1.setPeriodicWave(glottal(spec.tilt));if(h.o2){h.o2.setPeriodicWave(glottal(spec.tilt));h.o2g.gain.value=spec.ens||.2}
+  h.vib.frequency.value=spec.vib[0];h.bg.gain.value=spec.breath;
+}
+function setFormants(h,tab,t,tc){for(let k=0;k<NF;k++){const [F,db,bw]=tab[k];h.bps[k].frequency.setTargetAtTime(F,t,tc);h.bps[k].Q.setTargetAtTime(F/bw,t,tc);h.bgs[k].gain.setTargetAtTime(Math.pow(10,db/20)*2.6,t,tc)}}
+function fitShift(f,type){const [lo,hi]=RANGE[type];return Math.round(Math.log2(Math.sqrt(lo*hi)/f))}
+// how long each consonant takes; onsets are placed before the beat so the vowel lands on it
+function consDur(c){if(AFFR[c])return .11;if(FRIC[c])return c==='h'?.07:FRIC[c][2]?.095:.07;if(PLOS[c])return .07;if(c==='ng'||c==='ny')return .09;if(c==='m'||c==='n')return .08;if(c==='l')return .06;if(c==='r')return .07;if(GLIDE[c])return .06;return .05}
+// schedules one consonant at time t and returns the time it ends; every gain move has a time constant of 12 ms or more, so nothing clicks
+function consonant(h,c,t,vow){
+  const vg=h.vg.gain,d=consDur(c);
+  if(AFFR[c]){const [a,b]=AFFR[c];consonant(h,a,t,vow);consonant(h,b,t+.05,vow);return t+d}
+  if(FRIC[c]){const [F,amt,unv]=FRIC[c];
+    if(c==='h'){h.bg.gain.setTargetAtTime(.5,t,.02);vg.setTargetAtTime(.1,t,.02);h.bg.gain.setTargetAtTime(h.spec.breath,t+d,.025)}
+    else{h.fr.frequency.setValueAtTime(F,t);h.fg.gain.setTargetAtTime(amt,t,.018);h.fg.gain.setTargetAtTime(0,t+d-.015,.02);vg.setTargetAtTime(unv?.06:.4,t,.018)}
+    return t+d}
+  if(PLOS[c]){const [F,unv]=PLOS[c];vg.setTargetAtTime(unv?.05:.18,t,.012);h.fr.frequency.setValueAtTime(F,t+d-.03);h.fg.gain.setTargetAtTime(unv?.16:.1,t+d-.025,.01);h.fg.gain.setTargetAtTime(0,t+d-.01,.015);vg.setTargetAtTime(1,t+d-.005,.015);return t+d}
+  if(c==='ny'){setFormants(h,NASAL.n,t,.03);vg.setTargetAtTime(.6,t,.02);setFormants(h,h.form.i,t+.05,.02);vg.setTargetAtTime(.75,t+.05,.015);return t+d}
+  if(NASAL[c]){setFormants(h,NASAL[c],t,.03);vg.setTargetAtTime(c==='l'?.8:.6,t,.02);return t+d}
+  if(c==='r'){[0,.03].forEach((dd,k)=>vg.setTargetAtTime(k%2?1:.4,t+dd,.012));setFormants(h,NASAL.l,t,.03);return t+d}
+  if(GLIDE[c]){setFormants(h,h.form[GLIDE[c]],t,.025);vg.setTargetAtTime(.75,t,.02);return t+d}
+  return t+d;
+}
+// a sung syllable: pitch f, the vowel from t for dur seconds (less the coda), consonants around it
+function singSyl(h,syl,t,dur,f,last){
+  const ff=f*Math.pow(2,h.shift),vg=h.vg.gain,now=AC.currentTime;
+  const on=syl.on.reduce((a,c)=>a+consDur(c),0),off=syl.off.reduce((a,c)=>a+consDur(c),0);
+  let tc=Math.max(now+.005,t-on);
+  if(tc>t-on+.001)tc=Math.max(now+.005,t-on*.5); // if we are late, squeeze the onset rather than move the beat
+  h.o1.frequency.setTargetAtTime(ff,Math.max(now+.002,t-.03),.02);if(h.o2)h.o2.frequency.setTargetAtTime(ff,Math.max(now+.002,t-.03),.02);
+  syl.on.forEach(c=>{tc=consonant(h,c,tc,syl.v[0])});
+  const v=syl.v[0]||'a';
+  if(syl.v.length){setFormants(h,h.form[v],t,.04);vg.setTargetAtTime(1,t,.02);h.bg.gain.setTargetAtTime(h.spec.breath,t,.03)}
+  else vg.setTargetAtTime(.0,t,.03);
+  let tv=t+Math.max(.06,dur-off-(syl.off.length?.02:.035));
+  if(syl.v[1])setFormants(h,h.form[syl.v[1]],t+(tv-t)*.6,.05);
+  // vibrato only blooms on a note that lasts
+  h.vibD.gain.setTargetAtTime(0,t,.03);if(dur>.3)h.vibD.gain.setTargetAtTime(ff*h.spec.vib[1],t+.25,.2);
+  if(syl.off.length){let tt=tv;syl.off.forEach(c=>{tt=consonant(h,c,tt,v)});tv=tt;if(!last)vg.setTargetAtTime(.5,tv,.02)}
+  else if(!last)vg.setTargetAtTime(.0,tv,.03);
+  if(last){vg.setTargetAtTime(0,tv+.02,.04);h.out.gain.setTargetAtTime(0,tv+.12,.18);h.busy=tv+.5;h.ig.gain.setTargetAtTime(.2*h.lvl,tv+.3,.1);h.ig.gain.setTargetAtTime(0,tv+.7,.08)}
+}
+function hush(h){if(!h||!AC)return;const t=AC.currentTime;h.vg.gain.cancelScheduledValues(t);h.vg.gain.setTargetAtTime(0,t,.03);h.out.gain.cancelScheduledValues(t);h.out.gain.setTargetAtTime(0,t,.08);h.fg.gain.cancelScheduledValues(t);h.fg.gain.setTargetAtTime(0,t,.02)}
+function hushAll(){hush(VX.lead);hush(VX.chant);VX.plans.length=0;VX.after=null}
+function startPhrase(h,t,lvl,fMean){h.shift=fitShift(fMean,h.type);h.lvl=lvl;h.out.gain.setTargetAtTime(lvl,t-.05,.05);h.jit.gain.setTargetAtTime(fMean*Math.pow(2,h.shift)*(h.spec.jit||.004)*6,t,.1);h.ig.gain.setTargetAtTime(0,t,.05)}
+
+/* ---- rhythm: syllables onto the sixteenth grid; stressed and final syllables held longer ---- */
+function rhythm(syls,steps){
+  const N=syls.length;let base=[8,4,2,1].find(b=>N*b<=steps*.72)||1;
+  const d=syls.map(s=>(s.stress||s.long)?base:Math.max(1,base/2));
+  let used=d.reduce((a,b)=>a+b,0),tail=Math.max(2,Math.round(steps*.12));
+  d[N-1]+=Math.min(base,Math.max(0,steps-tail-used));used=d.reduce((a,b)=>a+b,0);
+  for(let pass=0;pass<3&&steps-tail-used>0;pass++)for(let k=0;k<N&&steps-tail-used>0;k++){if((syls[k].stress&&d[k]<2*base)||k===N-1){d[k]+=Math.max(1,base/2);used=d.reduce((a,b)=>a+b,0)}}
+  while(used>steps){const k=d.indexOf(Math.max(...d));d[k]--;used--}
+  // an unstressed first syllable is a pickup before the bar, so the stress lands on the beat
+  const pick=N>1&&!syls[0].stress&&!syls[0].long&&syls[1].stress?d[0]:0;
+  let at=-pick;return d.map(x=>{const r={at,len:x};at+=x;return r});
+}
+/* ---- melody: chord tones on stressed syllables, steps between, ending at rest; the same line sings the same tune while Venus stays in her sign ---- */
+function hashKey(s){let h=7;for(const c of s)h=(h*31+c.charCodeAt(0))%1e9;return h}
+function melody(line,rh,bar0,spb,centre){
+  const r=rng(hashKey(line.key)*7+signOf('venus')*131+9);const N=line.syls.length,out=[];
+  const chordOf=k=>{const b=bar0+Math.floor(rh[k].at/spb);return D.prog[((b%4)+4)%4]};
+  const near=(cands,target)=>cands.reduce((a,c)=>Math.abs(c-target)<Math.abs(a-target)?c:a);
+  const tones=(deg,lo,hi)=>{const o=[];for(let x=lo;x<=hi;x++)if([0,2,4].includes((((x-deg)%7)+7)%7))o.push(x);return o};
+  let prev=near(tones(chordOf(0),centre-3,centre+4),centre+(r()<.5?0:2));
+  for(let k=0;k<N;k++){
+    const deg=chordOf(k),s=line.syls[k],last=k===N-1;
+    let d;
+    if(last)d=near(tones(deg,centre-4,centre+3).filter(x=>[0,4].includes((((x-deg)%7)+7)%7)),prev);
+    else if(k===0)d=prev;
+    else if(s.stress||rh[k].at%spb===0){const c=tones(deg,centre-4,centre+5),want=prev+(r()<.5?(prev>centre?-1:1):(r()<.5?1:-1))*(1+Math.floor(r()*2));d=near(c,want)}
+    else{const mv=r()<.3?0:(r()<.5?1:-1)*(r()<.8?1:2);d=Math.max(centre-4,Math.min(centre+5,prev+mv))}
+    out.push(d);prev=d;
+  }
+  return out;
+}
+/* ---- plans: a line, who sings it, where on the floor it comes from ---- */
+function planLine(line,bar0,bars,who,lvl,chant,sec){
+  const spb=SPB(),steps=bars*spb,rh=rhythm(line.syls,steps),centre=4,degs=melody(line,rh,bar0,spb,centre);
+  const notes=line.syls.map((s,k)=>({syl:s,step:bar0*spb+rh[k].at,len:rh[k].len,deg:degs[k],word:s.word,done:false}));
+  const pl={line,notes,who,lvl,chant,bar0,bars,sec,started:false,end:bar0*spb+rh[rh.length-1].at+rh[rh.length-1].len};
+  VX.plans.push(pl);VX.busyUntil=Math.max(VX.busyUntil,AC.currentTime+(bars+1.5)*barDur());
+  return pl;
+}
+function singerFor(who){
+  vxInit();
+  if(who==='venus'){if(!VX.lead)VX.lead=makeSinger(byId.venus.hv,PAN.venus);return VX.lead}
+  if(!VX.chant)VX.chant=makeSinger(byId[who].hv,VX.pan);revoice(VX.chant,byId[who].hv);
+  const p=P[who];VX.pan.pan.setTargetAtTime(Math.sin(Math.atan2(p.y,p.x))*.75,AC.currentTime,.05);
+  return VX.chant;
+}
+function voiceStep(s,t){
+  if(!VX.plans.length)return;
+  if(!wordsOn()||!D.playing){hushAll();return}
+  const spb=SPB(),st=STY(),sd=barDur()/spb,sw=pos=>st.swing8?(pos%4===2?st.swing8*sd:0):(pos%2===1?st.swing*sd:0);
+  const base=t-sw(s%spb);
+  VX.plans=VX.plans.filter(pl=>{
+    if(pl.who==='venus'&&D.mute.has('venus')){if(pl.started)hush(VX.lead);return false}
+    if(pl.chant&&D.mute.has(pl.who)){if(pl.started)hush(VX.chant);return false}
+    const n=pl.notes.length;let alive=true;
+    pl.notes.forEach((nt,k)=>{
+      if(nt.done||nt.step>s+1||nt.step<s)return;
+      const tt=nt.step===s?t:base+sd+sw(nt.step%spb);
+      const f=noteF(nt.deg,4),h=singerFor(pl.who);
+      if(!pl.started){pl.started=true;const fm=Math.exp(pl.notes.reduce((a,x)=>a+Math.log(noteF(x.deg,4)),0)/n);startPhrase(h,tt,pl.lvl,fm);VX.cue.push({t:tt-.25,line:pl.line,word:-1,who:pl.who});const lastN=pl.notes[n-1];VX.busyUntil=Math.max(VX.busyUntil,tt+(lastN.step+lastN.len-nt.step)*sd+.4)}
+      singSyl(h,nt.syl,tt,nt.len*sd,f,k===n-1);
+      VX.cue.push({t:tt-.02,line:pl.line,word:nt.word,who:pl.who});
+      nt.done=true;
+      if(k===n-1){alive=false;VX.hideAt=tt+nt.len*sd+1.6}
+    });
+    return alive;
+  });
+}
+// a planet's god sings a one-bar chant of a name or a Greek word
+function chantOf(who,line,bar,bars,lvl,sec){if(D.mute.has(who))return;planLine(line,bar,bars,who,lvl,true,sec)}
+const LINE=(k,def)=>parseLine(k,def||VX.L.lines[k]);
+function voiceBar(bar,t){
+  if(!wordsOn())return;
+  const spb=SPB();
+  // a line whose section did not come (the sky chose otherwise) is dropped; a line still running past the next bar holds the floor
+  VX.plans=VX.plans.filter(pl=>{if(pl.bar0===bar&&D.section!==pl.sec){if(pl.started)hush(pl.who==='venus'?VX.lead:VX.chant);return false}return true});
+  if(VX.plans.some(pl=>pl.end>(bar+1)*spb))return;
+  // lines are planned a bar ahead, for the bar to come, so a pickup syllable can fall before the bar line
+  const st=STY(),half=D.style==='jungle'?2:1,lead=!D.mute.has('venus'),nb=bar+1;
+  let sec=D.section,into=bar-D.secBar+1;
+  if(into>=D.secLen){const nx={intro:'groove',build:'drop',drop:'break',break:'groove'}[sec];if(nx){sec=nx;into=0}}
+  const L=LAYERS[sec],lv=.62*(.55+.45*L.lead)*(st.lead<.5?.8:1),sparse=st.lead<.5;
+  if(sec!=='groove')VX.after=null;
+  if(sec==='drop'){
+    if(into===0)VX.drops++;
+    const alt=VX.drops%2?['pd1a','pd1b']:['pd2a','pd2b'];
+    const script=half===2?[[0,'hook',4],[4,alt[0],4],[8,alt[1],4],[12,'hookB',4]]:sparse?[[0,'hook',2],[4,alt[0],2],[6,alt[1],2],[12,'hook',2]]:[[0,'hook',2],[2,'hookB',2],[4,alt[0],2],[6,alt[1],2],[10,'hook',2],[12,alt[0],2],[14,alt[1],2]];
+    const it=script.find(x=>x[0]===into);if(it&&lead)planLine(LINE(it[1]),nb,it[2],'venus',lv,false,sec);
+  }else if(sec==='break'){
+    if(into===0)VX.breaks++;
+    if(into===0&&lead)planLine(LINE(VX.breaks%2?'brk':'brk2'),nb,4*half,'venus',lv*.8,false,sec);
+  }else if(sec==='build'){
+    const at=D.secLen-2*half;if(into===at&&lead&&D.secLen>=4)planLine(LINE('build'),nb,2*half,'venus',lv*.85,false,sec);
+  }else if(sec==='groove'){
+    const a=ASPNOW[0];
+    if(VX.after&&VX.after.bar===nb){const q=VX.after;VX.after=null;chantOf(q.who,q.line,nb,half,.55,sec)}
+    else if(a&&a.str>.3&&into%8===4&&nb%2===0){
+      // call and response: the two gods of the aspect sing their names, one bar each
+      const g1=a.a.id,g2=a.b.id,gods=VX.L.gods;
+      VX.chants++;const first=VX.chants%2?g1:g2,second=first===g1?g2:g1;
+      if(gods[first]&&!D.mute.has(first)){chantOf(first,parseLine('god:'+first,[byId[first].god,gods[first]]),nb,half,.55,sec);
+        VX.after=gods[second]&&!D.mute.has(second)?{bar:nb+half,who:second,line:parseLine('god:'+second,[byId[second].god,gods[second]])}:null}
+    }
+    else if(a&&a.str>.3&&into%16===12&&lead&&L.lead*st.lead>.08)planLine(LINE(VX.chants%2?'harmonia':'kosmos'),nb,half,'venus',lv*.8,false,sec);
+  }
+}
+// the beat's own hooks: a line is planned at the bar, its syllables are scheduled step by step; the chops give way while words are sung
+const _atBar=atBar;atBar=function(bar,t){_atBar(bar,t);try{voiceBar(bar,t)}catch(e){console.error(e)}};
+const _playStep=playStep;playStep=function(s,t){_playStep(s,t);try{voiceStep(s,t)}catch(e){console.error(e)}};
+const _chop=chop;chop=function(t,f,len,vow){if(wordsOn()&&t<VX.busyUntil)return;_chop(t,f,len,vow)};
+const _stopDance=stopDance;stopDance=function(){_stopDance();hushAll();VX.cue.length=0;if(VX.capEl)VX.capEl.classList.remove('show')};
+
+/* ---- the caption: the line being sung, word by word, on the floor ---- */
+{const el=document.createElement('div');el.className='floor-lyric';el.setAttribute('aria-live','off');cv.parentNode.appendChild(el);VX.capEl=el}
+function pumpCaption(){
+  if(!AC)return;const now=AC.currentTime,el=VX.capEl;
+  while(VX.cue.length&&VX.cue[0].t<=now){const c=VX.cue.shift();
+    if(c.word<0||VX.line!==c.line){VX.line=c.line;el.innerHTML=c.line.words.map((w,k)=>`<span data-k="${k}">${w.replace(/</g,'&lt;')}</span>`).join(c.line.text.includes(' ')?' ':'');el.classList.toggle('chant',c.who!=='venus');el.classList.add('show')}
+    if(c.word>=0)el.querySelectorAll('span').forEach(sp=>{const k=+sp.dataset.k;sp.classList.toggle('on',k===c.word);sp.classList.toggle('done',k<c.word)});
+  }
+  if(VX.cue.length>200)VX.cue.splice(0,VX.cue.length-200);
+  if(VX.line&&!VX.plans.length&&!VX.cue.length&&VX.hideAt&&now>VX.hideAt){el.classList.remove('show');VX.line=null;VX.hideAt=0}
+}
+setInterval(pumpCaption,50);
+{const _np=MOTS.nowPlaying;MOTS.nowPlaying=()=>{const r=_np();if(VX.line&&D.playing)r.p+=' — “'+VX.line.text+'”';return r}}
+
+/* ---- the toggle in the band panel, by Aphrodite: words or the old wordless chops ---- */
+function setVocals(m){VX.mode=m;try{localStorage.setItem('mots.vocals',m)}catch(e){}if(m==='chops'){hushAll();VX.busyUntil=0;VX.cue.length=0;if(VX.capEl)VX.capEl.classList.remove('show')}renderMixer()}
+const _renderMixer=renderMixer;renderMixer=function(){
+  _renderMixer();if(!CLUB())return;
+  const row=$('mix').querySelector('.mrow[data-id="venus"] .nm');if(!row)return;
+  const U=VX.L.ui,sw=document.createElement('span');sw.className='vt';sw.setAttribute('role','group');sw.setAttribute('aria-label',U.vocals);
+  sw.innerHTML=`<span class="vtl">${U.vocals}</span><button data-v="words" aria-pressed="${VX.mode==='words'}">${U.words}</button><button data-v="chops" aria-pressed="${VX.mode==='chops'}">${U.chops}</button>`;
+  sw.querySelectorAll('button').forEach(b=>b.onclick=e=>{e.stopPropagation();setVocals(b.dataset.v)});
+  row.appendChild(sw);
+};
+renderMixer();
+MOTS.voice={lyrics:()=>VX.L,mode:()=>VX.mode,set:setVocals,line:()=>VX.line?VX.line.text:null,lang:VLANG,state:()=>({plans:VX.plans.length,lead:VX.lead?[VX.lead.out.gain.value,VX.lead.vg.gain.value]:null,chant:VX.chant?[VX.chant.out.gain.value,VX.chant.vg.gain.value]:null})};
 
 })();
 </script>
