@@ -1087,8 +1087,12 @@ function moonWaxing(){const e=P.earth,m=byId.earth.moons[0];const th=TAU*((S.jd-
 
 /* ---- the scheduler: a short look-ahead keeps timing tight ---- */
 let nextT=0,schedTimer=null;
+// the beat's clock runs in its own thread, so a busy screen (or a background tab) cannot hold it up; falls back to the page timer
+const CLOCK=(()=>{try{const w=new Worker(URL.createObjectURL(new Blob(['let t=null;onmessage=e=>{clearInterval(t);if(e.data>0)t=setInterval(()=>postMessage(0),e.data)}'],{type:'text/javascript'})));w.onmessage=()=>{if(D.playing)scheduler()};return w}catch(e){return null}})();
+function clockOn(){if(CLOCK)CLOCK.postMessage(25);else{clearInterval(schedTimer);schedTimer=setInterval(scheduler,25)}}
+function clockOff(){if(CLOCK)CLOCK.postMessage(0);clearInterval(schedTimer)}
 function scheduler(){
-  const ahead=LOWPOWER?.2:.12;
+  const ahead=LOWPOWER?.35:.25;
   while(nextT<AC.currentTime+ahead){
     const st=STY(), pos=D.step%SPB(), sd=barDur()/SPB(), sw=st.swing8?(pos%4===2?st.swing8*sd:0):(pos%2===1)?st.swing*sd:0;
     playStep(D.step,nextT+sw);D.step++;nextT+=sd;
@@ -1099,9 +1103,9 @@ function startDance(){
   AC.resume();DEG7=modeDeg();loadStyleSamples();
   D.playing=true;D.step=0;nextT=AC.currentTime+.1;if(window.MOTS&&MOTS.midi.transport)MOTS.midi.transport(true,D.bpm);setSection('intro',8,0);D.lastDrop=-99;
   master.gain.setTargetAtTime(outGain(),AC.currentTime,.05);
-  clearInterval(schedTimer);schedTimer=setInterval(scheduler,25);scheduler();syncPlay();
+  clockOff();clockOn();scheduler();syncPlay();
 }
-function stopDance(){D.playing=false;if(window.MOTS&&MOTS.midi.transport)MOTS.midi.transport(false);clearInterval(schedTimer);if(AC){master.gain.setTargetAtTime(0,AC.currentTime,.05);padV.forEach(v=>v.g.gain.setTargetAtTime(0,AC.currentTime,.1));subV.g.gain.setTargetAtTime(0,AC.currentTime,.1)}syncPlay()}
+function stopDance(){D.playing=false;if(window.MOTS&&MOTS.midi.transport)MOTS.midi.transport(false);clockOff();if(AC){master.gain.setTargetAtTime(0,AC.currentTime,.05);padV.forEach(v=>v.g.gain.setTargetAtTime(0,AC.currentTime,.1));subV.g.gain.setTargetAtTime(0,AC.currentTime,.1)}syncPlay()}
 function setStyle(k){const old=SPB();D.style=k;loadStyleSamples();if(D.playing)D.step=(Math.floor(D.step/old)+1)*SPB();S.mode=STYLES[k].mode;DEG7=AC?modeDeg():null;D.bpm=STYLES[k].bpm;if(window.MOTS&&MOTS.midi.transport)MOTS.midi.transport(D.playing,D.bpm);$('bpm').value=D.bpm;$('bpmOut').textContent=D.bpm+' BPM';
   document.querySelectorAll('#style button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===k)));renderMixer();renderProg();if(AC&&D.playing)master.gain.setTargetAtTime(outGain(),AC.currentTime,.1)}
 
