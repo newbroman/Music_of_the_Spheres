@@ -1018,8 +1018,15 @@ const LAYERS={
 };
 function setSection(name,len,bar){D.section=name;D.secLen=len;D.secBar=bar;renderSection();if(window.MOTS&&MOTS.midi.on)MOTS.midi.section(name,nextT)}
 function atBar(bar,t){
-  computeAspectsD();updateProgression();ensurePatterns();
-  const max=ASPNOW.length?ASPNOW[0].str:0, rising=max>D.prevMax+.01;D.prevMax=max;
+  computeAspectsD();
+  // the sky changes the chords only at the start of a four-bar cycle, and the patterns and Mercury's hats only at a phrase (eight bars), so nothing lands mid-phrase
+  if(bar%4===0||!D.prog)updateProgression();
+  if(bar%8===0||!D.motif||D.patStyle!==D.style){ensurePatterns();D.patStyle=D.style;const r=P.mercury.om/(TAU/87.97);D.mFast=r>1.12;D.mSlow=r<.88}
+  // a build comes when any alignment is tightening (fast planets make these often), not only the strongest, which may barely move for months
+  const prev=D.prevStr||{},now={};let trig=null;
+  for(const x of ASPNOW){const k=x.a.id+'|'+x.b.id;now[k]=x.str;if(x.str>.55&&prev[k]!==undefined&&x.str>prev[k]+.004&&(!trig||x.str>trig.str))trig=x}
+  D.prevStr=now;if(trig)D.trig=trig;
+  const max=ASPNOW.length?ASPNOW[0].str:0, rising=!!trig;
   D.energy+=((.35+Math.min(.65,ASPNOW.reduce((a,x)=>a+x.str,0)*.35))-D.energy)*.35;
   const into=bar-D.secBar, st=STY();
   if(D.section==='intro'&&into>=D.secLen)setSection('groove',16,bar);
@@ -1060,8 +1067,8 @@ function playStep(s,t){
   if(D.style==='techno'&&L.clap&&m('earth')&&pos===14&&bar%2)clap(t,.6);
   if(D.section==='build'&&m('earth')){const prog=(into+pos/16)/D.secLen, every=prog<.5?4:prog<.75?2:1;if(pos%every===0)snare(t,.3+.7*prog)}
   // Hermes' hats: busier when Mercury runs fast near perihelion
-  if(L.hats&&m('mercury')){const fast=P.mercury.om/(TAU/87.97)>1.12, slow=P.mercury.om/(TAU/87.97)<.88;
-    if(st.hats==='trance'){if(pos%4===2)hat(t,true,L.hats);else if(!slow&&(fast||pos%2===0))hat(t,false,.45*L.hats)}
+  if(L.hats&&m('mercury')){const fast=!!D.mFast, slow=!!D.mSlow;
+    if(st.hats==='trance'){if(pos%4===2)hat(t,true,L.hats);else if(fast||pos%2===0)hat(t,false,(slow?.3:.45)*L.hats)}
     else if(st.hats==='house'){if(pos%4===2)hat(t,bar%2===0,L.hats);else if(!slow||pos%2===0)hat(t,false,.5*L.hats)}
     else{if(!slow||pos%2===0)hat(t,pos%4===2&&fast,(pos%4===2?.9:.5)*L.hats)}}
   // Zeus' bass
