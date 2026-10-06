@@ -978,6 +978,17 @@ function singMoon(m,dest,f){
 }
 
 /* ---------- instrument voice ---------- */
+// the gods' tone colours, after their characters in Greek myth
+const GODTONE={
+  mercury:{w1:'sawtooth',w2:'square',det:9,br:4200,vib:6.6,vdk:1.2,lvl:.8},             // Hermes: quick and bright, a fast flicker
+  venus:{w1:'triangle',w2:'sine',det:5,br:1800,vib:5.0,vdk:.9,lvl:1.35},                // Aphrodite: warm and soft
+  earth:{w1:'sawtooth',w2:'triangle',det:6,br:2000,vib:4.6,vdk:.6,lvl:1.35},             // Gaia: earthy and steady
+  mars:{w1:'square',w2:'sawtooth',det:22,br:3600,vib:5.6,vdk:1.3,lvl:.95},              // Ares: harsh and rasping
+  jupiter:{w1:'sawtooth',w2:'sawtooth',w3:'sawtooth',o3:1,det:7,det3:-9,br:3000,vib:4.4,vdk:.8,lvl:.9},   // Zeus: commanding and full
+  saturn:{w1:'square',w2:'square',det:4,br:1500,vib:3.6,vdk:1.6,lvl:.68},               // Kronos: old and hollow, a slow wide waver
+  uranus:{w1:'sawtooth',w2:'sawtooth',w3:'sawtooth',o3:1,det:24,det3:-26,br:2400,vib:4.0,vdk:.7,lvl:1.05}, // Ouranos: vast, chorused
+  neptune:{w1:'triangle',w2:'sawtooth',w3:'triangle',o3:1,o3k:.5,det:8,det3:0,br:1600,vib:3.4,vdk:.8,lvl:1.4} // Poseidon: deep, with a voice an octave below
+};
 function buildInst(b,v,fadeIn){
   const I={srcs:[],taps:[]}, f0=P[b.id].f;
   I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,fadeIn?.15:.001);
@@ -990,10 +1001,13 @@ function buildInst(b,v,fadeIn){
     const sum=mkGain(2.6,lp), g2=mkGain(.5,sum);
     fin.connect(I.bp1);fin.connect(I.bp2);I.bp1.connect(sum);I.bp2.connect(g2);
   }else{
-    I.o1=AC.createOscillator();I.o1.type='sawtooth';I.o1.frequency.value=f0;
-    I.o2=AC.createOscillator();I.o2.type='sawtooth';I.o2.frequency.value=f0;I.o2.detune.value=4+16*b.sizeN;
-    const src=mkGain(.34);I.o1.connect(src);I.o2.connect(src);I.srcs.push(I.o1,I.o2);
-    if(b.sizeN>.85){I.o3=AC.createOscillator();I.o3.type='sawtooth';I.o3.frequency.value=f0;I.o3.detune.value=-(3+12*b.sizeN);I.o3.connect(src);I.srcs.push(I.o3)}
+    // each god's own character: waveforms, spread, brightness, vibrato and, for some, a third voice (Poseidon's an octave below)
+    const C=GODTONE[b.id]||{};const det=C.det!==undefined?C.det:4+16*b.sizeN;
+    I.o1=AC.createOscillator();I.o1.type=C.w1||'sawtooth';I.o1.frequency.value=f0;
+    I.o2=AC.createOscillator();I.o2.type=C.w2||'sawtooth';I.o2.frequency.value=f0;I.o2.detune.value=det;
+    const src=mkGain(.34*(C.lvl||1));I.o1.connect(src);I.o2.connect(src);I.srcs.push(I.o1,I.o2);
+    if(C.o3||(!C.w1&&b.sizeN>.85)){I.o3k=C.o3k||1;I.o3=AC.createOscillator();I.o3.type=C.w3||'sawtooth';I.o3.frequency.value=f0*I.o3k;I.o3.detune.value=C.det3!==undefined?C.det3:-(3+12*b.sizeN);I.o3.connect(src);I.srcs.push(I.o3)}
+    I.br=C.br||2600;I.vdk=C.vdk||1;
     const form=mkGain(1);
     (VOWELS[b.vowel]||VOWELS.a).forEach(([F,g],k)=>{const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=F;bp.Q.value=[7,10,13][k];src.connect(bp);bp.connect(mkGain(g*2.2,form))});
     src.connect(mkGain(.12,form));
@@ -1002,10 +1016,10 @@ function buildInst(b,v,fadeIn){
     // retrograde spin: a reversed swell built from four smooth harmonics, so the pulse never jumps
     I.tl=AC.createOscillator();if(b.rot<0)I.tl.setPeriodicWave(RETRO);else I.tl.type='sine';I.tl.frequency.value=v.rate;
     const td=mkGain(b.tremD!==undefined?b.tremD:(b.rot<0?.22:.3));I.tl.connect(td);td.connect(trem.gain);
-    I.vib=AC.createOscillator();I.vib.frequency.value=4.4+Math.random()*1.4;I.vd=mkGain(f0*.004);
+    I.vib=AC.createOscillator();I.vib.frequency.value=C.vib?C.vib*(.95+Math.random()*.1):4.4+Math.random()*1.4;I.vd=mkGain(f0*.004*I.vdk);
     I.vib.connect(I.vd);[I.o1,I.o2,I.o3].forEach(o=>o&&I.vd.connect(o.frequency));
     I.srcs.push(I.tl,I.vib);
-    I.osc=[[I.o1,0],[I.o2,4+16*b.sizeN]];if(I.o3)I.osc.push([I.o3,-(3+12*b.sizeN)]);
+    I.osc=[[I.o1,0],[I.o2,det]];if(I.o3)I.osc.push([I.o3,I.o3.detune.value]);
     addTiltWobble(b,v,I,I.osc.map(x=>x[0]));
   }
   I.srcs.forEach(o=>o.start());
@@ -1219,8 +1233,8 @@ function updateAudio(){
       // comets stay a background breath, however close they pass
       vol=aud?.1*Math.max(.4,Math.min(1,g)):.03*Math.min(.6,g)*grp;
     }else{
-      if(I){tgt(I.o1.frequency,p.f,.07);tgt(I.o2.frequency,p.f,.07);if(I.o3)tgt(I.o3.frequency,p.f,.07);tgt(I.vd.gain,p.f*.004,.2);
-        const sb=p.r>0?p.z/p.r:0;tgt(I.lp.frequency,Math.max(300,Math.min(12000,2600*Math.pow(2,3*sb))),.2);}
+      if(I){tgt(I.o1.frequency,p.f,.07);tgt(I.o2.frequency,p.f,.07);if(I.o3)tgt(I.o3.frequency,p.f*(I.o3k||1),.07);tgt(I.vd.gain,p.f*.004*(I.vdk||1),.2);
+        const sb=p.r>0?p.z/p.r:0;tgt(I.lp.frequency,Math.max(300,Math.min(12000,(I.br||2600)*Math.pow(2,3*sb))),.2);}
       vol=aud?.1*(.55+.45*b.sizeG):(b.kind==='planet'?.075:.06)*g*grp*(S.thinker!=='today'?2.2:1);
     }
     tgt(v.vol.gain,v.part&&(on||aud)?vol*duck*(1+W.a)*(1+.25*(swell[b.id]||0)):0,.12);
