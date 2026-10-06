@@ -1055,7 +1055,7 @@ function atBar(bar,t){
   else if(D.section==='groove'&&into>=8&&bar%4===0&&((max>.55&&rising)||into>=32)&&bar-D.lastDrop>20){setSection('build',st.buildBars,bar);if(st.fam==='ball')ballRiser(t,st.buildBars*barDur());else riser(t,st.buildBars*barDur())}
   else if(D.section==='build'&&into>=D.secLen){setSection('drop',16,bar);D.lastDrop=bar;if(!classical())crash(t);toast('Drop: '+(ASPNOW[0]?`${ASPNOW[0].a.god} ${ASPNOW[0].asp.sym}︎ ${ASPNOW[0].b.god}`:'die Sphären richten sich aus'))}
   else if(D.section==='drop'&&into>=D.secLen)setSection('break',8,bar);
-  else if(D.section==='break'&&into>=D.secLen)setSection('groove',16,bar);
+  else if(D.section==='break'&&into>=D.secLen){skyMix(bar);setSection('groove',16,bar)}
   // the music filter opens and closes with the section
   const cut={intro:1400,groove:4200,build:900,drop:14000,break:1600}[D.section];
   if(D.section==='build'&&bar===D.secBar){musicLP.frequency.cancelScheduledValues(t);musicLP.frequency.setValueAtTime(700,t);musicLP.frequency.exponentialRampToValueAtTime(9000,t+D.secLen*barDur())}
@@ -1141,6 +1141,27 @@ function setStyle(k){const old=SPB();D.style=k;loadStyleSamples();if(D.playing)D
 const FL={},FQ=[];
 function flash(id,t){FQ.push([id,t]);if(window.MOTS&&MOTS.midi.on)MOTS.midi.hit(id,t,0,.6,.15)}
 function pumpFlashes(){if(!AC)return;const now=AC.currentTime;while(FQ.length&&FQ[0][1]<=now){FL[FQ.shift()[0]]=1}if(FQ.length>400)FQ.splice(0,FQ.length-400)}
+
+/* ---- the sky mix: at the end of each break the Moon's element chooses the next club style (fire trance, earth house, air techno, water jungle) ---- */
+const MIX_T={"en": ["Sky mix", "When a break ends, the Moon’s element picks the next club style: fire trance, earth house, air techno, water jungle."], "pl": ["Miks z nieba", "Gdy kończy się przerwa, żywioł znaku Księżyca wybiera następny styl klubowy: ogień trance, ziemia house, powietrze techno, woda jungle."], "cy": ["Cymysgu’r awyr", "Pan ddaw toriad i ben, elfen arwydd y Lleuad sy’n dewis yr arddull clwb nesaf: tân trance, daear house, aer techno, dŵr jungle."], "de": ["Himmelsmix", "Am Ende einer Pause wählt das Element des Mondzeichens den nächsten Clubstil: Feuer Trance, Erde House, Luft Techno, Wasser Jungle."], "es": ["Mezcla del cielo", "Al acabar una pausa, el elemento del signo de la Luna elige el siguiente estilo de club: fuego trance, tierra house, aire techno, agua jungle."], "fr": ["Mix du ciel", "À la fin d’une pause, l’élément du signe de la Lune choisit le style club suivant : feu trance, terre house, air techno, eau jungle."], "it": ["Mix del cielo", "Alla fine di una pausa, l’elemento del segno della Luna sceglie il prossimo stile da club: fuoco trance, terra house, aria techno, acqua jungle."], "zh": ["天空混音", "每段间歇结束时，由月亮所在星座的元素选择下一种俱乐部风格：火为 trance，土为 house，风为 techno，水为 jungle。"], "ja": ["スカイミックス", "ブレイクが終わるたびに、月のいる星座のエレメントが次のクラブスタイルを選びます。火はトランス、地はハウス、風はテクノ、水はジャングル。"]};
+const MIXT=MIX_T[(document.documentElement.lang||'en').slice(0,2)]||MIX_T.en;
+const MIXCLUB=['trance','house','techno','jungle'];
+D.mix=(()=>{try{return localStorage.getItem('mots.mix')==='1'}catch(e){return false}})();
+function moonSign(){const e=P.earth,m=byId.earth.moons[0];const th=TAU*((S.jd-J2000)/m.P+m.ph0);return Math.floor((((th/DEG)%360)+360)%360/30)}
+function skyMix(bar){
+  if(!D.mix||!MIXCLUB.includes(D.style))return;
+  let k=MIXCLUB[moonSign()%4];if(k===D.style)k=MIXCLUB[(MIXCLUB.indexOf(D.style)+1)%4];
+  const pl=D.playing;D.playing=false;setStyle(k);D.playing=pl;if(AC&&pl)master.gain.setTargetAtTime(outGain(),AC.currentTime,.1);
+  if(window.MOTS&&MOTS.midi&&MOTS.midi.transport&&pl)MOTS.midi.transport(true,D.bpm);
+  const b=document.querySelector(`#style button[data-v="${k}"]`);toast('☾ '+(b?b.textContent:k));
+}
+function mixButton(){
+  const seg=document.querySelector('#style button[data-v="trance"]');if(!seg||document.getElementById('mixBtn'))return;
+  const b=document.createElement('button');b.type='button';b.id='mixBtn';b.textContent='☾ '+MIXT[0];b.title=MIXT[1];b.setAttribute('aria-pressed',String(D.mix));
+  b.onclick=()=>{D.mix=!D.mix;b.setAttribute('aria-pressed',String(D.mix));try{localStorage.setItem('mots.mix',D.mix?'1':'0')}catch(e){}};
+  seg.parentElement.appendChild(b);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mixButton);else setTimeout(mixButton,0);
 
 /* ================= BALLROOM & LATIN: each dance played by its own band ================= */
 // Recorded instruments come from the Fluid R3 General MIDI SoundFont (Frank Wen, CC BY 3.0), loaded per style.
