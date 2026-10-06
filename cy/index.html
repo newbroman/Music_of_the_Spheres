@@ -1685,6 +1685,8 @@ function updateAudio(){
   const cand=BODIES.filter(b=>audible(b)&&!(b.kind==='minor'&&S.minorMode==='wobble')).map(b=>[b.id,loudness(b,P[b.id],audioDir(P[b.id],L))]).sort((a,c)=>c[1]-a[1]);
   const allowed=new Set(cand.slice(0,MAXVOICES).map(x=>x[0]));
   const swell={};ASPNOW.forEach(a=>{swell[a.a.id]=Math.max(swell[a.a.id]||0,a.str);swell[a.b.id]=Math.max(swell[a.b.id]||0,a.str)});
+  // Kepler: planets in concord swell together, and a universal harmony swells them all
+  if(S.thinker==='kepler'){kepConcords();KEPC.forEach(c=>{swell[c.a]=Math.max(swell[c.a]||0,1.6*c.str);swell[c.b]=Math.max(swell[c.b]||0,1.6*c.str)});KEPU.forEach(k=>swell[k]=Math.max(swell[k]||0,2.4))}
   BODIES.forEach(b=>{
     const v=V[b.id], p=P[b.id], aud=S.audition===b.id;
     // auditioning: the body sings just ahead of you, at full presence
@@ -2412,7 +2414,7 @@ $('audBack').onclick=()=>{if(S.thinker!=='today'&&SIR.solo){SIR.solo=null;render
 /*THINKERS-START*/
 /*TXT-START*/
 const TT={
-  ui:{timeline:'Nefoedd pwy?',tone:'tôn',prime:'Y Symudydd Cyntaf',today:'Heddiw',see:'Beth a welwch',hear:'Beth a glywch',doubt:'Ein hail-luniad',voices:'Y lleisiau',tapSolo:'tapiwch lais i’w glywed ar ei ben ei hun',all:'Pob llais',from:'Yn gwrando o',earth:'y Ddaear',sun:'yr Haul',fire:'y Ddaear, yn cylchu’r tân canolog',silent:'distaw',hidden:'ni welir hi byth o’n hochr ni o’r Ddaear',reply:'Clywch ateb y Pythagoreaid',orderCicero:"Trefn Cicero",orderNico:"Trefn Nicomachus",soloing:'Ar ei ben ei hun:',back:'Pob llais',extras:'Rhagor',hint:'tapiwch gorff neu lais i’w glywed ar ei ben ei hun · llusgwch i droi',aspect:'mewn agwedd',kepTitle:"Cân pob planed y funud hon",kepSpan:'rhychwant',now:'nawr',east:'Dn · yn codi',west:'yn machlud · Gn',south:'de: y meridian',asWritten:'Fel y’i hysgrifennwyd',athens:'Clywed o Athen',athensPlace:'Athen, dan yr awyr sy’n troi',writtenNote:'Dim ond yr hyn a ddywed y ffynonellau: mae pob sffêr yn dal ei nodyn (mae planedau Ptolemi’n camu drwy eu tetracordau wrth i’w hepicylchau eu dwyn yn nes ac ymhellach, fel y disgrifia ef), mae nefoedd Aristoteles yn ddistaw, a chaiff y lyra a’r monocord eu chwarae o’r dechrau i’r diwedd, heb ddim mwy.',athensNote:'Ein dehongliad ni: rydych yn sefyll yn Athen wrth i’r awyr droi uwch eich pen, mae pob corff yn canu eto wrth symud ar hyd y sidydd (gan ddisgyn pan fydd yn mynd tuag yn ôl), ac mae arwyddion newydd yn dod ag addurn cerddorol. Mae dolenni Ptolemi’n camu drwy ei detracordau; mae harmoni Aristoteles yn pylu tuag at ei ddistawrwydd, ond byth yn ei gyrraedd yn llwyr.',hearsNote:'Gwrando yma fel y dychmygodd y meddyliwr hwn: dim ond amser, lleisiau, atsain a lefel sain sydd ar ôl yn y panel.'},
+  ui:{timeline:'Nefoedd pwy?',tone:'tôn',prime:'Y Symudydd Cyntaf',today:'Heddiw',see:'Beth a welwch',hear:'Beth a glywch',doubt:'Ein hail-luniad',voices:'Y lleisiau',tapSolo:'tapiwch lais i’w glywed ar ei ben ei hun',all:'Pob llais',from:'Yn gwrando o',earth:'y Ddaear',sun:'yr Haul',fire:'y Ddaear, yn cylchu’r tân canolog',silent:'distaw',hidden:'ni welir hi byth o’n hochr ni o’r Ddaear',reply:'Clywch ateb y Pythagoreaid',orderCicero:"Trefn Cicero",orderNico:"Trefn Nicomachus",soloing:'Ar ei ben ei hun:',back:'Pob llais',extras:'Rhagor',hint:'tapiwch gorff neu lais i’w glywed ar ei ben ei hun · llusgwch i droi',aspect:'mewn agwedd',kepTitle:"Cân pob planed y funud hon",kepConc:"Mewn cytgord nawr",kepNone:"Nid oes dwy blaned mewn cytgord ar hyn o bryd",kepUniv:"Harmoni gyffredinol: {n} planed mewn cytgord ar unwaith. Roedd Kepler yn meddwl tybed a oedd y chwech wedi seinio gyda’i gilydd dim ond adeg y Creu.",kepIv:{"u": "wythfed", "m3": "trydydd lleiaf", "M3": "trydydd mwyaf", "p4": "pedwerydd", "p5": "pumed", "m6": "chweched lleiaf", "M6": "chweched mwyaf"},kepSpan:'rhychwant',now:'nawr',east:'Dn · yn codi',west:'yn machlud · Gn',south:'de: y meridian',asWritten:'Fel y’i hysgrifennwyd',athens:'Clywed o Athen',athensPlace:'Athen, dan yr awyr sy’n troi',writtenNote:'Dim ond yr hyn a ddywed y ffynonellau: mae pob sffêr yn dal ei nodyn (mae planedau Ptolemi’n camu drwy eu tetracordau wrth i’w hepicylchau eu dwyn yn nes ac ymhellach, fel y disgrifia ef), mae nefoedd Aristoteles yn ddistaw, a chaiff y lyra a’r monocord eu chwarae o’r dechrau i’r diwedd, heb ddim mwy.',athensNote:'Ein dehongliad ni: rydych yn sefyll yn Athen wrth i’r awyr droi uwch eich pen, mae pob corff yn canu eto wrth symud ar hyd y sidydd (gan ddisgyn pan fydd yn mynd tuag yn ôl), ac mae arwyddion newydd yn dod ag addurn cerddorol. Mae dolenni Ptolemi’n camu drwy ei detracordau; mae harmoni Aristoteles yn pylu tuag at ei ddistawrwydd, ond byth yn ei gyrraedd yn llwyr.',hearsNote:'Gwrando yma fel y dychmygodd y meddyliwr hwn: dim ond amser, lleisiau, atsain a lefel sain sydd ar ôl yn y panel.'},
   bodies:{moon:'Y Lleuad',mercury:'Mercher',venus:'Gwener',sun:'Yr Haul',mars:'Mawrth',jupiter:'Iau',saturn:'Sadwrn',stars:'Y sêr sefydlog',earth:'Y Ddaear',fire:'Y tân canolog',counter:'Gwrth-ddaear',water:'Dŵr',air:'Aer',efire:'Tân',elements:'Tân ac aer',earthwater:'Daear a dŵr',emp1:'Yr empyrean isaf',emp2:'Yr empyrean canol',emp3:'Yr empyrean uchaf',fates:'Y Tynghedau',mercven:'Mercher a Gwener',heaven:'Y Nef',lachesis:'Lachesis (y gorffennol)',clotho:'Clotho (y presennol)',atropos:'Atropos (y dyfodol)'},
   pythagoras:{name:'Pythagoras',when:'tua 530 CC',work:'yn ôl adroddiad Plinius (Hanes Naturiol II) a Censorinus',
     idea:'Sylfaenydd y syniad. Rhif yw cerddoriaeth: cymarebau syml 2:1, 3:2 a 4:3 yw’r wythfed, y pumed a’r pedwerydd. Os yw’r nefoedd yn symud yn ôl rhif, rhaid eu bod yn seinio. Mesurodd ei ddilynwyr y cosmos mewn camau cerddorol.',
@@ -2477,9 +2479,9 @@ const TT={
   kepler:{name:'Kepler',when:'1619',work:'Harmonices Mundi (Harmoni’r Byd), Llyfr V',
     idea:'Gwyddai Kepler fod y planedau’n symud ar elipsau, yn gyflymach yn agos at yr Haul. Mesurodd gyflymder pob planed fel y’i gwelir o’r Haul ar ei harafaf a’i chyflymaf, a chanfod cyfyngau cerddorol: Sadwrn trydydd mwyaf, Iau trydydd lleiaf, Mawrth pumed, y Ddaear hanner tôn, mi-fa-mi (miseria a fames, trallod a newyn, meddai Kepler yn gellweirus), Gwener bron yn un nodyn, a Mercher wythfed a thrydydd lleiaf.',
     see:'Y planedau ar eu gwir elipsau o amgylch yr Haul, gyda’r pum solid Platonaidd y credai ef eu bod yn ffitio rhwng eu sfferau (o’i Mysterium Cosmographicum ym 1596). Mae traw pob planed yn symud rhwng ei nodyn arafaf a’i nodyn cyflymaf.',
-    hear:'Chwe phlaned, i’w clywed o’r Haul, pob un yn llithro drwy ei gwir gyfwng ei hun ar ei gwir gyflymder, yn y lleisiau a roddodd Kepler iddynt: Sadwrn ac Iau yn fas, Mawrth yn denor, y Ddaear a Gwener yn alto, Mercher yn soprano.',
+    hear:'Chwe phlaned, i’w clywed o’r Haul, pob un yn llithro drwy ei gwir gyfwng ei hun ar ei gwir gyflymder, yn y lleisiau a roddodd Kepler iddynt: Sadwrn ac Iau yn fas, Mawrth yn denor, y Ddaear a Gwener yn alto, Mercher yn soprano. Mae pob un yn dechrau ar y nodyn a ysgrifennodd Kepler ar ei chyfer. Pan fydd dwy blaned yn cwrdd mewn cytgord, mae’r ddwy’n chwyddo; mae pedair neu fwy ar unwaith yn creu un o’i harmonïau cyffredinol prin.',
     quote:'Nid yw symudiadau’r nefoedd yn ddim ond cân barhaus i sawl llais, a ganfyddir nid gan y glust ond gan y deall.',cite:'Kepler, Harmonices Mundi V.7 (aralleiriad)',
-    doubt:'Mae pob planed yn llithro drwy ei gwir gymhareb cyflymder; mae enwau Kepler ar y cyfyngau wedi’u delfrydu (mae Mawrth, er enghraifft, ychydig yn llai na phumed). Mae gosod pob planed yn ei hwythfed yn dilyn ei rannau lleisiol; ein dewis ni yw’r wythfedau.'},
+    doubt:'Mae pob planed yn llithro drwy ei gwir gymhareb cyflymder; mae enwau Kepler ar y cyfyngau wedi’u delfrydu (mae Mawrth, er enghraifft, ychydig yn llai na phumed). Mae gosod pob planed yn ei hwythfed yn dilyn ei rannau lleisiol; ein dewis ni yw’r wythfedau. Nodau Kepler ei hun yw’r nodau cychwyn (V.6): Sadwrn G–B, Iau G–B♭, Mawrth F–C, y Ddaear G–A♭, Gwener E, Mercher o C.'},
   today:{name:'Heddiw',when:'2026',work:'seryddiaeth fodern',
     idea:'Cysawd yr Haul cyfan fel yr ydym yn ei adnabod: wyth planed, planedau corrach, asteroidau, comedau a lleuadau, pob un yn canu â llais ei dduw.',
     see:'Y planedariwm byw.',hear:'Y côr llawn, fel yng ngweddill yr ap hwn.',quote:'',cite:'',doubt:''}
@@ -2512,8 +2514,18 @@ const KEP6=new Set(['mercury','venus','earth','mars','jupiter','saturn']);
 const KEP_CENTRE={saturn:98,jupiter:131,mars:220,earth:330,venus:392,mercury:660};
 const KEP_IV={saturn:'trydydd mwyaf (4:5)',jupiter:'trydydd lleiaf (5:6)',mars:'pumed (2:3)',earth:'hanner tôn, mi-fa (15:16)',venus:'diesis (24:25)',mercury:'wythfed a thrydydd lleiaf (5:12)'};
 const OM_N=b=>b.el.n*DEG;
-function kepShift(b){return Math.round(Math.log2(KEP_CENTRE[b.id]/(330*OM_N(b)/OM_EARTH)))}
-function kepF(b,om){return 330*(om/OM_EARTH)*Math.pow(2,kepShift(b))}
+// Kepler wrote each planet's song on a staff (Harmonices Mundi V.6): each planet's slowest note is the note he wrote, in his voice parts, and it rises through its true ratio
+const KEP_W={saturn:['G',2],jupiter:['G',3],mars:['F',3],earth:['G',4],venus:['E',4],mercury:['C',5]};
+function kepAph(b){const e=b.el.e;return OM_N(b)*(1-e)*(1-e)/Math.pow(1-e*e,1.5)}
+function kepF(b,om){const w=KEP_W[b.id];return C_BASE*PY[w[0]]*Math.pow(2,w[1])*om/kepAph(b)}
+// Kepler's concords between the planets (V.5, V.7): just intervals, octaves folded, within 10 cents; four or more planets all in concord make a universal harmony
+const KEP_CONS=[[1,'u'],[2,'u'],[6/5,'m3'],[5/4,'M3'],[4/3,'p4'],[3/2,'p5'],[8/5,'m6'],[5/3,'M6']];
+let KEPC=[],KEPU=[];
+function kepConcords(){KEPC=[];KEPU=[];const ids=[...KEP6].filter(k=>P[k]&&P[k].f);const ok={};
+  for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++){const a=ids[i],b=ids[j];let r=Math.max(P[a].f,P[b].f)/Math.min(P[a].f,P[b].f);while(r>=2.05)r/=2;
+    for(const [c,k] of KEP_CONS){const ct=Math.abs(1200*Math.log2(r/c));if(ct<10){KEPC.push({a,b,k,str:1-ct/10});ok[a+b]=ok[b+a]=1;break}}}
+  for(let m=1;m<64;m++){const set=ids.filter((_,i)=>m>>i&1);if(set.length<4||set.length<=KEPU.length)continue;if(set.every((x,i)=>set.every((y,j)=>j<=i||ok[x+y])))KEPU=set}
+  KEPC.sort((x,y)=>y.str-x.str)}
 function kepEnds(b){const e=b.el.e,n=OM_N(b),k=Math.pow(1-e*e,1.5);return [kepF(b,n*(1-e)*(1-e)/k),kepF(b,n*(1+e)*(1+e)/k)]}
 // Copernicus: perfect circles, so each planet holds the note of its mean speed, on the Pythagorean diatonic scale
 function copF(b){const f=rawPitch(OM_N(b));const set=['C','D','E','F','G','A','B'].map(n=>Math.log2(PY[n]));set.push(1);const l=Math.log2(f/C_BASE),o=Math.floor(l),fr=l-o;let best=0,bd=9;for(const s of set){const d=Math.abs(s-fr);if(d<bd){bd=d;best=s}}return C_BASE*Math.pow(2,o+best)}
@@ -2727,7 +2739,7 @@ function thinkerInfoHTML(){
   const listen=th.listen==='sun'?TT.ui.sun:th.listen==='fire'?TT.ui.fire:TT.ui.earth;
   let side='';
   if(th.model==='bodies'&&id==='kepler'){
-    side=`<h4>${TT.ui.kepTitle}</h4><div class="vlist">`+[...KEP6].map(k=>{const b=byId[k],[lo,hi]=kepEnds(b);return `<button class="vrow2${S.audition===k?' on':''}" data-w="${k}"><span class="sw" style="background:${b.color}"></span><span class="nm">${b.god} <i>${b.name}</i><br><small>${KEP_IV[k]} · ${nn(lo)} – ${nn(hi)}</small></span><span class="nt" id="tv_${k}">${nn(P[k].f)}</span></button>`}).join('')+'</div>';
+    side=`<h4>${TT.ui.kepTitle}</h4><div class="vlist">`+[...KEP6].map(k=>{const b=byId[k],[lo,hi]=kepEnds(b);return `<button class="vrow2${S.audition===k?' on':''}" data-w="${k}"><span class="sw" style="background:${b.color}"></span><span class="nm">${b.god} <i>${b.name}</i><br><small>${KEP_IV[k]} · ${nn(lo)} – ${nn(hi)}</small></span><span class="nt" id="tv_${k}">${nn(P[k].f)}</span></button>`}).join('')+'</div>'+`<p class="small" id="kepConc"></p>`;
   }else if(th.model==='bodies'){
     side=`<h4>${TT.ui.voices}</h4><div class="vlist">`+[...KEP6].map(k=>{const b=byId[k];return `<button class="vrow2${S.audition===k?' on':''}" data-w="${k}"><span class="sw" style="background:${b.color}"></span><span class="nm">${b.god} <i>${b.name}</i></span><span class="nt">${nn(P[k].f)}</span></button>`}).join('')+'</div>';
   }else if(th.model!=='silence'){
@@ -2759,7 +2771,8 @@ function wireThinkerInfo(){
   const rp=$('replyBtn');if(rp)rp.onclick=()=>{setThinker('pythagoras');if(!audioOn)startAudio()};
 }
 function tickThinkerInfo(){
-  if(S.thinker==='kepler')[...KEP6].forEach(k=>{const el=$('tv_'+k);if(el)el.textContent=nn(P[k].f)});
+  if(S.thinker==='kepler'){[...KEP6].forEach(k=>{const el=$('tv_'+k);if(el)el.textContent=nn(P[k].f)});
+    const kc=$('kepConc');if(kc){if(!audioOn)kepConcords();const U=TT.ui;kc.innerHTML=KEPU.length?`<b>${U.kepUniv.replace('{n}',KEPU.length)}</b>`:KEPC.length?`${U.kepConc}: `+KEPC.slice(0,4).map(c=>`${byId[c.a].god}–${byId[c.b].god} ${U.kepIv[c.k]}`).join(' · '):U.kepNone}}
   const ta=$('tAsp');if(ta)ta.textContent=SIR.asp.length?SIR.asp.map(a=>`${bodyName(a.a)} ${a.sym}︎ ${bodyName(a.b)}`).join(' · ')+' — '+TT.ui.aspect:'';
 }
 

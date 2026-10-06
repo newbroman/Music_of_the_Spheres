@@ -1693,6 +1693,8 @@ function updateAudio(){
   const cand=BODIES.filter(b=>audible(b)&&!(b.kind==='minor'&&S.minorMode==='wobble')).map(b=>[b.id,loudness(b,P[b.id],audioDir(P[b.id],L))]).sort((a,c)=>c[1]-a[1]);
   const allowed=new Set(cand.slice(0,MAXVOICES).map(x=>x[0]));
   const swell={};ASPNOW.forEach(a=>{swell[a.a.id]=Math.max(swell[a.a.id]||0,a.str);swell[a.b.id]=Math.max(swell[a.b.id]||0,a.str)});
+  // Kepler: planets in concord swell together, and a universal harmony swells them all
+  if(S.thinker==='kepler'){kepConcords();KEPC.forEach(c=>{swell[c.a]=Math.max(swell[c.a]||0,1.6*c.str);swell[c.b]=Math.max(swell[c.b]||0,1.6*c.str)});KEPU.forEach(k=>swell[k]=Math.max(swell[k]||0,2.4))}
   BODIES.forEach(b=>{
     const v=V[b.id], p=P[b.id], aud=S.audition===b.id;
     // auditioning: the body sings just ahead of you, at full presence
@@ -2420,7 +2422,7 @@ $('audBack').onclick=()=>{if(S.thinker!=='today'&&SIR.solo){SIR.solo=null;render
 /*THINKERS-START*/
 /*TXT-START*/
 const TT={
-  ui:{timeline:'谁的天穹？',tone:'音',prime:'第一推动者',today:'今天',see:'你看到的',hear:'你听到的',doubt:'我们的重构',voices:'声部',tapSolo:'点按一个声部单独聆听',all:'全部声部',from:'聆听位置：',earth:'地球',sun:'太阳',fire:'地球，环绕中央之火',silent:'无声',hidden:'从地球的这一面永远看不到',reply:'聆听毕达哥拉斯学派的回应',orderCicero:"西塞罗的次序",orderNico:"尼各马可的次序",soloing:'单独聆听：',back:'全部声部',extras:'更多',hint:'点按天体或声部单独聆听 · 拖动以旋转',aspect:'成相位',kepTitle:"此刻各行星之歌",kepSpan:'音域',now:'此刻',east:'东 · 升起',west:'落下 · 西',south:'南：子午线',asWritten:'按原典',athens:'在雅典聆听',athensPlace:'雅典，旋转的天穹之下',writtenNote:'只依照史料所载：每个天球保持各自的音（托勒密的行星则随本轮带它们时近时远，按他的描述在四音音列中移动），亚里士多德的天空寂静无声，里拉琴与单弦琴只是依次弹奏。',athensNote:'我们的诠释：你站在雅典，天空在头顶旋转；每个天体沿黄道移动时再次歌唱（逆行时音调下降），进入新星座时奏出一段华彩。托勒密的本轮回环走过他的四音音列；亚里士多德的和谐渐渐淡向他的寂静，却始终没有完全归于寂静。',hearsNote:'此处按这位思想家的设想聆听：面板只保留时间、声部、回声和音量。'},
+  ui:{timeline:'谁的天穹？',tone:'音',prime:'第一推动者',today:'今天',see:'你看到的',hear:'你听到的',doubt:'我们的重构',voices:'声部',tapSolo:'点按一个声部单独聆听',all:'全部声部',from:'聆听位置：',earth:'地球',sun:'太阳',fire:'地球，环绕中央之火',silent:'无声',hidden:'从地球的这一面永远看不到',reply:'聆听毕达哥拉斯学派的回应',orderCicero:"西塞罗的次序",orderNico:"尼各马可的次序",soloing:'单独聆听：',back:'全部声部',extras:'更多',hint:'点按天体或声部单独聆听 · 拖动以旋转',aspect:'成相位',kepTitle:"此刻各行星之歌",kepConc:"此刻协和",kepNone:"此刻没有两颗行星处于协和",kepUniv:"宇宙和声：{n} 颗行星同时协和。开普勒曾设想，六颗行星或许只在创世之时一同鸣响。",kepIv:{"u": "八度", "m3": "小三度", "M3": "大三度", "p4": "纯四度", "p5": "纯五度", "m6": "小六度", "M6": "大六度"},kepSpan:'音域',now:'此刻',east:'东 · 升起',west:'落下 · 西',south:'南：子午线',asWritten:'按原典',athens:'在雅典聆听',athensPlace:'雅典，旋转的天穹之下',writtenNote:'只依照史料所载：每个天球保持各自的音（托勒密的行星则随本轮带它们时近时远，按他的描述在四音音列中移动），亚里士多德的天空寂静无声，里拉琴与单弦琴只是依次弹奏。',athensNote:'我们的诠释：你站在雅典，天空在头顶旋转；每个天体沿黄道移动时再次歌唱（逆行时音调下降），进入新星座时奏出一段华彩。托勒密的本轮回环走过他的四音音列；亚里士多德的和谐渐渐淡向他的寂静，却始终没有完全归于寂静。',hearsNote:'此处按这位思想家的设想聆听：面板只保留时间、声部、回声和音量。'},
   bodies:{moon:'月亮',mercury:'水星',venus:'金星',sun:'太阳',mars:'火星',jupiter:'木星',saturn:'土星',stars:'恒星天',earth:'地球',fire:'中央之火',counter:'反地球',water:'水',air:'气',efire:'火',elements:'火与气',earthwater:'土与水',emp1:'下层净火天',emp2:'中层净火天',emp3:'上层净火天',fates:'命运三女神',mercven:'水星与金星',heaven:'天',lachesis:'拉刻西斯（过去）',clotho:'克洛托（现在）',atropos:'阿特洛波斯（未来）'},
   pythagoras:{name:'毕达哥拉斯',when:'约公元前 530 年',work:'据老普林尼（《博物志》第二卷）与肯索里努斯的记述',
     idea:'这一思想的开创者。音乐即是数：八度、五度和四度就是简单的比例 2:1、3:2 和 4:3。既然天体按数运行，它们就必然发出声音。他的追随者用音程来丈量宇宙。',
@@ -2485,9 +2487,9 @@ const TT={
   kepler:{name:'开普勒',when:'1619 年',work:'Harmonices Mundi（《世界的和谐》）第五卷',
     idea:'开普勒知道行星沿椭圆运行，离太阳越近就越快。他测量了从太阳看去每颗行星最慢和最快时的速度，发现了音程：土星是大三度，木星是小三度，火星是五度，地球是一个半音 mi-fa-mi（开普勒戏称之为“苦难与饥荒”），金星几乎只有一个音，水星则是一个八度加一个小三度。',
     see:'行星在真实的椭圆轨道上绕太阳运行，还有他认为嵌在各天球之间的五种柏拉图立体（出自他 1596 年的 Mysterium Cosmographicum）。每颗行星的音高在它最慢与最快的音之间移动。',
-    hear:'六颗行星，在太阳上聆听，各自以真实的速度滑过自己真实的音程，用开普勒赋予它们的声部歌唱：土星和木星是男低音，火星是男高音，地球和金星是女低音，水星是女高音。',
+    hear:'六颗行星，在太阳上聆听，各自以真实的速度滑过自己真实的音程，用开普勒赋予它们的声部歌唱：土星和木星是男低音，火星是男高音，地球和金星是女低音，水星是女高音。每颗行星都从开普勒为它写下的音开始。两颗行星相遇于协和音程时，两者的声音都会增强；四颗或更多同时协和，便构成他所说的罕见的宇宙和声。',
     quote:'天体的运动不过是一首连绵不断的多声部歌曲，不是用耳朵，而是用理智去感知。',cite:'开普勒，Harmonices Mundi V.7（意译）',
-    doubt:'每颗行星都滑过它真实的速度比；开普勒为这些音程取的名称是理想化的（例如火星略小于五度）。每颗行星所在的八度依照他的声部分配；具体八度是我们的选择。'},
+    doubt:'每颗行星都滑过它真实的速度比；开普勒为这些音程取的名称是理想化的（例如火星略小于五度）。每颗行星所在的八度依照他的声部分配；具体八度是我们的选择。起始音是开普勒本人写下的（第五卷第6章）：土星 G–B、木星 G–B♭、火星 F–C、地球 G–A♭、金星 E、水星从 C 开始。'},
   today:{name:'今天',when:'2026 年',work:'现代天文学',
     idea:'我们今天所知的整个太阳系：八大行星、矮行星、小行星、彗星和卫星，各由其神祇发声。',
     see:'实时太阳系仪。',hear:'完整的合唱，与本应用其他部分相同。',quote:'',cite:'',doubt:''}
@@ -2520,8 +2522,18 @@ const KEP6=new Set(['mercury','venus','earth','mars','jupiter','saturn']);
 const KEP_CENTRE={saturn:98,jupiter:131,mars:220,earth:330,venus:392,mercury:660};
 const KEP_IV={saturn:'大三度（4:5）',jupiter:'小三度（5:6）',mars:'五度（2:3）',earth:'半音，mi-fa（15:16）',venus:'微分音差 diesis（24:25）',mercury:'八度加小三度（5:12）'};
 const OM_N=b=>b.el.n*DEG;
-function kepShift(b){return Math.round(Math.log2(KEP_CENTRE[b.id]/(330*OM_N(b)/OM_EARTH)))}
-function kepF(b,om){return 330*(om/OM_EARTH)*Math.pow(2,kepShift(b))}
+// Kepler wrote each planet's song on a staff (Harmonices Mundi V.6): each planet's slowest note is the note he wrote, in his voice parts, and it rises through its true ratio
+const KEP_W={saturn:['G',2],jupiter:['G',3],mars:['F',3],earth:['G',4],venus:['E',4],mercury:['C',5]};
+function kepAph(b){const e=b.el.e;return OM_N(b)*(1-e)*(1-e)/Math.pow(1-e*e,1.5)}
+function kepF(b,om){const w=KEP_W[b.id];return C_BASE*PY[w[0]]*Math.pow(2,w[1])*om/kepAph(b)}
+// Kepler's concords between the planets (V.5, V.7): just intervals, octaves folded, within 10 cents; four or more planets all in concord make a universal harmony
+const KEP_CONS=[[1,'u'],[2,'u'],[6/5,'m3'],[5/4,'M3'],[4/3,'p4'],[3/2,'p5'],[8/5,'m6'],[5/3,'M6']];
+let KEPC=[],KEPU=[];
+function kepConcords(){KEPC=[];KEPU=[];const ids=[...KEP6].filter(k=>P[k]&&P[k].f);const ok={};
+  for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++){const a=ids[i],b=ids[j];let r=Math.max(P[a].f,P[b].f)/Math.min(P[a].f,P[b].f);while(r>=2.05)r/=2;
+    for(const [c,k] of KEP_CONS){const ct=Math.abs(1200*Math.log2(r/c));if(ct<10){KEPC.push({a,b,k,str:1-ct/10});ok[a+b]=ok[b+a]=1;break}}}
+  for(let m=1;m<64;m++){const set=ids.filter((_,i)=>m>>i&1);if(set.length<4||set.length<=KEPU.length)continue;if(set.every((x,i)=>set.every((y,j)=>j<=i||ok[x+y])))KEPU=set}
+  KEPC.sort((x,y)=>y.str-x.str)}
 function kepEnds(b){const e=b.el.e,n=OM_N(b),k=Math.pow(1-e*e,1.5);return [kepF(b,n*(1-e)*(1-e)/k),kepF(b,n*(1+e)*(1+e)/k)]}
 // Copernicus: perfect circles, so each planet holds the note of its mean speed, on the Pythagorean diatonic scale
 function copF(b){const f=rawPitch(OM_N(b));const set=['C','D','E','F','G','A','B'].map(n=>Math.log2(PY[n]));set.push(1);const l=Math.log2(f/C_BASE),o=Math.floor(l),fr=l-o;let best=0,bd=9;for(const s of set){const d=Math.abs(s-fr);if(d<bd){bd=d;best=s}}return C_BASE*Math.pow(2,o+best)}
@@ -2735,7 +2747,7 @@ function thinkerInfoHTML(){
   const listen=th.listen==='sun'?TT.ui.sun:th.listen==='fire'?TT.ui.fire:TT.ui.earth;
   let side='';
   if(th.model==='bodies'&&id==='kepler'){
-    side=`<h4>${TT.ui.kepTitle}</h4><div class="vlist">`+[...KEP6].map(k=>{const b=byId[k],[lo,hi]=kepEnds(b);return `<button class="vrow2${S.audition===k?' on':''}" data-w="${k}"><span class="sw" style="background:${b.color}"></span><span class="nm">${b.god} <i>${b.name}</i><br><small>${KEP_IV[k]} · ${nn(lo)} – ${nn(hi)}</small></span><span class="nt" id="tv_${k}">${nn(P[k].f)}</span></button>`}).join('')+'</div>';
+    side=`<h4>${TT.ui.kepTitle}</h4><div class="vlist">`+[...KEP6].map(k=>{const b=byId[k],[lo,hi]=kepEnds(b);return `<button class="vrow2${S.audition===k?' on':''}" data-w="${k}"><span class="sw" style="background:${b.color}"></span><span class="nm">${b.god} <i>${b.name}</i><br><small>${KEP_IV[k]} · ${nn(lo)} – ${nn(hi)}</small></span><span class="nt" id="tv_${k}">${nn(P[k].f)}</span></button>`}).join('')+'</div>'+`<p class="small" id="kepConc"></p>`;
   }else if(th.model==='bodies'){
     side=`<h4>${TT.ui.voices}</h4><div class="vlist">`+[...KEP6].map(k=>{const b=byId[k];return `<button class="vrow2${S.audition===k?' on':''}" data-w="${k}"><span class="sw" style="background:${b.color}"></span><span class="nm">${b.god} <i>${b.name}</i></span><span class="nt">${nn(P[k].f)}</span></button>`}).join('')+'</div>';
   }else if(th.model!=='silence'){
@@ -2767,7 +2779,8 @@ function wireThinkerInfo(){
   const rp=$('replyBtn');if(rp)rp.onclick=()=>{setThinker('pythagoras');if(!audioOn)startAudio()};
 }
 function tickThinkerInfo(){
-  if(S.thinker==='kepler')[...KEP6].forEach(k=>{const el=$('tv_'+k);if(el)el.textContent=nn(P[k].f)});
+  if(S.thinker==='kepler'){[...KEP6].forEach(k=>{const el=$('tv_'+k);if(el)el.textContent=nn(P[k].f)});
+    const kc=$('kepConc');if(kc){if(!audioOn)kepConcords();const U=TT.ui;kc.innerHTML=KEPU.length?`<b>${U.kepUniv.replace('{n}',KEPU.length)}</b>`:KEPC.length?`${U.kepConc}: `+KEPC.slice(0,4).map(c=>`${byId[c.a].god}–${byId[c.b].god} ${U.kepIv[c.k]}`).join(' · '):U.kepNone}}
   const ta=$('tAsp');if(ta)ta.textContent=SIR.asp.length?SIR.asp.map(a=>`${bodyName(a.a)} ${a.sym}︎ ${bodyName(a.b)}`).join(' · ')+' — '+TT.ui.aspect:'';
 }
 

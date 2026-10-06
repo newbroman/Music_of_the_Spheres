@@ -1691,6 +1691,8 @@ function updateAudio(){
   const cand=BODIES.filter(b=>audible(b)&&!(b.kind==='minor'&&S.minorMode==='wobble')).map(b=>[b.id,loudness(b,P[b.id],audioDir(P[b.id],L))]).sort((a,c)=>c[1]-a[1]);
   const allowed=new Set(cand.slice(0,MAXVOICES).map(x=>x[0]));
   const swell={};ASPNOW.forEach(a=>{swell[a.a.id]=Math.max(swell[a.a.id]||0,a.str);swell[a.b.id]=Math.max(swell[a.b.id]||0,a.str)});
+  // Kepler: planets in concord swell together, and a universal harmony swells them all
+  if(S.thinker==='kepler'){kepConcords();KEPC.forEach(c=>{swell[c.a]=Math.max(swell[c.a]||0,1.6*c.str);swell[c.b]=Math.max(swell[c.b]||0,1.6*c.str)});KEPU.forEach(k=>swell[k]=Math.max(swell[k]||0,2.4))}
   BODIES.forEach(b=>{
     const v=V[b.id], p=P[b.id], aud=S.audition===b.id;
     // auditioning: the body sings just ahead of you, at full presence
@@ -2419,7 +2421,7 @@ $('audBack').onclick=()=>{if(S.thinker!=='today'&&SIR.solo){SIR.solo=null;render
 /*THINKERS-START*/
 /*TXT-START*/
 const TT={
-  ui:{timeline:'Wessen Himmel?',tone:'Ton',prime:'Unbewegter Beweger',today:'Heute',see:'Was du siehst',hear:'Was du hörst',doubt:'Unsere Rekonstruktion',voices:'Die Stimmen',tapSolo:'tippe auf eine Stimme, um sie allein zu hören',all:'Alle Stimmen',from:'Hörposten:',earth:'die Erde',sun:'die Sonne',fire:'die Erde, die das Zentralfeuer umkreist',silent:'still',hidden:'von unserer Seite der Erde aus nie zu sehen',reply:'Die pythagoreische Antwort hören',orderCicero:"Ciceros Reihenfolge",orderNico:"Nikomachos’ Reihenfolge",soloing:'Du hörst allein:',back:'Alle Stimmen',extras:'Extras',hint:'tippe auf einen Körper oder eine Stimme, um sie allein zu hören · ziehen zum Drehen',aspect:'im Aspekt',kepTitle:"Der Gesang jedes Planeten in diesem Augenblick",kepSpan:'Spanne',now:'jetzt',east:'O · Aufgang',west:'Untergang · W',south:'Süden: der Meridian',asWritten:'Wie sie es schrieben',athens:'Von Athen aus gehört',athensPlace:'Athen, unter dem kreisenden Himmel',writtenNote:'Nur das, was die Quellen sagen: Jede Sphäre hält ihren Ton (die Planeten des Ptolemäus schreiten durch ihre Tetrachorde, während ihre Epizykel sie näher und ferner tragen, wie er es beschreibt), der Himmel des Aristoteles schweigt, Lyra und Monochord werden einfach durchgespielt.',athensNote:'Unsere Deutung: Du stehst in Athen, während sich der Himmel über dir dreht. Jeder Körper singt von Neuem, wenn er durch den Tierkreis weiterzieht (und sinkt im Ton, wenn er rückläufig wird), und jedes neue Zeichen bringt eine Verzierung. Die Schleifen des Ptolemäus durchschreiten seine Tetrachorde; die Harmonie des Aristoteles verklingt bis an die Schwelle seiner Stille, erreicht sie aber nie ganz.',hearsNote:'Du hörst hier so, wie dieser Denker es sich vorstellte: Das Bedienfeld behält nur Zeit, Stimmen, Echo und Lautstärke.'},
+  ui:{timeline:'Wessen Himmel?',tone:'Ton',prime:'Unbewegter Beweger',today:'Heute',see:'Was du siehst',hear:'Was du hörst',doubt:'Unsere Rekonstruktion',voices:'Die Stimmen',tapSolo:'tippe auf eine Stimme, um sie allein zu hören',all:'Alle Stimmen',from:'Hörposten:',earth:'die Erde',sun:'die Sonne',fire:'die Erde, die das Zentralfeuer umkreist',silent:'still',hidden:'von unserer Seite der Erde aus nie zu sehen',reply:'Die pythagoreische Antwort hören',orderCicero:"Ciceros Reihenfolge",orderNico:"Nikomachos’ Reihenfolge",soloing:'Du hörst allein:',back:'Alle Stimmen',extras:'Extras',hint:'tippe auf einen Körper oder eine Stimme, um sie allein zu hören · ziehen zum Drehen',aspect:'im Aspekt',kepTitle:"Der Gesang jedes Planeten in diesem Augenblick",kepConc:"Jetzt im Einklang",kepNone:"Im Augenblick stehen keine zwei Planeten im Einklang",kepUniv:"Eine universale Harmonie: {n} Planeten zugleich im Einklang. Kepler fragte sich, ob alle sechs nur bei der Schöpfung zusammen erklungen sind.",kepIv:{"u": "Oktave", "m3": "kleine Terz", "M3": "große Terz", "p4": "Quarte", "p5": "Quinte", "m6": "kleine Sexte", "M6": "große Sexte"},kepSpan:'Spanne',now:'jetzt',east:'O · Aufgang',west:'Untergang · W',south:'Süden: der Meridian',asWritten:'Wie sie es schrieben',athens:'Von Athen aus gehört',athensPlace:'Athen, unter dem kreisenden Himmel',writtenNote:'Nur das, was die Quellen sagen: Jede Sphäre hält ihren Ton (die Planeten des Ptolemäus schreiten durch ihre Tetrachorde, während ihre Epizykel sie näher und ferner tragen, wie er es beschreibt), der Himmel des Aristoteles schweigt, Lyra und Monochord werden einfach durchgespielt.',athensNote:'Unsere Deutung: Du stehst in Athen, während sich der Himmel über dir dreht. Jeder Körper singt von Neuem, wenn er durch den Tierkreis weiterzieht (und sinkt im Ton, wenn er rückläufig wird), und jedes neue Zeichen bringt eine Verzierung. Die Schleifen des Ptolemäus durchschreiten seine Tetrachorde; die Harmonie des Aristoteles verklingt bis an die Schwelle seiner Stille, erreicht sie aber nie ganz.',hearsNote:'Du hörst hier so, wie dieser Denker es sich vorstellte: Das Bedienfeld behält nur Zeit, Stimmen, Echo und Lautstärke.'},
   bodies:{moon:'Mond',mercury:'Merkur',venus:'Venus',sun:'Sonne',mars:'Mars',jupiter:'Jupiter',saturn:'Saturn',stars:'Fixsterne',earth:'Erde',fire:'Zentralfeuer',counter:'Gegenerde',water:'Wasser',air:'Luft',efire:'Feuer',elements:'Feuer und Luft',earthwater:'Erde und Wasser',emp1:'Unteres Empyreum',emp2:'Mittleres Empyreum',emp3:'Oberes Empyreum',fates:'Die Moiren',mercven:'Merkur und Venus',heaven:'Himmel',lachesis:'Lachesis (Vergangenheit)',clotho:'Klotho (Gegenwart)',atropos:'Atropos (Zukunft)'},
   pythagoras:{name:'Pythagoras',when:'um 530 v. Chr.',work:'wie von Plinius (Naturalis historia II) und Censorinus berichtet',
     idea:'Der Begründer der Idee. Musik ist Zahl: Oktave, Quinte und Quarte sind die einfachen Verhältnisse 2:1, 3:2 und 4:3. Wenn sich der Himmel nach Zahlen bewegt, muss er klingen. Seine Anhänger vermaßen den Kosmos in musikalischen Schritten.',
@@ -2484,9 +2486,9 @@ const TT={
   kepler:{name:'Kepler',when:'1619',work:'Harmonices Mundi (Die Weltharmonik), Buch V',
     idea:'Kepler wusste, dass sich die Planeten auf Ellipsen bewegen, nahe der Sonne schneller. Er maß die Geschwindigkeit jedes Planeten, von der Sonne aus gesehen, an seinem langsamsten und schnellsten Punkt und fand musikalische Intervalle: Saturn eine große Terz, Jupiter eine kleine Terz, Mars eine Quinte, die Erde einen Halbton, mi-fa-mi (Elend und Hunger, scherzte Kepler), Venus fast einen einzigen Ton und Merkur eine Oktave und eine kleine Terz.',
     see:'Die Planeten auf ihren wahren Ellipsen um die Sonne, mit den fünf platonischen Körpern, die nach seiner Überzeugung zwischen ihre Sphären passten (aus seinem Mysterium Cosmographicum von 1596). Die Tonhöhe jedes Planeten bewegt sich zwischen seinem langsamsten und seinem schnellsten Ton.',
-    hear:'Sechs Planeten, von der Sonne aus gehört, jeder gleitet mit seiner tatsächlichen Geschwindigkeit durch sein eigenes wahres Intervall, in den Stimmen, die Kepler ihnen gab: Saturn und Jupiter Bass, Mars Tenor, Erde und Venus Alt, Merkur Sopran.',
+    hear:'Sechs Planeten, von der Sonne aus gehört, jeder gleitet mit seiner tatsächlichen Geschwindigkeit durch sein eigenes wahres Intervall, in den Stimmen, die Kepler ihnen gab: Saturn und Jupiter Bass, Mars Tenor, Erde und Venus Alt, Merkur Sopran. Jeder beginnt auf dem Ton, den Kepler für ihn notierte. Treffen sich zwei Planeten in einer Konsonanz, schwellen beide an; vier oder mehr zugleich ergeben eine seiner seltenen universalen Harmonien.',
     quote:'Die himmlischen Bewegungen sind nichts als ein fortwährender Gesang für mehrere Stimmen, nicht vom Ohr wahrgenommen, sondern vom Verstand.',cite:'Kepler, Harmonices Mundi V.7 (sinngemäß)',
-    doubt:'Jeder Planet gleitet durch sein wahres Geschwindigkeitsverhältnis; Keplers Namen für die Intervalle sind idealisiert (Mars liegt zum Beispiel etwas unter einer Quinte). Die Einordnung jedes Planeten in seine Oktave folgt seinen Stimmlagen; die Oktaven sind unsere Wahl.'},
+    doubt:'Jeder Planet gleitet durch sein wahres Geschwindigkeitsverhältnis; Keplers Namen für die Intervalle sind idealisiert (Mars liegt zum Beispiel etwas unter einer Quinte). Die Einordnung jedes Planeten in seine Oktave folgt seinen Stimmlagen; die Oktaven sind unsere Wahl. Die Anfangstöne sind Keplers eigene (V.6): Saturn G–H, Jupiter G–B, Mars F–C, Erde G–As, Venus E, Merkur ab C.'},
   today:{name:'Heute',when:'2026',work:'moderne Astronomie',
     idea:'Das ganze Sonnensystem, wie wir es kennen: acht Planeten, Zwergplaneten, Asteroiden, Kometen und Monde, jeder von seinem Gott gesungen.',
     see:'Das Live-Planetarium.',hear:'Der volle Chor, wie im Rest dieser App.',quote:'',cite:'',doubt:''}
@@ -2519,8 +2521,18 @@ const KEP6=new Set(['mercury','venus','earth','mars','jupiter','saturn']);
 const KEP_CENTRE={saturn:98,jupiter:131,mars:220,earth:330,venus:392,mercury:660};
 const KEP_IV={saturn:'große Terz (4:5)',jupiter:'kleine Terz (5:6)',mars:'Quinte (2:3)',earth:'Halbton, mi-fa (15:16)',venus:'Diesis (24:25)',mercury:'Oktave und kleine Terz (5:12)'};
 const OM_N=b=>b.el.n*DEG;
-function kepShift(b){return Math.round(Math.log2(KEP_CENTRE[b.id]/(330*OM_N(b)/OM_EARTH)))}
-function kepF(b,om){return 330*(om/OM_EARTH)*Math.pow(2,kepShift(b))}
+// Kepler wrote each planet's song on a staff (Harmonices Mundi V.6): each planet's slowest note is the note he wrote, in his voice parts, and it rises through its true ratio
+const KEP_W={saturn:['G',2],jupiter:['G',3],mars:['F',3],earth:['G',4],venus:['E',4],mercury:['C',5]};
+function kepAph(b){const e=b.el.e;return OM_N(b)*(1-e)*(1-e)/Math.pow(1-e*e,1.5)}
+function kepF(b,om){const w=KEP_W[b.id];return C_BASE*PY[w[0]]*Math.pow(2,w[1])*om/kepAph(b)}
+// Kepler's concords between the planets (V.5, V.7): just intervals, octaves folded, within 10 cents; four or more planets all in concord make a universal harmony
+const KEP_CONS=[[1,'u'],[2,'u'],[6/5,'m3'],[5/4,'M3'],[4/3,'p4'],[3/2,'p5'],[8/5,'m6'],[5/3,'M6']];
+let KEPC=[],KEPU=[];
+function kepConcords(){KEPC=[];KEPU=[];const ids=[...KEP6].filter(k=>P[k]&&P[k].f);const ok={};
+  for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++){const a=ids[i],b=ids[j];let r=Math.max(P[a].f,P[b].f)/Math.min(P[a].f,P[b].f);while(r>=2.05)r/=2;
+    for(const [c,k] of KEP_CONS){const ct=Math.abs(1200*Math.log2(r/c));if(ct<10){KEPC.push({a,b,k,str:1-ct/10});ok[a+b]=ok[b+a]=1;break}}}
+  for(let m=1;m<64;m++){const set=ids.filter((_,i)=>m>>i&1);if(set.length<4||set.length<=KEPU.length)continue;if(set.every((x,i)=>set.every((y,j)=>j<=i||ok[x+y])))KEPU=set}
+  KEPC.sort((x,y)=>y.str-x.str)}
 function kepEnds(b){const e=b.el.e,n=OM_N(b),k=Math.pow(1-e*e,1.5);return [kepF(b,n*(1-e)*(1-e)/k),kepF(b,n*(1+e)*(1+e)/k)]}
 // Copernicus: perfect circles, so each planet holds the note of its mean speed, on the Pythagorean diatonic scale
 function copF(b){const f=rawPitch(OM_N(b));const set=['C','D','E','F','G','A','B'].map(n=>Math.log2(PY[n]));set.push(1);const l=Math.log2(f/C_BASE),o=Math.floor(l),fr=l-o;let best=0,bd=9;for(const s of set){const d=Math.abs(s-fr);if(d<bd){bd=d;best=s}}return C_BASE*Math.pow(2,o+best)}
@@ -2734,7 +2746,7 @@ function thinkerInfoHTML(){
   const listen=th.listen==='sun'?TT.ui.sun:th.listen==='fire'?TT.ui.fire:TT.ui.earth;
   let side='';
   if(th.model==='bodies'&&id==='kepler'){
-    side=`<h4>${TT.ui.kepTitle}</h4><div class="vlist">`+[...KEP6].map(k=>{const b=byId[k],[lo,hi]=kepEnds(b);return `<button class="vrow2${S.audition===k?' on':''}" data-w="${k}"><span class="sw" style="background:${b.color}"></span><span class="nm">${b.god} <i>${b.name}</i><br><small>${KEP_IV[k]} · ${nn(lo)} – ${nn(hi)}</small></span><span class="nt" id="tv_${k}">${nn(P[k].f)}</span></button>`}).join('')+'</div>';
+    side=`<h4>${TT.ui.kepTitle}</h4><div class="vlist">`+[...KEP6].map(k=>{const b=byId[k],[lo,hi]=kepEnds(b);return `<button class="vrow2${S.audition===k?' on':''}" data-w="${k}"><span class="sw" style="background:${b.color}"></span><span class="nm">${b.god} <i>${b.name}</i><br><small>${KEP_IV[k]} · ${nn(lo)} – ${nn(hi)}</small></span><span class="nt" id="tv_${k}">${nn(P[k].f)}</span></button>`}).join('')+'</div>'+`<p class="small" id="kepConc"></p>`;
   }else if(th.model==='bodies'){
     side=`<h4>${TT.ui.voices}</h4><div class="vlist">`+[...KEP6].map(k=>{const b=byId[k];return `<button class="vrow2${S.audition===k?' on':''}" data-w="${k}"><span class="sw" style="background:${b.color}"></span><span class="nm">${b.god} <i>${b.name}</i></span><span class="nt">${nn(P[k].f)}</span></button>`}).join('')+'</div>';
   }else if(th.model!=='silence'){
@@ -2766,7 +2778,8 @@ function wireThinkerInfo(){
   const rp=$('replyBtn');if(rp)rp.onclick=()=>{setThinker('pythagoras');if(!audioOn)startAudio()};
 }
 function tickThinkerInfo(){
-  if(S.thinker==='kepler')[...KEP6].forEach(k=>{const el=$('tv_'+k);if(el)el.textContent=nn(P[k].f)});
+  if(S.thinker==='kepler'){[...KEP6].forEach(k=>{const el=$('tv_'+k);if(el)el.textContent=nn(P[k].f)});
+    const kc=$('kepConc');if(kc){if(!audioOn)kepConcords();const U=TT.ui;kc.innerHTML=KEPU.length?`<b>${U.kepUniv.replace('{n}',KEPU.length)}</b>`:KEPC.length?`${U.kepConc}: `+KEPC.slice(0,4).map(c=>`${byId[c.a].god}–${byId[c.b].god} ${U.kepIv[c.k]}`).join(' · '):U.kepNone}}
   const ta=$('tAsp');if(ta)ta.textContent=SIR.asp.length?SIR.asp.map(a=>`${bodyName(a.a)} ${a.sym}︎ ${bodyName(a.b)}`).join(' · ')+' — '+TT.ui.aspect:'';
 }
 
