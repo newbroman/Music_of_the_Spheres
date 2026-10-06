@@ -1040,7 +1040,9 @@ function mkPanner(hrtfOK){
 function makeVoice(b){
   // only the planets get true 3D (HRTF) panning; everything else uses cheap stereo panning
   const v={pan:mkPanner(b.kind==='planet')};
-  v.vol=mkGain(0,v.pan);
+  // distance colours the sound as well as its loudness: far planets lose a little of their brightness (not on low-power devices)
+  if(b.kind==='planet'&&!LOWPOWER){v.air=AC.createBiquadFilter();v.air.type='lowpass';v.air.frequency.value=16000;v.air.Q.value=.5;v.air.connect(v.pan);v.vol=mkGain(0,v.air)}
+  else v.vol=mkGain(0,v.pan);
   v.rate=Math.min(7,6*Math.pow(3.9/Math.abs(b.rot),.45));
   v.moonBus=mkGain(1);v.moonVol=mkGain(0,v.pan);v.moonBus.connect(v.moonVol);
   (b.moons||[]).forEach(m=>{
@@ -1217,6 +1219,7 @@ function updateAudio(){
       vol=aud?.1*(.55+.45*b.sizeG):(b.kind==='planet'?.075:.06)*g*grp*(S.thinker!=='today'?2.2:1);
     }
     tgt(v.vol.gain,v.part&&(on||aud)?vol*duck*(1+W.a)*(1+.25*(swell[b.id]||0)):0,.12);
+    if(v.air)tgt(v.air.frequency,aud?16000:Math.max(1800,16000*Math.pow(1+(a.d||0),-.6)),.4);
     if(Hp&&(on||aud))humanTick(Hp.h,p.f,1,now);
     // moons follow their planet: silent when it is
     const mOn=S.thinker==='today'&&(on||aud)&&!!v.part&&(S.groups.moons.on||aud);
