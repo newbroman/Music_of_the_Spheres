@@ -1603,7 +1603,12 @@ function applyVoiceMode(){
   }
 }
 const ensureHuman=applyVoiceMode;
-function buildPart(b,v){v.part=S.voices==='human'?buildHumanPart(b,v):buildInst(b,v,true);v.mode=S.voices;v.born=AC.currentTime}
+// the Sonification station: pure electronic tones, a sine with a soft triangle beneath, no vowel, no vibrato, in the manner of early computer realisations
+function buildPure(b,v){const I={srcs:[],taps:[]},f0=P[b.id].f;I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,.15);
+  I.o1=AC.createOscillator();I.o1.type='sine';I.o1.frequency.value=f0;I.o2=AC.createOscillator();I.o2.type='triangle';I.o2.frequency.value=f0;
+  I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.frequency.value=6000;I.lp.connect(I.g);I.o1.connect(mkGain(.27,I.lp));I.o2.connect(mkGain(.08,I.lp));
+  I.vd=AC.createGain();I.srcs.push(I.o1,I.o2);I.osc=[[I.o1,0],[I.o2,0]];I.srcs.forEach(o=>o.start());return I}
+function buildPart(b,v){v.part=S.thinker==='sonic'&&b.kind==='planet'?buildPure(b,v):S.voices==='human'?buildHumanPart(b,v):buildInst(b,v,true);v.mode=S.thinker==='sonic'&&b.kind==='planet'?'instrument':S.voices;v.born=AC.currentTime}
 
 
 // a small reusable set of panners lets an auditioned planet's moons circle your head
@@ -2515,7 +2520,7 @@ const TT={
     hear:'太陽から聞く六つの惑星。それぞれが実際の速さで固有の真の音程を滑らかに動き、ケプラーが与えた声部で歌います。土星と木星はバス、火星はテノール、地球と金星はアルト、水星はソプラノです。各惑星はケプラーがその惑星のために書いた音から始まります。2つの惑星が協和音程で出会うと両方の音がふくらみ、4つ以上が同時に協和すると、彼のいう稀な宇宙的ハーモニーになります。',
     quote:'天の運動とは、耳ではなく知性によって知覚される、いくつもの声部による絶え間ない歌にほかならない。',cite:'ケプラー『世界の調和』V.7（要約）',
     doubt:'各惑星は真の速度比をたどって滑らかに動きます。ケプラーの音程名は理想化されたものです（たとえば火星は5度よりわずかに狭い）。各惑星をどのオクターヴに置くかは彼の声部に従いましたが、オクターヴ自体は私たちの選択です。出発音はケプラー自身のものです（第5巻第6章）：土星 G–B、木星 G–B♭、火星 F–C、地球 G–A♭、金星 E、水星は C から。'},
-  sonic:{name:"ソニフィケーション",when:"1977年～現在",work:"ボイジャーのゴールデンレコード／ラフとロジャーズ／NASA",idea:"20世紀、ケプラーの考えは本物の音になりました。ローリー・シュピーゲルによる彼の『世界の調和』の実現は、1977年に打ち上げられ、いまや太陽風の外を飛ぶボイジャーのゴールデンレコードで「地球の音」の冒頭を飾っています。1979年、イェール大学のウィリー・ラフとジョン・ロジャーズは、ケプラーの惑星データをコンピューターで音に変え、軌道運動を一年が一瞬で過ぎるほどに速めました。今日、NASAやほかの天文台は、軌道や星の光、電波を音に変えています。科学のためであり、画像を見ることのできない人々のためでもあります。",see:"コンピューターが計算する太陽のまわりの惑星たち。それぞれがいまの音を担っています。",hear:"ケプラーの六つの惑星が、現在測定されている太陽のまわりの実際の速さをそれぞれ鳴らし、太陽に近づくと上がり、遠ざかると下がります。想像ではなくデータから計算された調和で、ラフとロジャーズの方法にならっています。",quote:"これは小さく遠い世界からの贈り物であり、私たちの音、科学、画像、音楽、思考、そして感情のしるしです。",cite:"ジミー・カーター大統領、ボイジャーのゴールデンレコードのメッセージ、1977年",doubt:"音高はラフとロジャーズと同じく惑星の実際の速さに従いますが、各惑星が歌うオクターヴは私たちの選択です（ケプラーの「現代の軌道」と同じ）。シュピーゲルやラフとロジャーズ自身の実現は、まったく違って聞こえます。"},
+  sonic:{name:"ソニフィケーション",when:"1977年～現在",work:"ボイジャーのゴールデンレコード／ラフとロジャーズ／NASA",idea:"20世紀、ケプラーの考えは本物の音になりました。ローリー・シュピーゲルによる彼の『世界の調和』の実現は、1977年に打ち上げられ、いまや太陽風の外を飛ぶボイジャーのゴールデンレコードで「地球の音」の冒頭を飾っています。1979年、イェール大学のウィリー・ラフとジョン・ロジャーズは、ケプラーの惑星データをコンピューターで音に変え、軌道運動を一年が一瞬で過ぎるほどに速めました。今日、NASAやほかの天文台は、軌道や星の光、電波を音に変えています。科学のためであり、画像を見ることのできない人々のためでもあります。",see:"コンピューターが計算する太陽のまわりの惑星たち。それぞれがいまの音を担っています。",hear:"ケプラーの六つの惑星が、現在測定されている太陽のまわりの実際の速さをそれぞれ鳴らし、太陽に近づくと上がり、遠ざかると下がります。想像ではなくデータから計算された調和で、ラフとロジャーズの方法にならっています。それぞれが初期のコンピューターによる実現にならい、純粋な電子音で鳴ります。",quote:"これは小さく遠い世界からの贈り物であり、私たちの音、科学、画像、音楽、思考、そして感情のしるしです。",cite:"ジミー・カーター大統領、ボイジャーのゴールデンレコードのメッセージ、1977年",doubt:"音高はラフとロジャーズと同じく惑星の実際の速さに従いますが、各惑星が歌うオクターヴは私たちの選択です（ケプラーの「現代の軌道」と同じ）。シュピーゲルやラフとロジャーズ自身の実現は、まったく違って聞こえます。"},
   today:{name:'現代',when:'2026年',work:'現代天文学',
     idea:'私たちが知る太陽系の全体です。八つの惑星、準惑星、小惑星、彗星、衛星が、それぞれの神の声で歌います。',
     see:'リアルタイムの太陽系儀。',hear:'このアプリのほかの部分と同じ、全員の合唱です。',quote:'',cite:'',doubt:''}

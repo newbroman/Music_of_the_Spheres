@@ -1604,7 +1604,12 @@ function applyVoiceMode(){
   }
 }
 const ensureHuman=applyVoiceMode;
-function buildPart(b,v){v.part=S.voices==='human'?buildHumanPart(b,v):buildInst(b,v,true);v.mode=S.voices;v.born=AC.currentTime}
+// the Sonification station: pure electronic tones, a sine with a soft triangle beneath, no vowel, no vibrato, in the manner of early computer realisations
+function buildPure(b,v){const I={srcs:[],taps:[]},f0=P[b.id].f;I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,.15);
+  I.o1=AC.createOscillator();I.o1.type='sine';I.o1.frequency.value=f0;I.o2=AC.createOscillator();I.o2.type='triangle';I.o2.frequency.value=f0;
+  I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.frequency.value=6000;I.lp.connect(I.g);I.o1.connect(mkGain(.27,I.lp));I.o2.connect(mkGain(.08,I.lp));
+  I.vd=AC.createGain();I.srcs.push(I.o1,I.o2);I.osc=[[I.o1,0],[I.o2,0]];I.srcs.forEach(o=>o.start());return I}
+function buildPart(b,v){v.part=S.thinker==='sonic'&&b.kind==='planet'?buildPure(b,v):S.voices==='human'?buildHumanPart(b,v):buildInst(b,v,true);v.mode=S.thinker==='sonic'&&b.kind==='planet'?'instrument':S.voices;v.born=AC.currentTime}
 
 
 // a small reusable set of panners lets an auditioned planet's moons circle your head
@@ -2516,7 +2521,7 @@ const TT={
     hear:'六颗行星，在太阳上聆听，各自以真实的速度滑过自己真实的音程，用开普勒赋予它们的声部歌唱：土星和木星是男低音，火星是男高音，地球和金星是女低音，水星是女高音。每颗行星都从开普勒为它写下的音开始。两颗行星相遇于协和音程时，两者的声音都会增强；四颗或更多同时协和，便构成他所说的罕见的宇宙和声。',
     quote:'天体的运动不过是一首连绵不断的多声部歌曲，不是用耳朵，而是用理智去感知。',cite:'开普勒，Harmonices Mundi V.7（意译）',
     doubt:'每颗行星都滑过它真实的速度比；开普勒为这些音程取的名称是理想化的（例如火星略小于五度）。每颗行星所在的八度依照他的声部分配；具体八度是我们的选择。起始音是开普勒本人写下的（第五卷第6章）：土星 G–B、木星 G–B♭、火星 F–C、地球 G–A♭、金星 E、水星从 C 开始。'},
-  sonic:{name:"声音化",when:"1977 年至今",work:"旅行者号金唱片；拉夫与罗杰斯；NASA",idea:"二十世纪，开普勒的设想变成了真实的声音。劳丽·施皮格尔对他《世界的和谐》的实现，是旅行者号金唱片中“地球之声”的开篇；这张唱片于 1977 年发射升空，如今已飞出太阳风的范围。1979 年，耶鲁大学的威利·拉夫与约翰·罗杰斯用计算机把开普勒的行星数据变成声音，把轨道运动加速到一年只需片刻。今天，NASA 和其他天文台把轨道、星光和射电波转化为声音，既为科学研究，也为看不见图像的人。",see:"计算机所推算的绕日行星，每颗都带着自己此刻的音。",hear:"开普勒的六颗行星，各自按今天测得的绕日真实速度发声，靠近太阳时升高，远离时降低：这是由数据计算而非想象出来的和谐，仿照拉夫与罗杰斯的做法。",quote:"这是来自一个遥远小世界的礼物，是我们的声音、科学、图像、音乐、思想和情感的见证。",cite:"吉米·卡特总统，旅行者号金唱片上的致辞，1977 年",doubt:"音高依据行星的真实速度，与拉夫和罗杰斯的做法相同，但每颗行星所在的八度是我们的选择（与开普勒“现代轨道”相同）。施皮格尔以及拉夫和罗杰斯本人的实现听起来大不相同。"},
+  sonic:{name:"声音化",when:"1977 年至今",work:"旅行者号金唱片；拉夫与罗杰斯；NASA",idea:"二十世纪，开普勒的设想变成了真实的声音。劳丽·施皮格尔对他《世界的和谐》的实现，是旅行者号金唱片中“地球之声”的开篇；这张唱片于 1977 年发射升空，如今已飞出太阳风的范围。1979 年，耶鲁大学的威利·拉夫与约翰·罗杰斯用计算机把开普勒的行星数据变成声音，把轨道运动加速到一年只需片刻。今天，NASA 和其他天文台把轨道、星光和射电波转化为声音，既为科学研究，也为看不见图像的人。",see:"计算机所推算的绕日行星，每颗都带着自己此刻的音。",hear:"开普勒的六颗行星，各自按今天测得的绕日真实速度发声，靠近太阳时升高，远离时降低：这是由数据计算而非想象出来的和谐，仿照拉夫与罗杰斯的做法。每颗行星都以纯净的电子音发声，仿照早期计算机实现的风格。",quote:"这是来自一个遥远小世界的礼物，是我们的声音、科学、图像、音乐、思想和情感的见证。",cite:"吉米·卡特总统，旅行者号金唱片上的致辞，1977 年",doubt:"音高依据行星的真实速度，与拉夫和罗杰斯的做法相同，但每颗行星所在的八度是我们的选择（与开普勒“现代轨道”相同）。施皮格尔以及拉夫和罗杰斯本人的实现听起来大不相同。"},
   today:{name:'今天',when:'2026 年',work:'现代天文学',
     idea:'我们今天所知的整个太阳系：八大行星、矮行星、小行星、彗星和卫星，各由其神祇发声。',
     see:'实时太阳系仪。',hear:'完整的合唱，与本应用其他部分相同。',quote:'',cite:'',doubt:''}
