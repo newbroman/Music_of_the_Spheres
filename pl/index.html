@@ -515,6 +515,9 @@ html.mots-proj #motsProjX{display:block;visibility:visible!important}html.mots-p
 html.mots-proj #labels,html.mots-proj #labels *{visibility:visible!important}
 html.mots-proj #motsCap{display:block;visibility:visible!important}html.mots-proj #motsCap *{visibility:visible!important}html.mots-show #motsCap{display:none!important}
 #motsCap:empty{display:none!important}
+#motsCap .d{margin-top:.9vh;font-size:clamp(15px,1.45vw,30px);color:#a9c8ee;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+#motsClk{position:fixed;top:max(12px,1.2vh);right:calc(max(12px,1.2vw) + clamp(52px,3.8vw,84px));z-index:9001;display:none;appearance:none;border:1px solid #c9984f;background:rgba(10,12,24,.7);color:#e9e1cc;border-radius:999px;width:clamp(44px,3.2vw,72px);height:clamp(44px,3.2vw,72px);font:clamp(18px,1.3vw,28px)/1 system-ui,sans-serif;cursor:pointer;transition:opacity .4s}
+html.mots-proj #motsClk{display:block;visibility:visible!important}html.mots-proj.idle #motsClk{opacity:0}#motsClk[aria-pressed=false]{opacity:.55}
 #motsCap .k{font-size:clamp(13px,1.15vw,26px);letter-spacing:.14em;color:#d4a657;margin-bottom:.5vh;font-family:"GFS Didot",Georgia,serif}
 #motsCap h2{margin:0;font:400 clamp(28px,3.4vw,72px)/1.1 "GFS Didot",Georgia,serif;color:#f1e6c8;text-wrap:balance}
 #motsCap p{margin:.6vh 0 0;font-size:clamp(16px,1.6vw,34px);line-height:1.35;color:#dcd3bc}
@@ -532,10 +535,17 @@ document.head.appendChild(css);
 const X=document.createElement('button');X.id='motsProjX';X.type='button';X.textContent='✕';X.title=X.ariaLabel=T.exit;document.body.appendChild(X);
 // the caption of the projector view: what is playing now, in the page's own words (each page offers MOTS.nowPlaying)
 const CAP=document.createElement('div');CAP.id='motsCap';CAP.setAttribute('aria-live','polite');document.body.appendChild(CAP);let capT=null;
+// the date and the speed of time, shown under the caption unless switched off (🕒 button or the D key)
+const CLK_T={"en": "Show the date and the speed of time", "pl": "Pokaż datę i tempo upływu czasu", "cy": "Dangos y dyddiad a chyflymder amser", "de": "Datum und Zeitraffer anzeigen", "es": "Mostrar la fecha y la velocidad del tiempo", "fr": "Afficher la date et la vitesse du temps", "it": "Mostra la data e la velocità del tempo", "zh": "显示日期和时间流速", "ja": "日付と時間の速さを表示"};
+let clkOn=LS.get('mots.projClock')!=='0';
+const CLK=document.createElement('button');CLK.id='motsClk';CLK.type='button';CLK.textContent='🕒';CLK.title=CLK.ariaLabel=CLK_T[(document.documentElement.lang||'en').slice(0,2)]||CLK_T.en;CLK.setAttribute('aria-pressed',String(clkOn));document.body.appendChild(CLK);
+const clk=v=>{clkOn=v;LS.set('mots.projClock',v?'1':'0');CLK.setAttribute('aria-pressed',String(v));capTick()};
+CLK.onclick=()=>clk(!clkOn);
+addEventListener('keydown',e=>{if((e.key==='d'||e.key==='D')&&document.documentElement.classList.contains('mots-proj')&&!e.ctrlKey&&!e.metaKey){clk(!clkOn);e.preventDefault()}});
 const esc=t=>String(t==null?'':t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 function capTick(){let c=null;try{c=MOTS.nowPlaying&&MOTS.nowPlaying()}catch(e){}
   if(!c||!c.h){if(CAP.innerHTML)CAP.innerHTML='';return}
-  const html=(c.k?`<div class="k">${esc(c.k)}</div>`:'')+`<h2>${esc(c.h)}</h2>`+(c.p?`<p>${esc(c.p)}</p>`:'');if(html!==CAP.innerHTML)CAP.innerHTML=html}
+  const html=(c.k?`<div class="k">${esc(c.k)}</div>`:'')+`<h2>${esc(c.h)}</h2>`+(c.p?`<p>${esc(c.p)}</p>`:'')+(clkOn&&c.d?`<div class="d">${esc(c.d)}</div>`:'');if(html!==CAP.innerHTML)CAP.innerHTML=html}
 let idleT=null;const wake=()=>{document.documentElement.classList.remove('idle');clearTimeout(idleT);idleT=setTimeout(()=>document.documentElement.classList.add('idle'),3000)};
 function proj(on,o={}){const h=document.documentElement;h.classList.toggle('mots-proj',on);
   if(on){const p=document.getElementById('stPanel');if(p)p.remove();wake();addEventListener('pointermove',wake);if(!o.noFS&&h.requestFullscreen&&!document.fullscreenElement)h.requestFullscreen().catch(()=>{});lock(true);capTick();clearInterval(capT);capT=setInterval(capTick,400)}
@@ -3478,7 +3488,7 @@ const nowEl=document.createElement('div');nowEl.className='dial-now';nowEl.setAt
 function renderNow(){const t=TT[S.thinker]||{};const b=nowEl.firstChild,sp=nowEl.lastChild;if(b.textContent!==(t.name||''))b.textContent=t.name||'';if(sp.textContent!==(t.when||''))sp.textContent=t.when||''}
 renderNow();setInterval(renderNow,500);
 window.MOTS=window.MOTS||{};
-MOTS.nowPlaying=()=>{const t=TT[S.thinker]||{};const e=document.querySelector('.eyebrow');return {k:e?e.textContent:'',h:t.name||'',p:(t.when?t.when+' · ':'')+$('dateTxt').textContent+(S.playing?' · '+$('speedTxt').textContent:'')}};
+MOTS.nowPlaying=()=>{const t=TT[S.thinker]||{};const e=document.querySelector('.eyebrow');return {k:e?e.textContent:'',h:t.name||'',p:t.when||t.work||'',d:$('dateTxt').textContent+' · '+(S.playing?$('speedTxt').textContent:'❚❚')}};
 $('timeline').addEventListener('click',e=>{const c=e.target.closest('.tl-chip');if(c)setThinker(c.dataset.t)});
 // the app opens on Plato's heavens, heard from Athens, unless the address names another thinker (or #today)
 {const h=location.hash.slice(1);if(h==='today'||!THINK[h]){if(h!=='today'){S.interp='athens';setThinker('plato')}else renderInfo()}else setThinker(h)}
