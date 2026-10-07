@@ -22,7 +22,8 @@ DANCE OF THE SPHERES
 The planets play the band. When they align, the music builds and drops. Styles include:
 • Club: trance, house, techno and jungle
 • Ballroom and Latin: waltz, tango, samba, cha-cha, swing, jive and fandango
-• Concert: Bach, Mozart, Satie, Debussy, Pärt, Reich and Glass, each in the composer's own method
+• Concert: Hildegard, Tallis, Vivaldi, Bach, Mozart, Chopin, Satie, Debussy, Holst, Shostakovich, Messiaen, Ligeti, Pärt, Reich and Glass, each in the composer's own method
+• Popular: rock, soul and gospel, pop, funk, disco, reggae, synthwave, punk and rap, with original songs about the gods sung in the app's language
 
 THE PLANETARY SYNTHESISER
 A modular synthesiser whose oscillators are the real planets. Choose what sets each note (speed, orbit, size, mass, spin), which way it runs, the tuning (Pythagorean, just, equal, harmonic) and the base chord, then wire the sky into the sound: eccentricity into vibrato, distance into tone, retrograde motion into bells. Save patches and share them as links.
