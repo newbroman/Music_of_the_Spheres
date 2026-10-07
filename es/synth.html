@@ -1522,7 +1522,9 @@ function renderMatrix(){
 function litRows(){const lit=new Set(ROUTES().map(r=>r.s));$('mx').querySelectorAll('tbody tr').forEach(tr=>tr.classList.toggle('lit',lit.has(tr.dataset.s)))}
 function paintCell(k){const c=$('mx').querySelector(`.cell[data-k="${k}"]`);if(!c)return;const r=Y.mx[k];const on=r&&r.a;c.className='cell'+(on?' on '+(r.a>0?'pos':'neg'):'')+(r&&r.c===2?' c2':r&&r.c===3?' c3':'');c.style.setProperty('--a',r?Math.abs(r.a):0);c.dataset.v=on?Math.round(r.a*100):'';const [s,d]=k.split('>');c.setAttribute('aria-label',TX.src[s]+' → '+TX.dst[d]+(on?' '+Math.round(r.a*100):''));litRows()}
 function openEdit(c){
-  closeEdit();const k=c.dataset.k,[s,d]=k.split('>');const r=Y.mx[k]||(Y.mx[k]={a:0,c:1});c.classList.add('hot');
+  closeEdit();const k=c.dataset.k,[s,d]=k.split('>');
+  // tapping an empty cell makes the route at once (+50), so it lights and sounds; the editor then fine-tunes or clears it
+  const isNew=!(Y.mx[k]&&Y.mx[k].a);const r=isNew?(Y.mx[k]={a:.5,c:1}):Y.mx[k];if(isNew){paintCell(k);litRows();dirty()}c.classList.add('hot');
   const e=document.createElement('div');e.className='ed';e.id='mxEdit';e.setAttribute('role','dialog');e.setAttribute('aria-label',TX.route);
   e.innerHTML=`<h3>${esc(TX.src[s])} → ${esc(TX.dst[d])}</h3><p class="hint">${esc(TX.srcTip[s])}</p><p class="hint">${esc(TX.dstTip[d])}</p>
     <div class="row"><label for="edAmt" style="flex:1">${esc(TX.amount)}</label><output id="edOut">${Math.round(r.a*100)}</output></div><input id="edAmt" type="range" min="-100" max="100" step="1" value="${Math.round(r.a*100)}" aria-label="${esc(TX.amount)}">
