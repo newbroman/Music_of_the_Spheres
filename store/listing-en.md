@@ -24,6 +24,9 @@ The planets play the band. When they align, the music builds and drops. Styles i
 • Ballroom and Latin: waltz, tango, samba, cha-cha, swing, jive and fandango
 • Concert: Bach, Mozart, Satie, Debussy, Pärt, Reich and Glass, each in the composer's own method
 
+THE PLANETARY SYNTHESISER
+A modular synthesiser whose oscillators are the real planets. Choose what sets each note (speed, orbit, size, mass, spin), which way it runs, the tuning (Pythagorean, just, equal, harmonic) and the base chord, then wire the sky into the sound: eccentricity into vibrato, distance into tone, retrograde motion into bells. Save patches and share them as links.
+
 MORE
 • A self-running 40-minute show with captions, ideal for talks and classrooms
 • Record what you hear and save it
