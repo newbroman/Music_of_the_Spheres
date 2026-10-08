@@ -4,12 +4,18 @@ const VER='mots-3ab662581b',CORE=["./", "index.html", "flight.html", "dance.html
 // install quickly with just the front page and icons, so the app is ready at once; everything else is fetched afterwards
 const SHELL=CORE.filter(u=>u==='./'||u==='index.html'||u==='manifest.webmanifest'||u.startsWith('icons/'));
 self.addEventListener('install',e=>{e.waitUntil(caches.open(VER).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()))});
-// the rest of the pages and the instruments, one by one, so a single failure never stops the rest (files already kept are reused)
+// the rest of the pages and the instruments, one by one, so a single failure never stops the rest (files already kept are reused).
+// Only the visitor's own language is kept: another language's pages are fetched (and kept) the first time it is opened.
+const LG=/^(pl|cy|de|es|fr|it|zh|ja|vi)\//, ENP=/^(dance|flight|synth|help)\.html$/;
+const langOf=u=>{const m=new URL(u,location).pathname.slice(new URL('./',location).pathname.length).match(LG);return m?m[1]:'en'};
+const forLang=(u,l)=>{const t=u.match(/^tour\/([a-z]{2})\//),m=u.match(LG);if(t)return t[1]===l||(l!=='en'&&t[1]==='en');if(m)return m[1]===l;return l==='en'||!ENP.test(u)};
 let warming=null;
-function warm(){return warming||(warming=(async()=>{const c=await caches.open(VER);
-  for(const list of [CORE,SAMPLES])await Promise.allSettled(list.map(async u=>{if(await c.match(u))return;const hit=await caches.match(u);return hit?c.put(u,hit.clone()):c.add(u)}));
+async function langs(){const L=new Set();for(const c of await self.clients.matchAll({type:'window'}))L.add(langOf(c.url));if(!L.size)L.add('en');return [...L]}
+function warm(want){return warming||(warming=(async()=>{const c=await caches.open(VER),L=want?[want]:await langs();
+  const core=CORE.filter(u=>L.some(l=>forLang(u,l)));
+  for(const list of [core,SAMPLES])await Promise.allSettled(list.map(async u=>{if(await c.match(u))return;const hit=await caches.match(u);return hit?c.put(u,hit.clone()):c.add(u)}));
   warming=null})())}
-self.addEventListener('message',e=>{if(e.data==='warm')e.waitUntil(warm())});
+self.addEventListener('message',e=>{if(e.data==='warm')e.waitUntil(warm(e.source&&e.source.url?langOf(e.source.url):null))});
 self.addEventListener('activate',e=>{e.waitUntil((async()=>{await self.clients.claim();
   // old versions are cleared only once the new one holds everything, so the app keeps working offline throughout
   warm().then(async()=>{for(const k of await caches.keys())if(k!==VER&&k!=='mots-ext'&&k.startsWith('mots-'))await caches.delete(k)})})())});
@@ -17,7 +23,7 @@ self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET')return;c
   if(u.origin===location.origin&&!u.pathname.startsWith(new URL('./',location).pathname))return;
   const page=r.mode==='navigate'||(u.origin===location.origin&&/\.html$|\/$/.test(u.pathname));
   if(page){e.respondWith((async()=>{try{const n=await fetch(r);if(n.ok){const c=await caches.open(VER);c.put(r,n.clone())}return n}
-    catch(err){return (await caches.match(r,{ignoreSearch:true}))||(await caches.match(new URL('index.html',(m=>m?new URL(m[1]+'/',location):location)(u.pathname.match(/\/(pl|cy|de|es|fr|it|zh|ja)\//))).href))||Response.error()}})());return}
+    catch(err){return (await caches.match(r,{ignoreSearch:true}))||(await caches.match(new URL('index.html',(m=>m?new URL(m[1]+'/',location):location)(u.pathname.match(/\/(pl|cy|de|es|fr|it|zh|ja|vi)\//))).href))||Response.error()}})());return}
   if(u.origin===location.origin){e.respondWith(caches.match(r,{ignoreSearch:true}).then(hit=>hit||fetch(r).then(n=>{if(n.ok){const cl=n.clone();caches.open(VER).then(c=>c.put(r,cl))}return n})));return}
   if(/cdnjs\.cloudflare\.com|fonts\.(googleapis|gstatic)\.com/.test(u.hostname)){e.respondWith((async()=>{const c=await caches.open('mots-ext'),hit=await c.match(r);
     const net=fetch(r).then(n=>{if(n.ok||n.type==='opaque')c.put(r,n.clone());return n}).catch(()=>null);return hit||(await net)||Response.error()})())}
