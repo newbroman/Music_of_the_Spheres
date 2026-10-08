@@ -2317,7 +2317,7 @@ const S={
   vp:'sun', face:'vernal', turn:0, hrtf:!(matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent)),
   tuning:'dia', mode:'E', drone:true, F:330, dist:0.5, verb:0.4, vol:0.7,
   groups:{planet:{on:true,vol:1,label:'Planètes'},minor:{on:true,vol:.8,label:'Naines & astéroïdes'},comet:{on:true,vol:.9,label:'Comètes'},moons:{on:true,vol:.8,label:'Lunes'},belt:{on:true,vol:.7,label:'Cloches de la ceinture'}},
-  thinker:'today', interp:(()=>{try{return localStorage.getItem('mots.interp')||'athens'}catch(e){return 'athens'}})(), muted:new Set(), solo:new Set(), sel:'earth', audition:null, voices:'instrument', minorMode:'wobble', zodiacKey:true, aspects:true, speak:true, speaking:false,
+  thinker:'today', interp:(()=>{try{return localStorage.getItem('mots.interp')||'athens'}catch(e){return 'athens'}})(), muted:new Set(), solo:new Set(), sel:'earth', audition:null, audMoon:null, voices:'instrument', minorMode:'wobble', zodiacKey:true, aspects:true, speak:true, speaking:false,
   az:-0.35, tilt:58*DEG, rmax:40, labelsAll:false
 };
 
@@ -2592,7 +2592,7 @@ function singMoon(m,dest,f){
 const GODTONE={
   mercury:{w1:'sawtooth',w2:'square',det:9,br:4200,vib:6.6,vdk:1.2,lvl:.8},             // Hermes: quick and bright, a fast flicker
   venus:{w1:'triangle',w2:'sine',det:5,br:1800,vib:5.0,vdk:.9,lvl:1.35},                // Aphrodite: warm and soft
-  earth:{w1:'sawtooth',w2:'triangle',det:6,br:2000,vib:4.6,vdk:.6,lvl:1.35},             // Gaia: earthy and steady
+  earth:{w1:'sawtooth',w2:'triangle',det:3,l2:.5,br:2000,vib:4.6,vdk:.6,lvl:1.6,trem:.16},   // Gaia: earthy and steady: a slow swell (2.5 cents) and a gentle day-pulse, not the 1 Hz throb and 2.6 Hz tremolo that beat against each other
   mars:{w1:'square',w2:'sawtooth',det:22,br:3600,vib:5.6,vdk:1.3,lvl:.95},              // Ares: harsh and rasping
   jupiter:{w1:'sawtooth',w2:'sawtooth',w3:'sawtooth',o3:1,det:7,det3:-9,br:3000,vib:4.4,vdk:.8,lvl:.9},   // Zeus: commanding and full
   saturn:{w1:'square',w2:'square',det:4,br:1500,vib:3.6,vdk:1.6,lvl:.68},               // Kronos: old and hollow, a slow wide waver
@@ -2615,7 +2615,7 @@ function buildInst(b,v,fadeIn){
     const C=GODTONE[b.id]||{};const det=C.det!==undefined?C.det:4+16*b.sizeN;
     I.o1=AC.createOscillator();I.o1.type=C.w1||'sawtooth';I.o1.frequency.value=f0;
     I.o2=AC.createOscillator();I.o2.type=C.w2||'sawtooth';I.o2.frequency.value=f0;I.o2.detune.value=det;
-    const src=mkGain(.34*(C.lvl||1));I.o1.connect(src);I.o2.connect(src);I.srcs.push(I.o1,I.o2);
+    const src=mkGain(.34*(C.lvl||1));I.o1.connect(src);if(C.l2!==undefined)I.o2.connect(mkGain(C.l2,src));else I.o2.connect(src);I.srcs.push(I.o1,I.o2);
     if(C.o3||(!C.w1&&b.sizeN>.85)){I.o3k=C.o3k||1;I.o3=AC.createOscillator();I.o3.type=C.w3||'sawtooth';I.o3.frequency.value=f0*I.o3k;I.o3.detune.value=C.det3!==undefined?C.det3:-(3+12*b.sizeN);I.o3.connect(src);I.srcs.push(I.o3)}
     I.br=C.br||2600;I.vdk=C.vdk||1;
     const form=mkGain(1);
@@ -2625,7 +2625,7 @@ function buildInst(b,v,fadeIn){
     const trem=mkGain(.7,I.g);I.lp.connect(trem);
     // retrograde spin: a reversed swell built from four smooth harmonics, so the pulse never jumps
     I.tl=AC.createOscillator();if(b.rot<0)I.tl.setPeriodicWave(RETRO);else I.tl.type='sine';I.tl.frequency.value=v.rate;
-    const td=mkGain(b.tremD!==undefined?b.tremD:(b.rot<0?.22:.3));I.tl.connect(td);td.connect(trem.gain);
+    const td=mkGain(C.trem!==undefined?C.trem:b.tremD!==undefined?b.tremD:(b.rot<0?.22:.3));I.tl.connect(td);td.connect(trem.gain);
     I.vib=AC.createOscillator();I.vib.frequency.value=C.vib?C.vib*(.95+Math.random()*.1):4.4+Math.random()*1.4;I.vd=mkGain(f0*.004*I.vdk);
     I.vib.connect(I.vd);[I.o1,I.o2,I.o3].forEach(o=>o&&I.vd.connect(o.frequency));
     I.srcs.push(I.tl,I.vib);
@@ -2812,12 +2812,20 @@ function midiHolds(){
   if(S.thinker!=='today'&&THINK[S.thinker]&&THINK[S.thinker].model!=='bodies'){for(const id in sir){const w=sir[id];if(w&&w.vol)MOTS.midi.hold(id,w.fcur||0,Math.min(1,w.vol.gain.value*3))}}
   else BODIES.forEach(b=>{if(b.kind!=='planet')return;const v=V[b.id],w=sir[b.id];
     MOTS.midi.hold(b.id,P[b.id].f,Math.max(v&&v.vol?lv(v.vol.gain.value):0,w&&w.vol?Math.min(1,w.vol.gain.value*3):0))});
+  // a moon in focus (Selene, tapped on the dial) and the moons of a system you are inside are written as their own held lines; a line is closed when its moon falls silent
+  const open={};
+  const mb=S.thinker==='today'&&!SYS.id?audMoonBody():null;
+  if(mb&&mb.m.sv&&mb.m.sv.part){const sv=mb.m.sv,slot=mb.m.slot!==undefined?POOL[mb.m.slot].g.gain.value:1;open[mb.id]=[audMoonF(),lv(sv.vol.gain.value*slot)]}
+  if(SYS.id)SYS.moons.forEach((sm,k)=>{const v=SYS.voices[k];if(v&&v.part&&v.body&&P[v.body.id])open[moonKey(sm.m,k)]=[P[v.body.id].f,lv(v.vol.gain.value)]});
+  const was=midiHolds.open||{};for(const id in was)if(!open[id])MOTS.midi.hold(id,0,0);
+  for(const id in open)MOTS.midi.hold(id,open[id][0],open[id][1]);
+  midiHolds.open=open;
   // Apollo's drone, unless a thinker's heaven gives the Sun its own voice (the pitch-pipes, Nguyễn Trãi), which was reported above
   if(sunV&&sunV.vol&&!(S.thinker!=='today'&&THINK[S.thinker]&&THINK[S.thinker].model!=='bodies'&&sir.sun&&sir.sun.vol))MOTS.midi.hold('sun',droneFreqs()[0],lv(sunV.vol.gain.value));
 }
 // the score (score.js): the gods' names in this language and the key, the Sun's sign transposing the mode of Apollo's drone round the circle of fifths
 const MODE_NM={C:'ionian',D:'dorian',E:'phrygian',F:'lydian',G:'mixolydian',A:'aeolian',B:'locrian'};
-MOTS.scoreInfo=()=>{const names={sun:'Apollo'};if(typeof TT!=='undefined'&&TT.bodies)Object.keys(TT.bodies).forEach(k=>names[k]=TT.bodies[k]);BODIES.forEach(b=>names[b.id]=b.god);names.sun='Apollo';
+MOTS.scoreInfo=()=>{const names={sun:'Apollo'};if(typeof TT!=='undefined'&&TT.bodies)Object.keys(TT.bodies).forEach(k=>names[k]=TT.bodies[k]);BODIES.forEach(b=>{names[b.id]=b.god;(b.moons||[]).forEach((m,k)=>names[moonKey(m,k)]=m.name.split(' ')[0])});names.sun='Apollo';
   if(S.thinker!=='today')return {names,key:{fifths:0,mode:'none'},title:document.title+' · '+(THINK[S.thinker]?THINK[S.thinker].name:S.thinker)};
   const sh=((Math.round(keyShift()*12)%12)+12)%12;let f=(sh*7)%12;if(f>6)f-=12;
   return {names,key:{fifths:f,mode:MODE_NM[S.mode]||'none',pc:(({C:0,D:2,E:4,F:5,G:7,A:9,B:11})[S.mode]+sh)%12,name:keyName()},title:document.title}};
@@ -2838,8 +2846,8 @@ function updateAudio(){
   // Kepler: planets in concord swell together, and a universal harmony swells them all
   if(S.thinker==='kepler'){kepConcords();KEPC.forEach(c=>{swell[c.a]=Math.max(swell[c.a]||0,1.6*c.str);swell[c.b]=Math.max(swell[c.b]||0,1.6*c.str)});KEPU.forEach(k=>swell[k]=Math.max(swell[k]||0,2.4))}
   BODIES.forEach(b=>{
-    const v=V[b.id], p=P[b.id], aud=S.audition===b.id;
-    // auditioning: the body sings just ahead of you, at full presence
+    const v=V[b.id], p=P[b.id], aud=S.audition===b.id, focus=aud&&S.audMoon!=null;
+    // auditioning: the body sings just ahead of you, at full presence (a moon in focus: the planet hums quietly behind it)
     const a=aud?{...fwd,d:0}:audioDir(p,L);
     setPos(v.pan,a.x,a.y,a.z);
     const on=audible(b), grp=aud?1:S.groups[b.kind].vol;
@@ -2861,7 +2869,7 @@ function updateAudio(){
     }else{
       if(I){tgt(I.o1.frequency,p.f,.07);tgt(I.o2.frequency,p.f,.07);if(I.o3)tgt(I.o3.frequency,p.f*(I.o3k||1),.07);tgt(I.vd.gain,p.f*.004*(I.vdk||1),.2);
         const sb=p.r>0?p.z/p.r:0;tgt(I.lp.frequency,Math.max(300,Math.min(12000,(I.br||2600)*Math.pow(2,3*sb))),.2);}
-      vol=aud?.1*(.55+.45*b.sizeG):(b.kind==='planet'?.075:.06)*g*grp*(S.thinker!=='today'?2.2:1);
+      vol=aud?.1*(.55+.45*b.sizeG)*(focus?.3:1):(b.kind==='planet'?.075:.06)*g*grp*(S.thinker!=='today'?2.2:1);
     }
     tgt(v.vol.gain,v.part&&(on||aud)?vol*duck*(1+W.a)*(1+.25*(swell[b.id]||0)):0,.12);
     if(v.air)tgt(v.air.frequency,aud?16000:Math.max(1800,16000*Math.pow(1+(a.d||0),-.6)),.4);
@@ -2869,16 +2877,16 @@ function updateAudio(){
     // moons follow their planet: silent when it is
     const mOn=S.thinker==='today'&&(on||aud)&&!!v.part&&(S.groups.moons.on||aud);
     tgt(v.moonVol.gain,mOn&&!aud?S.groups.moons.vol*Math.min(1,g):0,.12);
-    (b.moons||[]).forEach(m=>{
-      const rate=S.playing?S.speed/Math.abs(m.P):0;
+    (b.moons||[]).forEach((m,k)=>{
+      const rate=S.playing?S.speed/Math.abs(m.P):0, her=focus&&k===S.audMoon;
       if(aud&&m.slot!==undefined){
         const slot=POOL[m.slot];tgt(slot.g.gain,mOn?1:0,.12);
-        // slow moons circle you at their true phase; fast ones hold a place so the panner never whips round
-        const th=rate>.5?ang+Math.PI*(.25+m.rank*.27):TAU*((S.jd-J2000)/m.P+m.ph0);
+        // slow moons circle you at their true phase; fast ones hold a place so the panner never whips round; the moon in focus sings straight ahead
+        const th=her?ang:rate>.5?ang+Math.PI*(.25+m.rank*.27):TAU*((S.jd-J2000)/m.P+m.ph0);
         setPos(slot.p,Math.cos(th),.1,-Math.sin(th),.12);
       }
       // each moon sings a continuous line; its orbital phase against the Sun picks the note
-      const rel=aud?Math.max(.35,moonRel(b,m)):moonRel(b,m), lvl=aud?rel:rel*Math.min(1,g);
+      const rel=her?1:focus?.3:aud?Math.max(.35,moonRel(b,m)):moonRel(b,m), lvl=aud?rel:rel*Math.min(1,g);
       const wantM=mOn&&lvl>(m.sv&&m.sv.part?.025:.035);
       if(wantM&&!m.sv){const mb=moonBody(b,{m,id:'smoon:'+b.id+':'+m.rank});m.sv={body:mb,vol:mkGain(0,m.out),part:null,rate:.3}}
       const sv=m.sv;if(!sv)return;
@@ -2888,7 +2896,7 @@ function updateAudio(){
       else if(!wantM&&sv.part&&now-sv.born>2.5){killPart(sv.part);sv.part=null}
       if(!sv.part){tgt(sv.vol.gain,0,.1);return}
       singAt(sv,mf,now);
-      tgt(sv.vol.gain,.07*rel,.12);
+      tgt(sv.vol.gain,her?.12:.07*rel,.12);
     });
   });
   POOL.forEach((s,k)=>{if(!poolOwner||k>=byId[poolOwner].moons.length)tgt(s.g.gain,0,.1)});
@@ -2965,6 +2973,11 @@ function singAt(v,f,now){
   else if(v.part&&v.part.h)humanTick(v.part.h,f,1,now);
 }
 function moonRel(b,m){return Math.min(1,3*Math.pow(m.R/b.R,.25+.85*S.dist))}
+// a moon's name in the score and MIDI: its key (selene, io ...), or its place in the list
+const moonKey=(m,k)=>typeof m.k==='string'?m.k:'moon'+k;
+// the moon in focus, as a body for the readouts, and its note this moment
+function audMoonBody(){if(S.audMoon==null||!S.audition)return null;const b=byId[S.audition],m=b&&b.moons[S.audMoon];if(!m)return null;const nm=m.name.split(' ')[0];return {id:moonKey(m,S.audMoon),kind:'moonv',god:nm,name:nm,moons:[],m}}
+function audMoonF(){const mb=audMoonBody();if(!mb||!mb.m.sv||!mb.m.sv.part)return 0;const p=P[mb.m.sv.body.id];return p?p.f:0}
 function pluck(b,m){
   if(!V[b.id].part&&S.audition!==b.id)return;
   if(S.voices==='human'){singMoon(m,m.out,moonPitch(m.P));return}
@@ -3238,7 +3251,7 @@ function draw(t){
   order.forEach(({b,p,s})=>{
     screen[b.id]=s;
     if(s.x<-40||s.y<-40||s.x>W+40||s.y>H+40)return;
-    const r=bodyPx(b), on=audioOn&&audible(b), aud=S.audition===b.id;
+    const r=bodyPx(b), on=audioOn&&audible(b), aud=S.audition===b.id;s.r=r;
     g.globalAlpha=S.audition&&!aud?.3:1;
     if(b.kind==='comet'){
       const act=p.act, len=6+act*60, ux=s.x-sp.x, uy=s.y-sp.y, ul=Math.hypot(ux,uy)||1;
@@ -3252,14 +3265,18 @@ function draw(t){
     if(b.id==='saturn'){g.strokeStyle=hexA(b.color,.7);g.lineWidth=1.2;g.beginPath();g.ellipse(s.x,s.y,r*2.1,r*2.1*Math.max(.18,Math.sin(S.tilt)*.45),-.35,0,TAU);g.stroke()}
     g.fillStyle=b.color;g.beginPath();g.arc(s.x,s.y,r,0,TAU);g.fill();
     // moons (not to scale)
-    (b.moons||[]).forEach(m=>{
+    (b.moons||[]).forEach((m,k)=>{
       const th=TAU*((S.jd-J2000)/m.P+m.ph0), rad=aud?r+12+m.rank*9:r+4+m.rank*3.6, st=Math.sin(S.tilt);
       const mx=s.x+rad*Math.cos(th+S.az), my=s.y-rad*Math.sin(th+S.az)*st;
+      const ms=screen['moon:'+b.id+':'+k]={x:mx,y:my,moon:true};   // a moon can be tapped too (a small target, so it never steals a tap meant for its planet)
       m.flash*=.9;
       if(aud){g.strokeStyle='rgba(233,225,204,.12)';g.lineWidth=1;g.beginPath();g.ellipse(s.x,s.y,rad,rad*st,0,0,TAU);g.stroke()}
       g.fillStyle=m.flash>.05?`rgba(255,240,205,${.5+m.flash*.5})`:'rgba(233,225,204,.6)';
-      const mr=(m.flash>.05?1.2+m.flash*2.5:1.1)*(aud?1.6:1);g.beginPath();g.arc(mx,my,mr,0,TAU);g.fill();
-      if(aud){g.font=`${10.5*K}px "Alegreya Sans",sans-serif`;g.textAlign='left';g.textBaseline='middle';g.fillStyle='rgba(233,225,204,.8)';txt(g,m.name.split(' ')[0],mx+5,my)}
+      const mr=(m.flash>.05?1.2+m.flash*2.5:1.1)*(aud?1.6:1)*(aud&&S.audMoon===k?1.5:1);g.beginPath();g.arc(mx,my,mr,0,TAU);g.fill();
+      if(aud&&S.audMoon===k){g.strokeStyle='#c9984f';g.lineWidth=1.3;g.beginPath();g.arc(mx,my,mr+5,0,TAU);g.stroke()}
+      if(aud){g.font=`${10.5*K}px "Alegreya Sans",sans-serif`;g.textAlign='left';g.textBaseline='middle';g.fillStyle='rgba(233,225,204,.8)';const nm=m.name.split(' ')[0];txt(g,nm,mx+5,my);
+        // in audition her name is part of the target, so a tap on the word finds her too
+        ms.bx0=mx+3;ms.bx1=mx+6+g.measureText(nm).width;ms.by=my}
     });
     if(b.id===S.sel){g.strokeStyle='#c9984f';g.lineWidth=1.3;g.beginPath();g.arc(s.x,s.y,r+11,0,TAU);g.stroke()}
     const showLabel=b.kind==='planet'||S.labelsAll||b.id===S.sel||b.id===S.vp;
@@ -3311,10 +3328,14 @@ cv.addEventListener('pointermove',e=>{
 const endPtr=e=>{
   if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);if(ptrs.size<2)pinch0=null;
   if(!moved&&e.type==='pointerup'){const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
-    let best=null,bd=18;Object.entries(screen).forEach(([id,s])=>{const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=id}});
+    let best=null,bd=18;Object.entries(screen).forEach(([id,s])=>{if(s.moon)return;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=id}});
+    // a moon's small target (its dot, and its name when its planet is auditioned) wins only when the tap is off the planet's own disc
+    if(!best||bd>(screen[best].r||0)+1.5){let md=9;Object.entries(screen).forEach(([id,s])=>{if(!s.moon)return;let d=Math.hypot(s.x-x,s.y-y);
+      if(s.bx0!==undefined)d=Math.min(d,Math.hypot(Math.max(s.bx0-x,0,x-s.bx1),Math.max(Math.abs(y-s.by)-7,0)));else if(d>4.5)return;if(d<md){md=d;best=id}})}
     if(S.thinker!=='today'){thinkerTap(best);return}
     if(SYS.id){ if(best&&best.startsWith('moon:')){const k=+best.split(':')[1];SYS.vp=SYS.vp===k?'centre':k;renderInfo()} else if(best===SYS.id){SYS.vp='centre';renderInfo()} }
-    else if(best&&best!=='sun'){ if(S.audition===best)endAudition(); else audition(best); }
+    else if(best&&best.startsWith('moon:')){const [,pid,k]=best.split(':');if(S.audition===pid&&S.audMoon===+k)endAudition();else auditionMoon(pid,+k)}
+    else if(best&&best!=='sun'){ if(S.audition===best&&S.audMoon==null)endAudition(); else audition(best); }
     else if(S.audition&&!SYS.id)endAudition();}
 };
 cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
@@ -3403,12 +3424,19 @@ $('roster').addEventListener('click',e=>{
 
 // audition: hear one body and its moons alone
 async function audition(id){
-  S.sel=id;S.audition=id;
+  S.sel=id;S.audition=id;S.audMoon=null;
   speakGod(byId[id]);
   if(!audioOn)await startAudio();
   renderRoster();renderInfo();renderAud();
 }
-function endAudition(){S.audition=null;stopSpeech();renderRoster();renderInfo();renderAud()}
+function endAudition(){S.audition=null;S.audMoon=null;stopSpeech();renderRoster();renderInfo();renderAud()}
+// audition a moon: it sings just ahead of you, in its own voice (a child, singing its name), its planet humming quietly behind
+async function auditionMoon(pid,k){
+  const b=byId[pid];if(!b||!b.moons[k])return;
+  S.sel=pid;S.audition=pid;S.audMoon=k;stopSpeech();
+  if(!audioOn)await startAudio();
+  renderRoster();renderInfo();renderAud();
+}
 function renderAud(){
   const el=$('aud');
   if(S.thinker!=='today'){$('zoomChips').hidden=false;$('hint').textContent=TT.ui.hint;const w=SIR.solo||S.audition;el.hidden=!w;if(w){$('audTxt').textContent=TT.ui.soloing+' '+bodyName(w);$('audBack').textContent=TT.ui.back}return}
@@ -3417,9 +3445,9 @@ function renderAud(){
   if(SYS.id){el.hidden=false;$('audTxt').textContent=`Dans le système : ${byId[SYS.id].god}`;$('audBack').textContent='Système solaire';return}
   $('audBack').textContent='Chœur complet';
   if(!S.audition){el.hidden=true;return}
-  const b=byId[S.audition], n=b.moons.length;
+  const b=audMoonBody()||byId[S.audition], n=b.moons.length;
   el.hidden=false;
-  $('audTxt').textContent=`Écoute en solo : ${b.kind==='comet'?b.name:b.god}${n?` et ${n===1?b.moons[0].name.split(' ')[0]:n+' lunes'}`:''}`;
+  $('audTxt').textContent=`Écoute en solo : ${b.kind==='comet'?b.name:b.god}${n?` et ${n===1?b.moons[0].name.split(' ')[0]:n+' lunes'}`:''}`+(S.audMoon!=null&&audMoonF()?' · '+noteName(audMoonF()):'');
 }
 document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(SYS.id)leaveSystem();else if(S.audition)endAudition()});
 
@@ -3480,6 +3508,7 @@ function tickInfo(){
   $('i_d').textContent=S.vp===b.id?'ici':fmt(d,3)+' ua';$('i_z').textContent=fmt(p.z,3)+' ua';
   BODIES.forEach(x=>{const el=$('nt_'+x.id);if(!el)return;const st=voiceState(x);el.textContent=st.txt;el.closest('.vrow').classList.toggle('quiet',st.quiet)});
   if($('i_heard'))$('i_heard').textContent=voiceState(b).long;
+  if(S.audMoon!=null)renderAud();   // the moon in focus: its note follows its phase
 }
 // what a body is doing in the mix right now, for the roster and the info card
 function voiceState(b){
@@ -4293,13 +4322,13 @@ function frame(t){
   let plucks=0;
   if(!SYS.id)BODIES.forEach(b=>(b.moons||[]).forEach(m=>{
     const k=Math.floor((S.jd-J2000)/Math.abs(m.P)+m.ph0);
-    if(m.k!==undefined&&k!==m.k){
+    if(m.orb!==undefined&&k!==m.orb){
       m.flash=1;
       const rate=S.speed/Math.abs(m.P), aud=S.audition===b.id;
       // in audition a fast moon still plucks, at most every 0.4 s, over its hum
       const ok=rate<=1.2||(aud&&t-(m.lastPluck||0)>700);
     }
-    m.k=k;
+    m.orb=k;
   }));
   // belt bells
   if(audioOn&&S.playing&&S.thinker==='today'&&S.groups.belt.on&&!S.solo.size&&!S.audition&&!SYS.id){
@@ -4335,7 +4364,7 @@ MOTS.app={tt:TT,think:THINK,
   playTime:on=>{if(S.playing!==on)$('play').click()},
   order:()=>THINK_ORDER.slice(),current:()=>S.thinker,speedNow:()=>S.speed,written:()=>!athens(),timeRunning:()=>S.playing,
   // a window for tests: run a function over the dial's inner state
-  _probe:fn=>fn({S,SIR,TRAI,P,THINK,curF,traiSky,traiBell,traiTick,geo,horiz,jdOf,computePositions,lonOf,audioOn:()=>audioOn})};
+  _probe:fn=>fn({S,SIR,TRAI,P,THINK,curF,traiSky,traiBell,traiTick,geo,horiz,jdOf,computePositions,lonOf,audioOn:()=>audioOn,V,WOB,ac:()=>AC,byId,scr:()=>screen})};
 requestAnimationFrame(frame);
 })();
 </script>
