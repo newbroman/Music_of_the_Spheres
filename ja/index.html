@@ -1092,6 +1092,11 @@ const css=document.createElement('style');css.textContent=`
 #floorSw button:focus-visible{outline:3px solid #c9984f;outline-offset:-3px}
 #scoreFloor{position:absolute;inset:0;z-index:4;display:none;background:#f6efdc;color:#1a1206;overflow:hidden;font:14px/1.4 "Alegreya Sans",system-ui,sans-serif}
 #scoreFloor.on{display:block}
+html.mots-proj.mots-score #motsCap{left:0;right:0;bottom:0;max-width:none;border-radius:0;border-left:0;border-top:3px solid #d4a657;padding:.7vh 2vw .9vh;background:#13162a}
+html.mots-proj.mots-score #motsCap .k{display:none}
+html.mots-proj.mots-score #motsCap h2{display:inline;font-size:clamp(18px,1.7vw,34px);margin-right:.8em}
+html.mots-proj.mots-score #motsCap p{display:inline;font-size:clamp(14px,1.15vw,24px)}
+html.mots-proj.mots-score #motsCap .d{display:inline;margin:0 0 0 .8em;font-size:clamp(13px,1.05vw,22px)}
 #scoreFloor .hd{position:absolute;left:0;right:0;top:0;padding:8px 12px;display:flex;gap:10px;align-items:baseline;pointer-events:none;z-index:2}
 #scoreFloor .hd b{font:400 clamp(16px,1.2vw + 10px,24px)/1.1 "GFS Didot",Georgia,serif;color:#4a3a1a}
 #scoreFloor .hd span{color:#6f5a30;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1140,8 +1145,9 @@ function floorBuild(){if(fl||!FLOOR)return;
   addEventListener('resize',()=>{if(S.view)draw(true)});
 }
 MOTS.skyHidden=()=>S.view;
+let capH0=0;setInterval(()=>{const c=document.getElementById('motsCap');const h=c&&document.documentElement.classList.contains('mots-proj')?c.offsetHeight:0;if(h!==capH0){capH0=h;if(S.view)draw(true)}},700);
 function view(on){floorBuild();if(!fl){S.view=false;return}S.view=on;
-  fl.classList.toggle('on',on);if(CANVAS)CANVAS.style.visibility=on?'hidden':'';
+  fl.classList.toggle('on',on);document.documentElement.classList.toggle('mots-score',on);if(CANVAS)CANVAS.style.visibility=on?'hidden':'';
   if(sw)sw.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.v==='score')===on)));
   try{localStorage.setItem('mots.floor',on?'score':'sky')}catch(e){}
   if(on){S.drawn='';armed=true;autoStart();lib().then(()=>draw(true)).catch(()=>{const a=document.getElementById('scoreAbc');if(a)a.innerHTML=`<p class="n">${esc(T.nolib)}</p>`})}
@@ -1152,7 +1158,10 @@ MOTS.score.play=p=>{if(p){armed=true;MOTS.playing=true;autoStart()}else MOTS.pla
 setInterval(()=>{autoStart();if(S.view&&S.on&&LOWP){const n=S.ctx?measures().length:0;if(n!==lastBars||Date.now()-lastDraw>4000)draw(false)}},500);
 function draw(force){const a=document.getElementById('scoreAbc');if(!a||!window.ABCJS||!fl)return;
   if(!S.ctx){a.innerHTML=`<p class="n">${esc(T.nostart)}</p>`;return}
-  const M=measures(),n=M.length,W=fl.clientWidth||600,H=fl.clientHeight||600;
+  // in the projector the caption strip sits along the bottom: the staves keep clear of it
+  const cap=document.getElementById('motsCap'),capH=document.documentElement.classList.contains('mots-proj')&&cap&&cap.offsetHeight?Math.ceil(cap.getBoundingClientRect().height)+8:0;
+  const ab=a.closest('.ab');if(ab)ab.style.bottom=capH?capH+'px':'';
+  const M=measures(),n=M.length,W=fl.clientWidth||600,H=(fl.clientHeight||600)-capH;
   const narrow=W<560,bars=LOWP?(narrow?2:3):(W>1100?4:narrow?2:3),maxStaves=LOWP?(narrow?3:4):10,to=n,from=Math.max(0,to-bars);
   const abc=abcOf(from,to,maxStaves,{short:narrow,staffsep:narrow?44:52});if(!force&&abc===S.drawn)return;S.drawn=abc;lastBars=n;lastDraw=Date.now();
   if(!abc){a.innerHTML=`<p class="n">${esc(T.empty)}</p>`;return}
