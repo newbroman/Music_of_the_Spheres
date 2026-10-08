@@ -777,6 +777,12 @@ const cur=(document.documentElement.lang||'en').slice(0,2);
 function page(){const m=location.pathname.match(/(?:^|\/)(?:(pl|cy|de|es|fr|it|zh|ja|vi)\/)?([a-z]+\.html)?$/);const p=(m&&m[2])||'';return p==='index.html'?'':p}
 const href=c=>B+(c==='en'?'':c+'/')+page()+location.hash;
 const GLOBE='<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 12h18M12 3c2.6 2.6 3.9 5.6 3.9 9s-1.3 6.4-3.9 9c-2.6-2.6-3.9-5.6-3.9-9S9.4 5.6 12 3z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+// the installed app always starts on the English page: a visitor who has chosen another language goes straight to it
+{const want=LS.get('mots.lang');if(cur==='en'&&want&&want!=='en'&&AVAIL.includes(want)&&!/[?&]lang=en\b/.test(location.search)){try{location.replace(href(want))}catch(e){}}}
+// for the tour's language picker
+window.MOTS=window.MOTS||{};
+MOTS.lang={list:LANGS,cur,href,choose:(c,tour)=>{LS.set('mots.lang',c);if(c!==cur)location.href=tour?B+(c==='en'?'':c+'/')+page()+'?tour':href(c)},
+  suggest:()=>{if(LS.get('mots.lang'))return null;const w=(navigator.languages||[navigator.language||'']).map(x=>String(x).slice(0,2).toLowerCase()).find(c=>AVAIL.includes(c));return w&&w!==cur?LANGS.find(l=>l[0]===w):null}};
 function build(){
   const links=[...document.querySelectorAll('body a[hreflang]')].filter(a=>!a.closest('#langMenu'));if(!links.length)return;
   const first=links[0],compact=links.every(a=>a.textContent.trim().length<=3),name=(LANGS.find(l=>l[0]===cur)||ALL[0])[1];
@@ -1301,6 +1307,10 @@ css.textContent=`
 #tour .ti img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transform:scale(1.04);transition:opacity .8s,transform 9s linear}
 #tour .ti img.cur{opacity:1;transform:scale(1.12)}
 #tour .tt{padding:28px 28px 22px;display:flex;flex-direction:column;gap:12px;color:#e9e1cc;font:17px/1.55 "Alegreya Sans",system-ui,sans-serif}
+#tour .tlang{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:-6px 0 2px}
+#tour .tlang label{display:inline-flex;align-items:center;gap:6px;color:#a39c89;font-size:14px}
+#tour .tlang select{appearance:none;-webkit-appearance:none;background:#13162a url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23c9984f'/%3E%3C/svg%3E") no-repeat right 10px center;color:#e9e1cc;border:1px solid #3a4068;border-radius:999px;padding:6px 28px 6px 12px;font:15px/1.2 "Alegreya Sans",system-ui,sans-serif;min-height:36px;cursor:pointer}
+#tour .tlang .sug{appearance:none;border:1px solid #c9984f;background:rgba(201,152,79,.14);color:#e9d093;border-radius:999px;padding:6px 12px;font:600 15px/1.2 "Alegreya Sans",system-ui,sans-serif;min-height:36px;cursor:pointer}
 #tour .k{font:600 12px/1 "Alegreya Sans",system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#c9984f}
 #tour h2{margin:0;font:400 clamp(28px,3.6vw,40px)/1.1 "GFS Didot",Georgia,serif;color:#f1e3bf}
 #tour .tp{margin:0;min-height:7.8em;color:#d8cfb8}
@@ -1344,7 +1354,7 @@ function open(){
   if(el)return;
   el=document.createElement('div');el.id='tour';el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');el.setAttribute('aria-label',T.tour);
   el.innerHTML=`<div class="tc"><div class="ti">${T.slides.map((s,k)=>`<img src="${T.img}${k+1}.webp" alt="${s.alt}" decoding="async"${k?' loading="eager"':' fetchpriority="high"'}>`).join('')}<button type="button" class="b skip">${T.skip}</button></div>
-  <div class="tt"><div class="k"></div><h2></h2><p class="tp" aria-live="polite"></p>
+  <div class="tt"><div class="tlang"></div><div class="k"></div><h2></h2><p class="tp" aria-live="polite"></p>
   <div class="nav"><button type="button" class="b prev">← ${T.prev}</button><button type="button" class="b next">${T.next} →</button></div>
   <button type="button" class="go">${T.begin}</button><p class="note">${T.tapNote}</p>
   <label><input type="checkbox" class="again"${LS.get('mots.tour')==='0'?'':' checked'}> ${T.show}</label>
@@ -1358,6 +1368,15 @@ function open(){
   let x0=null;const ti=el.querySelector('.ti');ti.addEventListener('pointerdown',e=>{x0=e.clientX});ti.addEventListener('pointerup',e=>{if(x0!==null&&Math.abs(e.clientX-x0)>40){pause(true);show(i+(e.clientX<x0?1:-1))}x0=null});
   el.querySelector('.tc').addEventListener('pointerenter',e=>{if(e.pointerType==='mouse')pause(true)});
   document.addEventListener('keydown',key);
+  // choose the language here, before anything else: the tour opens again on the chosen language's page
+  const GL='<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 12h18M12 3c2.6 2.6 3.9 5.6 3.9 9s-1.3 6.4-3.9 9c-2.6-2.6-3.9-5.6-3.9-9S9.4 5.6 12 3z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+  const langs=(tries)=>{const L=window.MOTS&&MOTS.lang,box=el&&el.querySelector('.tlang');if(!box)return;if(!L){if(tries<40)setTimeout(()=>langs(tries+1),50);return}
+    if(L.list.length<2){box.remove();return}
+    const sg=L.suggest();
+    box.innerHTML=`<label>${GL}<select aria-label="Language">${L.list.map(([c,n])=>`<option value="${c}" lang="${c}"${c===L.cur?' selected':''}>${n}</option>`).join('')}</select></label>${sg?`<button type="button" class="sug" lang="${sg[0]}">${sg[1]} →</button>`:''}`;
+    box.querySelector('select').onchange=e=>{pause(true);L.choose(e.target.value,true)};
+    const b=box.querySelector('.sug');if(b)b.onclick=()=>L.choose(sg[0],true)};
+  langs(0);
   el.style.setProperty('--dur',DUR+'ms');paused=false;
   requestAnimationFrame(()=>{el.classList.add('on');show(0);el.querySelector('.go').focus({preventScroll:true})});
 }
@@ -1366,7 +1385,7 @@ window.MOTS=window.MOTS||{};window.MOTS.tour=open;
 const menu=document.querySelector('.extras .menu');
 if(menu){const a=document.createElement('a');a.href='#';a.textContent=T.tour;a.onclick=e=>{e.preventDefault();const d=menu.closest('details');if(d)d.open=false;open()};menu.prepend(a)}
 // at the start, unless the page was opened on a particular thinker or the visitor turned it off
-if(!location.hash&&LS.get('mots.tour')!=='0'&&!/[?&]notour\b/.test(location.search))open();
+if(/[?&]tour\b/.test(location.search)||(!location.hash&&LS.get('mots.tour')!=='0'&&!/[?&]notour\b/.test(location.search)))open();
 })();
 /*TOUR-END*/
 </script>
