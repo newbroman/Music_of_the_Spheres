@@ -2544,7 +2544,7 @@ function vxInit(){
 }
 // one singer, built once and re-voiced per phrase (the glottal wave, formant table and range follow the god who sings)
 function makeSinger(spec,dest){
-  const h={spec,type:spec.type,form:FT[spec.type],busy:0,bps:[],bgs:[]};
+  const h={spec,type:spec.type,form:FT[spec.type],busy:0,bps:[],bgs:[],dest,voc:null};
   h.out=mkG(0,dest);h.out.connect(VX.rev);h.out.connect(VX.dly);h.src=mkG(1);
   for(let k=0;k<NF;k++){const bp=AC.createBiquadFilter();bp.type='bandpass';const g=mkG(0,h.out);h.src.connect(bp);bp.connect(g);h.bps.push(bp);h.bgs.push(g)}
   h.vg=mkG(0,h.src);
@@ -2601,7 +2601,7 @@ function singSyl(h,syl,t,dur,f,last){
   else if(!last)vg.setTargetAtTime(.0,tv,.03);
   if(last){vg.setTargetAtTime(0,tv+.02,.04);h.out.gain.setTargetAtTime(0,tv+.12,.18);h.busy=tv+.5;h.ig.gain.setTargetAtTime(.2*h.lvl,tv+.3,.1);h.ig.gain.setTargetAtTime(0,tv+.7,.08)}
 }
-function hush(h){if(!h||!AC)return;const t=AC.currentTime;h.vg.gain.cancelScheduledValues(t);h.vg.gain.setTargetAtTime(0,t,.03);h.out.gain.cancelScheduledValues(t);h.out.gain.setTargetAtTime(0,t,.08);h.fg.gain.cancelScheduledValues(t);h.fg.gain.setTargetAtTime(0,t,.02)}
+function hush(h){if(!h||!AC)return;if(h.voc)vocHush(h.voc);const t=AC.currentTime;h.vg.gain.cancelScheduledValues(t);h.vg.gain.setTargetAtTime(0,t,.03);h.out.gain.cancelScheduledValues(t);h.out.gain.setTargetAtTime(0,t,.08);h.fg.gain.cancelScheduledValues(t);h.fg.gain.setTargetAtTime(0,t,.02)}
 function hushAll(){hush(VX.lead);hush(VX.chant);VX.plans.length=0;VX.after=null}
 function startPhrase(h,t,lvl,fMean){h.shift=fitShift(fMean,h.type);h.lvl=lvl;h.out.gain.setTargetAtTime(lvl,t-.05,.05);h.jit.gain.setTargetAtTime(fMean*Math.pow(2,h.shift)*(h.spec.jit||.004)*6,t,.1);h.ig.gain.setTargetAtTime(0,t,.05)}
 
@@ -2664,8 +2664,9 @@ function voiceStep(s,t){
       if(nt.done||nt.step>s+1||nt.step<s)return;
       const tt=nt.step===s?t:base+sd+sw(nt.step%spb);
       const f=nt.f||noteF(nt.deg,4),h=singerFor(pl.who);
-      if(!pl.started){pl.started=true;const fm=Math.exp(pl.notes.reduce((a,x)=>a+Math.log(x.f||noteF(x.deg,4)),0)/n);startPhrase(h,tt,pl.lvl,fm);VX.cue.push({t:tt-.25,line:pl.line,word:-1,who:pl.who});const lastN=pl.notes[n-1];VX.busyUntil=Math.max(VX.busyUntil,tt+(lastN.step+lastN.len-nt.step)*sd+.4)}
-      singSyl(h,nt.syl,tt,nt.len*sd,f,k===n-1);
+      // the line comes from its recording when that is here (see dance_vrec.js), from the formant singer when it is not
+      if(!pl.started){pl.started=true;const fm=Math.exp(pl.notes.reduce((a,x)=>a+Math.log(x.f||noteF(x.deg,4)),0)/n);pl.rec=recFor(pl);if(pl.rec)vocStart(h,tt,pl.lvl,fm);else startPhrase(h,tt,pl.lvl,fm);VX.cue.push({t:tt-.25,line:pl.line,word:-1,who:pl.who});const lastN=pl.notes[n-1];VX.busyUntil=Math.max(VX.busyUntil,tt+(lastN.step+lastN.len-nt.step)*sd+.4)}
+      if(pl.rec)recSyl(pl,k,tt,sd,j=>tt+(pl.notes[j].step-nt.step)*sd+sw(pl.notes[j].step%spb)-sw(nt.step%spb),f);else singSyl(h,nt.syl,tt,nt.len*sd,f,k===n-1);
       if(window.MOTS&&MOTS.midi.on&&MOTS.midi.lyric){const [txt,syl]=sylText(pl.line,pl.notes,k);MOTS.midi.lyric(pl.who,tt,f,pl.lvl,nt.len*sd,txt,syl)}
       VX.cue.push({t:tt-.02,line:pl.line,word:nt.word,who:pl.who});
       nt.done=true;
@@ -3701,6 +3702,151 @@ LEAVE.dub=()=>{if(VX.dly)VX.dly.gain.setTargetAtTime(.12,AC.currentTime,.3)};
 MOTS.pop={lyrics:()=>XL(POPL),roles:()=>XL(PINST)};
 // the band's state, for tests and the stage
 MOTS.dance={D,S,STYLES,spb:SPB};
+
+/* ================= RECORDED VOICES: the lyric lines, recorded once and fitted to the sky's tune ================= */
+// Every lyric line was recorded once in its god's own voice (Google's Chirp 3 HD voices; Bangor's BU-TTS for Welsh) and kept
+// at voice/<lang>/lyrics/<key>.mp3, with an index giving, for each syllable, where its consonants start, where its vowel begins
+// and where it ends. Words mode plays the recording fitted to the planned phrase: each syllable's consonants run in at their
+// natural speed so the vowel lands on its beat, and the vowel is stretched (short overlapping grains) to fill its note. The
+// pitch comes from a channel vocoder: the recording is the modulator, a bright synth following the melody is the carrier, and
+// a little of the dry voice is blended back so the words stay clear. Chops mode retriggers slices of the same recordings,
+// re-pitched to the notes as house and trance do. When a recording is missing the old formant singer takes the line.
+const VR={idx:null,bytes:{},buf:{},fail:false,base:(VLANG==='en'?'':'../')+'voice/'+VLANG+'/lyrics/',chopI:0,pool:null,used:0,fb:0,started:false};
+const VR_PRIO=k=>/^(hook|hookB|build|harmonia|kosmos)$/.test(k)?0:/^(ch|gc|gr|pre)/.test(k)?1:/^name_/.test(k)?3:2;
+function vrDecode(k){
+  if(VR.buf[k]||!VR.bytes[k]||!AC)return;const b=VR.bytes[k];delete VR.bytes[k];
+  AC.decodeAudioData(b).then(buf=>{VR.buf[k]=buf;VR.pool=null}).catch(()=>{});
+}
+// the current language's lines are fetched a little after the page opens, the hooks first, two at a time, and decoded once there is a context
+async function vrPreload(){
+  if(VR.started||location.protocol==='file:')return;VR.started=true;
+  try{const r=await fetch(VR.base+'index.json');if(!r.ok)throw 0;VR.idx=await r.json()}catch(e){VR.fail=true;return}
+  const order=Object.keys(VR.idx).sort((a,b)=>VR_PRIO(a)-VR_PRIO(b));let i=0;
+  const worker=async()=>{while(i<order.length){const k=order[i++];try{const r=await fetch(VR.base+k+'.mp3');if(!r.ok)continue;VR.bytes[k]=await r.arrayBuffer();if(AC)vrDecode(k)}catch(e){}}};
+  await Promise.all([worker(),worker()]);
+}
+setTimeout(()=>{vrPreload()},1200);
+const _initDanceAudio=initDanceAudio;initDanceAudio=function(){_initDanceAudio();Object.keys(VR.bytes).forEach(vrDecode)};
+// which file sings a planned line: the line's key, the singer's name added when it is not Aphrodite (the gods' name chants are their own)
+function vrKey(line,who){
+  let k=line.key,frag=false;
+  if(k.startsWith('pop:')){const p=k.split(':');k=p[1];frag=p[2]==='frag'}else if(k.startsWith('god:'))k='name_'+k.slice(4);
+  if(who!=='venus'&&!k.startsWith('name_'))k+='_'+who;
+  return {k,frag};
+}
+function recFor(pl){
+  if(!VR.idx)return null;const {k,frag}=vrKey(pl.line,pl.who),R=VR.idx[k],buf=VR.buf[k];
+  if(!R||!buf){if(R&&VR.bytes[k])vrDecode(k);VR.fb++;return null}
+  const n=pl.line.syls.length;if(frag?n>R.n:n!==R.n){VR.fb++;return null}
+  VR.used++;return {R,buf,k};
+}
+
+/* ---- the vocoder: the recording shapes a synth that sings the planned notes ---- */
+const VOC_NB=LOWPOWER?10:16,VOC_ST=LOWPOWER?1:2,VOC_LO=110,VOC_HI=7000;
+let VOC_CURVE=null,HANN=null;
+function makeVoc(h){
+  if(!VOC_CURVE){const n=1024;VOC_CURVE=new Float32Array(n);for(let i=0;i<n;i++)VOC_CURVE[i]=Math.tanh(Math.abs(i*2/n-1)*1.6)}
+  if(!HANN){HANN=new Float32Array(48);for(let i=0;i<48;i++)HANN[i]=.5-.5*Math.cos(2*Math.PI*i/47)}
+  const v={h,srcs:[],out:mkG(0,h.dest),mod:mkG(1),dry:mkG(.22),car:mkG(1),sum:mkG(1),bands:[],warm:false};
+  v.out.connect(VX.rev);v.out.connect(VX.dly);v.sum.connect(v.out);v.dry.connect(v.out);v.mod.connect(v.dry);
+  // the dry voice above 4.5 kHz keeps s, t and the breath of the words crisp whatever the carrier does
+  v.sib=AC.createBiquadFilter();v.sib.type='highpass';v.sib.frequency.value=4500;v.sib.Q.value=.7;v.sibG=mkG(.5,v.out);v.mod.connect(v.sib);v.sib.connect(v.sibG);
+  // the carrier: two saws a few cents apart, a sub-octave for body, and a breath of noise so the unvoiced sounds come through
+  v.o1=AC.createOscillator();v.o1.type='sawtooth';v.o1.connect(v.car);
+  v.o2=AC.createOscillator();v.o2.type='sawtooth';v.o2.detune.value=9;v.o2g=mkG(.6,v.car);v.o2.connect(v.o2g);
+  v.o3=AC.createOscillator();v.o3.type='triangle';v.o3g=mkG(.35,v.car);v.o3.connect(v.o3g);
+  const nz=AC.createBufferSource();nz.buffer=noiseBuf;nz.loop=true;const nh=AC.createBiquadFilter();nh.type='highpass';nh.frequency.value=1800;v.nzg=mkG(.1,v.car);nz.connect(nh);nh.connect(v.nzg);nz.start();
+  v.carLP=AC.createBiquadFilter();v.carLP.type='lowpass';v.carLP.frequency.value=9000;v.carLP.Q.value=.5;v.car.connect(v.carLP);
+  const bpo=VOC_NB/Math.log2(VOC_HI/VOC_LO),Q=Math.min(5,Math.max(1.5,bpo*1.35));
+  for(let b=0;b<VOC_NB;b++){
+    const fc=VOC_LO*Math.pow(VOC_HI/VOC_LO,(b+.5)/VOC_NB);
+    // the modulator's band: band-pass stages, a level lift that rises with frequency (speech is dark), a rectifier that saturates, a follower
+    let m=v.mod;for(let s=0;s<VOC_ST;s++){const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=fc;bp.Q.value=Q;m.connect(bp);m=bp}
+    const lift=mkG(14*Math.min(4,Math.max(1,Math.pow(fc/500,.6))));m.connect(lift);
+    const ws=AC.createWaveShaper();ws.curve=VOC_CURVE;lift.connect(ws);
+    const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=LOWPOWER?35:45;lp.Q.value=.5;ws.connect(lp);
+    // the carrier's band, opened by that follower
+    let c=v.carLP;for(let s=0;s<VOC_ST;s++){const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=fc;bp.Q.value=Q;c.connect(bp);c=bp}
+    const g=mkG(0,v.sum);g.gain.value=0;c.connect(g);lp.connect(g.gain);
+    v.bands.push({fc,g});
+  }
+  v.o1.start();v.o2.start();v.o3.start();
+  return v;
+}
+function vocF(v,f,t,tc){const t0=Math.max(AC.currentTime+.002,t);[v.o1,v.o2].forEach(o=>o.frequency.setTargetAtTime(f,t0,tc));v.o3.frequency.setTargetAtTime(f/2,t0,tc)}
+// the phrase begins: the singer's range sets the octave, the style sets how warm the voice is (soul, funk and disco want more of the real voice)
+function vocStart(h,t,lvl,fMean){
+  const v=h.voc||(h.voc=makeVoc(h)),warm=!!STY().vocal,now=AC.currentTime;
+  h.shift=fitShift(fMean,h.type);h.lvl=lvl;v.warm=warm;
+  v.carLP.frequency.setTargetAtTime(warm?3200:9000,now,.05);v.dry.gain.setTargetAtTime(warm?.5:.22,now,.05);v.sibG.gain.setTargetAtTime(warm?.35:.5,now,.05);
+  v.sum.gain.setTargetAtTime(warm?.75:1,now,.05);v.nzg.gain.setTargetAtTime(warm?.05:.1,now,.05);v.o2g.gain.setTargetAtTime(warm?.3:.6,now,.05);
+  v.out.gain.cancelScheduledValues(now);v.out.gain.setTargetAtTime(lvl*1.6,Math.max(now,t-.08),.04);
+  vocF(v,fMean*Math.pow(2,h.shift),now,.01);
+}
+function vocHush(v){
+  if(!v)return;const t=AC.currentTime;v.out.gain.cancelScheduledValues(t);v.out.gain.setTargetAtTime(0,t,.04);
+  v.srcs.forEach(s=>{try{s.stop(t+.05)}catch(e){}});v.srcs.length=0;
+}
+function vocSrc(v,buf){const s=AC.createBufferSource();s.buffer=buf;v.srcs.push(s);if(v.srcs.length>400)v.srcs.splice(0,v.srcs.length-400);return s}
+// a stretch of the recording [a,b) played from t0 at its own speed, with soft edges
+function playPart(v,buf,a,b,t0,fadeIn,fadeOut){
+  const d=b-a;if(d<=.004)return;const g=mkG(0,v.mod),s=vocSrc(v,buf);s.connect(g);
+  g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(1,t0+Math.min(fadeIn,d*.4));g.gain.setValueAtTime(1,t0+Math.max(d-fadeOut,d*.6));g.gain.linearRampToValueAtTime(0,t0+d);
+  s.start(t0,a,d+.005);s.stop(t0+d+.01);
+}
+// a vowel [a,b) stretched (or squeezed) to fill [t0,t1): overlapping grains, a Hann window each, half a grain apart so they sum evenly;
+// a long note dwells at the end of the vowel, the grains wandering a little so the hold does not buzz
+function playStretch(v,buf,a,b,t0,t1){
+  const nat=b-a,want=t1-t0;if(want<=.015||nat<=.015)return;
+  const r=want/nat;
+  if(r>.85&&r<1.18){playPart(v,buf,a,Math.min(b,a+want),t0,.008,.015);return}
+  const Lg=LOWPOWER?.06:.05,Ho=Lg/2,n=Math.ceil(want/Ho);
+  for(let i=0;i<n;i++){
+    const ot=t0+i*Ho;let ip=a+i*Ho/r;
+    if(ip+Lg>b)ip=Math.max(a,b-Lg-Math.random()*Math.min(.09,nat*.5));
+    const g=mkG(0,v.mod),s=vocSrc(v,buf);s.connect(g);
+    g.gain.setValueCurveAtTime(HANN,ot,Lg);s.start(ot,ip,Lg+.003);s.stop(ot+Lg+.005);
+  }
+}
+// one planned syllable from the recording: consonants in before the beat, the vowel on it and held to the next, the coda at the end
+function recSyl(pl,k,tt,sd,tOf,f){
+  const {R,buf}=pl.rec,h=singerFor(pl.who),v=h.voc,notes=pl.notes,n=notes.length,now=AC.currentTime;
+  const S=R.s,ms=x=>x/1000,s0=ms(S[k][0]),vs=ms(S[k][1]),ve=ms(S[k][2]),segEnd=k+1<R.n?ms(S[k+1][0]):ms(R.e);
+  const last=k===n-1,tNext=last?tt+notes[k].len*sd:tOf(k+1);
+  // where the next syllable's consonants will begin: the vowel must be out of the way by then
+  const nextLead=last?0:ms(S[k+1][1])-ms(S[k+1][0]);
+  const tEnd=Math.max(tt+.04,tNext-nextLead);
+  const ff=f*Math.pow(2,h.shift);vocF(v,ff,tt-.025,.02);
+  // the consonants: at their own speed, ending on the beat; if we are late they are cut from the front rather than moving the beat
+  let a=s0,t0=tt-(vs-s0);if(t0<now+.005){a+=now+.005-t0;t0=now+.005}
+  if(vs>a)playPart(v,buf,a,vs,t0,.006,.004);
+  const coda=Math.max(0,segEnd-ve),tv1=Math.max(tt+.03,tEnd-Math.min(coda,.14));
+  playStretch(v,buf,vs,ve,tt,tv1);
+  if(coda>.004)playPart(v,buf,ve,Math.min(segEnd,ve+.16),tv1,.004,.02);
+  if(last){const te=tv1+Math.min(coda,.16);v.out.gain.setTargetAtTime(0,te+.08,.15);h.busy=te+.5}
+}
+
+/* ---- chops: slices of the recordings retriggered on the beat, re-pitched to the notes ---- */
+function chopPool(){
+  if(VR.pool)return VR.pool;if(!VR.idx)return null;const pool=[];
+  ['hook','hookB','build'].forEach(k=>{const R=VR.idx[k],buf=VR.buf[k];if(!R||!buf)return;
+    R.s.forEach((s,i)=>{const end=i+1<R.n?R.s[i+1][0]:R.e;if(s[2]-s[1]<60)return;pool.push({buf,s:s[0]/1000,vs:s[1]/1000,ve:s[2]/1000,end:end/1000,f0:R.f0||240})})});
+  return VR.pool=pool.length?pool:null;
+}
+function chopRec(t,f,len){
+  const pool=chopPool();if(!pool||!AC)return false;
+  const it=pool[VR.chopI++%pool.length];let rate=f/it.f0;while(rate>1.45)rate/=2;while(rate<.72)rate*=2;
+  const src=AC.createBufferSource();src.buffer=it.buf;src.playbackRate.value=rate;
+  const hp=AC.createBiquadFilter();hp.type='highpass';hp.frequency.value=160;const g=mkG(0,PAN.venus);src.connect(hp);hp.connect(g);
+  g.connect(mkG(.4,dlySend));g.connect(mkG(.4,revSend));
+  const lead=(it.vs-it.s)/rate,now=AC.currentTime;let t0=t-lead,off=it.s;if(t0<now+.003){off+=(now+.003-t0)*rate;t0=now+.003}
+  const dur=Math.min((it.end-off)/rate,len+(t-t0)),LV=.55;
+  g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(LV,t0+.008);g.gain.setValueAtTime(LV,t0+Math.max(.01,dur-.03));g.gain.linearRampToValueAtTime(0,t0+dur);
+  src.start(t0,off,dur*rate+.02);src.stop(t0+dur+.03);
+  noteEv('venus',t,f,.7,len);flash('venus',t);return true;
+}
+const _chopRec=chop;chop=function(t,f,len,vow){if(VX.mode==='chops'&&CLUB()&&chopRec(t,f,len))return;_chopRec(t,f,len,vow)};
+MOTS.voice.rec=()=>({idx:!!VR.idx,loaded:Object.keys(VR.buf).length,pending:Object.keys(VR.bytes).length,used:VR.used,fallback:VR.fb,fail:VR.fail});
 
 /* ================= MORE BANDS: Ravel and Morricone join the concert row; a new row, Avant-garde & jazz ================= */
 // Ravel (d. 1937) is out of copyright, so Daphnis et Chloé (1913) may be evoked closely. Morricone, Davis, Moondog, the prog bands,
