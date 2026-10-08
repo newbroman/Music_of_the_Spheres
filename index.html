@@ -555,7 +555,7 @@ let tempo=0,running=false,clockT=null,nextTick=0;
 M.bar=(t,beats,sub,bpm)=>{const sc=SCR();if(sc)sc.bar(t,beats,sub,bpm)};
 // a sung syllable: a note with its text (the score writes the lyric; MIDI out plays it as the god's note)
 M.lyric=(id,t,f,lvl,len,text,syl)=>{const sc=SCR();if(sc)sc.lyric(id,t,f,lvl,len,text,syl);outHit(id,t,f,lvl,len)};
-M.transport=(play,bpm)=>{const sc=SCR();if(sc)sc.transport(play,bpm);tempo=bpm||tempo;if(play&&!running){running=true;if(out&&clockOn)send([0xFA]);nextTick=performance.now()+20;startClock()}
+M.transport=(play,bpm)=>{const sc=SCR();if(sc)sc.transport(play,bpm);if(MOTS.score&&MOTS.score.play)try{MOTS.score.play(play)}catch(e){}tempo=bpm||tempo;if(play&&!running){running=true;if(out&&clockOn)send([0xFA]);nextTick=performance.now()+20;startClock()}
   else if(!play&&running){running=false;if(out&&clockOn)send([0xFC]);stopClock()}};
 function startClock(){stopClock();if(!clockOn||!out||!tempo)return;clockT=setInterval(()=>{const now=performance.now(),per=60000/tempo/24;if(nextTick<now-200)nextTick=now;while(nextTick<now+100){send([0xF8],nextTick);nextTick+=per}},25)}
 function stopClock(){if(clockT){clearInterval(clockT);clockT=null}}
@@ -868,15 +868,15 @@ btn.onclick=async()=>{
 const MOTS=window.MOTS=window.MOTS||{};
 const LANG=(document.documentElement.lang||'en').slice(0,2);
 const TXT={
- en:{by:'the planets, via Music of the Spheres',score:'Score',stop:'Stop',writing:'Writing the score',show:'Show the score',hide:'Hide the score',midi:'Save MIDI file',xml:'Save MusicXML',close:'Close',done:'Your score',bars:'bars',notes:'notes',start:'Start the sound first, then write the score.',tip:'MusicXML opens in MuseScore, Sibelius or Dorico; the MIDI file in any sequencer. One staff per god, with the tempo, the time signature and the key of the Sun’s sign.',loading:'Loading the notation…',nolib:'The notation could not be drawn (offline?). The score is still being written and can be saved.',empty:'Nothing has sounded yet.',key:'Key',drums:'drums',other:'The others',moons:'Jupiter’s moons',title:'Music of the Spheres'},
- pl:{by:'planety, przez Muzykę sfer',score:'Partytura',stop:'Stop',writing:'Zapisuję partyturę',show:'Pokaż partyturę',hide:'Ukryj partyturę',midi:'Zapisz plik MIDI',xml:'Zapisz MusicXML',close:'Zamknij',done:'Twoja partytura',bars:'taktów',notes:'nut',start:'Najpierw włącz dźwięk, potem zapisuj partyturę.',tip:'MusicXML otwiera się w MuseScore, Sibeliusie lub Dorico; plik MIDI w każdym sekwencerze. Jedna pięciolinia na boga, z tempem, metrum i tonacją znaku Słońca.',loading:'Wczytuję notację…',nolib:'Nie udało się narysować nut (brak sieci?). Partytura jest nadal zapisywana i można ją zachować.',empty:'Nic jeszcze nie zabrzmiało.',key:'Tonacja',drums:'perkusja',other:'Pozostali',moons:'Księżyce Jowisza',title:'Muzyka sfer'},
- cy:{by:'y planedau, drwy Gerddoriaeth y Sfferau',score:'Sgôr',stop:'Stopio',writing:'Yn ysgrifennu’r sgôr',show:'Dangos y sgôr',hide:'Cuddio’r sgôr',midi:'Cadw ffeil MIDI',xml:'Cadw MusicXML',close:'Cau',done:'Eich sgôr',bars:'bar',notes:'nodyn',start:'Dechreuwch y sain yn gyntaf, yna ysgrifennwch y sgôr.',tip:'Mae MusicXML yn agor yn MuseScore, Sibelius neu Dorico; y ffeil MIDI mewn unrhyw ddilyniannydd. Un erwydd i bob duw, gyda’r tempo, yr arwydd amser a chywair arwydd yr Haul.',loading:'Yn llwytho’r nodiant…',nolib:'Ni ellid tynnu’r nodiant (all-lein?). Mae’r sgôr yn dal i gael ei hysgrifennu a gellir ei chadw.',empty:'Nid oes dim wedi seinio eto.',key:'Cywair',drums:'drymiau',other:'Y lleill',moons:'Lleuadau Iau',title:'Cerddoriaeth y Sfferau'},
- de:{by:'die Planeten, durch Musik der Sphären',score:'Partitur',stop:'Stopp',writing:'Partitur wird geschrieben',show:'Partitur zeigen',hide:'Partitur ausblenden',midi:'MIDI-Datei speichern',xml:'MusicXML speichern',close:'Schließen',done:'Ihre Partitur',bars:'Takte',notes:'Noten',start:'Erst den Klang starten, dann die Partitur schreiben.',tip:'MusicXML öffnet sich in MuseScore, Sibelius oder Dorico; die MIDI-Datei in jedem Sequenzer. Ein System je Gott, mit Tempo, Taktart und der Tonart des Sonnenzeichens.',loading:'Notation wird geladen…',nolib:'Die Notation konnte nicht gezeichnet werden (offline?). Die Partitur wird weiter geschrieben und kann gespeichert werden.',empty:'Noch hat nichts geklungen.',key:'Tonart',drums:'Schlagzeug',other:'Die anderen',moons:'Jupiters Monde',title:'Musik der Sphären'},
- es:{by:'los planetas, a través de La música de las esferas',score:'Partitura',stop:'Detener',writing:'Escribiendo la partitura',show:'Mostrar la partitura',hide:'Ocultar la partitura',midi:'Guardar archivo MIDI',xml:'Guardar MusicXML',close:'Cerrar',done:'Tu partitura',bars:'compases',notes:'notas',start:'Inicia primero el sonido y luego escribe la partitura.',tip:'MusicXML se abre en MuseScore, Sibelius o Dorico; el archivo MIDI en cualquier secuenciador. Un pentagrama por dios, con el tempo, el compás y la tonalidad del signo del Sol.',loading:'Cargando la notación…',nolib:'No se pudo dibujar la notación (¿sin conexión?). La partitura se sigue escribiendo y se puede guardar.',empty:'Todavía no ha sonado nada.',key:'Tonalidad',drums:'percusión',other:'Los demás',moons:'Lunas de Júpiter',title:'La música de las esferas'},
- fr:{by:'les planètes, par La Musique des sphères',score:'Partition',stop:'Arrêter',writing:'Écriture de la partition',show:'Afficher la partition',hide:'Masquer la partition',midi:'Enregistrer le fichier MIDI',xml:'Enregistrer le MusicXML',close:'Fermer',done:'Votre partition',bars:'mesures',notes:'notes',start:'Lancez d’abord le son, puis écrivez la partition.',tip:'Le MusicXML s’ouvre dans MuseScore, Sibelius ou Dorico ; le fichier MIDI dans tout séquenceur. Une portée par dieu, avec le tempo, la mesure et la tonalité du signe du Soleil.',loading:'Chargement de la notation…',nolib:'La notation n’a pas pu être dessinée (hors ligne ?). La partition continue de s’écrire et peut être enregistrée.',empty:'Rien n’a encore sonné.',key:'Tonalité',drums:'percussions',other:'Les autres',moons:'Lunes de Jupiter',title:'La Musique des sphères'},
- it:{by:'i pianeti, tramite La musica delle sfere',score:'Partitura',stop:'Ferma',writing:'Scrivo la partitura',show:'Mostra la partitura',hide:'Nascondi la partitura',midi:'Salva file MIDI',xml:'Salva MusicXML',close:'Chiudi',done:'La tua partitura',bars:'battute',notes:'note',start:'Avvia prima il suono, poi scrivi la partitura.',tip:'Il MusicXML si apre in MuseScore, Sibelius o Dorico; il file MIDI in qualsiasi sequencer. Un pentagramma per dio, con il tempo, il metro e la tonalità del segno del Sole.',loading:'Carico la notazione…',nolib:'Non è stato possibile disegnare la notazione (offline?). La partitura continua a essere scritta e si può salvare.',empty:'Non ha ancora suonato nulla.',key:'Tonalità',drums:'percussioni',other:'Gli altri',moons:'Lune di Giove',title:'La musica delle sfere'},
- zh:{by:'行星，经由天球音乐',score:'乐谱',stop:'停止',writing:'正在记谱',show:'显示乐谱',hide:'隐藏乐谱',midi:'保存 MIDI 文件',xml:'保存 MusicXML',close:'关闭',done:'你的乐谱',bars:'小节',notes:'音符',start:'请先开始声音，再记谱。',tip:'MusicXML 可在 MuseScore、Sibelius 或 Dorico 中打开；MIDI 文件可在任何音序器中打开。每位神一行谱表，含速度、拍号和太阳星座的调。',loading:'正在加载记谱……',nolib:'无法绘制乐谱（离线？）。乐谱仍在记录，可以保存。',empty:'还没有声音。',key:'调',drums:'打击乐',other:'其他',moons:'木星的卫星',title:'天球音乐'},
- ja:{by:'惑星たち、天球の音楽を通して',score:'楽譜',stop:'停止',writing:'楽譜を書いています',show:'楽譜を表示',hide:'楽譜を隠す',midi:'MIDI ファイルを保存',xml:'MusicXML を保存',close:'閉じる',done:'あなたの楽譜',bars:'小節',notes:'音符',start:'先に音を始めてから、楽譜を書いてください。',tip:'MusicXML は MuseScore、Sibelius、Dorico で開けます。MIDI ファイルはどのシーケンサーでも。神ごとに一段の五線で、テンポ、拍子、太陽の星座の調つき。',loading:'記譜を読み込んでいます…',nolib:'楽譜を描けませんでした（オフライン？）。楽譜の記録は続いており、保存できます。',empty:'まだ何も鳴っていません。',key:'調',drums:'打楽器',other:'その他',moons:'木星の衛星',title:'天球の音楽'}};
+ en:{sky:'Sky',view:'View',nostart:'Press Play: the score is written as the music plays.',by:'the planets, via Music of the Spheres',score:'Score',stop:'Stop',writing:'Writing the score',show:'Show the score',hide:'Hide the score',midi:'Save MIDI file',xml:'Save MusicXML',close:'Close',done:'Your score',bars:'bars',notes:'notes',start:'Start the sound first, then write the score.',tip:'MusicXML opens in MuseScore, Sibelius or Dorico; the MIDI file in any sequencer. One staff per god, with the tempo, the time signature and the key of the Sun’s sign.',loading:'Loading the notation…',nolib:'The notation could not be drawn (offline?). The score is still being written and can be saved.',empty:'Nothing has sounded yet.',key:'Key',drums:'drums',other:'The others',moons:'Jupiter’s moons',title:'Music of the Spheres'},
+ pl:{sky:'Niebo',view:'Widok',nostart:'Naciśnij Graj: partytura zapisuje się, gdy gra muzyka.',by:'planety, przez Muzykę sfer',score:'Partytura',stop:'Stop',writing:'Zapisuję partyturę',show:'Pokaż partyturę',hide:'Ukryj partyturę',midi:'Zapisz plik MIDI',xml:'Zapisz MusicXML',close:'Zamknij',done:'Twoja partytura',bars:'taktów',notes:'nut',start:'Najpierw włącz dźwięk, potem zapisuj partyturę.',tip:'MusicXML otwiera się w MuseScore, Sibeliusie lub Dorico; plik MIDI w każdym sekwencerze. Jedna pięciolinia na boga, z tempem, metrum i tonacją znaku Słońca.',loading:'Wczytuję notację…',nolib:'Nie udało się narysować nut (brak sieci?). Partytura jest nadal zapisywana i można ją zachować.',empty:'Nic jeszcze nie zabrzmiało.',key:'Tonacja',drums:'perkusja',other:'Pozostali',moons:'Księżyce Jowisza',title:'Muzyka sfer'},
+ cy:{sky:'Awyr',view:'Golwg',nostart:'Pwyswch Chwarae: ysgrifennir y sgôr wrth i’r gerddoriaeth chwarae.',by:'y planedau, drwy Gerddoriaeth y Sfferau',score:'Sgôr',stop:'Stopio',writing:'Yn ysgrifennu’r sgôr',show:'Dangos y sgôr',hide:'Cuddio’r sgôr',midi:'Cadw ffeil MIDI',xml:'Cadw MusicXML',close:'Cau',done:'Eich sgôr',bars:'bar',notes:'nodyn',start:'Dechreuwch y sain yn gyntaf, yna ysgrifennwch y sgôr.',tip:'Mae MusicXML yn agor yn MuseScore, Sibelius neu Dorico; y ffeil MIDI mewn unrhyw ddilyniannydd. Un erwydd i bob duw, gyda’r tempo, yr arwydd amser a chywair arwydd yr Haul.',loading:'Yn llwytho’r nodiant…',nolib:'Ni ellid tynnu’r nodiant (all-lein?). Mae’r sgôr yn dal i gael ei hysgrifennu a gellir ei chadw.',empty:'Nid oes dim wedi seinio eto.',key:'Cywair',drums:'drymiau',other:'Y lleill',moons:'Lleuadau Iau',title:'Cerddoriaeth y Sfferau'},
+ de:{sky:'Himmel',view:'Ansicht',nostart:'Auf Abspielen drücken: die Partitur entsteht, während die Musik spielt.',by:'die Planeten, durch Musik der Sphären',score:'Partitur',stop:'Stopp',writing:'Partitur wird geschrieben',show:'Partitur zeigen',hide:'Partitur ausblenden',midi:'MIDI-Datei speichern',xml:'MusicXML speichern',close:'Schließen',done:'Ihre Partitur',bars:'Takte',notes:'Noten',start:'Erst den Klang starten, dann die Partitur schreiben.',tip:'MusicXML öffnet sich in MuseScore, Sibelius oder Dorico; die MIDI-Datei in jedem Sequenzer. Ein System je Gott, mit Tempo, Taktart und der Tonart des Sonnenzeichens.',loading:'Notation wird geladen…',nolib:'Die Notation konnte nicht gezeichnet werden (offline?). Die Partitur wird weiter geschrieben und kann gespeichert werden.',empty:'Noch hat nichts geklungen.',key:'Tonart',drums:'Schlagzeug',other:'Die anderen',moons:'Jupiters Monde',title:'Musik der Sphären'},
+ es:{sky:'Cielo',view:'Vista',nostart:'Pulsa Reproducir: la partitura se escribe mientras suena la música.',by:'los planetas, a través de La música de las esferas',score:'Partitura',stop:'Detener',writing:'Escribiendo la partitura',show:'Mostrar la partitura',hide:'Ocultar la partitura',midi:'Guardar archivo MIDI',xml:'Guardar MusicXML',close:'Cerrar',done:'Tu partitura',bars:'compases',notes:'notas',start:'Inicia primero el sonido y luego escribe la partitura.',tip:'MusicXML se abre en MuseScore, Sibelius o Dorico; el archivo MIDI en cualquier secuenciador. Un pentagrama por dios, con el tempo, el compás y la tonalidad del signo del Sol.',loading:'Cargando la notación…',nolib:'No se pudo dibujar la notación (¿sin conexión?). La partitura se sigue escribiendo y se puede guardar.',empty:'Todavía no ha sonado nada.',key:'Tonalidad',drums:'percusión',other:'Los demás',moons:'Lunas de Júpiter',title:'La música de las esferas'},
+ fr:{sky:'Ciel',view:'Vue',nostart:'Appuyez sur Jouer : la partition s’écrit pendant que la musique joue.',by:'les planètes, par La Musique des sphères',score:'Partition',stop:'Arrêter',writing:'Écriture de la partition',show:'Afficher la partition',hide:'Masquer la partition',midi:'Enregistrer le fichier MIDI',xml:'Enregistrer le MusicXML',close:'Fermer',done:'Votre partition',bars:'mesures',notes:'notes',start:'Lancez d’abord le son, puis écrivez la partition.',tip:'Le MusicXML s’ouvre dans MuseScore, Sibelius ou Dorico ; le fichier MIDI dans tout séquenceur. Une portée par dieu, avec le tempo, la mesure et la tonalité du signe du Soleil.',loading:'Chargement de la notation…',nolib:'La notation n’a pas pu être dessinée (hors ligne ?). La partition continue de s’écrire et peut être enregistrée.',empty:'Rien n’a encore sonné.',key:'Tonalité',drums:'percussions',other:'Les autres',moons:'Lunes de Jupiter',title:'La Musique des sphères'},
+ it:{sky:'Cielo',view:'Vista',nostart:'Premi Suona: la partitura si scrive mentre la musica suona.',by:'i pianeti, tramite La musica delle sfere',score:'Partitura',stop:'Ferma',writing:'Scrivo la partitura',show:'Mostra la partitura',hide:'Nascondi la partitura',midi:'Salva file MIDI',xml:'Salva MusicXML',close:'Chiudi',done:'La tua partitura',bars:'battute',notes:'note',start:'Avvia prima il suono, poi scrivi la partitura.',tip:'Il MusicXML si apre in MuseScore, Sibelius o Dorico; il file MIDI in qualsiasi sequencer. Un pentagramma per dio, con il tempo, il metro e la tonalità del segno del Sole.',loading:'Carico la notazione…',nolib:'Non è stato possibile disegnare la notazione (offline?). La partitura continua a essere scritta e si può salvare.',empty:'Non ha ancora suonato nulla.',key:'Tonalità',drums:'percussioni',other:'Gli altri',moons:'Lune di Giove',title:'La musica delle sfere'},
+ zh:{sky:'天空',view:'视图',nostart:'按下播放：乐谱会随着音乐的播放而写出。',by:'行星，经由天球音乐',score:'乐谱',stop:'停止',writing:'正在记谱',show:'显示乐谱',hide:'隐藏乐谱',midi:'保存 MIDI 文件',xml:'保存 MusicXML',close:'关闭',done:'你的乐谱',bars:'小节',notes:'音符',start:'请先开始声音，再记谱。',tip:'MusicXML 可在 MuseScore、Sibelius 或 Dorico 中打开；MIDI 文件可在任何音序器中打开。每位神一行谱表，含速度、拍号和太阳星座的调。',loading:'正在加载记谱……',nolib:'无法绘制乐谱（离线？）。乐谱仍在记录，可以保存。',empty:'还没有声音。',key:'调',drums:'打击乐',other:'其他',moons:'木星的卫星',title:'天球音乐'},
+ ja:{sky:'空',view:'表示',nostart:'再生を押してください。音楽が鳴ると楽譜が書かれていきます。',by:'惑星たち、天球の音楽を通して',score:'楽譜',stop:'停止',writing:'楽譜を書いています',show:'楽譜を表示',hide:'楽譜を隠す',midi:'MIDI ファイルを保存',xml:'MusicXML を保存',close:'閉じる',done:'あなたの楽譜',bars:'小節',notes:'音符',start:'先に音を始めてから、楽譜を書いてください。',tip:'MusicXML は MuseScore、Sibelius、Dorico で開けます。MIDI ファイルはどのシーケンサーでも。神ごとに一段の五線で、テンポ、拍子、太陽の星座の調つき。',loading:'記譜を読み込んでいます…',nolib:'楽譜を描けませんでした（オフライン？）。楽譜の記録は続いており、保存できます。',empty:'まだ何も鳴っていません。',key:'調',drums:'打楽器',other:'その他',moons:'木星の衛星',title:'天球の音楽'}};
 const T=TXT[LANG]||TXT.en;
 const LOWP=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
 const NAMES_EN={sun:'Apollo',mercury:'Hermes',venus:'Aphrodite',earth:'Gaia',mars:'Ares',jupiter:'Zeus',saturn:'Kronos',uranus:'Ouranos',neptune:'Poseidon','jupiter-moons':T.moons};
@@ -1040,19 +1040,25 @@ function midiFile(){
   return new Uint8Array([...head,...tracks.flat()]);
 }
 
-/* --- ABC for the live view: the last few bars of the busiest staves --- */
-function abcOf(fromMeas,toMeas,maxStaves){
+/* --- ABC for the live view: the last few bars, one stave per god; on a small or slow device the busiest few, the rest grouped as one --- */
+function abcOf(fromMeas,toMeas,maxStaves,o={}){
   const M=measures(),K=keyOf();if(!M.length)return '';
-  // the staves: the parts with notes sounding in these bars (a note counts if any of it falls inside), the busiest first
-  const lo=M[fromMeas].off,hi=M[toMeas-1].off+M[toMeas-1].div;
-  let ids=partListOpen();ids=ids.map(id=>[id,S.parts[id].notes.concat(openNotes(id)).filter(n=>posOf(M,n.t+n.d)>lo&&posOf(M,n.t)<hi).length]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,maxStaves).map(x=>x[0]);
-  const PL=partListOpen();ids.sort((a,b)=>PL.indexOf(a)-PL.indexOf(b));
+  // the staves: the parts with notes sounding in these bars (a note counts if any of it falls inside), in score order; beyond the limit, the busiest stay and the others share one stave
+  const lo=M[fromMeas].off,hi=M[toMeas-1].off+M[toMeas-1].div,inWin=n=>posOf(M,n.t+n.d)>lo&&posOf(M,n.t)<hi;
+  let ids=partListOpen().map(id=>[id,S.parts[id].notes.concat(openNotes(id)).filter(inWin).length]).filter(x=>x[1]>0);
+  const parts={};ids.forEach(([id])=>parts[id]=S.parts[id]);
+  if(ids.length>maxStaves){const keep=ids.slice().sort((a,b)=>b[1]-a[1]).slice(0,Math.max(1,maxStaves-1)).map(x=>x[0]);
+    const rest=ids.filter(x=>!keep.includes(x[0])).map(x=>x[0]);
+    if(rest.length){const g={id:'other',notes:[],drum:0,pitched:0,ids:rest};rest.forEach(id=>{const p=S.parts[id];g.notes=g.notes.concat(p.notes);g.drum+=p.drum;g.pitched+=p.pitched});parts.other=g;ids=ids.filter(x=>keep.includes(x[0])).concat([['other',1]])}}
+  const PL=partListOpen().concat(['other']);ids=ids.map(x=>x[0]).sort((a,b)=>PL.indexOf(a)-PL.indexOf(b));
   if(!ids.length)return '';
-  const m0=M[fromMeas],ka=keyAlter(K.fifths);
-  let abc=`X:1\n%%stretchlast 1\nL:1/16\nM:${m0.ts[0]}/${m0.ts[1]}\nQ:${m0.ts[1]===8&&m0.beats%1===0?'3/8':'1/4'}=${Math.round(m0.bpm)}\n%%score ${ids.map((_,i)=>i+1).join(' ')}\n`;
-  ids.forEach((id,i)=>{const p=S.parts[id],clef=clefOf(p,true);abc+=`V:${i+1} clef=${clef==='perc'?'perc':clef} name="${nameOf(id).replace(/"/g,'')}" snm="${nameOf(id).slice(0,4).replace(/"/g,'')}"\n`});
+  const m0=M[fromMeas],ka=keyAlter(K.fifths),short=!!o.short;
+  const nm=id=>{if(id==='other'){const g=parts.other;return short?T.other:T.other+' ('+g.ids.map(nameOf).join(', ')+')'}const n=nameOf(id);return short&&n.length>9?n.slice(0,8)+'…':n};
+  let abc=`X:1\n%%stretchlast 1\n${o.staffsep?'%%staffsep '+o.staffsep+'\n':''}${short?'%%voicefont Times 11 bold\n':''}L:1/16\nM:${m0.ts[0]}/${m0.ts[1]}\nQ:${m0.ts[1]===8&&m0.beats%1===0?'3/8':'1/4'}=${Math.round(m0.bpm)}\n%%score ${ids.map((_,i)=>i+1).join(' ')}\n`;
+  const openOf=id=>id==='other'?parts.other.ids.flatMap(openNotes):openNotes(id);
+  ids.forEach((id,i)=>{const p=parts[id],clef=clefOfList(p.notes.concat(openOf(id)));abc+=`V:${i+1} clef=${clef==='perc'?'perc':clef} name="${nm(id).replace(/"/g,'')}" snm="${nameOf(id==='other'?'other':id).slice(0,4).replace(/"/g,'')}"\n`});
   abc+=`K:${K.mode==='none'?'C':K.abc+((ABC_MODE[K.mode]||'').length>1?' ':'')+(ABC_MODE[K.mode]||'')}\n`;
-  ids.forEach((id,i)=>{const p=S.parts[id],Q=quantise(M,p,true).filter(n=>n.meas>=fromMeas&&n.meas<toMeas);let line=`[V:${i+1}]`;
+  ids.forEach((id,i)=>{const p=parts[id],Q=quantiseList(M,p.notes.concat(openOf(id))).filter(n=>n.meas>=fromMeas&&n.meas<toMeas);let line=`[V:${i+1}]`;
     for(let mi=fromMeas;mi<toMeas;mi++){const m=M[mi],prev=M[mi-1];if(mi>fromMeas&&prev&&(prev.ts[0]!==m.ts[0]||prev.ts[1]!==m.ts[1]))line+=`[M:${m.ts[0]}/${m.ts[1]}]`;
       const notes=Q.filter(n=>n.meas===mi);
       if(!notes.length){line+=`z${m.div}|`;continue}
@@ -1067,20 +1073,37 @@ function abcOf(fromMeas,toMeas,maxStaves){
       abc+=w+'\n'}});
   return abc;
 }
+function clefOfList(list){let s=0,n=0;for(const x of list)if(x.f){s+=x.k;n++}if(!n)return 'perc';return s/n<60?'bass':'treble'}
+function quantiseList(M,list){return quantise(M,{notes:list},false)}
 function abcPitch(n,fifths,ka,acc){if(n.drum)return 'B';const [st,al,oc]=spell(n.k,fifths);const key=st+oc,want=al,have=key in acc?acc[key]:(ka[st]||0);let a='';
   if(want!==have){a=want===1?'^':want===-1?'_':'=';acc[key]=want}
   let s=st;if(oc>=5){s=st.toLowerCase()+"'".repeat(oc-5)}else if(oc<4)s=st+','.repeat(4-oc);return a+s}
 
-/* --- the live view --- */
+/* --- the live view: the staves in place of the sky, on the floor, with a Sky | Score switch --- */
 const css=document.createElement('style');css.textContent=`
-#scoreView{position:fixed;left:0;right:0;top:0;bottom:0;z-index:70;background:rgba(6,8,16,.94);color:#e9e1cc;overflow:auto;padding:max(12px,2vh) max(12px,2vw) 2vh;font:15px/1.4 "Alegreya Sans",system-ui,sans-serif}
-#scoreView .hd{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px}
-#scoreView h2{margin:0;font:400 clamp(20px,2.4vw,34px)/1.1 "GFS Didot",Georgia,serif;color:#e9d093}
-#scoreView .n{color:#aea791}
-#scoreView button{appearance:none;border:1px solid #c9984f;background:rgba(10,12,24,.7);color:#e9d093;border-radius:999px;padding:.5em 1em;font:inherit;cursor:pointer;min-height:44px}
-#scoreAbc{background:#f6efdc;color:#1a1206;border-radius:10px;padding:8px 10px;min-height:40vh}
-#scoreAbc svg{max-width:100%;height:auto}
-html.mots-proj #scoreView,html.mots-proj #scoreView *{visibility:visible!important}
+#floorSw{position:absolute;top:10px;right:12px;z-index:6;display:inline-flex;border:1px solid #c9984f;border-radius:999px;overflow:hidden;background:rgba(10,12,24,.78);font:14px/1 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+#floorSw button{appearance:none;border:0;background:transparent;color:#e9e1cc;padding:0 .9em;min-height:36px;min-width:44px;font:inherit;cursor:pointer;letter-spacing:.02em}
+#floorSw button+button{border-left:1px solid rgba(201,152,79,.5)}
+#floorSw button[aria-pressed="true"]{background:linear-gradient(180deg,#d7a75d,#a87a37);color:#1a1206;font-weight:700}
+#floorSw button:focus-visible{outline:3px solid #c9984f;outline-offset:-3px}
+#scoreFloor{position:absolute;inset:0;z-index:4;display:none;background:#f6efdc;color:#1a1206;overflow:hidden;font:14px/1.4 "Alegreya Sans",system-ui,sans-serif}
+#scoreFloor.on{display:block}
+#scoreFloor .hd{position:absolute;left:0;right:0;top:0;padding:8px 12px;display:flex;gap:10px;align-items:baseline;pointer-events:none;z-index:2}
+#scoreFloor .hd b{font:400 clamp(16px,1.2vw + 10px,24px)/1.1 "GFS Didot",Georgia,serif;color:#4a3a1a}
+#scoreFloor .hd span{color:#6f5a30;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#scoreFloor .sh{position:absolute;left:0;right:0;top:0;height:44px;background:linear-gradient(180deg,#f6efdc 55%,rgba(246,239,220,0));pointer-events:none;z-index:1}
+#scoreFloor .ab{position:absolute;left:8px;right:8px;top:40px;bottom:6px;display:flex;align-items:center;justify-content:center}
+#scoreFloor .ab>div{width:100%;max-height:100%}
+#scoreFloor svg{display:block;max-width:100%;height:auto}
+#scoreFloor .n{color:#6f5a30;text-align:center;padding:0 1em}
+#scoreFloor .now .abcjs-note,#scoreFloor .now .abcjs-rest,#scoreFloor .now .abcjs-stem,#scoreFloor .now .abcjs-beam-elem,#scoreFloor .now .abcjs-ledger{fill:#9a5a12;stroke:#9a5a12}
+html.mots-proj #scoreFloor.on,html.mots-proj #scoreFloor.on *{visibility:visible!important}
+html.mots-proj #scoreFloor.on{position:fixed!important;inset:0!important;z-index:9000!important}
+html.mots-proj #floorSw,html.mots-proj #floorSw *{visibility:visible!important}
+html.mots-proj #floorSw{position:fixed;top:max(12px,1.2vh);left:max(12px,1.2vw);right:auto;z-index:9001;transition:opacity .6s}
+html.mots-proj #scoreFloor .hd{padding-left:calc(max(12px,1.2vw) + 160px)}
+html.mots-proj #scoreFloor .ab{bottom:22vh}
+html.mots-proj.idle #floorSw{opacity:0}
 #scorePanel{position:fixed;right:16px;bottom:16px;z-index:50;width:min(380px,calc(100% - 32px));background:#13162a;color:#e9e1cc;border:1px solid #c9984f;border-radius:10px;padding:12px 14px;font:15px/1.4 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5)}
 #scorePanel .t{font-family:"GFS Didot",Georgia,serif;color:#c9984f;margin-bottom:6px}
 #scorePanel .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
@@ -1088,23 +1111,62 @@ html.mots-proj #scoreView,html.mots-proj #scoreView *{visibility:visible!importa
 #scorePanel .pri{background:linear-gradient(180deg,#d7a75d,#a87a37);color:#1a1206;font-weight:700;border:0}
 #scorePanel .sec{appearance:none;border:1px solid #2b3050;background:transparent;color:#a39c89}
 #scorePanel .nm{font-size:12px;color:#a39c89;margin-top:6px;word-break:break-all}
-html.mots-show #scoreView,html.mots-show #scorePanel,html.mots-show #scoreBtn{display:none!important}
+html.mots-show #scoreFloor,html.mots-show #floorSw,html.mots-show #scorePanel,html.mots-show #scoreBtn{display:none!important}
 #scoreBtn[aria-pressed="true"]{background:#5a2b2b!important;color:#f2c7c7!important;border-color:#8a4444!important}`;document.head.appendChild(css);
+// the notation library: the copy shipped with the app (so it works offline and installed), then the CDN if that is missing (the artifact copies)
 let libP=null;
 function lib(){if(window.ABCJS)return Promise.resolve(window.ABCJS);if(libP)return libP;
-  return libP=new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.4.4/abcjs-basic-min.js';s.onload=()=>ok(window.ABCJS);s.onerror=()=>{libP=null;no(new Error('abcjs'))};document.head.appendChild(s)})}
-function view(on){let v=document.getElementById('scoreView');S.view=on;
-  if(!on){if(v)v.remove();syncPanel();return}
-  if(!v){v=document.createElement('div');v.id='scoreView';v.setAttribute('role','dialog');v.setAttribute('aria-label',T.score);
-    v.innerHTML=`<div class="hd"><div><h2>${esc(T.score)}</h2><div class="n" id="scoreMeta"></div></div><div style="display:flex;gap:8px"><button type="button" id="scoreHide">${esc(T.hide)}</button></div></div><div id="scoreAbc"><p class="n">${esc(T.loading)}</p></div>`;
-    document.body.appendChild(v);v.querySelector('#scoreHide').onclick=()=>view(false)}
-  S.drawn='';lib().then(()=>draw(true)).catch(()=>{const a=document.getElementById('scoreAbc');if(a)a.innerHTML=`<p class="n" style="color:#4a3a1a">${esc(T.nolib)}</p>`});syncPanel()}
-function draw(force){const a=document.getElementById('scoreAbc');if(!a||!window.ABCJS)return;const M=measures();const n=M.length;
-  const wide=innerWidth>1100,bars=wide?4:2,to=n,from=Math.max(0,to-bars);
-  const abc=abcOf(from,to,6);if(!force&&abc===S.drawn)return;S.drawn=abc;
-  if(!abc){a.innerHTML=`<p class="n" style="color:#4a3a1a">${esc(T.empty)}</p>`;return}
-  try{a.innerHTML='';ABCJS.renderAbc(a,abc,{responsive:'resize',scale:innerWidth>1400?1.4:innerWidth>900?1.15:.95,add_classes:true,paddingtop:6,paddingbottom:6,staffwidth:Math.min(1400,a.clientWidth-20)})}catch(e){a.innerHTML=`<pre class="n" style="color:#4a3a1a;white-space:pre-wrap">${esc(abc)}</pre>`}
+  const local=(LANG==='en'?'':'../')+'abcjs-basic-min.js',cdn='https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.4.4/abcjs-basic-min.js';
+  const load=src=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=()=>window.ABCJS?ok(window.ABCJS):no(new Error('abcjs'));s.onerror=()=>{s.remove();no(new Error('abcjs'))};document.head.appendChild(s)});
+  return libP=load(local).catch(()=>load(cdn)).catch(e=>{libP=null;throw e})}
+// the floor: the element that holds the sky's canvas
+// the dial, the dance floor and the synthesiser's sky have a floor the score can stand on; the 3D flight's scene is the whole page, so it keeps the files only
+const CANVAS=['orrery','dial'].map(i=>document.getElementById(i)).find(Boolean);
+const FLOOR=CANVAS&&CANVAS.parentElement;
+let sw=null,fl=null,armed=false,lastBars=-1,lastDraw=0;
+function floorBuild(){if(fl||!FLOOR)return;
+  fl=document.createElement('div');fl.id='scoreFloor';fl.setAttribute('role','img');fl.setAttribute('aria-label',T.score);
+  fl.innerHTML=`<div class="sh"></div><div class="hd"><b>${esc(T.score)}</b><span id="scoreMeta"></span></div><div class="ab"><div id="scoreAbc"><p class="n">${esc(T.nostart)}</p></div></div>`;
+  CANVAS.insertAdjacentElement('afterend',fl);
+  sw=document.createElement('div');sw.id='floorSw';sw.setAttribute('role','group');sw.setAttribute('aria-label',T.view);
+  sw.innerHTML=`<button type="button" data-v="sky" aria-pressed="true">${esc(T.sky)}</button><button type="button" data-v="score" aria-pressed="false">${esc(T.score)}</button>`;
+  sw.querySelectorAll('button').forEach(b=>b.onclick=()=>view(b.dataset.v==='score'));
+  FLOOR.appendChild(sw);
+  const hint=FLOOR.querySelector('.hint');if(hint)hint.style.top='calc(10px + 2.8rem)';   // the dial's hint sits under the switch
+  addEventListener('resize',()=>{if(S.view)draw(true)});
+}
+MOTS.skyHidden=()=>S.view;
+function view(on){floorBuild();if(!fl){S.view=false;return}S.view=on;
+  fl.classList.toggle('on',on);if(CANVAS)CANVAS.style.visibility=on?'hidden':'';
+  if(sw)sw.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.v==='score')===on)));
+  try{localStorage.setItem('mots.floor',on?'score':'sky')}catch(e){}
+  if(on){S.drawn='';armed=true;autoStart();lib().then(()=>draw(true)).catch(()=>{const a=document.getElementById('scoreAbc');if(a)a.innerHTML=`<p class="n">${esc(T.nolib)}</p>`})}
+  syncPanel()}
+// the capture starts by itself when the view is on and the music is playing (and again when the music starts after a stop)
+function autoStart(){if(!S.view||S.on||!armed)return;const ctx=MOTS.audioCtx&&MOTS.audioCtx();if(ctx&&ctx.state==='running'&&MOTS.playing!==false){armed=false;start()}}
+MOTS.score.play=p=>{if(p){armed=true;MOTS.playing=true;autoStart()}else MOTS.playing=false};
+setInterval(()=>{autoStart();if(S.view&&S.on&&LOWP){const n=S.ctx?measures().length:0;if(n!==lastBars||Date.now()-lastDraw>4000)draw(false)}},500);
+function draw(force){const a=document.getElementById('scoreAbc');if(!a||!window.ABCJS||!fl)return;
+  if(!S.ctx){a.innerHTML=`<p class="n">${esc(T.nostart)}</p>`;return}
+  const M=measures(),n=M.length,W=fl.clientWidth||600,H=fl.clientHeight||600;
+  const narrow=W<560,bars=LOWP?(narrow?2:3):(W>1100?4:narrow?2:3),maxStaves=LOWP?(narrow?3:4):10,to=n,from=Math.max(0,to-bars);
+  const abc=abcOf(from,to,maxStaves,{short:narrow,staffsep:narrow?44:52});if(!force&&abc===S.drawn)return;S.drawn=abc;lastBars=n;lastDraw=Date.now();
+  if(!abc){a.innerHTML=`<p class="n">${esc(T.empty)}</p>`;return}
+  // the width the staves are drawn at: wide enough that all of them fit the floor's height once the drawing is shrunk to its width
+  const staves=(abc.match(/^V:/gm)||[]).length,need=staves*(narrow?80:96)+70,sw0=Math.max(W-16,Math.round(need*(W-16)/(H-46)));
+  // drawn at that width, then shrunk to the floor; when the notes need more room than the stave (a bar of thirty-seconds on a phone) it is drawn again wider, and with one bar fewer if that would make it tiny
+  try{let w=sw0,txt=abc,b=bars;for(let k=0;k<3;k++){a.innerHTML='';ABCJS.renderAbc(a,txt,{responsive:'resize',scale:1,add_classes:true,paddingtop:4,paddingbottom:4,paddingleft:0,paddingright:0,staffwidth:w});
+      const svg=a.querySelector('svg');if(!svg)break;let bw=0;try{bw=svg.getBBox().width}catch(e){}const vw=svg.viewBox&&svg.viewBox.baseVal?svg.viewBox.baseVal.width:0;
+      if(!bw||!vw||bw<=vw+2)break;
+      if((W-16)/bw<.55&&b>1){b--;txt=abcOf(Math.max(0,to-b),to,maxStaves,{short:narrow,staffsep:narrow?44:52});w=Math.max(sw0,Math.round(bw*b/(b+1)))}else w=Math.round(bw+8)}}
+  catch(e){a.innerHTML=`<pre class="n" style="white-space:pre-wrap;text-align:left">${esc(abc)}</pre>`}
+  // the current bar (the last one drawn) in a warmer ink
+  a.querySelectorAll('.now').forEach(x=>x.classList.remove('now'));a.querySelectorAll('.abcjs-m'+(to-from-1)).forEach(x=>x.classList.add('now'));
   const K=keyOf(),meta=document.getElementById('scoreMeta');if(meta)meta.textContent=`${T.key}: ${K.name||'—'}${K.mode!=='none'?' '+K.mode:''} · ${n} ${T.bars} · ${S.n} ${T.notes}`}
+// the remembered view
+{let want=null;try{want=localStorage.getItem('mots.floor')}catch(e){}
+  const init=()=>{floorBuild();if(want==='score')view(true)};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else setTimeout(init,0)}
 
 /* --- the button and its panel --- */
 const rec=document.getElementById('recBtn');if(!rec)return;
@@ -1115,9 +1177,9 @@ const label=()=>{btn.innerHTML='<span aria-hidden="true">𝄞</span> '+esc(T.sco
 let tick=0,lastURLs=[];
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 function panel(){let p=document.getElementById('scorePanel');if(!p){p=document.createElement('div');p.id='scorePanel';p.setAttribute('role','dialog');document.body.appendChild(p)}return p}
-function syncPanel(){if(!S.on)return;const p=panel();const M=S.ctx?measures():[];
+function syncPanel(){if(!S.on)return;if(S.view){const p=document.getElementById('scorePanel');if(p&&p.classList.contains('live'))p.remove();return}const p=panel();const M=S.ctx?measures():[];
   if(!p.classList.contains('live')){p.className='live';p.innerHTML=`<div class="t"><span id="scoreT1"></span></div><div class="n" style="color:#a39c89" id="scoreT2"></div>
-    <div class="row">${LOWP?'':`<button type="button" class="sec" id="scoreShow"></button>`}<button type="button" class="pri" id="scoreStop">${esc(T.stop)}</button></div>`;
+    <div class="row">${FLOOR?`<button type="button" class="sec" id="scoreShow"></button>`:''}<button type="button" class="pri" id="scoreStop">${esc(T.stop)}</button></div>`;
     const sh=p.querySelector('#scoreShow');if(sh)sh.onclick=()=>view(!S.view);p.querySelector('#scoreStop').onclick=stop}
   p.querySelector('#scoreT1').textContent=`${T.writing} · ${clock(now()-S.t0)}`;p.querySelector('#scoreT2').textContent=`${M.length} ${T.bars} · ${S.n} ${T.notes}`;
   const sh=p.querySelector('#scoreShow');if(sh)sh.textContent=S.view?T.hide:T.show}
@@ -1129,10 +1191,10 @@ function start(){
   try{S.info=MOTS.scoreInfo?MOTS.scoreInfo():null}catch(e){S.info=null}
   S.tempo=60;
   S.on=true;btn.classList.add('on');btn.setAttribute('aria-pressed','true');
-  const upd=()=>{btn.innerHTML='<span aria-hidden="true">■</span> '+esc(T.stop)+' '+clock(now()-S.t0);try{S.info=MOTS.scoreInfo?MOTS.scoreInfo()||S.info:S.info}catch(e){}if(document.getElementById('scorePanel'))syncPanel();if(S.view)draw(false)};
+  const upd=()=>{btn.innerHTML='<span aria-hidden="true">■</span> '+esc(T.stop)+' '+clock(now()-S.t0);try{S.info=MOTS.scoreInfo?MOTS.scoreInfo()||S.info:S.info}catch(e){}if(document.getElementById('scorePanel'))syncPanel();if(S.view&&!LOWP)draw(false)};
   upd();tick=setInterval(upd,500);syncPanel();
 }
-function stop(){if(!S.on)return;closeHeld();S.stopT=now();S.on=false;clearInterval(tick);btn.classList.remove('on');btn.setAttribute('aria-pressed','false');label();if(S.view)view(false);
+function stop(){if(!S.on)return;closeHeld();S.stopT=now();S.on=false;clearInterval(tick);btn.classList.remove('on');btn.setAttribute('aria-pressed','false');label();if(S.view)draw(true);
   lastURLs.forEach(u=>URL.revokeObjectURL(u));lastURLs=[];
   const base=S.page+'-'+stamp(),M=measures();
   const xml=new Blob([musicXML()],{type:'application/vnd.recordare.musicxml+xml'}),mid=new Blob([midiFile()],{type:'audio/midi'});
@@ -1151,7 +1213,7 @@ btn.onclick=async()=>{if(S.on){stop();return}
   if(!ctx||ctx.state!=='running'){const s=document.querySelector(rec.dataset.start);if(s&&s.getAttribute('aria-pressed')!=='true')s.click();await new Promise(r=>setTimeout(r,600))}
   start()};
 // for tests: the files as text/bytes without the save prompt
-MOTS.score.start=start;MOTS.score.stop=stop;MOTS.score.xml=musicXML;MOTS.score.midi=midiFile;MOTS.score.abc=()=>{const M=measures();return abcOf(Math.max(0,M.length-4),M.length,6)};MOTS.score.state=S;MOTS.score.view=view;
+MOTS.score.start=start;MOTS.score.stop=stop;MOTS.score.xml=musicXML;MOTS.score.midi=midiFile;MOTS.score.abc=()=>{const M=measures();return abcOf(Math.max(0,M.length-4),M.length,6)};MOTS.score.state=S;MOTS.score.view=view;MOTS.score.draw=()=>draw(true);
 })();
 /*SCORE-END*/
 </script>
@@ -1293,7 +1355,7 @@ en:{show:'Show',title:'The self-running show',pause:'Pause',play:'Play',prev:'Pr
   glass:{k:'Concert · Glass',h:'Additive arpeggios',p:'Organ figures that grow by a note each bar, threes against twos.'},
   holst:{k:'Concert · Holst',h:'The Planets',p:'Each section is a movement led by one god: the Sun’s sign or the strongest aspect chooses. Mars marches in five, Jupiter brings the big tune, Neptune’s choir fades away.'},
   hildegard:{k:'Concert · Hildegard',h:'Chant in Latin',p:'One human voice sings Hildegard of Bingen’s own twelfth-century words over a drone: a breath, a leap of a fifth or an octave, long melismas, and voices joining in organum at the climax.'},
-  ravel:{k:'Concert · Ravel',h:'One long crescendo',p:'Gaia’s side drum never stops. The melody passes from flute to oboe, trumpet and saxophone while the orchestra grows, until the key lurches up a third and the cymbal crashes.'},
+  ravel:{k:'Concert · Ravel',h:'The dawn',p:'Water murmurs in the flutes and harp, birds call, and a broad melody rises from the cellos to the violins. Far off, a wordless chorus swells until the sun is up, with a soft timpani roll and crotales.'},
   morricone:{k:'Concert · Morricone',h:'A wide-open space',p:'In his manner, with none of his tunes: a whistle, a twanging guitar, a whip, men shouting, chimes, a wordless soprano and a trumpet, building to one huge climax.'},
   soul:{k:'Popular · Soul & gospel',h:'Call and response',p:'Aphrodite calls, the choir answers, the Hammond swells; Aphrodite sings original words about the gods in your language. The Moon’s element can mix funk, soul and disco.'},
   dub:{k:'Popular · Dub',h:'At the mixing desk',p:'A one-drop riddim pulled apart: the rim shot and the skank thrown into tape echo and spring reverb, drop-outs, a siren at the aspects.'},
@@ -1347,7 +1409,7 @@ pl:{show:'Pokaz',title:'Pokaz, który gra sam',pause:'Pauza',play:'Odtwórz',pre
   glass:{k:'Koncert · Glass',h:'Arpeggia addytywne',p:'Figury organowe, które w każdym takcie rosną o jedną nutę, trójki przeciw dwójkom.'},
   holst:{k:'Koncert · Holst',h:'Planety',p:'Każda część to ustęp prowadzony przez jednego boga: wybiera znak Słońca albo najsilniejszy aspekt. Mars maszeruje na pięć, Jowisz wnosi wielki temat, chór Neptuna cichnie.'},
   hildegard:{k:'Koncert · Hildegarda',h:'Chorał po łacinie',p:'Jeden ludzki głos śpiewa własne, dwunastowieczne słowa Hildegardy z Bingen nad burdonem: oddech, skok o kwintę lub oktawę, długie melizmaty, a w kulminacji głosy dołączające w organum.'},
-  ravel:{k:'Koncert · Ravel',h:'Jedno długie crescendo',p:'Werbel Gai nie milknie ani na chwilę. Melodia przechodzi od fletu do oboju, trąbki i saksofonu, orkiestra rośnie, aż tonacja skacze o tercję w górę i uderza talerz.'},
+  ravel:{k:'Koncert · Ravel',h:'Świt',p:'Woda szemrze we fletach i harfie, ptaki wołają, a szeroka melodia wznosi się od wiolonczel do skrzypiec. Z oddali chór bez słów narasta, aż wzejdzie słońce, przy cichym tremolo kotłów i krotalach.'},
   morricone:{k:'Koncert · Morricone',h:'Szeroka przestrzeń',p:'W jego manierze, bez żadnego z jego tematów: gwizd, brzęcząca gitara, bicz, męskie okrzyki, dzwony, sopran bez słów i trąbka, narastające do jednej wielkiej kulminacji.'},
   soul:{k:'Popularne · Soul i gospel',h:'Zawołanie i odpowiedź',p:'Afrodyta woła, chór odpowiada, Hammond narasta; Afrodyta śpiewa własne słowa o bogach w twoim języku. Żywioł Księżyca może miksować funk, soul i disco.'},
   dub:{k:'Popularne · Dub',h:'Przy stole mikserskim',p:'Riddim one drop rozebrany na części: rimshot i skank wrzucone w taśmowe echo i sprężynowy pogłos, wyciszenia, syrena przy aspektach.'},
@@ -1401,7 +1463,7 @@ cy:{show:'Sioe',title:'Y sioe hunanredeg',pause:'Oedi',play:'Chwarae',prev:'Blae
   glass:{k:'Cyngerdd · Glass',h:'Arpeggios adiol',p:'Ffigurau organ sy’n tyfu un nodyn bob bar, tri yn erbyn dau.'},
   holst:{k:'Cyngerdd · Holst',h:'Y Planedau',p:'Mae pob adran yn symudiad dan arweiniad un duw: arwydd yr Haul neu’r agwedd gryfaf sy’n dewis. Mae Mawrth yn martsio mewn pump, Iau yn dod â’r alaw fawr, a chôr Neifion yn pylu.'},
   hildegard:{k:'Cyngerdd · Hildegard',h:'Siant yn Lladin',p:'Un llais dynol yn canu geiriau Hildegard o Bingen ei hun, o’r ddeuddegfed ganrif, dros ddrôn: anadl, naid o bumed neu wythfed, melismâu hir, a lleisiau’n ymuno mewn organum yn yr uchafbwynt.'},
-  ravel:{k:'Cyngerdd · Ravel',h:'Un crescendo hir',p:'Nid yw drwm ochr Gaia byth yn stopio. Mae’r alaw yn mynd o’r ffliwt i’r obo, y trwmped a’r sacsoffon wrth i’r gerddorfa dyfu, nes i’r cywair neidio trydydd i fyny a’r symbal daro.'},
+  ravel:{k:'Cyngerdd · Ravel',h:'Y wawr',p:'Mae dŵr yn murmur yn y ffliwtiau a’r delyn, adar yn galw, ac alaw lydan yn codi o’r sielos i’r ffidlau. O bell, mae côr heb eiriau yn chwyddo nes i’r haul godi, gyda rhol dawel ar y timpani a chrotales.'},
   morricone:{k:'Cyngerdd · Morricone',h:'Gwagle agored',p:'Yn ei fodd ef, heb yr un o’i alawon: chwiban, gitâr yn twangio, chwip, dynion yn gweiddi, clychau, soprano heb eiriau a thrwmped, yn codi at un uchafbwynt enfawr.'},
   soul:{k:'Poblogaidd · Soul a gospel',h:'Galw ac ateb',p:'Aphrodite yn galw, y côr yn ateb, yr Hammond yn chwyddo; mae Aphrodite yn canu geiriau gwreiddiol am y duwiau yn eich iaith. Gall elfen y Lleuad gymysgu ffync, soul a disgo.'},
   dub:{k:'Poblogaidd · Dub',h:'Wrth y ddesg gymysgu',p:'Riddim one drop wedi’i dynnu’n ddarnau: y rim shot a’r skank yn cael eu taflu i atsain tâp ac adlais sbring, toriadau, seiren wrth yr agweddau.'},
@@ -1455,7 +1517,7 @@ de:{show:'Show',title:'Die selbstlaufende Show',pause:'Pause',play:'Abspielen',p
   glass:{k:'Konzert · Glass',h:'Additive Arpeggien',p:'Orgelfiguren, die mit jedem Takt um einen Ton wachsen, Dreier gegen Zweier.'},
   holst:{k:'Konzert · Holst',h:'Die Planeten',p:'Jeder Abschnitt ist ein Satz, den ein Gott anführt: das Zeichen der Sonne oder der stärkste Aspekt entscheidet. Mars marschiert im Fünfertakt, Jupiter bringt die große Melodie, Neptuns Chor verklingt.'},
   hildegard:{k:'Konzert · Hildegard',h:'Gesang auf Latein',p:'Eine menschliche Stimme singt Hildegard von Bingens eigene Worte aus dem zwölften Jahrhundert über einem Bordun: ein Atemzug, ein Sprung um eine Quinte oder Oktave, lange Melismen, und im Höhepunkt Stimmen im Organum.'},
-  ravel:{k:'Konzert · Ravel',h:'Ein langes Crescendo',p:'Gaias kleine Trommel hört nie auf. Die Melodie wandert von der Flöte zur Oboe, Trompete und zum Saxophon, während das Orchester wächst, bis die Tonart um eine Terz nach oben springt und das Becken kracht.'},
+  ravel:{k:'Konzert · Ravel',h:'Der Tagesanbruch',p:'Wasser murmelt in Flöten und Harfe, Vögel rufen, und eine weite Melodie steigt von den Celli zu den Geigen auf. Von fern schwillt ein wortloser Chor an, bis die Sonne aufgeht, mit leisem Paukenwirbel und Crotales.'},
   morricone:{k:'Konzert · Morricone',h:'Ein weiter, offener Raum',p:'In seiner Art, ohne eine seiner Melodien: ein Pfeifen, eine schnarrende Gitarre, eine Peitsche, rufende Männer, Glocken, ein wortloser Sopran und eine Trompete, bis zu einem gewaltigen Höhepunkt.'},
   soul:{k:'Populär · Soul & Gospel',h:'Ruf und Antwort',p:'Aphrodite ruft, der Chor antwortet, die Hammond schwillt an; Aphrodite singt eigene Worte über die Götter in deiner Sprache. Das Element des Mondes kann Funk, Soul und Disco mischen.'},
   dub:{k:'Populär · Dub',h:'Am Mischpult',p:'Ein One-Drop-Riddim, auseinandergenommen: Rimshot und Skank ins Bandecho und den Federhall geworfen, Aussetzer, eine Sirene bei den Aspekten.'},
@@ -1509,7 +1571,7 @@ es:{show:'Espectáculo',title:'El espectáculo automático',pause:'Pausa',play:'
   glass:{k:'Concierto · Glass',h:'Arpegios aditivos',p:'Figuras de órgano que crecen una nota por compás, tres contra dos.'},
   holst:{k:'Concierto · Holst',h:'Los planetas',p:'Cada sección es un movimiento guiado por un dios: lo elige el signo del Sol o el aspecto más fuerte. Marte marcha en cinco, Júpiter trae la gran melodía, el coro de Neptuno se desvanece.'},
   hildegard:{k:'Concierto · Hildegarda',h:'Canto en latín',p:'Una voz humana canta las propias palabras de Hildegarda de Bingen, del siglo XII, sobre un bordón: una respiración, un salto de quinta u octava, largos melismas, y en el clímax voces que se suman en organum.'},
-  ravel:{k:'Concierto · Ravel',h:'Un largo crescendo',p:'La caja de Gea no se detiene nunca. La melodía pasa de la flauta al oboe, la trompeta y el saxofón mientras la orquesta crece, hasta que la tonalidad salta una tercera y estalla el platillo.'},
+  ravel:{k:'Concierto · Ravel',h:'El amanecer',p:'El agua murmura en flautas y arpa, los pájaros cantan y una amplia melodía asciende de los violonchelos a los violines. A lo lejos, un coro sin palabras crece hasta que sale el sol, con un suave redoble de timbales y crótalos.'},
   morricone:{k:'Concierto · Morricone',h:'Un espacio abierto',p:'A su manera, sin ninguno de sus temas: un silbido, una guitarra vibrante, un látigo, hombres que gritan, campanas, una soprano sin palabras y una trompeta, hasta un clímax enorme.'},
   soul:{k:'Popular · Soul y góspel',h:'Llamada y respuesta',p:'Afrodita llama, el coro responde, el Hammond crece; Afrodita canta palabras originales sobre los dioses en tu idioma. El elemento de la Luna puede mezclar funk, soul y disco.'},
   dub:{k:'Popular · Dub',h:'En la mesa de mezclas',p:'Un riddim one drop desmontado: el aro y el skank lanzados al eco de cinta y la reverberación de muelles, cortes, una sirena en los aspectos.'},
@@ -1563,7 +1625,7 @@ fr:{show:'Spectacle',title:'Le spectacle automatique',pause:'Pause',play:'Lectur
   glass:{k:'Concert · Glass',h:'Arpèges additifs',p:'Des figures d’orgue qui s’allongent d’une note à chaque mesure, trois contre deux.'},
   holst:{k:'Concert · Holst',h:'Les Planètes',p:'Chaque section est un mouvement mené par un dieu : le signe du Soleil ou l’aspect le plus fort choisit. Mars marche à cinq temps, Jupiter apporte le grand thème, le chœur de Neptune s’éteint.'},
   hildegard:{k:'Concert · Hildegarde',h:'Chant en latin',p:'Une voix humaine chante les propres mots de Hildegarde de Bingen, du XIIe siècle, sur un bourdon : une respiration, un saut de quinte ou d’octave, de longs mélismes, et à l’apogée des voix qui se joignent en organum.'},
-  ravel:{k:'Concert · Ravel',h:'Un long crescendo',p:'La caisse claire de Gaïa ne s’arrête jamais. La mélodie passe de la flûte au hautbois, à la trompette et au saxophone tandis que l’orchestre grandit, jusqu’à ce que la tonalité bascule d’une tierce et que la cymbale éclate.'},
+  ravel:{k:'Concert · Ravel',h:'Le lever du jour',p:'L’eau murmure aux flûtes et à la harpe, les oiseaux appellent, et une large mélodie monte des violoncelles aux violons. Au loin, un chœur sans paroles s’enfle jusqu’au soleil, sur un doux roulement de timbales et des crotales.'},
   morricone:{k:'Concert · Morricone',h:'Un grand espace ouvert',p:'À sa manière, sans aucun de ses thèmes : un sifflement, une guitare qui vibre, un fouet, des hommes qui crient, des cloches, une soprano sans paroles et une trompette, jusqu’à un immense apogée.'},
   soul:{k:'Populaire · Soul & gospel',h:'Appel et réponse',p:'Aphrodite appelle, le chœur répond, l’orgue Hammond gonfle ; Aphrodite chante des paroles originales sur les dieux dans votre langue. L’élément de la Lune peut mêler funk, soul et disco.'},
   dub:{k:'Populaire · Dub',h:'À la table de mixage',p:'Un riddim one drop démonté : le rim shot et le skank jetés dans l’écho à bande et la réverbération à ressort, des coupures, une sirène aux aspects.'},
@@ -1617,7 +1679,7 @@ it:{show:'Spettacolo',title:'Lo spettacolo automatico',pause:'Pausa',play:'Ripro
   glass:{k:'Concerto · Glass',h:'Arpeggi additivi',p:'Figure d’organo che crescono di una nota a ogni battuta, tre contro due.'},
   holst:{k:'Concerto · Holst',h:'I pianeti',p:'Ogni sezione è un movimento guidato da un dio: scelgono il segno del Sole o l’aspetto più forte. Marte marcia in cinque, Giove porta il grande tema, il coro di Nettuno svanisce.'},
   hildegard:{k:'Concerto · Ildegarda',h:'Canto in latino',p:'Una voce umana canta le parole stesse di Ildegarda di Bingen, del XII secolo, sopra un bordone: un respiro, un salto di quinta o di ottava, lunghi melismi, e al culmine voci che si uniscono in organum.'},
-  ravel:{k:'Concerto · Ravel',h:'Un lungo crescendo',p:'Il tamburo di Gea non si ferma mai. La melodia passa dal flauto all’oboe, alla tromba e al sassofono mentre l’orchestra cresce, finché la tonalità balza su di una terza e il piatto esplode.'},
+  ravel:{k:'Concerto · Ravel',h:'L’alba',p:'L’acqua mormora nei flauti e nell’arpa, gli uccelli chiamano, e un’ampia melodia sale dai violoncelli ai violini. Da lontano un coro senza parole cresce finché il sole non è sorto, con un lieve rullo di timpani e crotali.'},
   morricone:{k:'Concerto · Morricone',h:'Uno spazio aperto',p:'Alla sua maniera, senza nessuno dei suoi temi: un fischio, una chitarra vibrante, una frusta, uomini che gridano, campane, un soprano senza parole e una tromba, fino a un culmine enorme.'},
   soul:{k:'Popolare · Soul e gospel',h:'Chiamata e risposta',p:'Afrodite chiama, il coro risponde, l’Hammond cresce; Afrodite canta parole originali sugli dèi nella tua lingua. L’elemento della Luna può mescolare funk, soul e disco.'},
   dub:{k:'Popolare · Dub',h:'Al mixer',p:'Un riddim one drop smontato: il rim shot e lo skank gettati nell’eco a nastro e nel riverbero a molla, vuoti, una sirena agli aspetti.'},
@@ -1671,7 +1733,7 @@ zh:{show:'演出',title:'自动演出',pause:'暂停',play:'播放',prev:'上一
   glass:{k:'音乐会 · 格拉斯',h:'叠加琶音',p:'管风琴的音型每小节增加一个音，三对二。'},
   holst:{k:'音乐会 · 霍尔斯特',h:'行星组曲',p:'每一段都是由一位神主导的乐章：由太阳所在星座或最强的相位来选择。火星以五拍行进，木星带来宏大的主题，海王星的合唱渐渐消失。'},
   hildegard:{k:'音乐会 · 希尔德加德',h:'拉丁语圣咏',p:'一个人声在持续低音之上唱出宾根的希尔德加德十二世纪的原文：一次呼吸，一个五度或八度的跳进，长长的花腔，高潮时众声以奥尔加农加入。'},
-  ravel:{k:'音乐会 · 拉威尔',h:'一次漫长的渐强',p:'盖亚的小鼓从不停歇。旋律从长笛传到双簧管、小号和萨克斯，乐队不断壮大，直到调性猛然上升一个三度，吊镲轰然作响。'},
+  ravel:{k:'音乐会 · 拉威尔',h:'黎明',p:'流水在长笛与竖琴中潺潺，鸟儿鸣叫，一条宽广的旋律从大提琴升向小提琴。远处，无词的合唱渐渐壮大，直到太阳升起，伴着轻柔的定音鼓滚奏与古钹。'},
   morricone:{k:'音乐会 · 莫里康内',h:'开阔的空间',p:'只借他的风格，不引用他的任何旋律：口哨、颤动的吉他、鞭响、男声呼喊、钟声、无词女高音和小号，一路堆向巨大的高潮。'},
   soul:{k:'流行音乐 · 灵魂与福音',h:'呼与应',p:'阿佛洛狄忒呼唤，合唱回应，哈蒙德风琴渐强；阿佛洛狄忒用你的语言唱出关于众神的原创歌词。月亮的元素可以在 funk、灵魂与 disco 之间切换。'},
   dub:{k:'流行音乐 · Dub',h:'在调音台前',p:'一段 one drop 节奏被拆开：鼓边击与反拍扫弦甩进磁带回声和弹簧混响，抽空，相位出现时响起警笛。'},
@@ -1725,7 +1787,7 @@ ja:{show:'ショー',title:'自動再生ショー',pause:'一時停止',play:'�
   glass:{k:'コンサート · グラス',h:'加算的アルペジオ',p:'小節ごとに音が一つずつ増えていくオルガンの音型。3対2で重なります。'},
   holst:{k:'コンサート · ホルスト',h:'惑星',p:'各セクションはひとりの神が率いる楽章。太陽の星座か最も強いアスペクトが選びます。火星は五拍子で行進し、木星は大きな旋律を運び、海王星の合唱は消えていきます。'},
   hildegard:{k:'コンサート · ヒルデガルト',h:'ラテン語の聖歌',p:'ひとつの人の声が、ドローンの上でビンゲンのヒルデガルト自身の十二世紀の言葉を歌います。息、五度や八度の跳躍、長いメリスマ、そしてクライマックスではオルガヌムで声が加わります。'},
-  ravel:{k:'コンサート · ラヴェル',h:'ひとつの長いクレッシェンド',p:'ガイアの小太鼓は決して止まりません。旋律はフルートからオーボエ、トランペット、サクソフォンへと渡り、オーケストラは膨らみ、ついに調が三度上へ跳ね、シンバルが鳴り響きます。'},
+  ravel:{k:'コンサート · ラヴェル',h:'夜明け',p:'フルートとハープに水がささやき、鳥が呼び交わし、広い旋律がチェロからヴァイオリンへと昇っていきます。遠くで言葉のない合唱が膨らみ、静かなティンパニのロールとクロタルとともに、太陽が昇ります。'},
   morricone:{k:'コンサート · モリコーネ',h:'広く開けた空間',p:'彼の作風だけを借り、旋律は一つも引用しません。口笛、震えるギター、鞭、男たちの叫び、鐘、言葉のないソプラノ、トランペットが、ひとつの巨大なクライマックスへ積み上がります。'},
   soul:{k:'ポピュラー · ソウル＆ゴスペル',h:'コールとレスポンス',p:'アフロディテが呼び、クワイアが応え、ハモンドが膨らみます。アフロディテはあなたの言語で神々についてのオリジナルの歌詞を歌います。月のエレメントがファンク、ソウル、ディスコを混ぜます。'},
   dub:{k:'ポピュラー · ダブ',h:'ミキシング卓で',p:'ワンドロップのリディムを解体します。リムショットとスカンクはテープエコーとスプリングリバーブへ投げ込まれ、音が抜け落ち、アスペクトでサイレンが鳴ります。'},
@@ -3346,9 +3408,9 @@ function speakGod(b){
 async function startAudio(){
   if(!AC)initAudio();
   applyVoiceMode();
-  audioOn=true;AC.resume();updateAudio();tgt(master.gain,S.vol,.3);syncBegin();
+  audioOn=true;AC.resume();updateAudio();tgt(master.gain,S.vol,.3);syncBegin();if(window.MOTS&&MOTS.midi&&MOTS.midi.transport)MOTS.midi.transport(true,0);
 }
-function stopAudio(){audioOn=false;tgt(master.gain,0,.15);setTimeout(()=>{if(!audioOn)AC.suspend()},600);syncBegin()}
+function stopAudio(){audioOn=false;if(window.MOTS&&MOTS.midi&&MOTS.midi.transport)MOTS.midi.transport(false);tgt(master.gain,0,.15);setTimeout(()=>{if(!audioOn)AC.suspend()},600);syncBegin()}
 function syncBegin(){$('begin').setAttribute('aria-pressed',String(audioOn));$('beginLabel').textContent=audioOn?'Silence the spheres':'Begin the harmony'}
 $('begin').onclick=()=>audioOn?stopAudio():startAudio();
 $('audBack').onclick=()=>{if(S.thinker!=='today'&&SIR.solo){SIR.solo=null;renderInfo();renderAud();return}SYS.id?leaveSystem():endAudition()};
@@ -3991,7 +4053,7 @@ function frame(t){
     beltAcc+=dt*1.0;
     while(beltAcc>1){beltAcc-=Math.random()*1.4+.3;const p=BELT[(Math.random()*BELT.length)|0];p.flash=1;beltPing(p,beltPos(p,S.jd))}
   }
-  draw(t);
+  if(!(window.MOTS&&MOTS.skyHidden&&MOTS.skyHidden()))draw(t);   // the score may stand in for the sky
   if(AC&&audioOn&&t-lastAudio>45){updateAudio();lastAudio=t}
   if(t-lastUI>250){lastUI=t;computeAspects();$('zodTxt').innerHTML=zodiacLine();
     // watchdog: phones can suspend web audio (for example while a spoken line plays); bring it back
