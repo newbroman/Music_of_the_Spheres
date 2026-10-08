@@ -1361,11 +1361,9 @@ function clap(t,v=1){
   if(STY().clap==='rim'){env(g,t,.5*v,.001,.018)}else{[0,.011,.022].forEach(d=>{g.gain.setValueAtTime(.55*v,t+d);g.gain.setTargetAtTime(.05,t+d+.002,.004)});g.gain.setValueAtTime(.45*v,t+.03);g.gain.setTargetAtTime(0,t+.03,.06)}
   bp.connect(mkG(.2,revSend));flash('earth',t);
 }
-function snare(t,v){
-  const n=noise(t,.2),bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1900;bp.Q.value=.9;const g=mkG(0,PAN.earth);env(g,t,.42*v,.001,.045);n.connect(bp);bp.connect(g);
-  const o=AC.createOscillator();o.type='triangle';o.frequency.setValueAtTime(200,t);o.frequency.exponentialRampToValueAtTime(150,t+.08);const og=mkG(0,PAN.earth);env(og,t,.25*v,.001,.03);o.connect(og);o.start(t);o.stop(t+.25);
-  bp.connect(mkG(.25,revSend));flash('earth',t);
-}
+function snare(t,v){const P=PAN.earth,T=AC.createBiquadFilter(),Lp=AC.createBiquadFilter(),n=noise(t,.35);T.type='highpass';T.frequency.value=1700;T.Q.value=.5;Lp.type='lowpass';Lp.frequency.value=8800;Lp.Q.value=.4;const g=mkG(0,P);env(g,t,.36*v,.001,.085);n.connect(T);T.connect(Lp);Lp.connect(g);Lp.connect(mkG(.22,revSend));
+  const tk=noise(t,.05),th=AC.createBiquadFilter();th.type='highpass';th.frequency.value=5200;const tg=mkG(0,P);env(tg,t,.22*v,.0005,.01);tk.connect(th);th.connect(tg);
+  [[185,168,.4,.07],[331,318,.17,.045]].forEach(([f0,f1,l,d])=>{const o=AC.createOscillator();o.type='sine';o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+.05);const og=mkG(0,P);env(og,t,l*v,.001,d);o.connect(og);o.start(t);o.stop(t+.5)});flash('earth',t)}
 function hat(t,open,v){
   const n=noise(t,open?.35:.08),hp=AC.createBiquadFilter();hp.type='highpass';hp.frequency.value=open?6500:7800;
   const g=mkG(0,PAN.mercury);env(g,t,(open?.2:.16)*v,.001,open?.07:.014);n.connect(hp);hp.connect(g);flash('mercury',t);
@@ -2739,8 +2737,10 @@ function sustain(t,f,lvl,id,o={}){
   return {g,lp,os,stop(te,rel=.6){g.gain.cancelScheduledValues(te);g.gain.setTargetAtTime(0,te,rel/3);os.forEach(x=>x.stop(te+rel+.2));noteEv(id,h.t0,h.f,Math.min(1,lvl*2),Math.max(.1,te-h.t0))},glide(te,f2,tc=.3){os.forEach(x=>x.frequency.setTargetAtTime(f2,te,tc));if(Math.abs(Math.log2(f2/h.f))>.04){if(te-h.t0>.1)noteEv(id,h.t0,h.f,Math.min(1,lvl*2),te-h.t0);h.t0=te;h.f=f2}},level(te,l,tc=.3){g.gain.setTargetAtTime(l,te,tc)}};
 }
 // a snare for the march and the rock kit: brighter and tighter than the club snare
-function snareHit(t,v,id='earth',pan){const n=noise(t,.25),bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=2300;bp.Q.value=.7;const g=mkG(0,pan||toPan(id));env(g,t,.5*v,.001,.06);n.connect(bp);bp.connect(g);
-  const o=AC.createOscillator();o.type='triangle';o.frequency.setValueAtTime(230,t);o.frequency.exponentialRampToValueAtTime(170,t+.06);const og=mkG(0,pan||toPan(id));env(og,t,.3*v,.001,.035);o.connect(og);o.start(t);o.stop(t+.3);bp.connect(mkG(.25,revSend));flash(id,t)}
+// a snare with a body: the drumhead's two lowest modes, the wires (noise above 1.7 kHz) and a stick click, so it cracks rather than rasps
+function snareHit(t,v,id='earth',pan){const P=pan||toPan(id),T=AC.createBiquadFilter(),Lp=AC.createBiquadFilter(),n=noise(t,.35);T.type='highpass';T.frequency.value=1700;T.Q.value=.5;Lp.type='lowpass';Lp.frequency.value=8800;Lp.Q.value=.4;const g=mkG(0,P);env(g,t,.36*v,.001,.085);n.connect(T);T.connect(Lp);Lp.connect(g);Lp.connect(mkG(.22,revSend));
+  const tk=noise(t,.05),th=AC.createBiquadFilter();th.type='highpass';th.frequency.value=5200;const tg=mkG(0,P);env(tg,t,.22*v,.0005,.01);tk.connect(th);th.connect(tg);
+  [[185,168,.4,.07],[331,318,.17,.045]].forEach(([f0,f1,l,d])=>{const o=AC.createOscillator();o.type='sine';o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+.05);const og=mkG(0,P);env(og,t,l*v,.001,d);o.connect(og);o.start(t);o.stop(t+.5)});flash(id,t)}
 function gong(t,f,v,id='sun'){[1,1.49,2.37,3.3].forEach((r,k)=>{const o=AC.createOscillator();o.type='sine';o.frequency.value=f*r;const g=mkG(0,toPan(id));g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v*[.5,.25,.12,.06][k],t+.02+k*.03);g.gain.setTargetAtTime(0,t+.1,1.4-k*.2);o.connect(g);g.connect(mkG(.6,revSend));o.start(t);o.stop(t+6)});flash(id,t)}
 function woodblock(t,f,v,id='mars'){toneHit(t,f,f*.9,'sine',.3*v,.025,id,.01);noiseHit(t,.03,'bandpass',f*2.5,4,.2*v,.0005,.008,id,.1);flash(id,t)}
 // change the metre at a bar line (Holst's Mars is in five, Shostakovich's waltz in three): the step counter restarts on the new grid

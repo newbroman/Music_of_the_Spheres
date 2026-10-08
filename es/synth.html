@@ -148,13 +148,20 @@ select,.tx{background:#0c0e1c;color:var(--vellum);border:1px solid var(--line-2)
 .seg button[aria-pressed="true"]{background:rgba(201,152,79,.18);color:#f3d9a4}
 .hint{font-size:.82rem;color:var(--vellum-dim);line-height:1.4}
 /* the modulation matrix */
-.mxwrap{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;max-width:100%;padding-bottom:.4rem;scrollbar-color:var(--line-2) transparent}
+.mxwrap{overflow:auto;-webkit-overflow-scrolling:touch;max-width:100%;max-height:min(78vh,1500px);overscroll-behavior:contain;padding-bottom:.4rem;scrollbar-color:var(--line-2) transparent;border-radius:6px}
 table.mx{border-collapse:separate;border-spacing:3px;width:100%;min-width:max-content}
 .mx th{font-weight:400;color:var(--vellum-dim);font-size:.78rem;text-align:left;white-space:nowrap;padding:0 .3rem}
-.mx thead th{vertical-align:bottom;text-align:center;padding:0;min-width:var(--tap)}
-.mx thead th span{writing-mode:vertical-rl;transform:rotate(180deg);display:inline-block;line-height:1.1;padding:.2rem 0 .1rem;max-height:9rem;overflow:hidden;text-overflow:ellipsis}
+.mx thead th{position:sticky;top:0;z-index:3;background:var(--sky-2);box-shadow:-3px -3px 0 var(--sky-2),3px -3px 0 var(--sky-2),0 3px 0 var(--sky-2);vertical-align:bottom;text-align:center;padding:.5rem 0 .25rem;min-width:var(--tap);color:var(--vellum);font-size:.84rem;border-bottom:1px solid var(--line);transition:color .15s,background .15s}
+.mx thead th:first-child{left:0;z-index:4}
+.mx thead th span{writing-mode:vertical-rl;transform:rotate(180deg);display:inline-block;line-height:1.15;padding:.15rem 0;white-space:nowrap;overflow:visible}
 html[lang=zh] .mx thead th span,html[lang=ja] .mx thead th span{transform:none;text-orientation:mixed}
-.mx thead th .ico{display:block;color:var(--bronze);font-size:.95rem;margin-top:.15rem;font-style:normal}
+.mx thead th .ico{display:block;color:var(--bronze);font-size:.95rem;margin-top:.2rem;font-style:normal}
+.mx thead th.used{color:#f3d9a4}
+.mx thead th.used .ico{color:#f3d9a4}
+.mx thead th.hl,.mx tbody th.hl{background:var(--sky-3);color:#f3d9a4}
+.mx tbody th.hl .sn{color:#f3d9a4}
+.mxread{min-height:1.4em;font-size:.86rem;color:var(--vellum-dim);margin:.2rem 0 .35rem}
+.mxread b{color:#f3d9a4;font-weight:400}
 .mx td{min-width:var(--tap);padding:0;text-align:center}
 .mx tbody th{position:sticky;left:0;background:var(--sky-2);z-index:2;min-width:10.5rem;max-width:13rem;padding-right:.5rem}
 .mx tbody th .sn{display:block;color:var(--vellum);font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -263,6 +270,7 @@ details.how kbd{font-family:var(--f-mono);background:var(--sky-3);border:1px sol
   <section class="card" aria-label="Matriz de modulación">
     <h2>Matriz de modulación <small>πλέγμα</small><span class="tools"><button class="pb" id="mxRand">Al azar</button><button class="pb" id="mxClear">Vaciar</button></span></h2>
     <p class="small" id="mxHint">Cada fila es una magnitud viva del cielo, cada columna un parámetro de la voz de cada planeta. Toca una celda para enrutar una a la otra con una cantidad; el oro es positivo, el verde invertido. Los puntos muestran dónde están ahora los planetas en cada fuente.</p>
+    <div class="mxread" id="mxread" aria-live="polite">&nbsp;</div>
     <div class="mxwrap"><table class="mx" id="mx"></table></div>
     <div class="skyctl" id="lfoctl"></div>
   </section>
@@ -1900,13 +1908,19 @@ function renderSky(){
 let edit=null;
 function renderMatrix(){
   const T=$('mx');
-  T.innerHTML=`<thead><tr><th></th>${DST.map(d=>`<th scope="col" title="${esc(TX.dstTip[d])}"><span>${esc(TX.dst[d])}</span><i class="ico" aria-hidden="true">${DICON[d]}</i></th>`).join('')}</tr></thead>`+
+  T.innerHTML=`<thead><tr><th></th>${DST.map(d=>`<th scope="col" data-d="${d}" title="${esc(TX.dstTip[d])}"><span>${esc(TX.dst[d])}</span><i class="ico" aria-hidden="true">${DICON[d]}</i></th>`).join('')}</tr></thead>`+
     `<tbody>${SRC.map(s=>`<tr data-s="${s.id}"><th scope="row" title="${esc(TX.srcTip[s.id])}"><span class="sn">${esc(TX.src[s.id])}</span><div class="mt" id="mt_${s.id}">${PLANETS.map(b=>`<i style="background:${b.color};left:50%"></i>`).join('')}</div></th>`+
     DST.map(d=>{const r=Y.mx[s.id+'>'+d];return `<td><button type="button" class="cell${r&&r.a?' on '+(r.a>0?'pos':'neg'):''}${r&&r.c===2?' c2':r&&r.c===3?' c3':''}" data-k="${s.id}>${d}" style="--a:${r?Math.abs(r.a):0}" data-v="${r&&r.a?Math.round(r.a*100):''}" aria-label="${esc(TX.src[s.id])} → ${esc(TX.dst[d])}${r&&r.a?' '+Math.round(r.a*100):''}"></button></td>`}).join('')+'</tr>').join('')}</tbody>`;
-  T.querySelectorAll('.cell').forEach(c=>c.onclick=()=>openEdit(c));
+  T.querySelectorAll('.cell').forEach(c=>{c.onclick=()=>openEdit(c);c.onpointerenter=c.onfocus=()=>mxHl(c.dataset.k)});
+  T.onpointerleave=()=>mxHl(null);
   litRows();
 }
-function litRows(){const lit=new Set(ROUTES().map(r=>r.s));$('mx').querySelectorAll('tbody tr').forEach(tr=>tr.classList.toggle('lit',lit.has(tr.dataset.s)))}
+/* crosshair: light the row and column headers of the cell under the finger, and name the route above the grid */
+function mxHl(k){const T=$('mx');T.querySelectorAll('th.hl').forEach(h=>h.classList.remove('hl'));const R=$('mxread');
+  if(!k){if(R)R.innerHTML='&nbsp;';return}
+  const [s,d]=k.split('>');const tr=T.querySelector(`tbody tr[data-s="${s}"] th`),th=T.querySelector(`thead th[data-d="${d}"]`);if(tr)tr.classList.add('hl');if(th)th.classList.add('hl');
+  if(R){const r=Y.mx[k];R.innerHTML=`<b>${esc(TX.src[s])}</b> → <b>${esc(TX.dst[d])}</b>${r&&r.a?' · '+(r.a>0?'+':'')+Math.round(r.a*100):''}`}}
+function litRows(){const R=ROUTES(),lit=new Set(R.map(r=>r.s)),used=new Set(R.map(r=>r.d));const T=$('mx');T.querySelectorAll('tbody tr').forEach(tr=>tr.classList.toggle('lit',lit.has(tr.dataset.s)));T.querySelectorAll('thead th[data-d]').forEach(h=>h.classList.toggle('used',used.has(h.dataset.d)))}
 function paintCell(k){const c=$('mx').querySelector(`.cell[data-k="${k}"]`);if(!c)return;const r=Y.mx[k];const on=r&&r.a;c.className='cell'+(on?' on '+(r.a>0?'pos':'neg'):'')+(r&&r.c===2?' c2':r&&r.c===3?' c3':'');c.style.setProperty('--a',r?Math.abs(r.a):0);c.dataset.v=on?Math.round(r.a*100):'';const [s,d]=k.split('>');c.setAttribute('aria-label',TX.src[s]+' → '+TX.dst[d]+(on?' '+Math.round(r.a*100):''));litRows()}
 function openEdit(c){
   closeEdit();const k=c.dataset.k,[s,d]=k.split('>');
