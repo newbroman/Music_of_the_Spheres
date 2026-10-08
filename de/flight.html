@@ -2124,14 +2124,15 @@ function pickVoice(sex,seed){
   let all=SYN.getVoices().filter(v=>EN_V?/^en/i.test(v.lang):/^de/i.test(v.lang));if(!all.length)return null;
   const gb=all.filter(v=>EN_V?/en[-_]GB/i.test(v.lang):/de[-_]DE/i.test(v.lang));
   const pool=(list)=>list.filter(v=>sex==='f'?FEMALE.test(v.name)&&!/(^|\W)male/i.test(v.name.replace(/female/i,'')):MALE.test(v.name)&&!FEMALE.test(v.name));
-  let c=pool(gb);if(!c.length)c=pool(all);
-  // no clear male or female voice: use the device's own default rather than cycling through unknown ones
-  if(!c.length){const d=all.find(v=>v.default)||gb[0]||all[0];return d}
-  // the clearest voices first: natural / neural / enhanced ones, then the big engines' own, then network voices
+  let c=pool(gb);if(c.length<2)c=pool(all);
+  // no voice says whether it is male or female (usual on Android, which names voices by country): each god takes a different one of all the voices,
+  // other accents included (UK, US, Australian, Irish…), so the gods are told apart; the pitch then makes them higher or lower
+  if(!c.length)c=all.slice();
+  // the clearest voices first (natural / neural / enhanced, then the big engines' own, then network voices), but enough of them to tell the gods apart
   const q=v=>(/natural|neural|enhanced|premium|online|wavenet/i.test(v.name)?4:0)+(/google|microsoft|siri/i.test(v.name)?2:0)+(v.localService===false?1:0);
-  const best=Math.max(...c.map(q));c=c.filter(v=>q(v)===best);
-  // phones: one steady voice per sex; computers can vary by god among the clearest
-  return LOWPOWER?c[0]:c[seed%c.length];
+  c.sort((a,b)=>q(b)-q(a)||(a.name<b.name?-1:a.name>b.name?1:0));
+  const top=c.filter(v=>q(v)===q(c[0])),pick=top.length>=3?top:c.slice(0,Math.max(3,top.length));
+  return pick[seed%pick.length];
 }
 if(SYN&&SYN.onvoiceschanged!==undefined)SYN.onvoiceschanged=()=>{};
 let speakTimer=0;
@@ -2153,7 +2154,7 @@ function speakGod(b){
   const u=new SpeechSynthesisUtterance(say);if(v){u.voice=v;u.lang=v.lang}else u.lang=en?'en-GB':'de-DE';
   // phone speech engines turn robotic at extreme pitches, so keep them within a natural range there
   // speech engines turn robotic at extreme pitches and speeds: each god keeps its character, within a natural, clear range
-  u.pitch=LOWPOWER?Math.max(.8,Math.min(1.35,.8+(pitch-.4)*.45)):Math.max(.7,Math.min(1.35,1+(pitch-1)*.6));u.rate=Math.max(.82,Math.min(1.08,rate*.94));u.volume=1;
+  u.pitch=LOWPOWER?Math.max(.75,Math.min(1.4,.75+(pitch-.4)*.6)):Math.max(.7,Math.min(1.35,1+(pitch-1)*.6));u.rate=Math.max(.82,Math.min(1.08,rate*.94));u.volume=1;
   // the music steps back while a god speaks, and returns after
   const done=()=>{S.speaking=false;if(audioOn&&AC){if(LOWPOWER)refreshOutput();else{AC.resume().catch(()=>{});tgt(master.gain,S.vol,.5)}}};
   u.onstart=()=>{S.speaking=true;if(audioOn&&master)tgt(master.gain,S.vol*.28,.12);clearTimeout(speakTimer);speakTimer=setTimeout(done,line.length*90/rate+2500)};u.onend=u.onerror=done;
