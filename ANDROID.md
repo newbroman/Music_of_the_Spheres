@@ -85,6 +85,7 @@ In the Play app, the Stage panel (PA, 5.1, MIDI for lights, projector view) open
 
    The app shows Play's own price for each one, in the buyer's currency.
 4. Add your testers as **licence testers** (Settings → License testing). They can then buy without being charged.
+5. While the app is in testing, the supporter panel shows a note saying testers buy with Google's test card. Before the production release, set `testing:false` in `SUP` (search for `testing:true` in every page) so the note disappears.
 
 Each purchase is consumed straight away. Google counts that as acknowledging it, so no server is needed and nothing is refunded after three days. The app remembers on the phone that you are a supporter. Anyone who clears Chrome's data for the site loses the unlock, and you can send them a refund or ask them to buy again.
 
