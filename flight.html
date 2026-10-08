@@ -2144,8 +2144,21 @@ function refreshOutput(){
   tgt(master.gain,0,.012);
   setTimeout(()=>AC.suspend().catch(()=>{}).then(()=>AC.resume().catch(()=>{})).then(()=>{refreshing=false;if(audioOn)tgt(master.gain,S.vol,.05)}),45);
 }
-function stopSpeech(){if(SYN)SYN.cancel();S.speaking=false}
+function stopSpeech(){if(SYN)SYN.cancel();if(clipNow){try{clipNow.stop()}catch(e){}clipNow=null}S.speaking=false}
+// the gods' own recorded voices (Google's Chirp 3 HD voices, one per god, the same god in every language); the device's speech is the fall-back
+const VOICE_LANGS=['en','pl','de','es','fr','it','ja','zh','vi'],clipBuf=new Map();let clipNow=null,clipTimer=0;
 function speakGod(b){
+  if(!S.speak||!b.hv||!b.hv.say)return;
+  const L=(document.documentElement.lang||'en').slice(0,2);
+  if(AC&&VOICE_LANGS.includes(L)){const url=(L==='en'?'':'../')+'voice/'+L+'/'+b.id+'.mp3';
+    const go=buf=>{if(!S.speak)return;stopSpeech();const src=AC.createBufferSource(),g=AC.createGain();g.gain.value=.95;src.buffer=buf;src.connect(g);g.connect(AC.destination);
+      S.speaking=true;if(audioOn&&master)tgt(master.gain,S.vol*.28,.12);clipNow=src;
+      src.onended=()=>{if(clipNow===src){clipNow=null;S.speaking=false;if(audioOn)tgt(master.gain,S.vol,.5)}};src.start()};
+    if(clipBuf.has(url)){go(clipBuf.get(url));return}
+    fetch(url).then(r=>{if(!r.ok)throw 0;return r.arrayBuffer()}).then(a=>AC.decodeAudioData(a)).then(buf=>{clipBuf.set(url,buf);go(buf)}).catch(()=>speakTTS(b));return}
+  speakTTS(b);
+}
+function speakTTS(b){
   if(!S.speak||!SYN||!b.hv||!b.hv.say)return;
   const [sex,pitch,rate,line]=b.hv.say;
   SYN.cancel();
