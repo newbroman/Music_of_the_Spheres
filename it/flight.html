@@ -756,6 +756,11 @@ MOTS.score.hold=(id,f,level)=>{if(!S.on)return;const t=now()-S.t0,h=S.held[id]||
   if(on&&h.on&&Math.abs((69+12*Math.log2(f/440))-h.k)<.6)return;      // the same note, give or take a comma
   if(h.on){const d=t-h.t;if(d>.08){const p=part(id),m=69+12*Math.log2(h.f/440),kk=Math.round(m);p.notes.push({t:h.t,d,f:h.f,k:kk,c:Math.round((m-kk)*100),v:Math.max(1,Math.min(127,Math.round(40+h.v*120)))});p.pitched++;S.n++}}
   h.on=on;h.k=k;h.t=t;h.v=level;h.f=f;h.last=t};
+// a drone sung again (the dial's articulations): the held note ends and a new one begins at the same pitch; a flourish is written as the quick turn it plays first
+MOTS.score.attack=(id,f,flourish)=>{if(!S.on||!f)return;const t=now()-S.t0,h=S.held[id];
+  if(h&&h.on){const d=t-h.t;if(d>.08){const p=part(id),m=69+12*Math.log2(h.f/440),kk=Math.round(m);p.notes.push({t:h.t,d,f:h.f,k:kk,c:Math.round((m-kk)*100),v:Math.max(1,Math.min(127,Math.round(40+h.v*120)))});p.pitched++;S.n++}}
+  let t1=t;if(flourish){[1,9/8,81/64,9/8].forEach((r,k)=>addNote(id,S.t0+t+k*.13,f*r,h&&h.on?h.v:.5,.13));t1=t+.52}
+  if(h&&h.on){h.t=t1;h.f=f;h.k=Math.round(69+12*Math.log2(f/440))}else addNote(id,S.t0+t1,f,.5,.6)};
 // a sung syllable: the note carries its text and whether it begins, continues or ends a word
 MOTS.score.lyric=(id,t,f,lvl,len,text,syl)=>{if(!S.on||!f)return;const p=part(id);addNote(id,t,f,lvl,len);const n=p.notes[p.notes.length-1];if(n&&Math.abs(n.t-(t-S.t0))<1e-6){n.ly=text||'';n.syl=syl||'single';markP(PART_OF(id),t)}};
 MOTS.score.section=(name,t)=>{if(S.on)S.sections.push({t:t-S.t0,name})};
@@ -1704,7 +1709,9 @@ function computeWobble(now,dt){
 // MIDI out: each planet's drone as a held note on its own channel, its loudness as CC 20 (sent a frame late, which lights never notice)
 function midiHolds(){
   const lv=g=>Math.min(1,g*8),sir=typeof SIR!=='undefined'&&SIR.v?SIR.v:{};
-  BODIES.forEach(b=>{if(b.kind!=='planet')return;const v=V[b.id],w=sir[b.id];
+  // a thinker's heaven sings its own pitches (v.fcur), not today's: the score and MIDI follow what is heard
+  if(S.thinker!=='today'&&THINK[S.thinker]&&THINK[S.thinker].model!=='bodies'){for(const id in sir){const w=sir[id];if(w&&w.vol)MOTS.midi.hold(id,w.fcur||0,Math.min(1,w.vol.gain.value*3))}}
+  else BODIES.forEach(b=>{if(b.kind!=='planet')return;const v=V[b.id],w=sir[b.id];
     MOTS.midi.hold(b.id,P[b.id].f,Math.max(v&&v.vol?lv(v.vol.gain.value):0,w&&w.vol?Math.min(1,w.vol.gain.value*3):0))});
   if(sunV&&sunV.vol)MOTS.midi.hold('sun',droneFreqs()[0],lv(sunV.vol.gain.value));
 }
@@ -1866,7 +1873,7 @@ function pluck(b,m){
   const o=AC.createOscillator();o.type='sine';o.frequency.value=f;
   const o2=AC.createOscillator();o2.type='sine';o2.frequency.value=f*2.003;const g2=mkGain(.22);
   const g=mkGain(0);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(amp,t+.015);g.gain.setTargetAtTime(0,t+.03,.5);
-  o.connect(g);o2.connect(g2);g2.connect(g);g.connect(m.out);o.start(t);o2.start(t);o.stop(t+2.6);o2.stop(t+2.6);
+  o.connect(g);o2.connect(g2);g2.connect(g);g.connect(m.out);o.start(t);o2.start(t);o.stop(t+2.6);o2.stop(t+2.6);if(b.id==='jupiter'&&window.MOTS&&MOTS.midi&&MOTS.midi.hit)MOTS.midi.hit(m.id,t,f,Math.min(1,amp*10),.6);
   setTimeout(()=>{try{g.disconnect()}catch(e){}},2800);
 }
 const BELTP=[];let beltIx=0;

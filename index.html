@@ -942,6 +942,11 @@ MOTS.score.hold=(id,f,level)=>{if(!S.on)return;const t=now()-S.t0,h=S.held[id]||
   if(on&&h.on&&Math.abs((69+12*Math.log2(f/440))-h.k)<.6)return;      // the same note, give or take a comma
   if(h.on){const d=t-h.t;if(d>.08){const p=part(id),m=69+12*Math.log2(h.f/440),kk=Math.round(m);p.notes.push({t:h.t,d,f:h.f,k:kk,c:Math.round((m-kk)*100),v:Math.max(1,Math.min(127,Math.round(40+h.v*120)))});p.pitched++;S.n++}}
   h.on=on;h.k=k;h.t=t;h.v=level;h.f=f;h.last=t};
+// a drone sung again (the dial's articulations): the held note ends and a new one begins at the same pitch; a flourish is written as the quick turn it plays first
+MOTS.score.attack=(id,f,flourish)=>{if(!S.on||!f)return;const t=now()-S.t0,h=S.held[id];
+  if(h&&h.on){const d=t-h.t;if(d>.08){const p=part(id),m=69+12*Math.log2(h.f/440),kk=Math.round(m);p.notes.push({t:h.t,d,f:h.f,k:kk,c:Math.round((m-kk)*100),v:Math.max(1,Math.min(127,Math.round(40+h.v*120)))});p.pitched++;S.n++}}
+  let t1=t;if(flourish){[1,9/8,81/64,9/8].forEach((r,k)=>addNote(id,S.t0+t+k*.13,f*r,h&&h.on?h.v:.5,.13));t1=t+.52}
+  if(h&&h.on){h.t=t1;h.f=f;h.k=Math.round(69+12*Math.log2(f/440))}else addNote(id,S.t0+t1,f,.5,.6)};
 // a sung syllable: the note carries its text and whether it begins, continues or ends a word
 MOTS.score.lyric=(id,t,f,lvl,len,text,syl)=>{if(!S.on||!f)return;const p=part(id);addNote(id,t,f,lvl,len);const n=p.notes[p.notes.length-1];if(n&&Math.abs(n.t-(t-S.t0))<1e-6){n.ly=text||'';n.syl=syl||'single';markP(PART_OF(id),t)}};
 MOTS.score.section=(name,t)=>{if(S.on)S.sections.push({t:t-S.t0,name})};
@@ -2705,7 +2710,9 @@ function computeWobble(now,dt){
 // MIDI out: each planet's drone as a held note on its own channel, its loudness as CC 20 (sent a frame late, which lights never notice)
 function midiHolds(){
   const lv=g=>Math.min(1,g*8),sir=typeof SIR!=='undefined'&&SIR.v?SIR.v:{};
-  BODIES.forEach(b=>{if(b.kind!=='planet')return;const v=V[b.id],w=sir[b.id];
+  // a thinker's heaven sings its own pitches (v.fcur), not today's: the score and MIDI follow what is heard
+  if(S.thinker!=='today'&&THINK[S.thinker]&&THINK[S.thinker].model!=='bodies'){for(const id in sir){const w=sir[id];if(w&&w.vol)MOTS.midi.hold(id,w.fcur||0,Math.min(1,w.vol.gain.value*3))}}
+  else BODIES.forEach(b=>{if(b.kind!=='planet')return;const v=V[b.id],w=sir[b.id];
     MOTS.midi.hold(b.id,P[b.id].f,Math.max(v&&v.vol?lv(v.vol.gain.value):0,w&&w.vol?Math.min(1,w.vol.gain.value*3):0))});
   if(sunV&&sunV.vol)MOTS.midi.hold('sun',droneFreqs()[0],lv(sunV.vol.gain.value));
 }
@@ -2867,7 +2874,7 @@ function pluck(b,m){
   const o=AC.createOscillator();o.type='sine';o.frequency.value=f;
   const o2=AC.createOscillator();o2.type='sine';o2.frequency.value=f*2.003;const g2=mkGain(.22);
   const g=mkGain(0);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(amp,t+.015);g.gain.setTargetAtTime(0,t+.03,.5);
-  o.connect(g);o2.connect(g2);g2.connect(g);g.connect(m.out);o.start(t);o2.start(t);o.stop(t+2.6);o2.stop(t+2.6);
+  o.connect(g);o2.connect(g2);g2.connect(g);g.connect(m.out);o.start(t);o2.start(t);o.stop(t+2.6);o2.stop(t+2.6);if(b.id==='jupiter'&&window.MOTS&&MOTS.midi&&MOTS.midi.hit)MOTS.midi.hit(m.id,t,f,Math.min(1,amp*10),.6);
   setTimeout(()=>{try{g.disconnect()}catch(e){}},2800);
 }
 const BELTP=[];let beltIx=0;
@@ -3694,6 +3701,7 @@ function sirenBody(who,f){
   return {id:'siren:'+who,kind:'minor',tiltWob:0,hv:{type:fate?'alto':f<300?'alto':'soprano',tilt:1.15,vib:[5.2,.025],breath:.09,jit:.004,syl:fate?.8:.7,rest:fate?2.2:.35,ens:.15,words}};
 }
 // a plucked string, for the lyre and the monochord
+function plk(w,dest,f,lvl,dec,harm){strPluck(dest,f,lvl,dec,harm);if(window.MOTS&&MOTS.midi&&MOTS.midi.hit)MOTS.midi.hit(w,AC.currentTime+.02,f,Math.min(1,lvl*12),Math.min(2,dec*1.2))}
 function strPluck(dest,f,lvl,dec,harm){
   const t=AC.currentTime+.02,o=AC.createOscillator(),o2=AC.createOscillator();o.type=harm?'triangle':'sawtooth';o2.type='triangle';o.frequency.value=f;o2.frequency.value=f*2.003;
   const lp=AC.createBiquadFilter();lp.type='lowpass';lp.Q.value=.8;lp.frequency.setValueAtTime(Math.min(9000,f*(harm?4:10)),t);lp.frequency.setTargetAtTime(f*1.6,t,dec*.3);
@@ -3739,17 +3747,17 @@ function thinkerAudio(){
     habit=athens()?.3+.7*Math.exp(-Math.max(0,tR-SIR.habT0)/9000):0}
   // Fludd: the hand of God sweeps the whole monochord when the Sun enters a new sign
   if(model==='monochord'&&!athens()){const n=list.length;if(now>=(SIR.nextSweep||0)){const k=(SIR.sweep||0)%(2*n-2),i=k<n?k:2*n-2-k,[w,r]=list[i],v=sirenVoice(w);
-    if(!SIR.solo||SIR.solo===w)strPluck(v.pl,voiceF(w,r),['moon','mercury','venus','sun','mars','jupiter','saturn'].includes(w)?.07:.05,1.8);SIR.plk[w]=performance.now();SIR.sweep=(SIR.sweep||0)+1;SIR.nextSweep=Math.max(now,SIR.nextSweep||0)+(i===7?.9:.45)}
+    if(!SIR.solo||SIR.solo===w)plk(w,v.pl,voiceF(w,r),['moon','mercury','venus','sun','mars','jupiter','saturn'].includes(w)?.07:.05,1.8);SIR.plk[w]=performance.now();SIR.sweep=(SIR.sweep||0)+1;SIR.nextSweep=Math.max(now,SIR.nextSweep||0)+(i===7?.9:.45)}
     list.forEach(([w])=>{const v=sirenVoice(w);const d=dirFor(w);setPos(v.pan,d.x,d.y,d.z,.15);if(v.part){killPart(v.part);v.part=null}tgt(v.vol.gain,0,.2)});return}
   if(model==='monochord'){const sv=geo('sun'),sg=Math.floor((((lonOf(sv)/DEG)%360)+360)%360/30);
-    if((SIR.sunSign!==null&&sg!==SIR.sunSign&&tR>SIR.handNext)||!SIR.handNext){SIR.handNext=tR+12000;list.forEach(([w,r],k)=>setTimeout(()=>{const v=SIR.v[w];if(v&&audioOn&&S.thinker==='fludd'&&(!SIR.solo||SIR.solo===w)){strPluck(v.pl,voiceF(w,r),.05,1.6);SIR.plk[w]=performance.now()}},k*170))}
+    if((SIR.sunSign!==null&&sg!==SIR.sunSign&&tR>SIR.handNext)||!SIR.handNext){SIR.handNext=tR+12000;list.forEach(([w,r],k)=>setTimeout(()=>{const v=SIR.v[w];if(v&&audioOn&&S.thinker==='fludd'&&(!SIR.solo||SIR.solo===w)){plk(w,v.pl,voiceF(w,r),.05,1.6);SIR.plk[w]=performance.now()}},k*170))}
     SIR.sunSign=sg}
   // Macrobius (after Porphyry): the intervals between the spheres are filled with the steps of the scale; a quiet line climbs through them, tone by tone, then rests
   if(th.fill&&!LOWPOWER){if(!SIR.fillSc){const st=[1,9/8,81/64,4/3,3/2,27/16,243/128],sc=[];for(let o=1;o<=16;o*=2)st.forEach(x=>{if(x*o<=27.001)sc.push(x*o)});SIR.fillSc=sc}
     if(!SIR.fillNext||now>SIR.fillNext+2){SIR.fillNext=now+.6;SIR.fillK=0}
     if(now>=SIR.fillNext){const sc=SIR.fillSc,k=SIR.fillK%(sc.length+14);
       if(k<sc.length){const r=sc[k];let w=list[0][0],best=0;list.forEach(([x,rx])=>{if(rx<=r+1e-6&&rx>=best){best=rx;w=x}});const v=sirenVoice(w);
-        if(!SIR.solo||SIR.solo===w){strPluck(v.pl,baseOf()*r,.026,.8,true);SIR.plk[w]=performance.now()}}
+        if(!SIR.solo||SIR.solo===w){plk(w,v.pl,baseOf()*r,.026,.8,true);SIR.plk[w]=performance.now()}}
       SIR.fillK++;SIR.fillNext+=.22}}
   let built=0,humans=0;const humanCap=LOWPOWER?6:99;
   list.forEach(([w,r])=>{
@@ -3764,18 +3772,18 @@ function thinkerAudio(){
     v.ph=(v.ph||0)+v.rate*dtR;let art=false;if(v.ph>=1){v.ph-=Math.floor(v.ph);art=true}
     const flourish=v.ingress&&!STILL.has(w);if(flourish)art=true;
     if(model==='lyre'&&!athens()){tgt(v.vol.gain,0,.1);const per=w==='moon'?27.32:w==='sun'?365.25:(byId[w]?byId[w].Pyears*365.25:120),gap=.55*Math.pow(per/27.32,.22);if(!v.next||now>v.next+2)v.next=now+Math.random()*gap;
-      if(now>=v.next){v.next+=gap*(.9+Math.random()*.2);if(!soloMute){strPluck(v.pl,f,.042,1.4);SIR.plk[w]=performance.now()}}return}
-    if(model==='lyre'){tgt(v.vol.gain,0,.1);if(art&&!silent&&!soloMute){strPluck(v.pl,v.retro?f*2:f,(v.retro?.026:.045)*d.up,v.retro?.5:1.4,v.retro);SIR.plk[w]=performance.now()}return}
-    if(model==='monochord'&&art&&!STILL.has(w)&&!soloMute){strPluck(v.pl,f,.035*d.up,1.5);SIR.plk[w]=performance.now()}
+      if(now>=v.next){v.next+=gap*(.9+Math.random()*.2);if(!soloMute){plk(w,v.pl,f,.042,1.4);SIR.plk[w]=performance.now()}}return}
+    if(model==='lyre'){tgt(v.vol.gain,0,.1);if(art&&!silent&&!soloMute){plk(w,v.pl,v.retro?f*2:f,(v.retro?.026:.045)*d.up,v.retro?.5:1.4,v.retro);SIR.plk[w]=performance.now()}return}
+    if(model==='monochord'&&art&&!STILL.has(w)&&!soloMute){plk(w,v.pl,f,.035*d.up,1.5);SIR.plk[w]=performance.now()}
     if(model==='monochord'&&STILL.has(w)&&!['earth','emp3'].includes(w)){tgt(v.vol.gain,0,.2);return}
     const mode=S.voices==='human'&&!STILL.has(w)&&humans<humanCap?'human':'instrument';if(mode==='human')humans++;
     if(v.part&&v.mode!==mode){killPart(v.part);v.part=null}
     if(!v.part&&!silent&&built<3){v.part=mode==='human'?buildHumanPart(sirenBody(w,f),v):buildSiren(v,f,VOW_OF[w]);v.mode=mode;built++;if(mode==='human')v.part.h.next=now+.2;v.lastArt=tR}
     if(!v.part){tgt(v.vol.gain,0,.15);return}
     if(v.mode==='instrument'&&!athens())tgt(v.part.art.gain,.8,.3);
-    if(v.mode==='instrument'){if(art)articulate(v.part,f,v.retro,flourish);else{tgt(v.part.o1.frequency,f,.12);tgt(v.part.o2.frequency,f,.12)}tgt(v.part.lp.frequency,d.up<1?900:v.retro?1700:2800,.3)}
+    if(v.mode==='instrument'){if(art){articulate(v.part,f,v.retro,flourish);if(!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,flourish)}else{tgt(v.part.o1.frequency,f,.12);tgt(v.part.o2.frequency,f,.12)}tgt(v.part.lp.frequency,d.up<1?900:v.retro?1700:2800,.3)}
     else{const h=v.part.h,ff=f*Math.pow(2,h.shift||0);tgt(h.o1.frequency,ff,.08);if(h.o2)tgt(h.o2.frequency,ff,.08);
-      if((art||!athens()||tR-(v.lastArt||0)>5500)&&now+.12>=h.next){schedulePhrase(h,now+.05,f,1);v.lastArt=tR}}
+      if((art||!athens()||tR-(v.lastArt||0)>5500)&&now+.12>=h.next){schedulePhrase(h,now+.05,f,1);v.lastArt=tR;if(!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,false)}}
     if(art)v.lastArt=tR;
     let lvl=silent||soloMute?0:SIR.solo===w?.13:fate?.03*(.6+.4*Math.sin(now*.25+r*2)):STILL.has(w)?.05:athens()?.15:.06;
     if(model==='monochord'&&STILL.has(w))lvl=.03;
