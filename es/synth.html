@@ -474,7 +474,7 @@ let tempo=0,running=false,clockT=null,nextTick=0;
 M.bar=(t,beats,sub,bpm)=>{const sc=SCR();if(sc)sc.bar(t,beats,sub,bpm)};
 // a sung syllable: a note with its text (the score writes the lyric; MIDI out plays it as the god's note)
 M.lyric=(id,t,f,lvl,len,text,syl)=>{const sc=SCR();if(sc)sc.lyric(id,t,f,lvl,len,text,syl);outHit(id,t,f,lvl,len)};
-M.transport=(play,bpm)=>{const sc=SCR();if(sc)sc.transport(play,bpm);if(MOTS.score&&MOTS.score.play)try{MOTS.score.play(play)}catch(e){}tempo=bpm||tempo;if(play&&!running){running=true;if(out&&clockOn)send([0xFA]);nextTick=performance.now()+20;startClock()}
+M.transport=(play,bpm)=>{MOTS.transportOn=!!play;if(play)MOTS.projPaused=false;const sc=SCR();if(sc)sc.transport(play,bpm);if(MOTS.score&&MOTS.score.play)try{MOTS.score.play(play)}catch(e){}tempo=bpm||tempo;if(play&&!running){running=true;if(out&&clockOn)send([0xFA]);nextTick=performance.now()+20;startClock()}
   else if(!play&&running){running=false;if(out&&clockOn)send([0xFC]);stopClock()}};
 function startClock(){stopClock();if(!clockOn||!out||!tempo)return;clockT=setInterval(()=>{const now=performance.now(),per=60000/tempo/24;if(nextTick<now-200)nextTick=now;while(nextTick<now+100){send([0xF8],nextTick);nextTick+=per}},25)}
 function stopClock(){if(clockT){clearInterval(clockT);clockT=null}}
@@ -509,6 +509,9 @@ html.mots-proj #motsCap{display:block;visibility:visible!important}html.mots-pro
 #motsCap:empty{display:none!important}
 #motsCap .d{margin-top:.9vh;font-size:clamp(15px,1.45vw,30px);color:#a9c8ee;font-variant-numeric:tabular-nums;letter-spacing:.02em}
 #motsClk{position:fixed;top:max(12px,1.2vh);right:calc(max(12px,1.2vw) + clamp(52px,3.8vw,84px));z-index:9001;display:none;appearance:none;border:1px solid #c9984f;background:rgba(10,12,24,.7);color:#e9e1cc;border-radius:999px;width:clamp(44px,3.2vw,72px);height:clamp(44px,3.2vw,72px);font:clamp(18px,1.3vw,28px)/1 system-ui,sans-serif;cursor:pointer;transition:opacity .4s}
+.motsTp{position:fixed;top:max(12px,1.2vh);z-index:9001;display:none;appearance:none;border:1px solid #c9984f;background:rgba(10,12,24,.7);color:#e9e1cc;border-radius:999px;width:clamp(44px,3.2vw,72px);height:clamp(44px,3.2vw,72px);font:clamp(17px,1.25vw,27px)/1 system-ui,sans-serif;cursor:pointer;transition:opacity .4s;padding:0}
+#motsPP{right:calc(max(12px,1.2vw) + 3*clamp(52px,3.8vw,84px))}#motsStop{right:calc(max(12px,1.2vw) + 2*clamp(52px,3.8vw,84px))}
+html.mots-proj .motsTp{display:block;visibility:visible!important}html.mots-proj.idle .motsTp{opacity:0}html.mots-show .motsTp{display:none!important}
 html.mots-proj #motsClk{display:block;visibility:visible!important}html.mots-proj.idle #motsClk{opacity:0}#motsClk[aria-pressed=false]{opacity:.55}
 #motsCap .k{font-size:clamp(13px,1.15vw,26px);letter-spacing:.14em;color:#d4a657;margin-bottom:.5vh;font-family:"GFS Didot",Georgia,serif}
 #motsCap h2{margin:0;font:400 clamp(28px,3.4vw,72px)/1.1 "GFS Didot",Georgia,serif;color:#f1e6c8;text-wrap:balance}
@@ -541,8 +544,8 @@ function capTick(){let c=null;try{c=MOTS.nowPlaying&&MOTS.nowPlaying()}catch(e){
   const html=(c.k?`<div class="k">${esc(c.k)}</div>`:'')+`<h2>${esc(c.h)}</h2>`+(c.p?`<p>${esc(c.p)}</p>`:'')+(clkOn&&c.d?`<div class="d">${esc(c.d)}</div>`:'');if(html!==CAP.innerHTML)CAP.innerHTML=html}
 let idleT=null;const wake=()=>{document.documentElement.classList.remove('idle');clearTimeout(idleT);idleT=setTimeout(()=>document.documentElement.classList.add('idle'),3000)};
 function proj(on,o={}){const h=document.documentElement;h.classList.toggle('mots-proj',on);
-  if(on){const p=document.getElementById('stPanel');if(p)p.remove();wake();addEventListener('pointermove',wake);if(!o.noFS&&h.requestFullscreen&&!document.fullscreenElement)h.requestFullscreen().catch(()=>{});lock(true);capTick();clearInterval(capT);capT=setInterval(capTick,400)}
-  else{removeEventListener('pointermove',wake);h.classList.remove('idle');if(!o.noFS&&document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{});lock(awakeOn);clearInterval(capT);capT=null;CAP.innerHTML=''}
+  if(on){const p=document.getElementById('stPanel');if(p)p.remove();wake();addEventListener('pointermove',wake);addEventListener('pointerdown',wake);if(!o.noFS&&h.requestFullscreen&&!document.fullscreenElement)h.requestFullscreen().catch(()=>{});lock(true);capTick();clearInterval(capT);capT=setInterval(capTick,400)}
+  else{removeEventListener('pointermove',wake);removeEventListener('pointerdown',wake);h.classList.remove('idle');if(!o.noFS&&document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{});lock(awakeOn);clearInterval(capT);capT=null;CAP.innerHTML=''}
   dispatchEvent(new Event('resize'))}
 X.onclick=()=>proj(false);
 addEventListener('keydown',e=>{if(e.key==='Escape'&&document.documentElement.classList.contains('mots-proj'))proj(false)});
@@ -553,6 +556,23 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 // the screen stays awake once sound has started, if asked
 addEventListener('pointerdown',()=>{if(awakeOn)lock(true)},{once:true});
 MOTS.projector=proj;
+// play / pause / stop in the projector view: pause holds the music where it is (the audio clock stops, so the score and the dance wait too); stop is the page's own stop
+{const PT={en:['Play','Pause','Stop'],pl:['Graj','Pauza','Stop'],cy:['Chwarae','Saib','Stopio'],de:['Abspielen','Pause','Stopp'],es:['Reproducir','Pausa','Detener'],fr:['Lecture','Pause','Arrêt'],it:['Riproduci','Pausa','Stop'],ja:['再生','一時停止','停止'],zh:['播放','暂停','停止']}[(document.documentElement.lang||'en').slice(0,2)]||['Play','Pause','Stop'];
+  const mk=(id,t)=>{const b=document.createElement('button');b.id=id;b.type='button';b.className='motsTp';b.textContent=t;document.body.appendChild(b);return b};
+  const PP=mk('motsPP','▶'),ST=mk('motsStop','■');ST.title=ST.ariaLabel=PT[2];
+  const pageBtn=()=>document.getElementById('begin')||document.getElementById('play');
+  const ctx=()=>{try{return MOTS.audioCtx&&MOTS.audioCtx()}catch(e){return null}};
+  const sync=()=>{const on=MOTS.transportOn&&!MOTS.projPaused;PP.textContent=on?'❚❚':'▶';PP.title=PP.ariaLabel=on?PT[1]:PT[0];ST.disabled=!MOTS.transportOn;ST.style.opacity=MOTS.transportOn?'':'.45'};
+  PP.onclick=async()=>{const c=ctx();
+    if(!MOTS.transportOn){const b=pageBtn();if(b)b.click()}
+    else if(MOTS.projPaused){MOTS.projPaused=false;if(c&&c.resume)await c.resume()}
+    else{MOTS.projPaused=true;if(c&&c.suspend)await c.suspend()}
+    setTimeout(sync,150)};
+  ST.onclick=async()=>{if(!MOTS.transportOn)return;const c=ctx();if(MOTS.projPaused){MOTS.projPaused=false;if(c&&c.resume)await c.resume()}const b=pageBtn();if(b)b.click();setTimeout(sync,200)};
+  setInterval(()=>{if(document.documentElement.classList.contains('mots-proj'))sync()},500);
+  // leaving the projector while paused stops the music properly, so the page's own Play button stays truthful
+  addEventListener('resize',async()=>{if(!document.documentElement.classList.contains('mots-proj')&&MOTS.projPaused){MOTS.projPaused=false;const c=ctx();if(c&&c.resume)await c.resume();if(MOTS.transportOn){const b=pageBtn();if(b)b.click()}}});
+  addEventListener('keydown',e=>{if(document.documentElement.classList.contains('mots-proj')&&(e.key==='k'||e.key==='K')){PP.click();e.preventDefault()}})}
 // a double tap (or double click) on the sky or the score goes straight to the projector view, and back again
 {const F=()=>{const c=document.getElementById('orrery')||document.getElementById('dial');return c&&c.parentElement};let lt=0,lx=0,ly=0;
   const dbl=()=>{const h=document.documentElement;if(h.classList.contains('mots-show'))return;if(h.classList.contains('mots-proj')){proj(false);return}
