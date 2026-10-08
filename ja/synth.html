@@ -594,6 +594,7 @@ MOTS.stageLocked=()=>inPlayApp()&&!isSupporter();
 async function billing(){if(SUP.svc)return SUP.svc;if(!('getDigitalGoodsService' in window))return null;try{SUP.svc=await window.getDigitalGoodsService(SUP.bill)}catch(e){SUP.svc=null}return SUP.svc}
 // purchases are consumed at once: Google counts that as acknowledgement (no server needed), and the device remembers the supporter
 async function settle(svc){try{const ps=await svc.listPurchases();let any=false;for(const p of ps){if(SUP.skus.some(s=>s[0]===p.itemId)){try{await svc.consume(p.purchaseToken)}catch(e){}any=true}}if(any)LS.set('mots.supporter','1');return any}catch(e){return false}}
+async function sellable(){const svc=await billing();if(!svc)return false;if(await settle(svc))return false;try{const d=await svc.getDetails(SUP.skus.map(x=>x[0]));return !!(d&&d.length)}catch(e){return false}}
 async function buy(sku,msg){
   const svc=await billing();if(!svc){msg(ts().na);return false}
   try{const rq=new PaymentRequest([{supportedMethods:SUP.bill,data:{sku}}],{total:{label:'Total',amount:{currency:'GBP',value:'0'}}});
@@ -617,7 +618,9 @@ function supportPanel(){
 }
 function openPanel(){
   let p=document.getElementById('stPanel');if(p){p.remove();return}
-  if(MOTS.stageLocked()){supportPanel();return}
+  // only ask for support when the store can actually sell it: while the supporter products are not live in Play (closed testing, an account
+  // the store can't sell to, no connection), the panel opens free rather than showing a purchase that cannot complete
+  if(MOTS.stageLocked()&&!SUP.free){sellable().then(ok=>{if(ok&&MOTS.stageLocked())supportPanel();else{SUP.free=true;openPanel()}});return}
   p=document.createElement('div');p.id='stPanel';p.setAttribute('role','dialog');p.setAttribute('aria-label',T.title);
   p.innerHTML=`<h2>${T.title}</h2>
   <h3>${T.output}</h3><div class="seg" id="stOut">${['hrtf','stereo','pa','mono','5.1'].map(v=>`<button type="button" data-v="${v}" aria-pressed="false">${T[v]}</button>`).join('')}</div><p class="n" id="stOutNote"></p><button type="button" class="b" id="stTest" hidden style="margin-top:8px">${T.test}</button>
