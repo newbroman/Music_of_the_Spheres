@@ -618,7 +618,15 @@ s.innerHTML=GLOBE+(compact?cur.toUpperCase():name)+' ▾';s.setAttribute('aria-l
   const m=document.createElement('div');m.className='lmenu';m.setAttribute('role','menu');
   LANGS.forEach(([c,n])=>{const a=document.createElement('a');a.href=href(c);a.lang=c;a.hreflang=c;a.textContent=n;a.setAttribute('role','menuitem');if(c===cur){a.setAttribute('aria-current','true')}a.onclick=e=>{LS.set('mots.lang',c);if(c!==cur){e.preventDefault();location.href=href(c)}else{e.preventDefault();d.open=false}};m.appendChild(a)});
   // keep the list on screen next to an edge
-  d.addEventListener('toggle',()=>{if(!d.open||innerWidth<=760)return;m.style.cssText='';const r=m.getBoundingClientRect();if(r.right>innerWidth-8)m.style.cssText='left:auto;right:0;transform:none';else if(r.left<8)m.style.cssText='left:0;transform:none'});
+  // the whole list stays on screen: placed below the button, or above it when there is more room there, and scrolling inside itself when even that is too short
+  const place=()=>{if(!d.open)return;m.style.cssText='visibility:hidden';const r=s.getBoundingClientRect(),W=innerWidth,H=innerHeight,w=Math.min(W-24,Math.max(m.offsetWidth,176)),h=m.scrollHeight;
+    const below=H-r.bottom-14,above=r.top-14,down=below>=Math.min(h,280)||below>=above,room=Math.max(120,down?below:above);
+    // too tall for the room: two columns, half the height
+    const two=h>room&&W>=340,ww=two?Math.min(W-24,380):w;
+    const left=Math.max(12,Math.min(W-ww-12,r.left+r.width/2-ww/2));
+    m.style.cssText=`position:fixed;transform:none;left:${left}px;width:${ww}px;${two?'display:grid;grid-template-columns:1fr 1fr;align-content:start;':''}${down?`top:${r.bottom+6}px;bottom:auto`:`top:auto;bottom:${H-r.top+6}px`};max-height:${room}px;overflow-y:auto;overscroll-behavior:contain`};
+  let rq=0;const later=()=>{if(d.open&&!rq)rq=requestAnimationFrame(()=>{rq=0;place()})};
+  d.addEventListener('toggle',()=>{place();later()});addEventListener('resize',later);addEventListener('scroll',later,{passive:true});
   d.append(s,m);first.replaceWith(d);links.slice(1).forEach(a=>a.remove());
   document.addEventListener('click',e=>{if(d.open&&!d.contains(e.target))d.open=false});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')d.open=false});
