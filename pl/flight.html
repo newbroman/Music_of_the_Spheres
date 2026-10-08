@@ -738,7 +738,8 @@ function measures(){
     let last=M[M.length-1];while(last.t+last.len<end-.02&&M.length<4000){last=mk(last.t+last.len,last.len,last.beats,last.sub,last.bpm);M.push(last)}
   }else{let t=0;const bpm=60,len=4;while(t<end||!M.length){M.push(mk(t,len,4,4,bpm));t+=len;if(M.length>4000)break}}
   let off=0;M.forEach(m=>{m.off=off;off+=m.div});return M;
-  function mk(t,len,beats,sub,bpm){const comp=sub===6||sub===3,div=beats*(comp?6:4);return {t,len,beats,sub,bpm,div,ts:comp?[beats*3,8]:[beats,4],qpm:comp?bpm*1.5:bpm}}
+  // a metre of so many quarters (4/4, 5/4), of dotted quarters when the beat has six steps (9/8), or of so many eighths when the beats come in halves (3.5 beats is 7/8)
+  function mk(t,len,beats,sub,bpm){const comp=sub===6||sub===3,half=beats%1!==0,div=Math.round(beats*(comp?6:4));return {t,len,beats,sub,bpm,div,ts:half?[Math.round(beats*2),8]:comp?[beats*3,8]:[beats,4],qpm:comp?bpm*1.5:bpm}}
 }
 // a time in seconds to an absolute position in divisions
 function posOf(M,t){let lo=0,hi=M.length-1;while(lo<hi){const mid=(lo+hi+1)>>1;if(M[mid].t<=t)lo=mid;else hi=mid-1}const m=M[lo];return m.off+(t-m.t)/m.len*m.div}
@@ -793,7 +794,7 @@ function musicXML(){
       if(mi===0||prev.ts[0]!==m.ts[0]||prev.ts[1]!==m.ts[1])attrs.push(`<time><beats>${m.ts[0]}</beats><beat-type>${m.ts[1]}</beat-type></time>`);
       if(mi===0)attrs.push(clef==='perc'?'<clef><sign>percussion</sign><line>2</line></clef>':clef==='bass'?'<clef><sign>F</sign><line>4</line></clef>':'<clef><sign>G</sign><line>2</line></clef>');
       if(attrs.length)x+='<attributes>'+attrs.join('')+'</attributes>';
-      if(pi===0&&(mi===0||Math.abs(prev.qpm-m.qpm)>.5)){const dot=m.ts[1]===8;x+=`<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit>${dot?'<beat-unit-dot/>':''}<per-minute>${Math.round(m.bpm)}</per-minute></metronome></direction-type><sound tempo="${Math.round(m.qpm)}"/></direction>`}
+      if(pi===0&&(mi===0||Math.abs(prev.qpm-m.qpm)>.5)){const dot=m.ts[1]===8&&m.beats%1===0;x+=`<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit>${dot?'<beat-unit-dot/>':''}<per-minute>${Math.round(m.bpm)}</per-minute></metronome></direction-type><sound tempo="${Math.round(m.qpm)}"/></direction>`}
       if(pi===0&&secAt[mi])x+=`<direction placement="above"><direction-type><rehearsal>${esc(secAt[mi].charAt(0).toUpperCase()+secAt[mi].slice(1))}</rehearsal></direction-type></direction>`;
       const notes=[];while(qi<Q.length&&Q[qi].meas===mi)notes.push(Q[qi++]);
       if(!notes.length){x+=`<note><rest measure="yes"/><duration>${m.div}</duration><voice>1</voice></note>`}
@@ -856,7 +857,7 @@ function abcOf(fromMeas,toMeas,maxStaves){
   const PL=partListOpen();ids.sort((a,b)=>PL.indexOf(a)-PL.indexOf(b));
   if(!ids.length)return '';
   const m0=M[fromMeas],ka=keyAlter(K.fifths);
-  let abc=`X:1\n%%stretchlast 1\nL:1/16\nM:${m0.ts[0]}/${m0.ts[1]}\nQ:${m0.ts[1]===8?'3/8':'1/4'}=${Math.round(m0.bpm)}\n%%score ${ids.map((_,i)=>i+1).join(' ')}\n`;
+  let abc=`X:1\n%%stretchlast 1\nL:1/16\nM:${m0.ts[0]}/${m0.ts[1]}\nQ:${m0.ts[1]===8&&m0.beats%1===0?'3/8':'1/4'}=${Math.round(m0.bpm)}\n%%score ${ids.map((_,i)=>i+1).join(' ')}\n`;
   ids.forEach((id,i)=>{const p=S.parts[id],clef=clefOf(p,true);abc+=`V:${i+1} clef=${clef==='perc'?'perc':clef} name="${nameOf(id).replace(/"/g,'')}" snm="${nameOf(id).slice(0,4).replace(/"/g,'')}"\n`});
   abc+=`K:${K.mode==='none'?'C':K.abc+((ABC_MODE[K.mode]||'').length>1?' ':'')+(ABC_MODE[K.mode]||'')}\n`;
   ids.forEach((id,i)=>{const p=S.parts[id],Q=quantise(M,p,true).filter(n=>n.meas>=fromMeas&&n.meas<toMeas);let line=`[V:${i+1}]`;
