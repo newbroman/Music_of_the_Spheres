@@ -589,6 +589,358 @@ if(LS.get('mots.midiOut')&&navigator.permissions&&navigator.requestMIDIAccess)na
 })();
 </script>
 <script>
+/* ---------- light: each body's own light as sound. Colour (its reflectance spectrum as a filter on its voice), heat (its thermal peak
+   40 octaves down, a sub-bass or a throb) and radio (its real radio emissions, as a receiver hears them). Shared by the dial and the 3D flight ---------- */
+(()=>{
+"use strict";
+const MOTS=window.MOTS=window.MOTS||{};
+const LANG=(document.documentElement.lang||'en').slice(0,2);
+/* --- words, per language --- */
+const LT={
+ en:{light:'Light',colour:'Colour',heat:'Heat',radio:'Radio',note:'Each body’s own light: its reflected colours filter its voice, its heat is a bass hum 40 octaves down, and its radio storms crackle as a receiver hears them.',
+   refl:'reflects {a}, absorbs {b}',grey:'reflects all colours alike, dark grey',pale:'reflects all colours nearly alike, pale',heatT:'heat {l} µm → {f} Hz',heatP:'heat {l} µm → a {f} Hz pulse',rq:'radio quiet',rNone:'no radio',
+   r:{jupiter:'Io storm: L and S bursts',jupiterQ:'decametric hiss',saturn:'kilometric chirps',earth:'auroral chirps',uranus:'faint rotation bursts',neptune:'faint rotation bursts'},
+   c:{red:'red',orange:'orange',yellow:'yellow',green:'green',blue:'blue',violet:'violet'}},
+ pl:{light:'Światło',colour:'Barwa',heat:'Ciepło',radio:'Radio',note:'Własne światło każdego ciała: odbite barwy filtrują jego głos, ciepło staje się basowym pomrukiem 40 oktaw niżej, a burze radiowe trzeszczą tak, jak słyszy je odbiornik.',
+   refl:'odbija {a}, pochłania {b}',grey:'odbija wszystkie barwy jednako, ciemnoszary',pale:'odbija wszystkie barwy niemal jednako, jasny',heatT:'ciepło {l} µm → {f} Hz',heatP:'ciepło {l} µm → puls {f} Hz',rq:'radiowa cisza',rNone:'bez radia',
+   r:{jupiter:'burza Io: wybuchy L i S',jupiterQ:'szum dekametrowy',saturn:'kilometrowe świsty',earth:'świsty zorzowe',uranus:'słabe wybuchy z obrotem',neptune:'słabe wybuchy z obrotem'},
+   c:{red:'czerwień',orange:'pomarańcz',yellow:'żółć',green:'zieleń',blue:'błękit',violet:'fiolet'}},
+ cy:{light:'Golau',colour:'Lliw',heat:'Gwres',radio:'Radio',note:'Golau pob corff ei hun: mae ei liwiau adlewyrchedig yn hidlo ei lais, ei wres yn fwmian bas 40 wythfed yn is, a’i stormydd radio yn clecian fel y mae derbynnydd yn eu clywed.',
+   refl:'yn adlewyrchu {a}, yn amsugno {b}',grey:'yn adlewyrchu pob lliw yn gyfartal, llwyd tywyll',pale:'yn adlewyrchu pob lliw bron yn gyfartal, golau',heatT:'gwres {l} µm → {f} Hz',heatP:'gwres {l} µm → pwls {f} Hz',rq:'tawelwch radio',rNone:'dim radio',
+   r:{jupiter:'storm Io: byrstiau L ac S',jupiterQ:'hisian decametrig',saturn:'chwibanau cilometrig',earth:'chwibanau’r awrora',uranus:'byrstiau gwan gyda’r cylchdro',neptune:'byrstiau gwan gyda’r cylchdro'},
+   c:{red:'coch',orange:'oren',yellow:'melyn',green:'gwyrdd',blue:'glas',violet:'fioled'}},
+ de:{light:'Licht',colour:'Farbe',heat:'Wärme',radio:'Radio',note:'Das eigene Licht jedes Körpers: seine reflektierten Farben filtern seine Stimme, seine Wärme wird zu einem Basssummen 40 Oktaven tiefer, und seine Radiostürme knistern, wie ein Empfänger sie hört.',
+   refl:'reflektiert {a}, absorbiert {b}',grey:'reflektiert alle Farben gleich, dunkelgrau',pale:'reflektiert alle Farben fast gleich, hell',heatT:'Wärme {l} µm → {f} Hz',heatP:'Wärme {l} µm → Puls mit {f} Hz',rq:'Funkstille',rNone:'kein Radio',
+   r:{jupiter:'Io-Sturm: L- und S-Bursts',jupiterQ:'dekametrisches Rauschen',saturn:'kilometrische Zirplaute',earth:'Aurora-Zirplaute',uranus:'schwache Bursts mit der Rotation',neptune:'schwache Bursts mit der Rotation'},
+   c:{red:'Rot',orange:'Orange',yellow:'Gelb',green:'Grün',blue:'Blau',violet:'Violett'}},
+ es:{light:'Luz',colour:'Color',heat:'Calor',radio:'Radio',note:'La luz propia de cada cuerpo: sus colores reflejados filtran su voz, su calor se vuelve un zumbido grave 40 octavas más abajo, y sus tormentas de radio crepitan como las oye un receptor.',
+   refl:'refleja {a}, absorbe {b}',grey:'refleja todos los colores por igual, gris oscuro',pale:'refleja todos los colores casi por igual, claro',heatT:'calor {l} µm → {f} Hz',heatP:'calor {l} µm → pulso de {f} Hz',rq:'silencio de radio',rNone:'sin radio',
+   r:{jupiter:'tormenta de Ío: ráfagas L y S',jupiterQ:'siseo decamétrico',saturn:'chirridos kilométricos',earth:'chirridos aurorales',uranus:'ráfagas débiles con la rotación',neptune:'ráfagas débiles con la rotación'},
+   c:{red:'rojo',orange:'naranja',yellow:'amarillo',green:'verde',blue:'azul',violet:'violeta'}},
+ fr:{light:'Lumière',colour:'Couleur',heat:'Chaleur',radio:'Radio',note:'La lumière propre de chaque corps : ses couleurs réfléchies filtrent sa voix, sa chaleur devient un bourdonnement grave 40 octaves plus bas, et ses orages radio crépitent comme un récepteur les entend.',
+   refl:'réfléchit le {a}, absorbe le {b}',grey:'réfléchit toutes les couleurs également, gris sombre',pale:'réfléchit toutes les couleurs presque également, clair',heatT:'chaleur {l} µm → {f} Hz',heatP:'chaleur {l} µm → pulsation à {f} Hz',rq:'silence radio',rNone:'pas de radio',
+   r:{jupiter:'orage d’Io : sursauts L et S',jupiterQ:'souffle décamétrique',saturn:'pépiements kilométriques',earth:'pépiements auroraux',uranus:'faibles sursauts avec la rotation',neptune:'faibles sursauts avec la rotation'},
+   c:{red:'rouge',orange:'orange',yellow:'jaune',green:'vert',blue:'bleu',violet:'violet'}},
+ it:{light:'Luce',colour:'Colore',heat:'Calore',radio:'Radio',note:'La luce propria di ogni corpo: i colori che riflette filtrano la sua voce, il suo calore diventa un ronzio basso 40 ottave più in giù, e le sue tempeste radio crepitano come le sente un ricevitore.',
+   refl:'riflette il {a}, assorbe il {b}',grey:'riflette tutti i colori allo stesso modo, grigio scuro',pale:'riflette tutti i colori quasi allo stesso modo, chiaro',heatT:'calore {l} µm → {f} Hz',heatP:'calore {l} µm → pulsazione a {f} Hz',rq:'silenzio radio',rNone:'nessuna radio',
+   r:{jupiter:'tempesta di Io: raffiche L e S',jupiterQ:'sibilo decametrico',saturn:'cinguettii chilometrici',earth:'cinguettii aurorali',uranus:'deboli raffiche con la rotazione',neptune:'deboli raffiche con la rotazione'},
+   c:{red:'rosso',orange:'arancione',yellow:'giallo',green:'verde',blue:'blu',violet:'violetto'}},
+ ja:{light:'光',colour:'色',heat:'熱',radio:'電波',note:'それぞれの天体のもつ光。反射する色がその声を濾し、熱は40オクターブ下の低いうなりとなり、電波の嵐は受信機が聞くようにぱちぱちと鳴ります。',
+   refl:'{a}を反射し、{b}を吸収',grey:'どの色も同じように反射する暗い灰色',pale:'どの色もほぼ同じように反射する明るい色',heatT:'熱 {l} µm → {f} Hz',heatP:'熱 {l} µm → {f} Hz の脈動',rq:'電波は静か',rNone:'電波なし',
+   r:{jupiter:'イオの嵐：LバーストとSバースト',jupiterQ:'デカメートル波のヒス',saturn:'キロメートル波のチャープ',earth:'オーロラのチャープ',uranus:'自転に合わせた弱いバースト',neptune:'自転に合わせた弱いバースト'},
+   c:{red:'赤',orange:'橙',yellow:'黄',green:'緑',blue:'青',violet:'紫'}},
+ zh:{light:'光',colour:'色彩',heat:'热',radio:'射电',note:'每个天体自己的光：它反射的色彩过滤它的歌声，它的热化作低 40 个八度的低音嗡鸣，它的射电风暴则像接收机听到的那样噼啪作响。',
+   refl:'反射{a}，吸收{b}',grey:'对各色一律反射，深灰',pale:'对各色几乎一律反射，浅色',heatT:'热 {l} µm → {f} Hz',heatP:'热 {l} µm → {f} Hz 脉动',rq:'射电静默',rNone:'无射电',
+   r:{jupiter:'木卫一风暴：L 爆发与 S 爆发',jupiterQ:'十米波嘶声',saturn:'千米波啁啾',earth:'极光啁啾',uranus:'随自转的微弱爆发',neptune:'随自转的微弱爆发'},
+   c:{red:'红',orange:'橙',yellow:'黄',green:'绿',blue:'蓝',violet:'紫'}},
+ vi:{light:'Ánh sáng',colour:'Màu sắc',heat:'Nhiệt',radio:'Vô tuyến',note:'Ánh sáng riêng của mỗi thiên thể: màu sắc nó phản chiếu lọc giọng hát của nó, nhiệt của nó thành tiếng ù trầm thấp hơn 40 quãng tám, và bão vô tuyến của nó lạo xạo như máy thu nghe thấy.',
+   refl:'phản chiếu {a}, hấp thụ {b}',grey:'phản chiếu mọi màu như nhau, xám tối',pale:'phản chiếu mọi màu gần như nhau, sáng',heatT:'nhiệt {l} µm → {f} Hz',heatP:'nhiệt {l} µm → nhịp {f} Hz',rq:'vô tuyến yên lặng',rNone:'không có vô tuyến',
+   r:{jupiter:'bão Io: chớp L và S',jupiterQ:'tiếng rít decamet',saturn:'tiếng ríu kilomet',earth:'tiếng ríu cực quang',uranus:'chớp yếu theo vòng quay',neptune:'chớp yếu theo vòng quay'},
+   c:{red:'đỏ',orange:'cam',yellow:'vàng',green:'lục',blue:'lam',violet:'tím'}}
+};
+const T=LT[LANG]||LT.en;
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+const LOWPOWER=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
+// colour is on by default (a gentle timbre); heat and radio are off until asked for
+const ON={colour:LS.get('mots.light.colour')!=='0',heat:LS.get('mots.light.heat')==='1',radio:LS.get('mots.light.radio')==='1'};
+
+/* --- the 40-octave rule: light and sound are both vibrations; forty octaves down, light lands in hearing. A440 × 2^40 = 4.84e14 Hz, 620 nm, orange-red --- */
+const C_LIGHT=299792458, OCT40=Math.pow(2,40);
+const nmToHz=nm=>C_LIGHT/(nm*1e-9)/OCT40;            // 380 nm → 717 Hz, 760 nm → 359 Hz: visible light is one octave
+const hzToNm=f=>C_LIGHT/(f*OCT40)*1e9;
+const umToHz=um=>C_LIGHT/(um*1e-6)/OCT40;
+const V_LO=380, V_HI=760;                            // the visible octave
+
+/* --- reflectance: geometric albedo against wavelength (nm), 350–1000 nm, read from published plots and rounded.
+   Giants: Karkoschka 1994 (Icarus 111, 174) and 1998 (Icarus 133, 134), full-disk spectra 300–1000 nm.
+   Mars: McCord & Westphal 1971 (ApJ 168, 141), Mustard & Bell 1994; Venus: Irvine 1968, Barker 1975 (UV absorber), level from Mallama, Krobusek & Pavlov 2017 (Icarus 282, 19);
+   Mercury: Warell 2003 (Icarus 161, 199), Mallama 2017; Earth: earthshine spectra, Woolf et al. 2002 (ApJ 574, 430) and Turnbull et al. 2006 (ApJ 644, 551);
+   Pluto: Grundy & Fink 1996 (Icarus 124, 329); asteroid classes: Bus–DeMeo taxonomy, DeMeo et al. 2009 (Icarus 202, 160); comet nuclei: Lamy et al. 2004 (Comets II) --- */
+const ALB={
+ mercury:[[350,.085],[400,.10],[450,.115],[500,.128],[550,.14],[600,.152],[650,.163],[700,.173],[750,.182],[800,.19],[850,.198],[900,.205],[950,.212],[1000,.218]],
+ venus:[[350,.30],[365,.28],[380,.34],[400,.45],[420,.55],[450,.62],[500,.68],[550,.70],[600,.72],[650,.72],[700,.71],[750,.70],[800,.69],[850,.67],[900,.65],[950,.62],[1000,.60]],
+ earth:[[350,.48],[400,.46],[450,.42],[500,.38],[550,.35],[600,.32],[650,.31],[690,.30],[720,.26],[740,.32],[760,.21],[780,.33],[820,.28],[850,.33],[900,.31],[940,.19],[970,.30],[1000,.30]],
+ mars:[[350,.05],[400,.06],[450,.08],[500,.11],[550,.17],[600,.24],[650,.28],[700,.30],[750,.31],[800,.31],[850,.30],[900,.29],[950,.28],[1000,.28]],
+ jupiter:[[350,.35],[400,.43],[450,.47],[500,.52],[550,.55],[580,.57],[600,.57],[619,.49],[635,.56],[650,.56],[680,.56],[700,.53],[727,.33],[745,.52],[760,.50],[790,.47],[810,.50],[840,.49],[862,.40],[875,.44],[890,.14],[905,.25],[930,.42],[950,.44],[980,.40],[1000,.26]],
+ saturn:[[350,.25],[400,.33],[450,.40],[500,.46],[550,.50],[580,.52],[600,.52],[619,.46],[635,.52],[650,.52],[680,.51],[700,.48],[727,.31],[745,.48],[760,.46],[790,.43],[810,.46],[840,.44],[862,.36],[875,.40],[890,.12],[905,.22],[930,.38],[950,.40],[980,.36],[1000,.27]],
+ uranus:[[350,.50],[400,.55],[450,.57],[480,.57],[500,.56],[520,.54],[543,.46],[560,.50],[580,.44],[600,.38],[619,.19],[635,.32],[650,.30],[680,.24],[700,.20],[727,.05],[745,.15],[760,.14],[790,.08],[810,.11],[840,.10],[862,.06],[890,.02],[905,.04],[930,.08],[950,.07],[980,.05],[1000,.03]],
+ neptune:[[350,.50],[400,.55],[450,.56],[480,.55],[500,.52],[520,.48],[543,.37],[560,.42],[580,.35],[600,.30],[619,.12],[635,.24],[650,.24],[680,.17],[700,.13],[727,.03],[745,.10],[760,.09],[790,.05],[810,.08],[840,.07],[862,.04],[890,.01],[905,.03],[930,.05],[950,.05],[980,.03],[1000,.02]],
+ pluto:[[350,.35],[400,.42],[450,.48],[500,.52],[550,.55],[600,.58],[650,.60],[700,.62],[730,.58],[750,.63],[790,.56],[810,.63],[840,.58],[870,.62],[890,.50],[920,.60],[960,.58],[1000,.55]],
+ ceres:[[350,.06],[400,.085],[450,.09],[500,.09],[550,.09],[600,.09],[700,.09],[800,.09],[900,.088],[1000,.086]],
+ vesta:[[350,.22],[400,.30],[450,.34],[500,.38],[550,.40],[600,.42],[650,.44],[700,.44],[750,.43],[800,.40],[850,.35],[900,.30],[930,.28],[960,.30],[1000,.34]],
+ // classes: C-type dark grey (Ceres above), S-type reddish with the pyroxene band, cold red bodies (Makemake, Sedna, Eris bright and flat), comet nuclei dark and red
+ S:[[350,.12],[400,.15],[450,.18],[500,.21],[550,.23],[600,.25],[650,.26],[700,.27],[750,.27],[800,.26],[850,.24],[900,.22],[950,.23],[1000,.25]],
+ red:[[350,.05],[400,.07],[450,.09],[500,.11],[550,.13],[600,.15],[700,.18],[800,.21],[900,.23],[1000,.25]],
+ ice:[[350,.80],[400,.90],[450,.95],[500,.96],[600,.96],[700,.95],[800,.93],[900,.90],[1000,.88]],
+ comet:[[350,.030],[400,.034],[450,.037],[500,.040],[550,.043],[600,.046],[700,.051],[800,.056],[900,.060],[1000,.064]]
+};
+const CLASS={ceres:'ceres',vesta:'vesta',pallas:'ceres',juno:'S',hygiea:'ceres',eros:'S',eris:'ice',haumea:'ice',makemake:'red',sedna:'red',pluto:'pluto'};
+function albedoOf(b){if(ALB[b.id])return ALB[b.id];if(b.kind==='comet')return ALB.comet;return ALB[CLASS[b.id]]||ALB.ceres}
+const interp=(tab,x)=>{if(x<=tab[0][0])return tab[0][1];for(let i=1;i<tab.length;i++){if(x<=tab[i][0]){const [x0,y0]=tab[i-1],[x1,y1]=tab[i];return y0+(y1-y0)*(x-x0)/(x1-x0)}}return tab[tab.length-1][1]};
+const dB=x=>20*Math.log10(Math.max(x,1e-4));
+
+/* --- the colour curve of one body, over the visible octave, in dB about its mean.
+   Octave folding: the voice's harmonics span many octaves, the light spans one and a half, so each wavelength is given a pitch class:
+   a near-infrared wavelength is halved into the visible octave as a note an octave down keeps its name (890 nm sits with 445 nm), and the
+   near-ultraviolet is doubled (350 nm with 700 nm). Each light-octave is set about its own mean first, so the near-infrared adds its bands
+   (the methane notches) without darkening the blue it folds onto. The one-octave curve is then applied to every octave of the voice. --- */
+const NPC=240; // points per octave (5 cents)
+function colourCurve(b){
+  const tab=albedoOf(b), out=new Float32Array(NPC), n=new Float32Array(NPC);
+  // the bands of light that fold onto the visible octave: [lo,hi,fold factor]
+  [[V_LO,V_HI,1],[V_HI,1000.001,.5],[350,V_LO,2]].forEach(([lo,hi,k])=>{
+    const vals=[];for(let i=0;i<NPC;i++){const nm=V_LO*Math.pow(2,i/NPC)/k;if(nm>=lo&&nm<hi)vals.push([i,dB(interp(tab,nm))]);else vals.push(null)}
+    const have=vals.filter(Boolean);if(!have.length)return;const mean=have.reduce((s,v)=>s+v[1],0)/have.length;
+    vals.forEach(v=>{if(v){out[v[0]]+=v[1]-mean;n[v[0]]++}});
+  });
+  // smooth (wider on phones: fewer bands), then clamp to ±12 dB, and set the mean to 0 dB
+  const sig=LOWPOWER?NPC*.08:NPC*.025, w=Math.ceil(sig*3), sm=new Float32Array(NPC);
+  for(let i=0;i<NPC;i++){let s=0,g=0;for(let d=-w;d<=w;d++){const j=(i+d+NPC)%NPC,ww=Math.exp(-d*d/(2*sig*sig));s+=out[j]*ww;g+=ww}sm[i]=Math.max(-12,Math.min(12,s/g))}
+  // unit power: a flat (white) voice passes at the same loudness, so colour changes the timbre, not the level
+  const pw=sm.reduce((a,x)=>a+Math.pow(10,x/10),0)/NPC,m=10*Math.log10(pw);for(let i=0;i<NPC;i++)sm[i]-=m;
+  return sm;
+}
+// gain (dB) at an audio frequency: fold the frequency into the visible octave by octaves and read the curve
+function gainAt(curve,f){if(f<40)return 0;let x=Math.log2(f/nmToHz(V_HI));x=x-Math.floor(x);const i=(1-x)*NPC;const i0=Math.floor(i)%NPC,i1=(i0+1)%NPC,t=i-Math.floor(i);return curve[i0]*(1-t)+curve[i1]*t}
+
+/* --- an FFT and a minimum-phase FIR from the curve: one convolver per voice instead of a rack of peaking filters --- */
+function fft(re,im,inv){const n=re.length;for(let i=1,j=0;i<n;i++){let bit=n>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j){[re[i],re[j]]=[re[j],re[i]];[im[i],im[j]]=[im[j],im[i]]}}
+  for(let len=2;len<=n;len<<=1){const ang=2*Math.PI/len*(inv?1:-1),wr=Math.cos(ang),wi=Math.sin(ang);
+    for(let i=0;i<n;i+=len){let cr=1,ci=0;for(let j=0;j<len/2;j++){const a=i+j,b=a+len/2,tr=re[b]*cr-im[b]*ci,ti=re[b]*ci+im[b]*cr;re[b]=re[a]-tr;im[b]=im[a]-ti;re[a]+=tr;im[a]+=ti;const nr=cr*wr-ci*wi;ci=cr*wi+ci*wr;cr=nr}}}
+  if(inv)for(let i=0;i<n;i++){re[i]/=n;im[i]/=n}}
+const IRS={};
+function colourIR(ctx,b){
+  const key=b.id+':'+ctx.sampleRate;if(IRS[key])return IRS[key];
+  const curve=colourCurve(b), N=LOWPOWER?1024:4096, M=N*2, sr=ctx.sampleRate;
+  const re=new Float64Array(M), im=new Float64Array(M);
+  for(let k=0;k<=M/2;k++){const f=k*sr/M;const g=gainAt(curve,f);const l=g*Math.LN10/20;re[k]=l;if(k&&k<M/2)re[M-k]=l}   // log magnitude, symmetric
+  fft(re,im,true);                                                                                          // real cepstrum
+  for(let n=1;n<M/2;n++){re[n]*=2}for(let n=M/2+1;n<M;n++)re[n]=0;im.fill(0);                               // fold to minimum phase
+  fft(re,im,false);
+  for(let k=0;k<M;k++){const e=Math.exp(re[k]);re[k]=e*Math.cos(im[k]);im[k]=e*Math.sin(im[k])}             // exp of the folded cepstrum
+  fft(re,im,true);
+  const buf=ctx.createBuffer(1,N,sr), d=buf.getChannelData(0);
+  for(let n=0;n<N;n++){const w=n<N*.75?1:.5*(1+Math.cos(Math.PI*(n-N*.75)/(N*.25)));d[n]=re[n]*w}
+  let E=0;for(let n=0;n<N;n++)E+=d[n]*d[n];const k=1/Math.sqrt(E||1);for(let n=0;n<N;n++)d[n]*=k;
+  return IRS[key]=buf;
+}
+
+/* --- heat: Wien's peak, λ = 2898 µm·K / T, forty octaves down. Temperatures are effective emitting temperatures (Venus: its cloud tops, not its 737 K surface).
+   Internal heat: Jupiter radiates 1.7× what it receives from the Sun, Saturn 1.8×, Uranus 1.06×, Neptune 2.6× (Pearl & Conrath 1991; Li et al. 2018) --- */
+const HEAT={mercury:[440,1],venus:[230,1],earth:[255,1],mars:[210,1],jupiter:[124,1.7],saturn:[95,1.8],uranus:[59,1.06],neptune:[59,2.6],pluto:[44,1],ceres:[168,1]};
+function heatOf(b){const h=HEAT[b.id];if(!h)return null;const [Tk,k]=h,um=2898/Tk,f=umToHz(um);
+  // the loudness law: thermal flux relative to Earth, k·(T/255)^4, compressed so the giants' inner warmth is heard without Mercury shouting
+  const rel=Math.pow(k*Math.pow(Tk/255,4),.3);
+  if(f>=20)return {Tk,um,f,tone:true,rel};
+  let d=f;while(d<40)d*=2;return {Tk,um,f,tone:false,drone:d,rel}}
+
+/* --- radio: the planets that really transmit, timed from the sky --- */
+const J2000=2451545.0, TAU=Math.PI*2;
+const wrap360=x=>((x%360)+360)%360;
+const win=(x,lo,hi,soft)=>{ // a smooth window on a circle of degrees
+  const c=wrap360((lo+hi)/2+(hi<lo?180:0)), half=wrap360(hi-lo)/2;let d=Math.abs(wrap360(x-c));if(d>180)d=360-d;
+  return d<=half?1:Math.max(0,1-(d-half)/soft)};
+// Jupiter: Io-controlled decametric storms. Io's phase from the app's own Io; the System III central meridian from its 9h 55m 29.7s rotation
+// (λ_III = 284.95° + 870.536°/day since J2000, Dessler 1983 convention), corrected for light time and turned to the listener's longitude
+function jupiterRadio(H){
+  const jd=H.jd(), b=H.byId.jupiter, io=(b.moons||[]).find(m=>m.k==='io');if(!io)return {p:0,io:0,cml:0};
+  const pj=H.pos('jupiter'), L=H.listener(), dx=L.x-pj.x, dy=L.y-pj.y, dist=Math.hypot(dx,dy,L.z-pj.z);
+  const toL=Math.atan2(dy,dx)/TAU*360;                                                   // longitude of the listener, seen from Jupiter
+  const thIo=((jd-J2000)/io.P+io.ph0)*360;                                                // Io's longitude round Jupiter (the app's)
+  const ioPh=wrap360(thIo-toL-180);                                                       // 0° at superior conjunction
+  const pe=H.pos('earth'), toE=Math.atan2(pe.y-pj.y,pe.x-pj.x)/TAU*360;
+  const lt=dist*499.005/86400;                                                            // light time, days
+  const cml=wrap360(284.95+870.536*(jd-lt-J2000)+(toL-toE));
+  // the Io-related sources (Carr, Desch & Alexander 1983, roughly): A, B, C and the weaker D; plus a non-Io A/C background near CML 200–300°
+  const A=win(cml,200,270,25)*win(ioPh,195,260,20), B=win(cml,105,185,25)*win(ioPh,75,110,15), C=win(cml,290,30,25)*win(ioPh,220,260,20), D=.4*win(cml,20,140,25)*win(ioPh,95,130,15);
+  const nonIo=.25*win(cml,200,300,30);
+  return {p:Math.min(1,Math.max(A,B,C,D,nonIo)),io:ioPh,cml,src:A>=Math.max(B,C,D)&&A>0?'Io-A':B>=Math.max(C,D)&&B>0?'Io-B':C>=D&&C>0?'Io-C':D>0?'Io-D':nonIo>0?'non-Io':''};
+}
+const ROT={saturn:10.66,uranus:17.24,neptune:16.11,earth:23.934}; // hours
+const rotPhase=(H,id)=>(((H.jd()-J2000)*24/ROT[id])%1+1)%1;
+// Earth: auroral kilometric radiation, from the night side, with a quiet random weather of activity
+let akr={lvl:.5,next:0};
+function earthRadio(H){
+  const now=Date.now()/1000;if(now>akr.next){akr.next=now+20+Math.random()*60;akr.lvl=Math.max(.1,Math.min(1,akr.lvl+(Math.random()-.5)*.6))}
+  const pe=H.pos('earth'), L=H.listener(), d=Math.hypot(L.x-pe.x,L.y-pe.y,L.z-pe.z);
+  let night=.5;if(d>1e-6){const sx=-pe.x,sy=-pe.y,sz=-pe.z,sn=Math.hypot(sx,sy,sz)||1;night=(1-((L.x-pe.x)*sx+(L.y-pe.y)*sy+(L.z-pe.z)*sz)/(d*sn))/2}
+  return {p:akr.lvl*(.3+.7*night),night,lvl:akr.lvl};
+}
+
+/* --- the audio side --- */
+let H=null, loopT=null;
+const E={};   // per body: {colour:{in,dry,wet,conv}, heat:{...}, radio:{...}, want, vol, seen}
+const mk=(v,to)=>{const g=H.ctx.createGain();g.gain.value=v;if(to)g.connect(to);return g};
+const tg=(p,v,tc=.08)=>p.setTargetAtTime(v,H.ctx.currentTime,tc);
+function entry(b){return E[b.id]||(E[b.id]={b,want:0,vol:0,seen:0})}
+
+function voice(b,v,dest){
+  const e=entry(b), c=H.ctx;
+  const inp=mk(1), dry=mk(ON.colour?0:1,dest), wet=mk(ON.colour?1:0);
+  let conv=null;
+  // the convolver's output is folded back to one channel: a stereo copy fed to an HRTF panner would be summed in each ear and come out 6 dB louder
+  try{conv=c.createConvolver();conv.normalize=false;conv.buffer=colourIR(c,b);const mono=mk(1,dest);mono.channelCount=1;mono.channelCountMode='explicit';wet.connect(conv);conv.connect(mono)}catch(err){wet.connect(dest)}
+  inp.connect(dry);inp.connect(wet);
+  e.colour={inp,dry,wet,conv,dest};e.pan=v.pan;
+  return inp;
+}
+function setColour(on){for(const id in E){const e=E[id];if(!e.colour)continue;tg(e.colour.dry.gain,on?0:1,.05);tg(e.colour.wet.gain,on?1:0,.05)}}
+
+function buildHeat(e){
+  const c=H.ctx, h=heatOf(e.b);if(!h||!e.pan)return null;
+  const g=mk(0,e.pan), parts=[];
+  if(h.tone){
+    const o=c.createOscillator();o.type='sine';o.frequency.value=h.f;o.connect(g);parts.push(o);
+    // a second harmonic, quieter, so a phone's small speaker still hears the hum
+    const o2=c.createOscillator();o2.type='triangle';o2.frequency.value=h.f*2;o2.connect(mk(h.f<40?.35:.15,g));parts.push(o2);
+  }else{
+    // below hearing: a slow throb at the body's own rate, on a soft low drone a few octaves up
+    const o=c.createOscillator();o.type='sine';o.frequency.value=h.drone;const o2=c.createOscillator();o2.type='triangle';o2.frequency.value=h.drone*2;
+    const am=mk(.55,g);o.connect(am);o2.connect(mk(.25,am));
+    const lfo=c.createOscillator();lfo.frequency.value=h.f;const ld=mk(.45);lfo.connect(ld);ld.connect(am.gain);parts.push(o,o2,lfo);
+  }
+  parts.forEach(o=>o.start());
+  return {g,parts,h};
+}
+function killParts(x){if(!x)return;tg(x.g.gain,0,.1);setTimeout(()=>{x.parts.forEach(o=>{try{o.stop()}catch(err){}});try{x.g.disconnect()}catch(err){}},500)}
+
+// radio textures: all noise through filters, or sine chirps; the receiver's loudspeaker, not the 40-octave rule
+function noiseTap(){const c=H.ctx;if(H.noise)return H.noise();if(!H._nb){const b=c.createBuffer(1,c.sampleRate*2,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const s=c.createBufferSource();s.buffer=b;s.loop=true;H._nb=mk(1);s.connect(H._nb);s.start()}return H._nb}
+function buildRadio(e){
+  const c=H.ctx, id=e.b.id;if(!e.pan||!['jupiter','saturn','earth','uranus','neptune'].includes(id))return null;
+  const g=mk(0,e.pan), parts=[], taps=[], R={g,parts,taps,id,next:0,state:''};
+  const noise=noiseTap(), tap=(n)=>{noise.connect(n);taps.push(n)};
+  if(id==='jupiter'){
+    // L-bursts: a slow surf of band-limited noise; the band drifts
+    R.lbp=c.createBiquadFilter();R.lbp.type='bandpass';R.lbp.frequency.value=1200;R.lbp.Q.value=.9;R.lg=mk(0,g);tap(R.lbp);R.lbp.connect(R.lg);
+    // S-bursts: short clicks, a narrow band swept down fast
+    R.sbp=c.createBiquadFilter();R.sbp.type='bandpass';R.sbp.frequency.value=2500;R.sbp.Q.value=9;R.sg=mk(0,g);tap(R.sbp);R.sbp.connect(R.sg);
+    // hectometric hiss: a quieter, lower rumble of noise, always there
+    if(!LOWPOWER){R.hlp=c.createBiquadFilter();R.hlp.type='lowpass';R.hlp.frequency.value=500;R.hg=mk(.06,g);tap(R.hlp);R.hlp.connect(R.hg)}
+  }else if(id==='uranus'||id==='neptune'){
+    R.sbp=c.createBiquadFilter();R.sbp.type='bandpass';R.sbp.frequency.value=1800;R.sbp.Q.value=5;R.sg=mk(0,g);tap(R.sbp);R.sbp.connect(R.sg);
+  }else{
+    // Saturn and Earth: chirps from a sine, with a breath of noise under it
+    R.osc=c.createOscillator();R.osc.type='sine';R.osc.frequency.value=800;R.og=mk(0,g);R.osc.connect(R.og);parts.push(R.osc);R.osc.start();
+    R.nbp=c.createBiquadFilter();R.nbp.type='bandpass';R.nbp.frequency.value=1000;R.nbp.Q.value=2;R.ng=mk(0,g);tap(R.nbp);R.nbp.connect(R.ng);
+  }
+  return R;
+}
+function killRadio(R){if(!R)return;tg(R.g.gain,0,.1);setTimeout(()=>{R.parts.forEach(o=>{try{o.stop()}catch(err){}});R.taps.forEach(n=>{try{noiseTap().disconnect(n)}catch(err){}});try{R.g.disconnect()}catch(err){}},500)}
+// schedule the next slice of a radio texture; called every 100 ms while it sounds
+function radioTick(e,R,now){
+  const c=H.ctx, t=c.currentTime, id=R.id;
+  if(id==='jupiter'){
+    const J=jupiterRadio(H);R.act=J.p;R.state=J.p>.05?J.src:'';
+    if(t>R.next){
+      // L-burst swell: 1–4 s, in a storm; the band wanders between 700 and 2500 Hz
+      const dur=1+Math.random()*3, lvl=J.p*(.5+.5*Math.random())*.5;
+      R.lg.gain.setTargetAtTime(lvl,t,dur*.3);R.lg.gain.setTargetAtTime(lvl*.15,t+dur*.6,dur*.25);
+      R.lbp.frequency.setTargetAtTime(700+Math.random()*1800,t,dur*.5);
+      R.next=t+dur*(.7+Math.random()*.5);
+    }
+    // S-bursts: in storms, a crackle of 5–20 a second (4 on phones), each a 12 ms click swept down
+    const rate=J.p>.15?(LOWPOWER?4:5+15*J.p):0;
+    if(rate){const n=Math.random()<rate*.1?1:0;for(let k=0;k<n;k++){const at=t+Math.random()*.1,f=1500+Math.random()*3000;
+      R.sbp.frequency.setValueAtTime(f,at);R.sbp.frequency.exponentialRampToValueAtTime(f*.5,at+.015);
+      R.sg.gain.setValueAtTime(0,at);R.sg.gain.linearRampToValueAtTime(.9*J.p,at+.003);R.sg.gain.setTargetAtTime(0,at+.006,.006)}}
+  }else if(id==='saturn'){
+    const ph=rotPhase(H,'saturn'), act=Math.pow(.5+.5*Math.cos(TAU*ph),2);R.act=act;R.state=act>.1?'on':'';
+    if(t>R.next){
+      if(Math.random()<.3+.7*act){const f0=300+Math.random()*900, f1=f0*(Math.random()<.5?2.5:.4), dur=.25+Math.random()*.6;
+        R.osc.frequency.setValueAtTime(f0,t);R.osc.frequency.exponentialRampToValueAtTime(f1,t+dur);
+        R.og.gain.setValueAtTime(0,t);R.og.gain.linearRampToValueAtTime(.25*act,t+.03);R.og.gain.setTargetAtTime(0,t+dur-.05,.03);
+        R.ng.gain.setTargetAtTime(.04*act,t,.1);R.ng.gain.setTargetAtTime(0,t+dur,.1)}
+      R.next=t+.3+Math.random()*(1.5-act);
+    }
+  }else if(id==='earth'){
+    const A=earthRadio(H);R.act=A.p;R.state=A.p>.1?'on':'';
+    if(t>R.next){
+      if(Math.random()<.2+.8*A.p){const rising=Math.random()<.6, f0=rising?400+Math.random()*600:2500+Math.random()*1500, f1=rising?f0*(3+Math.random()*2):f0*.2, dur=rising?.3+Math.random()*.7:.8+Math.random()*1.4;
+        R.osc.frequency.setValueAtTime(f0,t);R.osc.frequency.exponentialRampToValueAtTime(f1,t+dur);
+        R.og.gain.setValueAtTime(0,t);R.og.gain.linearRampToValueAtTime(.22*A.p,t+.04);R.og.gain.setTargetAtTime(0,t+dur-.06,.05);
+        R.ng.gain.setTargetAtTime(.03*A.p,t,.2);R.ng.gain.setTargetAtTime(0,t+dur,.2)}
+      R.next=t+.25+Math.random()*(2-1.5*A.p);
+    }
+  }else{ // Uranus, Neptune: faint short bursts in one sector of the rotation
+    const ph=rotPhase(H,id), act=Math.pow(Math.max(0,Math.cos(TAU*(ph-.1))),6);R.act=act;R.state=act>.1?'on':'';
+    if(t>R.next){if(act>.05&&Math.random()<act){const at=t,f=900+Math.random()*2000,dur=.04+Math.random()*.12;
+        R.sbp.frequency.setValueAtTime(f,at);R.sg.gain.setValueAtTime(0,at);R.sg.gain.linearRampToValueAtTime(.6,at+.01);R.sg.gain.setTargetAtTime(0,at+dur,.03)}
+      R.next=t+.15+Math.random()*.6}
+  }
+}
+const RADIO_LVL={jupiter:1,saturn:.6,earth:.6,uranus:.35,neptune:.35};
+
+// the host calls this for each body on every audio update, with the voice's current loudness target (0 when it is silent)
+function tick(b,v,vol,aud){
+  if(!H)return;const e=entry(b);e.vol=vol;e.seen=performance.now();e.pan=v.pan;
+  const c=H.ctx;
+  if(ON.heat&&vol>0&&HEAT[b.id]){if(!e.heat)e.heat=buildHeat(e);if(e.heat)tg(e.heat.g.gain,vol*e.heat.h.rel*(aud?1.1:.8),.15)}
+  else if(e.heat){killParts(e.heat);e.heat=null}
+  if(ON.radio&&vol>0&&RADIO_LVL[b.id]){if(!e.radio)e.radio=buildRadio(e);if(e.radio)tg(e.radio.g.gain,vol*RADIO_LVL[b.id]*(aud?3:2.2),.15)}
+  else if(e.radio){killRadio(e.radio);e.radio=null}
+}
+function loop(){
+  if(!H||H.ctx.state!=='running')return;const now=performance.now();
+  for(const id in E){const e=E[id];
+    if(now-e.seen>600){if(e.heat){killParts(e.heat);e.heat=null}if(e.radio){killRadio(e.radio);e.radio=null}continue}
+    if(e.radio)radioTick(e,e.radio,now)}
+}
+function attach(host){H=host;clearInterval(loopT);loopT=setInterval(loop,100)}
+
+/* --- the readout: what this body's light does --- */
+const BANDS=[['blue',380,495],['green',495,570],['yellow',570,590],['orange',590,620],['red',620,760]];
+function colourWords(b){
+  const tab=albedoOf(b);const m=BANDS.map(([k,lo,hi])=>{let s=0,n=0;for(let x=lo;x<=hi;x+=5){s+=interp(tab,x);n++}return [k,s/n]});
+  const mean=m.reduce((s,x)=>s+x[1],0)/m.length;const hi=m.reduce((a,x)=>x[1]>a[1]?x:a),lo=m.reduce((a,x)=>x[1]<a[1]?x:a);
+  if(hi[1]/Math.max(lo[1],1e-4)<1.25)return mean>.3?T.pale:T.grey;
+  return T.refl.replace('{a}',T.c[hi[0]]).replace('{b}',T.c[lo[0]]);
+}
+const fmt=(x,d)=>x.toLocaleString(({pl:'pl-PL',cy:'cy-GB',de:'de-DE',es:'es-ES',fr:'fr-FR',it:'it-IT',ja:'ja-JP',zh:'zh-CN',vi:'vi-VN'})[LANG]||'en-GB',{maximumFractionDigits:d});
+function readout(b){
+  if(!b)return '';const parts=[colourWords(b)];
+  const h=heatOf(b);if(h)parts.push((h.tone?T.heatT:T.heatP).replace('{l}',fmt(h.um,h.um<10?1:0)).replace('{f}',fmt(h.f,h.tone?0:1)));
+  if(RADIO_LVL[b.id]){const e=E[b.id],R=e&&e.radio;
+    if(b.id==='jupiter'){const J=H?jupiterRadio(H):{p:0};parts.push(J.p>.05?T.r.jupiter+(J.src?' ('+J.src+')':''):T.r.jupiterQ)}
+    else parts.push(R&&R.state?T.r[b.id]:(T.r[b.id]+' · '+T.rq))}
+  return parts.join(' · ');
+}
+
+/* --- controls --- */
+const css=document.createElement('style');css.textContent='.lightRow{display:flex;flex-wrap:wrap;gap:0 14px;align-items:center}.lightRow .check{min-height:1.9rem}#lightTxt:empty{display:none}';document.head.appendChild(css);
+const KEYS=['colour','heat','radio'];
+function setOn(k,on){ON[k]=!!on;LS.set('mots.light.'+k,on?'1':'0');if(k==='colour')setColour(on);document.querySelectorAll('input[data-light="'+k+'"]').forEach(i=>i.checked=!!on)}
+function controls(){
+  const row=document.createElement('div');row.className='lightRow';
+  KEYS.forEach(k=>{const l=document.createElement('label');l.className='check';const i=document.createElement('input');i.type='checkbox';i.dataset.light=k;i.checked=ON[k];i.onchange=()=>setOn(k,i.checked);l.appendChild(i);l.appendChild(document.createTextNode(' '+T[k]));row.appendChild(l)});
+  return row;
+}
+function mount(){
+  const groups=document.getElementById('groups');
+  if(groups){ // the dial: a field under the choir's groups
+    const f=document.createElement('div');f.className='field';f.id='lightCtl';const lab=document.createElement('span');lab.className='lab';lab.textContent=T.light;f.appendChild(lab);f.appendChild(controls());
+    const note=document.createElement('p');note.className='note';note.textContent=T.note;f.appendChild(note);groups.insertAdjacentElement('afterend',f);
+  }
+  const voices=document.getElementById('voices'), panel=document.getElementById('panel');
+  if(panel&&voices&&panel.contains(voices)){ // the flight: a block after the voices in the navigation panel
+    const d=document.createElement('div');d.id='lightCtl';const h=document.createElement('h3');h.textContent=T.light;d.appendChild(h);d.appendChild(controls());voices.parentElement.insertAdjacentElement('afterend',d);
+    const ro=document.querySelector('.readout');if(ro){const s=document.createElement('div');s.className='sub';s.id='lightTxt';ro.appendChild(s)}
+  }
+}
+if(document.readyState==='loading')addEventListener('DOMContentLoaded',mount);else mount();
+// the dial's info card: a row for this body's light
+function info(b,dl){if(!dl)return;let row=dl.querySelector('#i_light');if(!row){row=document.createElement('div');row.style.gridColumn='1/-1';row.innerHTML='<dt></dt><dd id="i_light" style="font-family:var(--f-body)"></dd>';row.querySelector('dt').textContent=T.light;dl.appendChild(row)}
+  const dd=row.querySelector('dd')||row;dd.textContent=readout(b)}
+// the flight's readout line: the body the ship is with, or nearest to
+let nearLast='';
+function near(id){const el=document.getElementById('lightTxt');if(!el)return;const b=id&&H&&H.byId[id];const txt=b&&b.kind!=='comet'?((b.god||b.name)+' · '+readout(b)):'';if(txt!==nearLast){nearLast=txt;el.textContent=txt}}
+
+MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
+  // a window for tests
+  _probe:{nmToHz,hzToNm,umToHz,heatOf,colourCurve,gainAt,albedoOf,jupiterRadio:()=>H?jupiterRadio(H):null,earthRadio:()=>H?earthRadio(H):null,entries:()=>E,colourIR:b=>H?colourIR(H.ctx,b):null,win,ALB,HEAT}};
+})();
+</script>
+<script>
 /* ---------- one language menu instead of a row of language links ---------- */
 (()=>{
 "use strict";
@@ -1598,8 +1950,9 @@ function makeVoice(b){
   // only the planets get true 3D (HRTF) panning; everything else uses cheap stereo panning
   const v={pan:mkPanner(b.kind==='planet')};
   // distance colours the sound as well as its loudness: far planets lose a little of their brightness (not on low-power devices)
-  if(b.kind==='planet'&&!LOWPOWER){v.air=AC.createBiquadFilter();v.air.type='lowpass';v.air.frequency.value=16000;v.air.Q.value=.5;v.air.connect(v.pan);v.vol=mkGain(0,v.air)}
-  else v.vol=mkGain(0,v.pan);
+  if(b.kind==='planet'&&!LOWPOWER){v.air=AC.createBiquadFilter();v.air.type='lowpass';v.air.frequency.value=16000;v.air.Q.value=.5;v.air.connect(v.pan)}
+  // the light module (light.js) colours the voice with the body's reflectance spectrum, between its volume and the panner
+  const dest0=v.air||v.pan;v.vol=mkGain(0,window.MOTS&&MOTS.light?MOTS.light.voice(b,v,dest0):dest0);
   v.rate=Math.min(7,6*Math.pow(3.9/Math.abs(b.rot),.45));
   v.moonBus=mkGain(1);v.moonVol=mkGain(0,v.pan);v.moonBus.connect(v.moonVol);
   (b.moons||[]).forEach(m=>{
@@ -1677,6 +2030,7 @@ function initAudio(){
   const jl=AC.createBiquadFilter();jl.type='lowpass';jl.frequency.value=7;noiseBus.connect(jl);jitBus=mkGain(1);jl.connect(jitBus);
   const ib=AC.createBiquadFilter();ib.type='bandpass';ib.frequency.value=1600;ib.Q.value=.6;noiseBus.connect(ib);inhaleBus=mkGain(.16);ib.connect(inhaleBus);
   const re=new Float32Array(5),im=new Float32Array(5);for(let n=1;n<5;n++)im[n]=-1/n;RETRO=AC.createPeriodicWave(re,im);
+  if(window.MOTS&&MOTS.light)MOTS.light.attach({ctx:AC,noise:()=>noiseBus,jd:()=>S.jd,pos:id=>P[id],listener:listenerPos,byId,bodies:BODIES});
   for(let k=0;k<8;k++){const p=mkPanner(false);POOL.push({p,g:mkGain(0,p)})}
   for(let k=0;k<3;k++)BELTP.push(mkPanner(false));
   makeAspectVoices();
@@ -1804,7 +2158,8 @@ function updateAudio(){
         const sb=p.r>0?p.z/p.r:0;tgt(I.lp.frequency,Math.max(300,Math.min(12000,(I.br||2600)*Math.pow(2,3*sb))),.2);}
       vol=aud?.1*(.55+.45*b.sizeG)*(focus?.3:1):(b.kind==='planet'?.075:.06)*g*grp*(S.thinker!=='today'?2.2:1);
     }
-    tgt(v.vol.gain,v.part&&(on||aud)?vol*duck*(1+W.a)*(1+.25*(swell[b.id]||0)):0,.12);
+    const volT=v.part&&(on||aud)?vol*duck*(1+W.a)*(1+.25*(swell[b.id]||0)):0;tgt(v.vol.gain,volT,.12);
+    if(window.MOTS&&MOTS.light)MOTS.light.tick(b,v,volT,aud);
     if(v.air)tgt(v.air.frequency,aud?16000:Math.max(1800,16000*Math.pow(1+(a.d||0),-.6)),.4);
     if(Hp&&(on||aud))humanTick(Hp.h,p.f,1,now);
     // moons follow their planet: silent when it is
@@ -2608,6 +2963,7 @@ function readout(ns){
     anc?`环绕<em>${anc.god}</em>运行`:`最近：<em>${near}</em>`;
   if(SYS.id)txt+=` · ${byId[SYS.id].moons.length} 颗卫星${byId[SYS.id].moons.length>1?'':''}在歌唱`;
   $('nearTxt').innerHTML=txt;renderCourse();
+  if(window.MOTS&&MOTS.light)MOTS.light.near(ship.anchor||(ns.who==='sun'?null:ns.who.split(':')[0]));
   const v=(ship.speed||0)*AU_KM/MAG*(ship.anchor?1:MAG), c=299792.458;
   const sp=v>c?(v/c).toFixed(v/c<10?1:0)+' 倍光速':Math.round(v).toLocaleString('zh-CN')+' 公里/秒';
   const dist=ship.pos.length();
