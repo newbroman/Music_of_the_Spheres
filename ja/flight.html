@@ -213,6 +213,20 @@ const qFns=[];
 MOTS.quality=()=>quality;
 MOTS.onQuality=fn=>{qFns.push(fn)};
 MOTS.setQuality=q=>{if(!QT.en[q]||q===quality)return;quality=q;LS.set('mots.quality',q);qFns.forEach(f=>{try{f(q)}catch(e){}});syncQ()};
+/* --- a watchdog for slower phones: when the audio clock falls behind the wall clock (the device dropping sound, heard as crackle or
+   clipping), the quality steps down once, to Standard then Eco, and says so. A quality chosen by hand in Stage is left alone. --- */
+{const QD={en:'Lighter sound for this device, so it plays smoothly (Stage → Quality: ',pl:'Lżejszy dźwięk dla tego urządzenia, żeby grało płynnie (Scena → Jakość: ',cy:'Sain ysgafnach i’r ddyfais hon, er mwyn iddi chwarae’n llyfn (Llwyfan → Ansawdd: ',de:'Leichterer Klang für dieses Gerät, damit es flüssig spielt (Bühne → Qualität: ',es:'Sonido más ligero para este dispositivo, para que suene fluido (Escenario → Calidad: ',fr:'Son allégé pour cet appareil, pour une lecture fluide (Scène → Qualité : ',it:'Suono più leggero per questo dispositivo, perché suoni fluido (Palco → Qualità: ',zh:'为此设备减轻声音负载，让播放更流畅（舞台 → 音质：',ja:'この端末向けに音を軽くして、なめらかに再生します（ステージ → 音質：',vi:'Âm thanh nhẹ hơn cho thiết bị này để phát mượt mà (Sân khấu → Chất lượng: '};
+  let last=null,bad=0,cool=0;
+  const say=q=>{const t=document.createElement('div');t.setAttribute('role','status');t.style.cssText='position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9500;max-width:min(92vw,560px);background:#13162a;color:#e9e1cc;border:1px solid #c9984f;border-radius:12px;padding:10px 14px;font:15px/1.4 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.5);transition:opacity .6s';
+    const zh=LANG==='zh'||LANG==='ja';t.textContent=(QD[LANG]||QD.en)+(QT[LANG]||QT.en)[q]+(zh?'）':')');document.body.appendChild(t);setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),700)},7000)};
+  let seen=null;
+  setInterval(()=>{const c=ctx;if(c&&c!==seen){seen=c;c.addEventListener('statechange',()=>{last=null})}   // a pause or resume is not a dropout
+    if(!c||c.state!=='running'||document.hidden||MOTS.projPaused||LS.get('mots.quality.manual')==='1'){last=null;return}
+    const now={w:performance.now()/1000,a:c.currentTime,u:c.playoutStats?c.playoutStats.fallbackFramesEvents||0:null};
+    if(last){const lag=(now.w-last.w)-(now.a-last.a),under=now.u!=null&&last.u!=null&&now.u>last.u;
+      if(lag>.05||under)bad++;else bad=Math.max(0,bad-1)}
+    last=now;if(cool>0){cool--;return}
+    if(bad>=2&&quality!=='eco'){const q=quality==='high'?'std':'eco';bad=0;cool=5;MOTS.setQuality(q);say(q)}},2000)}
 // a convolution reverb for High quality: a dense, slowly darkening tail with a few early reflections, built once per context
 MOTS.makeIR=(c,sec=3.2)=>{const len=Math.floor(c.sampleRate*sec),buf=c.createBuffer(2,len,c.sampleRate);
   for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);let lp=0;
@@ -573,7 +587,7 @@ function openPanel(){
   <div class="row"><button type="button" class="b" id="stProj">${T.proj}</button><button type="button" class="b" id="stClose">${T.close}</button></div>`;
   document.body.appendChild(p);syncOut();
   p.querySelectorAll('#stOut button').forEach(b=>b.onclick=()=>MOTS.setOut(b.dataset.v));p.querySelector('#stTest').onclick=()=>MOTS.surround.test();
-  p.querySelectorAll('#stQ button').forEach(b=>b.onclick=()=>MOTS.setQuality(b.dataset.v));syncQ();meterLoop();
+  p.querySelectorAll('#stQ button').forEach(b=>b.onclick=()=>{LS.set('mots.quality.manual','1');MOTS.setQuality(b.dataset.v)});syncQ();meterLoop();
   p.querySelector('#stMidiGo').onclick=connectMIDI;if(access)fillOuts();
   p.querySelector('#stMidi').onchange=e=>pickOut(e.target.value);
   p.querySelector('#stClock').onchange=e=>{clockOn=e.target.checked;LS.set('mots.clock',clockOn?'1':'0');if(clockOn&&running){send([0xFA]);startClock()}else{if(running)send([0xFC]);stopClock()}};
