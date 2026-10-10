@@ -129,6 +129,7 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
 @media (max-width:560px){.floor-lyric{bottom:6%;font-size:1rem}}
 .vt{display:flex;align-items:center;gap:.35rem;margin:.2rem 0 .05rem;font-size:.74rem}
 .mrow>.vt{grid-column:2/-1;margin-top:-.2rem}
+.mrow>.vs{grid-column:2/-1;display:flex;align-items:center;gap:.5rem;font-size:.74rem;color:var(--vellum-dim);text-transform:uppercase;letter-spacing:.05em}.mrow>.vs input{flex:1;max-width:220px;accent-color:var(--gold,#c9984f)}
 /* on a narrow screen the instrument goes on its own line under the god's name, whole, so the slider leaves it room */
 @media (max-width:640px){.mrow .nm{white-space:normal}.mrow .nm>span{display:block;white-space:normal;line-height:1.25;margin-top:.1rem}.mrow{padding:.35rem .25rem}}
 .vt .vtl{color:var(--vellum-dim);text-transform:uppercase;letter-spacing:.06em;font-size:.66rem}
@@ -3846,10 +3847,10 @@ function vocF(v,f,t,tc){const t0=Math.max(AC.currentTime+.002,t);[v.o1,v.o2].for
 // (soul, funk and disco want more of the real voice under a softer synth; the club styles a brighter synth with less)
 function vocStart(h,t,lvl,fMean,rec){
   const v=h.voc||(h.voc=makeVoc(h)),warm=!!STY().vocal,now=AC.currentTime;
-  h.shift=Math.max(-2,Math.min(2,Math.floor(Math.log2((rec.R.f0||240)*1.7/fMean))));   // sung from a little under the speaking pitch to a sixth above ith.lvl=lvl;v.warm=warm;
-  const dry=LOWPOWER?(warm?.6:.2):(warm?.8:.3);
-  v.carLP.frequency.setTargetAtTime(warm?3000:9000,now,.05);v.dry.gain.setTargetAtTime(dry,now,.05);v.sibG.gain.setTargetAtTime(warm?.25:.35,now,.05);
-  v.sum.gain.setTargetAtTime(warm?.35:1,now,.05);v.nzg.gain.setTargetAtTime(warm?.05:.1,now,.05);v.o2g.gain.setTargetAtTime(warm?.3:.6,now,.05);
+  h.shift=Math.max(-2,Math.min(2,Math.floor(Math.log2((rec.R.f0||240)*1.7/fMean))));   // sung from a little under the speaking pitch to a sixth above it
+  h.lvl=lvl;v.warm=warm;
+  v.carLP.frequency.setTargetAtTime(warm?3000:9000,now,.05);v.sibG.gain.setTargetAtTime(warm?.25:.35,now,.05);
+  vocMix(v,now);v.nzg.gain.setTargetAtTime(warm?.05:.1,now,.05);v.o2g.gain.setTargetAtTime(warm?.3:.6,now,.05);
   v.out.gain.cancelScheduledValues(now);v.out.gain.setTargetAtTime(lvl*VR_LVL,Math.max(now,t-.08),.04);
   vocF(v,fMean*Math.pow(2,h.shift),now,.01);
 }
@@ -3935,6 +3936,19 @@ function chopRec(t,f,len){
   noteEv('venus',t,f,.7,len);flash('venus',t);VR.chops++;return true;
 }
 const _chopRec=chop;chop=function(t,f,len,vow){if(VX.mode==='chops'&&CLUB()&&chopRec(t,f,len))return;_chopRec(t,f,len,vow)};
+// the voice/synth balance: how much of the vocoder's synth sings with the real voice, set in the mixer for each dance
+// (0 = the recorded voice alone, 100 = the synth with only a trace of the voice); the sung styles start mostly voice, the club styles mostly synth
+const VS_UI={en:['Voice','Synth'],pl:['Głos','Syntezator'],cy:['Llais','Syntheseinydd'],de:['Stimme','Synth'],es:['Voz','Sintetizador'],fr:['Voix','Synthé'],it:['Voce','Synth'],zh:['人声','合成器'],ja:['声','シンセ'],vi:['Giọng','Synth']};
+let VSYN={};try{VSYN=JSON.parse(localStorage.getItem('mots.vocsynth')||'{}')||{}}catch(e){}
+function synthAmt(){const v=VSYN[D.style];return v!==undefined?v:(STY().vocal?.3:.75)}
+function vocMix(v,now){const x=synthAmt();v.dry.gain.setTargetAtTime(.9-.62*x,now,.05);v.sum.gain.setTargetAtTime(x*(v.warm?.9:1.1),now,.05);v.sibG.gain.setTargetAtTime(.3*x,now,.05)}
+{const _rm=renderMixer;renderMixer=function(){_rm();if(!CLUB()||VX.mode!=='words')return;const row=$('mix').querySelector('.mrow[data-id="venus"]');if(!row)return;
+  const U=VS_UI[VLANG]||VS_UI.en,x=Math.round(synthAmt()*100),w=document.createElement('label');w.className='vs';
+  w.innerHTML=`<span>${U[0]}</span><input type="range" min="0" max="100" step="5" value="${x}" aria-label="${U[0]} / ${U[1]}" title="${U[1]} ${x}%"><span>${U[1]}</span>`;
+  const r=w.querySelector('input');r.addEventListener('input',e=>{e.stopPropagation();const v=+r.value/100;VSYN[D.style]=v;r.title=U[1]+' '+r.value+'%';try{localStorage.setItem('mots.vocsynth',JSON.stringify(VSYN))}catch(_){}
+    if(AC)[VX.lead,VX.chant].forEach(h=>{if(h&&h.voc)vocMix(h.voc,AC.currentTime)})});
+  r.addEventListener('dblclick',()=>{delete VSYN[D.style];try{localStorage.setItem('mots.vocsynth',JSON.stringify(VSYN))}catch(_){}renderMixer();if(AC)[VX.lead,VX.chant].forEach(h=>{if(h&&h.voc)vocMix(h.voc,AC.currentTime)})});
+  row.appendChild(w)}}
 MOTS.voice.rec=()=>({idx:!!VR.idx,loaded:Object.keys(VR.buf).length,pending:Object.keys(VR.bytes).length,used:VR.used,fallback:VR.fb,fail:VR.fail,grains:VR.grains,chops:VR.chops,marked:Object.keys(VR.buf).filter(k=>VR.idx&&VR.idx[k]&&VR.idx[k].M&&VR.idx[k].M.some(m=>m)).length});
 MOTS.voice.useRec=on=>{VR.off=!on;VR.pool=null};
 MOTS.voice.dbg=()=>({VR,voc:VX.lead&&VX.lead.voc,playPitched,playStretch,playPart,HANN:()=>HANN});
