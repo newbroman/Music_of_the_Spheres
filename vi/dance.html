@@ -108,7 +108,8 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
 .chord .r{font-family:var(--f-display);font-size:1.5rem;line-height:1.1}
 .chord .w{font-size:.74rem;color:var(--vellum-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mix{display:flex;flex-direction:column;gap:2px}
-.mrow{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:.6rem;align-items:center;padding:.25rem .25rem;min-height:2.4rem;border-radius:4px}
+.mrow .mv{width:100%;min-width:60px;accent-color:var(--gold,#c9984f)}
+.mrow{display:grid;grid-template-columns:12px minmax(0,1fr) minmax(64px,110px) auto;gap:.6rem;align-items:center;padding:.25rem .25rem;min-height:2.4rem;border-radius:4px}
 .mrow .sw{width:10px;height:10px;border-radius:50%;transition:box-shadow .08s}
 .mrow .nm{min-width:0;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mrow .nm span{color:var(--vellum-dim);font-size:.84rem}
@@ -127,6 +128,7 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
 .mots-proj .floor-lyric{font-size:clamp(1.6rem,1rem + 2.6vw,4.4rem);bottom:12%}
 @media (max-width:560px){.floor-lyric{bottom:6%;font-size:1rem}}
 .vt{display:flex;align-items:center;gap:.35rem;margin:.2rem 0 .05rem;font-size:.74rem}
+.mrow>.vt{grid-column:2/-1;margin-top:-.2rem}
 .vt .vtl{color:var(--vellum-dim);text-transform:uppercase;letter-spacing:.06em;font-size:.66rem}
 .vt button{appearance:none;background:transparent;border:1px solid var(--line-2);padding:.1rem .5rem;min-height:1.5rem;cursor:pointer;color:var(--vellum-dim);font-size:.74rem;border-radius:0}
 .vt button:first-of-type{border-radius:5px 0 0 5px}.vt button:last-of-type{border-radius:0 5px 5px 0;border-left:0}
@@ -1463,7 +1465,7 @@ function ensurePatterns(){
 }
 
 /* ---- audio graph ---- */
-let AC=null,master,lim,musicBus,duck,musicLP,drumBus,revSend,dlySend,noiseBuf,PAN={},padV=[],subV=null,audioOn=false;
+let AC=null,master,lim,musicBus,duck,musicLP,drumBus,revSend,dlySend,noiseBuf,PAN={},VOL={},padV=[],subV=null,audioOn=false;
 const mkG=(v,to)=>{const g=AC.createGain();g.gain.value=v;if(to)g.connect(to);return g};
 function makeTemple(input,output){
   const pre=mkG(.5);
@@ -1503,10 +1505,12 @@ function initDanceAudio(){
   noiseBuf=AC.createBuffer(1,AC.sampleRate*2,AC.sampleRate);const nd=noiseBuf.getChannelData(0);for(let i=0;i<nd.length;i++)nd[i]=Math.random()*2-1;
   // one stereo position per planet, from where it stands around the Sun
   BODIES.filter(b=>b.kind==='planet').concat([{id:'sun'}]).forEach(b=>{const p=AC.createStereoPanner();PAN[b.id]=p});
-  ['sun','mercury','earth','mars'].forEach(id=>PAN[id].connect(drumBus));
-  ['jupiter','saturn','venus','uranus','neptune'].forEach(id=>PAN[id].connect(musicBus));
+  // each player's volume (the mixer's sliders) sits after its panner; the moons share one
+  ['sun','mercury','earth','mars'].forEach(id=>PAN[id].connect(VOL[id]=mkG(volOf(id),drumBus)));
+  ['jupiter','saturn','venus','uranus','neptune'].forEach(id=>PAN[id].connect(VOL[id]=mkG(volOf(id),musicBus)));
+  VOL['jupiter-moons']=mkG(volOf('jupiter-moons'),drumBus);
   // 5.1: the band's gods circle the room with their planets (the vernal point ahead); drums and bass stay at the front
-  if(window.MOTS&&MOTS.surround){['jupiter','saturn','venus','uranus','neptune'].forEach(id=>MOTS.surround.add(PAN[id],{az:()=>P[id]?Math.atan2(P[id].y,P[id].x)*180/Math.PI:null}));
+  if(window.MOTS&&MOTS.surround){['jupiter','saturn','venus','uranus','neptune'].forEach(id=>MOTS.surround.add(VOL[id],{az:()=>P[id]?Math.atan2(P[id].y,P[id].x)*180/Math.PI:null}));
     MOTS.surround.attach({ctx:AC,master,lim,entry:duck,bypass:[[musicLP,glue,master]],trim:1.48})}
   buildPads();buildSub();
 }
@@ -1830,7 +1834,7 @@ function samp(n,t,f,len,lvl,id,o={}){
 }
 function sChord(n,t,degs,oct,len,lvl,id,o={}){if(!SMP.ready[n])return false;degs.forEach((d,k)=>samp(n,t+(o.spread||0)*k,noteF(d,oct),len,lvl,id,{...o,flash:false}));flash(id,t);return true}
 /* ---- instruments ---- */
-const toPan=id=>PAN[id]||drumBus;
+const toPan=id=>PAN[id]||(/^(jupiter-moons|io|europa|ganymede|callisto)$/.test(id)&&VOL['jupiter-moons'])||drumBus;
 // a hammered string: a triangle body with a little sawtooth brightness, the felt closing quickly
 function piano(t,f,len,lvl,id){
   const g=mkG(0,toPan(id)),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(Math.min(8000,f*9),t);lp.frequency.setTargetAtTime(Math.max(600,f*2.5),t,.15);
@@ -2256,8 +2260,15 @@ const BAND=[
   {id:'neptune',god:'Poseidon',inst:'Sub bass và không khí'}];
 BAND.forEach(x=>{if(!x.color)x.color=byId[x.id].color});
 function renderMixer(){
-  $('mix').innerHTML=BAND.map(x=>`<div class="mrow${D.mute.has(x.id)?' off':''}" data-id="${x.id}"><span class="sw" id="sw_${x.id}" style="background:${x.color};color:${x.color}"></span><span class="nm">${x.god} <span>${(STY().inst&&STY().inst[x.id])||x.inst}</span></span><button class="mb" aria-pressed="${D.mute.has(x.id)}" title="Tắt tiếng ${x.god}">M</button></div>`).join('');
+  $('mix').innerHTML=BAND.map(x=>`<div class="mrow${D.mute.has(x.id)?' off':''}" data-id="${x.id}"><span class="sw" id="sw_${x.id}" style="background:${x.color};color:${x.color}"></span><span class="nm">${x.god} <span>${(STY().inst&&STY().inst[x.id])||x.inst}</span></span><input class="mv" type="range" min="0" max="150" step="5" value="${Math.round(volOf(x.id)*100)}" aria-label="${x.god}" title="${Math.round(volOf(x.id)*100)}%"><button class="mb" aria-pressed="${D.mute.has(x.id)}" title="Tắt tiếng ${x.god}">M</button></div>`).join('');applyVol()
 }
+// a volume for each player, remembered for each dance (double-tap a slider for 100%)
+let MIXVOL={};try{MIXVOL=JSON.parse(localStorage.getItem('mots.mixvol')||'{}')||{}}catch(e){}
+function volOf(id){const s=MIXVOL[D.style];return s&&s[id]!==undefined?s[id]:1}
+function applyVol(id){if(!AC)return;(id?[id]:Object.keys(VOL)).forEach(k=>{if(VOL[k])VOL[k].gain.setTargetAtTime(volOf(k),AC.currentTime,.05)})}
+function setVol(id,v){(MIXVOL[D.style]=MIXVOL[D.style]||{})[id]=v;if(v===1)delete MIXVOL[D.style][id];try{localStorage.setItem('mots.mixvol',JSON.stringify(MIXVOL))}catch(e){}applyVol(id)}
+$('mix').addEventListener('input',e=>{const s=e.target.closest('.mv');if(!s)return;const v=+s.value/100;s.title=s.value+'%';setVol(s.closest('.mrow').dataset.id,v)});
+$('mix').addEventListener('dblclick',e=>{const s=e.target.closest('.mv');if(!s)return;s.value=100;s.title='100%';setVol(s.closest('.mrow').dataset.id,1)});
 $('mix').onclick=e=>{const r=e.target.closest('.mrow');if(!r||!e.target.closest('.mb'))return;const id=r.dataset.id;D.mute.has(id)?D.mute.delete(id):D.mute.add(id);renderMixer()};
 const cv=$('dial'),g=cv.getContext('2d');let W=0,H=0,DPR=1,CX=0,CY=0,RR=0;
 let K=1,SK=1;
@@ -2814,7 +2825,7 @@ function singH(h,syl,t,dur,f,o={}){
 function setVocals(m){VX.mode=m;try{localStorage.setItem('mots.vocals',m)}catch(e){}if(m==='chops'){hushAll();VX.busyUntil=0;VX.cue.length=0;if(VX.capEl)VX.capEl.classList.remove('show')}renderMixer()}
 const _renderMixer=renderMixer;renderMixer=function(){
   _renderMixer();if(!CLUB())return;
-  const row=$('mix').querySelector('.mrow[data-id="venus"] .nm');if(!row)return;
+  const row=$('mix').querySelector('.mrow[data-id="venus"]');if(!row)return;
   const U=VX.L.ui,sw=document.createElement('span');sw.className='vt';sw.setAttribute('role','group');sw.setAttribute('aria-label',U.vocals);
   sw.innerHTML=`<span class="vtl">${U.vocals}</span><button data-v="words" aria-pressed="${VX.mode==='words'}">${U.words}</button><button data-v="chops" aria-pressed="${VX.mode==='chops'}">${U.chops}</button>`;
   sw.querySelectorAll('button').forEach(b=>b.onclick=e=>{e.stopPropagation();setVocals(b.dataset.v)});
@@ -3836,9 +3847,9 @@ function vocF(v,f,t,tc){const t0=Math.max(AC.currentTime+.002,t);[v.o1,v.o2].for
 function vocStart(h,t,lvl,fMean,rec){
   const v=h.voc||(h.voc=makeVoc(h)),warm=!!STY().vocal,now=AC.currentTime;
   h.shift=Math.max(-2,Math.min(2,Math.floor(Math.log2((rec.R.f0||240)*1.7/fMean))));   // sung from a little under the speaking pitch to a sixth above ith.lvl=lvl;v.warm=warm;
-  const dry=LOWPOWER?(warm?.4:.2):(warm?.55:.3);
+  const dry=LOWPOWER?(warm?.6:.2):(warm?.8:.3);
   v.carLP.frequency.setTargetAtTime(warm?3000:9000,now,.05);v.dry.gain.setTargetAtTime(dry,now,.05);v.sibG.gain.setTargetAtTime(warm?.25:.35,now,.05);
-  v.sum.gain.setTargetAtTime(warm?.6:1,now,.05);v.nzg.gain.setTargetAtTime(warm?.05:.1,now,.05);v.o2g.gain.setTargetAtTime(warm?.3:.6,now,.05);
+  v.sum.gain.setTargetAtTime(warm?.35:1,now,.05);v.nzg.gain.setTargetAtTime(warm?.05:.1,now,.05);v.o2g.gain.setTargetAtTime(warm?.3:.6,now,.05);
   v.out.gain.cancelScheduledValues(now);v.out.gain.setTargetAtTime(lvl*VR_LVL,Math.max(now,t-.08),.04);
   vocF(v,fMean*Math.pow(2,h.shift),now,.01);
 }
