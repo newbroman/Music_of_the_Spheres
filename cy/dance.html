@@ -3879,7 +3879,7 @@ function playPitched(v,buf,marks,Tn,a,b,t0,t1,f){
     ot+=1/ff;
   }
 }
-// the same without pitch marks (a vowel too short or too breathy to mark, or a low-power phone): grains four periods long, two
+// the same without pitch marks (a vowel too short or too breathy to mark, or a phone on Eco quality): grains four periods long, two
 // apart, cut on the period grid so they overlap in phase; the vowel keeps its spoken pitch and the vocoder alone sings the note
 function playStretch(v,buf,a,b,t0,t1,Tn){
   const nat=b-a,want=t1-t0;if(want<=.015||nat<=.015)return;
@@ -3910,7 +3910,7 @@ function recSyl(pl,k,tt,sd,tOf,f){
   if(vs>a)playPart(v,buf,a,vs,t0,.006,.004);
   const coda=Math.max(0,segEnd-ve),tv1=Math.max(tt+.03,tEnd-Math.min(coda,.14));
   const marks=R.M&&R.M[k],Tn=R.P?R.P[k]:1/(R.f0||240);
-  if(marks&&!LOWPOWER)playPitched(v,buf,marks,Tn,vs,ve,tt,tv1,ff);else playStretch(v,buf,vs,ve,tt,tv1,Tn);
+  if(marks&&(!LOWPOWER||!(window.MOTS&&MOTS.quality&&MOTS.quality()==='eco')))playPitched(v,buf,marks,Tn,vs,ve,tt,tv1,ff);else playStretch(v,buf,vs,ve,tt,tv1,Tn);
   if(coda>.004)playPart(v,buf,ve,Math.min(segEnd,ve+.16),tv1,.004,.02);
   if(last){const te=tv1+Math.min(coda,.16);v.out.gain.setTargetAtTime(0,te+.08,.15);h.busy=te+.5}
 }
@@ -3939,7 +3939,7 @@ const _chopRec=chop;chop=function(t,f,len,vow){if(VX.mode==='chops'&&CLUB()&&cho
 // (0 = the recorded voice alone, 100 = the synth with only a trace of the voice); the sung styles start mostly voice, the club styles mostly synth
 const VS_UI={en:['Voice','Synth'],pl:['Głos','Syntezator'],cy:['Llais','Syntheseinydd'],de:['Stimme','Synth'],es:['Voz','Sintetizador'],fr:['Voix','Synthé'],it:['Voce','Synth'],zh:['人声','合成器'],ja:['声','シンセ'],vi:['Giọng','Synth']};
 let VSYN={};try{VSYN=JSON.parse(localStorage.getItem('mots.vocsynth')||'{}')||{}}catch(e){}
-function synthAmt(){const v=VSYN[D.style];return v!==undefined?v:(STY().vocal?.3:.75)}
+function synthAmt(){const v=VSYN[D.style];return v!==undefined?v:(STY().vocal?.3:.6)}
 function vocMix(v,now){const x=synthAmt();v.dry.gain.setTargetAtTime(.9-.62*x,now,.05);v.sum.gain.setTargetAtTime(x*(v.warm?.9:1.1),now,.05);v.sibG.gain.setTargetAtTime(.3*x,now,.05)}
 {const _rm=renderMixer;renderMixer=function(){_rm();if(!CLUB()||VX.mode!=='words')return;const row=$('mix').querySelector('.mrow[data-id="venus"]');if(!row)return;
   const U=VS_UI[VLANG]||VS_UI.en,x=Math.round(synthAmt()*100),w=document.createElement('label');w.className='vs';
