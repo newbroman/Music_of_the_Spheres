@@ -330,10 +330,14 @@ function bgRoute(hidden){
       if(!BG.el){BG.el=new Audio();BG.el.setAttribute('playsinline','')}
       BG.el.srcObject=BG.msd.stream;_c.call(GUARD,BG.msd);try{GUARD.disconnect(ctx.destination)}catch(e){}
       BG.on=true;bgClock();
+      // nobody sees the screen: stop drawing the sky, and run on Eco quality (put back afterwards) so a phone has its strength for the sound
+      BG.sky=MOTS.skyHidden;MOTS.skyHidden=()=>true;
+      BG.q0=null;try{if(typeof quality!=='undefined'&&quality!=='eco'&&LS.get('mots.quality.manual')!=='1'&&MOTS.setQuality){BG.q0=quality;MOTS.setQuality('eco')}}catch(e){}
       BG.el.play().then(()=>bgSession('playing')).catch(()=>bgRoute(false));
     }else if(!hidden&&BG.on){
       _c.call(GUARD,ctx.destination);try{GUARD.disconnect(BG.msd)}catch(e){}
       if(BG.el)BG.el.pause();BG.on=false;
+      MOTS.skyHidden=BG.sky;BG.sky=undefined;if(BG.q0&&MOTS.setQuality){MOTS.setQuality(BG.q0);BG.q0=null}
       const q=BG.q;BG.q=[];q.forEach(cb=>_raf(cb));
     }
   }catch(e){}

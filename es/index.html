@@ -497,10 +497,14 @@ function bgRoute(hidden){
       if(!BG.el){BG.el=new Audio();BG.el.setAttribute('playsinline','')}
       BG.el.srcObject=BG.msd.stream;_c.call(GUARD,BG.msd);try{GUARD.disconnect(ctx.destination)}catch(e){}
       BG.on=true;bgClock();
+      // nobody sees the screen: stop drawing the sky, and run on Eco quality (put back afterwards) so a phone has its strength for the sound
+      BG.sky=MOTS.skyHidden;MOTS.skyHidden=()=>true;
+      BG.q0=null;try{if(typeof quality!=='undefined'&&quality!=='eco'&&LS.get('mots.quality.manual')!=='1'&&MOTS.setQuality){BG.q0=quality;MOTS.setQuality('eco')}}catch(e){}
       BG.el.play().then(()=>bgSession('playing')).catch(()=>bgRoute(false));
     }else if(!hidden&&BG.on){
       _c.call(GUARD,ctx.destination);try{GUARD.disconnect(BG.msd)}catch(e){}
       if(BG.el)BG.el.pause();BG.on=false;
+      MOTS.skyHidden=BG.sky;BG.sky=undefined;if(BG.q0&&MOTS.setQuality){MOTS.setQuality(BG.q0);BG.q0=null}
       const q=BG.q;BG.q=[];q.forEach(cb=>_raf(cb));
     }
   }catch(e){}
@@ -3303,7 +3307,7 @@ function buildSunInst(v,fadeIn){
   I.srcs.push(I.d1,I.d2,I.d3,bl);I.srcs.forEach(o=>o.start());
   return I;
 }
-function droneFreqs(){let t=C_BASE*PY[S.mode]*8*Math.pow(2,keyShift());return [t,t*1.5,t/2]}
+function droneFreqs(){if(SYS.tonic)return [SYS.tonic,SYS.tonic*1.5,SYS.tonic/2];let t=C_BASE*PY[S.mode]*8*Math.pow(2,keyShift());return [t,t*1.5,t/2]}
 const APOLLO=[{type:'bass',tilt:1.25,vib:[4.6,.02],breath:.08,jit:.003,syl:2.0,rest:2.6,ens:.5,words:'a p o l o: n'},{type:'tenor',tilt:1.15,vib:[5.0,.02],breath:.06,jit:.003,syl:2.0,rest:2.6,ens:0,words:'a p o l o: n'}];
 
 // voices are built only while they can be heard; switching mode clears them and they rebuild in the new style
@@ -3633,6 +3637,7 @@ function g2p(name){
 function sysPitch(P){let f=S.F*1.33*Math.pow(1.77/Math.abs(P),.33);while(f<55)f*=2;while(f>1400)f/=2;return quantize(f)}
 // moons orbit in their planet's equatorial plane, tipped by the planet's axial tilt
 function moonPos(b,m,jd){
+  if(m.posAt)return m.posAt(jd);
   const th=TAU*((jd-J2000)/m.P+m.ph0), e=(b.obl||0)*DEG;
   return {x:m.a*Math.cos(th),y:m.a*Math.sin(th)*Math.cos(e),z:m.a*Math.sin(th)*Math.sin(e)};
 }
@@ -3659,7 +3664,7 @@ function enterSystem(id){
 function leaveSystem(){
   if(!SYS.id)return;
   killSystemVoices();
-  SYS.id=null;SYS.moons=[];
+  SYS.id=null;SYS.moons=[];if(SYS.onLeave){const f=SYS.onLeave;SYS.onLeave=null;f()}
   if(SYS.savedSpeed)setSpeed(SYS.savedSpeed);
   renderInfo();renderAud();
 }
@@ -3669,7 +3674,8 @@ function moonBody(b,sm){
     vowel:v0==='a'?'ah':v0,
     // nearly every major moon is tidally locked, so its day equals its orbit; Hyperion tumbles chaotically
     rot:m.name==='Hyperion'?13*24:Math.abs(m.P)*24,
-    hv:{type:'child',tilt:1.1,vib:[5.6,.02],breath:.08,jit:m.name==='Hyperion'?.02:.004,syl:.5,rest:2.2,ens:0,words:g2p(m.name)}};
+    hv:{type:'child',tilt:1.1,vib:[5.6,.02],breath:.08,jit:m.name==='Hyperion'?.02:.004,syl:.5,rest:2.2,ens:0,words:g2p(m.name)},
+    ...(m.body||{})};   // a derived system (listen.js) gives its bodies their own voice, day and vowel
 }
 function buildSystemVoices(){
   if(!AC||!SYS.id)return;
@@ -3714,7 +3720,7 @@ function updateSystemAudio(){
   // only the loudest few moons sing at once on a phone
   const mAllowed=new Set(SYS.moons.map(sm=>[sm.k,SYS.vp===sm.k?9:(sm.m.R/Math.max(audioDir(sm.pos,L).d,1))]).sort((a,c)=>c[1]-a[1]).slice(0,MAXMOONS).map(x=>x[0]));
   SYS.moons.forEach((sm,k)=>{
-    const v=SYS.voices[k], mb=v.body, f=P[mb.id].f=melodyPitch(sysPitch(sm.m.P),moonPhase(b,sm.m));
+    const v=SYS.voices[k], mb=v.body, f=P[mb.id].f=sm.m.f||melodyPitch(sysPitch(sm.m.P),moonPhase(b,sm.m));
     const isMe=SYS.vp===k;
     const a=audioDir(sm.pos,L);setPos(v.pan,a.x,a.y,a.z,.06);
     const g=v.gRel=isMe?.55:Math.min(1.6,Math.pow((sm.m.R/Math.max(a.d,1))/ref,law));
@@ -3726,8 +3732,8 @@ function updateSystemAudio(){
     tgt(v.vol.gain,.075*g*S.groups.moons.vol/(.8),.12);
   });
   // Apollo, the Sun, stays where the Sun is
-  const sd={x:-pp.x,y:-pp.y,z:-pp.z}, sl=Math.hypot(sd.x,sd.y,sd.z)||1;
-  setPos(sunV.pan,sd.x/sl,sd.z/sl,-sd.y/sl);
+  if(b.virtual){const a=audioDir({x:0,y:0,z:0},L);setPos(sunV.pan,a.x,a.y,a.z)}
+  else{const sd={x:-pp.x,y:-pp.y,z:-pp.z}, sl=Math.hypot(sd.x,sd.y,sd.z)||1;setPos(sunV.pan,sd.x/sl,sd.z/sl,-sd.y/sl)}
   const [d1,d2,d3]=droneFreqs(), sp=sunV.part;
   if(sunV.mode==='instrument'){tgt(sp.d1.frequency,d1,.3);tgt(sp.d2.frequency,d2,.3);tgt(sp.d3.frequency,d3,.3)}
   else if(sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
@@ -3747,7 +3753,7 @@ function drawSystem(g,t){
   // orbits
   SYS.moons.forEach(sm=>{
     const m=sm.m;g.strokeStyle=SYS.sel===sm.k?'rgba(201,152,79,.7)':'rgba(233,225,204,.16)';g.lineWidth=1;g.beginPath();
-    for(let k=0;k<=96;k++){const th=TAU*k/96, e=(b.obl||0)*DEG;const q=sysProj(m.a*Math.cos(th),m.a*Math.sin(th)*Math.cos(e),m.a*Math.sin(th)*Math.sin(e));k?g.lineTo(q.x,q.y):g.moveTo(q.x,q.y)}
+    for(let k=0;k<=96;k++){const th=TAU*k/96, e=(b.obl||0)*DEG;const o=m.orbitPt?m.orbitPt(th):{x:m.a*Math.cos(th),y:m.a*Math.sin(th)*Math.cos(e),z:m.a*Math.sin(th)*Math.sin(e)};const q=sysProj(o.x,o.y,o.z);k?g.lineTo(q.x,q.y):g.moveTo(q.x,q.y)}
     g.stroke();
   });
   // the planet at the centre
@@ -3758,19 +3764,20 @@ function drawSystem(g,t){
   screen[SYS.id]=c;
   g.font=`${15*K}px "GFS Didot",Georgia,serif`;g.fillStyle='rgba(233,225,204,.9)';g.textAlign='center';g.textBaseline='top';txt(g,b.god,c.x,c.y+pr+6);
   // the direction of the Sun
-  const sa=Math.atan2(-pp.y,-pp.x)+S.az, sx=CX+Math.cos(sa)*RR*1.0, sy=CY-Math.sin(sa)*RR*Math.sin(S.tilt);
+  if(!b.virtual){const sa=Math.atan2(-pp.y,-pp.x)+S.az, sx=CX+Math.cos(sa)*RR*1.0, sy=CY-Math.sin(sa)*RR*Math.sin(S.tilt);
   const sg=g.createRadialGradient(sx,sy,0,sx,sy,14);sg.addColorStop(0,'rgba(255,236,190,1)');sg.addColorStop(1,'rgba(201,152,79,0)');g.fillStyle=sg;g.beginPath();g.arc(sx,sy,14,0,TAU);g.fill();
-  g.font=`${11*K}px "Alegreya Sans",sans-serif`;g.fillStyle='rgba(233,225,204,.8)';{const f=g.fillText;g.fillText=function(t,x,y){g.fillText=f;txt(g,t,x,y)};g.fillText('hacia el Sol',sx,sy+14)}
+  g.font=`${11*K}px "Alegreya Sans",sans-serif`;g.fillStyle='rgba(233,225,204,.8)';{const f=g.fillText;g.fillText=function(t,x,y){g.fillText=f;txt(g,t,x,y)};g.fillText('hacia el Sol',sx,sy+14)}}
   // moons, nearest last
   SYS.moons.map(sm=>({sm,s:sysProj(sm.pos.x,sm.pos.y,sm.pos.z)})).sort((p,q)=>q.s.d-p.s.d).forEach(({sm,s})=>{
     const v=SYS.voices[sm.k], r=Math.max(2.5,Math.min(9,1.5+2.2*Math.log10(Math.max(sm.m.R,5)/20)))*SK;
     screen['moon:'+sm.k]=s;
     if(v&&v.part){const ph=(t/1000*(v.rate||1))%1,w=Math.sin(ph*TAU)*.5+.5;g.strokeStyle=`rgba(233,225,204,${.15+.3*w})`;g.lineWidth=1;g.beginPath();g.arc(s.x,s.y,r+4+w*5,0,TAU);g.stroke()}
-    g.fillStyle=v&&v.part?'#ece4d0':'rgba(233,225,204,.45)';g.beginPath();g.arc(s.x,s.y,r,0,TAU);g.fill();
+    g.fillStyle=v&&v.part?(sm.m.color||'#ece4d0'):'rgba(233,225,204,.45)';g.beginPath();g.arc(s.x,s.y,r,0,TAU);g.fill();
     if(SYS.vp===sm.k){g.strokeStyle='#62a597';g.lineWidth=1.5;g.beginPath();g.arc(s.x,s.y,r+9,0,TAU);g.stroke()}
     g.font=`${12*K}px "Alegreya Sans",sans-serif`;g.textAlign='left';g.textBaseline='middle';g.fillStyle='rgba(233,225,204,.85)';
     txt(g,sm.m.name.split(' ')[0],s.x+r+6,s.y);
   });
+  if(b.drawMore)b.drawMore(g,sysProj,t,SK);
   // listener
   const L=sysListener(), lp=sysProj(L.x,L.y,L.z);drawListener(g,lp,sysFacing()+S.az);
 }
@@ -4097,7 +4104,7 @@ function renderAud(){
   if(S.thinker!=='today'){$('zoomChips').hidden=false;$('hint').textContent=TT.ui.hint;const w=SIR.solo||S.audition;el.hidden=!w;if(w){$('audTxt').textContent=TT.ui.soloing+' '+bodyName(w);$('audBack').textContent=TT.ui.back}return}
   $('hint').textContent=SYS.id?'toca una luna para escuchar desde ella · arrastra para girar':'toca un cuerpo para oírlo a solas · arrastra para girar · desplázate para hacer zoom';
   $('zoomChips').hidden=!!SYS.id;
-  if(SYS.id){el.hidden=false;$('audTxt').textContent=`Dentro del sistema de ${byId[SYS.id].god}`;$('audBack').textContent='Sistema solar';return}
+  if(SYS.id){el.hidden=false;$('audTxt').textContent=byId[SYS.id].audLine||`Dentro del sistema de ${byId[SYS.id].god}`;$('audBack').textContent='Sistema solar';return}
   $('audBack').textContent='Coro completo';
   if(!S.audition){el.hidden=true;return}
   const b=audMoonBody()||byId[S.audition], n=b.moons.length;
@@ -4111,7 +4118,7 @@ function select(id){S.sel=id;renderRoster();renderInfo()}
 const fmt=(x,d=2)=>x.toLocaleString('es-ES',{maximumFractionDigits:d,minimumFractionDigits:0});
 function renderInfo(){
   if(S.thinker!=='today'){$('info').innerHTML=thinkerInfoHTML();wireThinkerInfo();$('thinkNote').textContent=TT.ui.hearsNote;return}
-  if(SYS.id){$('info').innerHTML=sysInfoHTML();wireSysInfo();return}
+  if(SYS.id){const vb=byId[SYS.id];$('info').innerHTML=(vb.info||sysInfoHTML)();(vb.wire||wireSysInfo)();return}
   const b=byId[S.sel], p=P[b.id];if(!p)return;
   const L=listenerPos(), d=Math.hypot(p.x-L.x,p.y-L.y,p.z-L.z);
   const per=b.Pyears<2?fmt(b.Pyears*365.25,0)+' días':fmt(b.Pyears,b.Pyears<20?2:0)+' años';
@@ -5051,9 +5058,623 @@ MOTS.app={tt:TT,think:THINK,
   playTime:on=>{if(S.playing!==on)$('play').click()},
   order:()=>THINK_ORDER.slice(),current:()=>S.thinker,speedNow:()=>S.speed,written:()=>!athens(),timeRunning:()=>S.playing,
   // a window for tests: run a function over the dial's inner state
-  _probe:fn=>fn({speakGod,BODIES,S,SIR,TRAI,P,THINK,curF,traiSky,traiBell,traiTick,geo,horiz,jdOf,computePositions,lonOf,audioOn:()=>audioOn,V,WOB,ac:()=>AC,byId,scr:()=>screen})};
+  _probe:fn=>fn({speakGod,BODIES,S,SIR,TRAI,P,THINK,curF,traiSky,traiBell,traiTick,geo,horiz,jdOf,computePositions,lonOf,audioOn:()=>audioOn,V,WOB,ac:()=>AC,byId,scr:()=>screen,SYS,enterSystem,leaveSystem,renderInfo,renderAud,setSpeed,noteName,fmt,quantize,J2000,TAU,DEG,kepler,endAudition,setThinker})};
 requestAnimationFrame(frame);
 })();
+</script>
+<script>
+/*LISTEN-START*//* ---------- listen: the app run backwards. It listens to a piece of music (microphone or a file, on this device only) and derives
+   a planetary system from it: the key becomes the Sun, the strongest notes planets (their orbits by the forty-octave rule and
+   Kepler's third law, snapped into resonance when the notes are consonant), the beat and its divisions their moons.
+   The system is shown and played on the dial through the moon-system machinery, saved, and shareable as ?sys=… ---------- */
+(()=>{
+"use strict";
+const MOTS=window.MOTS=window.MOTS||{};
+const LANG=(document.documentElement.lang||'en').slice(0,2);
+const LT={
+ en:{chip:'♫ Listen',chipHave:'♫ Your system',title:'Listen to a piece of music',
+   intro:'Play some music to the microphone, or choose an audio file, and the app listens for about twenty seconds. The key becomes the Sun, the strongest notes become planets, and the beat becomes their moons. Nothing is uploaded or kept: the listening happens on this device.',
+   mic:'Use the microphone',file:'Choose a file',listening:'Listening…',analysing:'Working it out…',stop:'Stop and work it out',cancel:'Cancel',close:'Close',
+   micDenied:'The microphone could not be opened. Allow it in the browser, or choose a file instead.',fileBad:'That file could not be read as audio.',
+   noNotes:'Too little to go on: no clear notes were found. Try it louder, or a different piece.',
+   saved:'Your system, from the last piece you played',linkH:'A shared system',linkP:'Someone has shared the system of a piece of music. Enter it to hear it; the sound starts with your tap.',
+   key:'Key',major:'{k} major',minor:'{k} minor',tempo:'Tempo',bpm:'{n} beats a minute',noBeat:'no steady beat',planets:'Planets',moons:'Moons',
+   enter:'Enter your system',again:'Listen to something else',share:'Copy a link',shared:'Link copied',forget:'Forget it',
+   sunName:'Apollo',inside:'Inside your own system',infoGreek:'ἡ σὴ ἁρμονία',infoH:'Your system',infoSub:'{key} · {n} planets · {verdict}',
+   infoVoice:'Each planet sings one of the notes you played, as loud as it sounded. Its orbit follows the note by the forty-octave rule and Kepler’s third law, so consonant notes fall into resonance. The moons mark the beat and its divisions. Apollo holds the key at the centre.',
+   centre:'Listen from the centre',atCentre:'Listening from the centre',back:'Back to the solar system',listenFrom:'Listen from {name}',
+   days:'{n} days',years:'{n} years',res:'{r} with {name}',ecc:'eccentric',tilted:'tilted',retro:'retrograde',faint:'faint',note:'note',
+   v_ecc:'wild, eccentric orbits, like HD 80606 b',v_trappist:'a compact resonant chain, like TRAPPIST-1',v_laplace:'locked in resonance, like Io, Europa and Ganymede around Zeus',
+   v_hot:'a hot giant close in, like 51 Pegasi b',v_tilt:'tilted and tangled, like Upsilon Andromedae',v_crowd:'crowded, like Kepler-90 with its eight planets',
+   v_wide:'widely spaced, like our own',v_pair:'a lonely pair, like the planets of Proxima Centauri',v_plain:'a quiet, orderly system, like Kepler-11',
+   extras:'Listen to a piece of music',secs:'{n} s'},
+ pl:{chip:'♫ Słuchaj',chipHave:'♫ Twój układ',title:'Posłuchaj utworu',
+   intro:'Zagraj muzykę do mikrofonu albo wybierz plik dźwiękowy, a aplikacja posłucha przez około dwadzieścia sekund. Tonacja staje się Słońcem, najmocniejsze dźwięki planetami, a rytm ich księżycami. Nic nie jest wysyłane ani zapisywane: słuchanie odbywa się na tym urządzeniu.',
+   mic:'Użyj mikrofonu',file:'Wybierz plik',listening:'Słucham…',analysing:'Obliczam…',stop:'Zatrzymaj i oblicz',cancel:'Anuluj',close:'Zamknij',
+   micDenied:'Nie udało się otworzyć mikrofonu. Zezwól na niego w przeglądarce albo wybierz plik.',fileBad:'Tego pliku nie udało się odczytać jako dźwięku.',
+   noNotes:'Za mało materiału: nie znaleziono wyraźnych dźwięków. Spróbuj głośniej albo z innym utworem.',
+   saved:'Twój układ z ostatniego utworu',linkH:'Udostępniony układ',linkP:'Ktoś udostępnił układ utworu muzycznego. Wejdź, aby go usłyszeć; dźwięk zaczyna się od twojego dotknięcia.',
+   key:'Tonacja',major:'{k}-dur',minor:'{k}-moll',tempo:'Tempo',bpm:'{n} uderzeń na minutę',noBeat:'brak stałego rytmu',planets:'Planety',moons:'Księżyce',
+   enter:'Wejdź do swojego układu',again:'Posłuchaj czegoś innego',share:'Kopiuj link',shared:'Link skopiowany',forget:'Zapomnij',
+   sunName:'Apollo',inside:'Wewnątrz twojego układu',infoGreek:'ἡ σὴ ἁρμονία',infoH:'Twój układ',infoSub:'{key} · planet: {n} · {verdict}',
+   infoVoice:'Każda planeta śpiewa jeden z zagranych dźwięków, tak głośno, jak on brzmiał. Jej orbita wynika z dźwięku według reguły czterdziestu oktaw i trzeciego prawa Keplera, więc dźwięki współbrzmiące wpadają w rezonans. Księżyce wyznaczają rytm i jego podziały. Apollo trzyma tonację w środku.',
+   centre:'Słuchaj ze środka',atCentre:'Słuchasz ze środka',back:'Wróć do Układu Słonecznego',listenFrom:'Słuchaj z {name}',
+   days:'{n} dni',years:'{n} lat',res:'{r} z {name}',ecc:'ekscentryczna',tilted:'nachylona',retro:'wsteczna',faint:'cicho',note:'dźwięk',
+   v_ecc:'dzikie, ekscentryczne orbity, jak HD 80606 b',v_trappist:'zwarty łańcuch rezonansów, jak TRAPPIST-1',v_laplace:'związane rezonansem, jak Io, Europa i Ganimedes wokół Zeusa',
+   v_hot:'gorący olbrzym blisko gwiazdy, jak 51 Pegasi b',v_tilt:'nachylone i splątane, jak Upsilon Andromedae',v_crowd:'zatłoczony, jak Kepler-90 z ośmioma planetami',
+   v_wide:'szeroko rozstawiony, jak nasz własny',v_pair:'samotna para, jak planety Proximy Centauri',v_plain:'spokojny, uporządkowany układ, jak Kepler-11',
+   extras:'Posłuchaj utworu',secs:'{n} s'},
+ cy:{chip:'♫ Gwrando',chipHave:'♫ Eich cysawd',title:'Gwrando ar ddarn o gerddoriaeth',
+   intro:'Chwaraewch gerddoriaeth i’r meicroffon, neu dewiswch ffeil sain, a bydd yr ap yn gwrando am ryw ugain eiliad. Y cywair yw’r Haul, y nodau cryfaf yw’r planedau, a’r curiad yw eu lleuadau. Does dim yn cael ei anfon na’i gadw: ar y ddyfais hon y mae’r gwrando.',
+   mic:'Defnyddio’r meicroffon',file:'Dewis ffeil',listening:'Yn gwrando…',analysing:'Yn ei weithio allan…',stop:'Stopio a’i weithio allan',cancel:'Canslo',close:'Cau',
+   micDenied:'Doedd dim modd agor y meicroffon. Rhowch ganiatâd yn y porwr, neu dewiswch ffeil yn lle.',fileBad:'Doedd dim modd darllen y ffeil honno fel sain.',
+   noNotes:'Rhy ychydig i fynd arno: ni ddaethpwyd o hyd i nodau clir. Rhowch gynnig arni’n uwch, neu ar ddarn gwahanol.',
+   saved:'Eich cysawd, o’r darn diwethaf a chwaraeoch',linkH:'Cysawd a rannwyd',linkP:'Mae rhywun wedi rhannu cysawd darn o gerddoriaeth. Ewch i mewn i’w glywed; mae’r sain yn dechrau gyda’ch cyffyrddiad.',
+   key:'Cywair',major:'{k} fwyaf',minor:'{k} leiaf',tempo:'Tempo',bpm:'{n} curiad y funud',noBeat:'dim curiad cyson',planets:'Planedau',moons:'Lleuadau',
+   enter:'Mynd i mewn i’ch cysawd',again:'Gwrando ar rywbeth arall',share:'Copïo dolen',shared:'Dolen wedi’i chopïo',forget:'Anghofio',
+   sunName:'Apolo',inside:'Y tu mewn i’ch cysawd eich hun',infoGreek:'ἡ σὴ ἁρμονία',infoH:'Eich cysawd',infoSub:'{key} · {n} planed · {verdict}',
+   infoVoice:'Mae pob planed yn canu un o’r nodau a chwaraeoch, mor uchel ag y swniai. Mae ei chylchdro yn dilyn y nodyn yn ôl rheol y deugain wythfed a thrydedd ddeddf Kepler, felly mae nodau cytûn yn cyd-seinio. Mae’r lleuadau yn marcio’r curiad a’i raniadau. Apolo sy’n cadw’r cywair yn y canol.',
+   centre:'Gwrando o’r canol',atCentre:'Yn gwrando o’r canol',back:'Yn ôl i gysawd yr haul',listenFrom:'Gwrando o {name}',
+   days:'{n} dydd',years:'{n} blynedd',res:'{r} gyda {name}',ecc:'echreiddig',tilted:'ar ogwydd',retro:'ôl-redol',faint:'gwan',note:'nodyn',
+   v_ecc:'cylchdroeon gwyllt, echreiddig, fel HD 80606 b',v_trappist:'cadwyn gyd-seiniol gryno, fel TRAPPIST-1',v_laplace:'wedi’u cloi mewn cyseiniant, fel Io, Europa a Ganymede o gwmpas Zeus',
+   v_hot:'cawr poeth yn agos i’r canol, fel 51 Pegasi b',v_tilt:'ar ogwydd ac wedi drysu, fel Upsilon Andromedae',v_crowd:'gorlawn, fel Kepler-90 a’i wyth planed',
+   v_wide:'ar led, fel ein cysawd ni',v_pair:'pâr unig, fel planedau Proxima Centauri',v_plain:'cysawd tawel, trefnus, fel Kepler-11',
+   extras:'Gwrando ar ddarn o gerddoriaeth',secs:'{n} e'},
+ de:{chip:'♫ Zuhören',chipHave:'♫ Dein System',title:'Einem Musikstück zuhören',
+   intro:'Spiele Musik ins Mikrofon oder wähle eine Audiodatei, und die App hört etwa zwanzig Sekunden zu. Die Tonart wird zur Sonne, die stärksten Töne werden Planeten, und der Takt wird zu ihren Monden. Nichts wird hochgeladen oder gespeichert: Das Zuhören geschieht auf diesem Gerät.',
+   mic:'Mikrofon benutzen',file:'Datei wählen',listening:'Höre zu…',analysing:'Rechne…',stop:'Anhalten und auswerten',cancel:'Abbrechen',close:'Schließen',
+   micDenied:'Das Mikrofon ließ sich nicht öffnen. Erlaube es im Browser oder wähle stattdessen eine Datei.',fileBad:'Diese Datei ließ sich nicht als Audio lesen.',
+   noNotes:'Zu wenig Material: keine klaren Töne gefunden. Versuche es lauter oder mit einem anderen Stück.',
+   saved:'Dein System, aus dem letzten Stück',linkH:'Ein geteiltes System',linkP:'Jemand hat das System eines Musikstücks geteilt. Betritt es, um es zu hören; der Klang beginnt mit deinem Tippen.',
+   key:'Tonart',major:'{k}-Dur',minor:'{k}-Moll',tempo:'Tempo',bpm:'{n} Schläge pro Minute',noBeat:'kein fester Takt',planets:'Planeten',moons:'Monde',
+   enter:'Dein System betreten',again:'Etwas anderes anhören',share:'Link kopieren',shared:'Link kopiert',forget:'Vergessen',
+   sunName:'Apollon',inside:'In deinem eigenen System',infoGreek:'ἡ σὴ ἁρμονία',infoH:'Dein System',infoSub:'{key} · {n} Planeten · {verdict}',
+   infoVoice:'Jeder Planet singt einen der Töne, die du gespielt hast, so laut, wie er klang. Seine Bahn folgt dem Ton nach der Vierzig-Oktaven-Regel und Keplers drittem Gesetz, sodass konsonante Töne in Resonanz geraten. Die Monde markieren den Takt und seine Unterteilungen. Apollon hält in der Mitte die Tonart.',
+   centre:'Aus der Mitte hören',atCentre:'Du hörst aus der Mitte',back:'Zurück zum Sonnensystem',listenFrom:'Von {name} hören',
+   days:'{n} Tage',years:'{n} Jahre',res:'{r} mit {name}',ecc:'exzentrisch',tilted:'geneigt',retro:'rückläufig',faint:'leise',note:'Ton',
+   v_ecc:'wilde, exzentrische Bahnen wie bei HD 80606 b',v_trappist:'eine kompakte Resonanzkette wie TRAPPIST-1',v_laplace:'in Resonanz gefangen wie Io, Europa und Ganymed um Zeus',
+   v_hot:'ein heißer Riese ganz innen, wie 51 Pegasi b',v_tilt:'geneigt und verwickelt wie Upsilon Andromedae',v_crowd:'dicht besetzt wie Kepler-90 mit seinen acht Planeten',
+   v_wide:'weit auseinander wie unser eigenes',v_pair:'ein einsames Paar wie die Planeten von Proxima Centauri',v_plain:'ein ruhiges, geordnetes System wie Kepler-11',
+   extras:'Einem Musikstück zuhören',secs:'{n} s'},
+ es:{chip:'♫ Escuchar',chipHave:'♫ Tu sistema',title:'Escuchar una pieza de música',
+   intro:'Pon música ante el micrófono o elige un archivo de audio, y la aplicación escucha unos veinte segundos. La tonalidad se convierte en el Sol, las notas más fuertes en planetas y el pulso en sus lunas. No se sube ni se guarda nada: la escucha ocurre en este dispositivo.',
+   mic:'Usar el micrófono',file:'Elegir un archivo',listening:'Escuchando…',analysing:'Calculando…',stop:'Parar y calcular',cancel:'Cancelar',close:'Cerrar',
+   micDenied:'No se pudo abrir el micrófono. Permítelo en el navegador o elige un archivo.',fileBad:'Ese archivo no se pudo leer como audio.',
+   noNotes:'Demasiado poco: no se encontraron notas claras. Prueba más alto o con otra pieza.',
+   saved:'Tu sistema, de la última pieza que pusiste',linkH:'Un sistema compartido',linkP:'Alguien ha compartido el sistema de una pieza de música. Entra para oírlo; el sonido empieza con tu toque.',
+   key:'Tonalidad',major:'{k} mayor',minor:'{k} menor',tempo:'Tempo',bpm:'{n} pulsos por minuto',noBeat:'sin pulso estable',planets:'Planetas',moons:'Lunas',
+   enter:'Entrar en tu sistema',again:'Escuchar otra cosa',share:'Copiar un enlace',shared:'Enlace copiado',forget:'Olvidarlo',
+   sunName:'Apolo',inside:'Dentro de tu propio sistema',infoGreek:'ἡ σὴ ἁρμονία',infoH:'Tu sistema',infoSub:'{key} · {n} planetas · {verdict}',
+   infoVoice:'Cada planeta canta una de las notas que pusiste, tan fuerte como sonó. Su órbita sigue a la nota por la regla de las cuarenta octavas y la tercera ley de Kepler, así que las notas consonantes entran en resonancia. Las lunas marcan el pulso y sus divisiones. Apolo sostiene la tonalidad en el centro.',
+   centre:'Escuchar desde el centro',atCentre:'Escuchando desde el centro',back:'Volver al sistema solar',listenFrom:'Escuchar desde {name}',
+   days:'{n} días',years:'{n} años',res:'{r} con {name}',ecc:'excéntrica',tilted:'inclinada',retro:'retrógrada',faint:'tenue',note:'nota',
+   v_ecc:'órbitas salvajes y excéntricas, como HD 80606 b',v_trappist:'una cadena resonante compacta, como TRAPPIST-1',v_laplace:'atrapado en resonancia, como Ío, Europa y Ganimedes en torno a Zeus',
+   v_hot:'un gigante caliente muy cerca, como 51 Pegasi b',v_tilt:'inclinado y enredado, como Upsilon Andromedae',v_crowd:'abarrotado, como Kepler-90 con sus ocho planetas',
+   v_wide:'muy espaciado, como el nuestro',v_pair:'una pareja solitaria, como los planetas de Próxima Centauri',v_plain:'un sistema tranquilo y ordenado, como Kepler-11',
+   extras:'Escuchar una pieza de música',secs:'{n} s'},
+ fr:{chip:'♫ Écouter',chipHave:'♫ Votre système',title:'Écouter un morceau de musique',
+   intro:'Jouez de la musique au micro ou choisissez un fichier audio : l’application écoute une vingtaine de secondes. La tonalité devient le Soleil, les notes les plus fortes des planètes, et la pulsation leurs lunes. Rien n’est envoyé ni conservé : l’écoute se fait sur cet appareil.',
+   mic:'Utiliser le micro',file:'Choisir un fichier',listening:'Écoute…',analysing:'Calcul…',stop:'Arrêter et calculer',cancel:'Annuler',close:'Fermer',
+   micDenied:'Impossible d’ouvrir le micro. Autorisez-le dans le navigateur, ou choisissez un fichier.',fileBad:'Ce fichier n’a pas pu être lu comme de l’audio.',
+   noNotes:'Trop peu de matière : aucune note nette n’a été trouvée. Essayez plus fort, ou un autre morceau.',
+   saved:'Votre système, d’après le dernier morceau joué',linkH:'Un système partagé',linkP:'Quelqu’un a partagé le système d’un morceau de musique. Entrez-y pour l’entendre ; le son commence à votre toucher.',
+   key:'Tonalité',major:'{k} majeur',minor:'{k} mineur',tempo:'Tempo',bpm:'{n} battements par minute',noBeat:'pas de pulsation stable',planets:'Planètes',moons:'Lunes',
+   enter:'Entrer dans votre système',again:'Écouter autre chose',share:'Copier un lien',shared:'Lien copié',forget:'Oublier',
+   sunName:'Apollon',inside:'Dans votre propre système',infoGreek:'ἡ σὴ ἁρμονία',infoH:'Votre système',infoSub:'{key} · {n} planètes · {verdict}',
+   infoVoice:'Chaque planète chante l’une des notes que vous avez jouées, aussi fort qu’elle a sonné. Son orbite suit la note selon la règle des quarante octaves et la troisième loi de Kepler : les notes consonantes entrent en résonance. Les lunes marquent la pulsation et ses divisions. Apollon tient la tonalité au centre.',
+   centre:'Écouter depuis le centre',atCentre:'À l’écoute depuis le centre',back:'Retour au système solaire',listenFrom:'Écouter depuis {name}',
+   days:'{n} jours',years:'{n} ans',res:'{r} avec {name}',ecc:'excentrique',tilted:'inclinée',retro:'rétrograde',faint:'faible',note:'note',
+   v_ecc:'des orbites folles et excentriques, comme HD 80606 b',v_trappist:'une chaîne résonante compacte, comme TRAPPIST-1',v_laplace:'verrouillé en résonance, comme Io, Europe et Ganymède autour de Zeus',
+   v_hot:'une géante chaude tout près, comme 51 Pegasi b',v_tilt:'incliné et emmêlé, comme Upsilon Andromedae',v_crowd:'bondé, comme Kepler-90 et ses huit planètes',
+   v_wide:'très espacé, comme le nôtre',v_pair:'un couple solitaire, comme les planètes de Proxima du Centaure',v_plain:'un système calme et ordonné, comme Kepler-11',
+   extras:'Écouter un morceau de musique',secs:'{n} s'},
+ it:{chip:'♫ Ascolta',chipHave:'♫ Il tuo sistema',title:'Ascoltare un brano musicale',
+   intro:'Suona della musica al microfono o scegli un file audio: l’app ascolta per una ventina di secondi. La tonalità diventa il Sole, le note più forti pianeti, e il battito le loro lune. Nulla viene inviato o conservato: l’ascolto avviene su questo dispositivo.',
+   mic:'Usa il microfono',file:'Scegli un file',listening:'In ascolto…',analysing:'Calcolo…',stop:'Ferma e calcola',cancel:'Annulla',close:'Chiudi',
+   micDenied:'Non è stato possibile aprire il microfono. Consentilo nel browser, oppure scegli un file.',fileBad:'Quel file non si è potuto leggere come audio.',
+   noNotes:'Troppo poco: non sono state trovate note chiare. Prova più forte, o con un altro brano.',
+   saved:'Il tuo sistema, dall’ultimo brano suonato',linkH:'Un sistema condiviso',linkP:'Qualcuno ha condiviso il sistema di un brano musicale. Entra per sentirlo; il suono inizia al tuo tocco.',
+   key:'Tonalità',major:'{k} maggiore',minor:'{k} minore',tempo:'Tempo',bpm:'{n} battiti al minuto',noBeat:'nessun battito stabile',planets:'Pianeti',moons:'Lune',
+   enter:'Entra nel tuo sistema',again:'Ascolta qualcos’altro',share:'Copia un link',shared:'Link copiato',forget:'Dimentica',
+   sunName:'Apollo',inside:'Dentro il tuo sistema',infoGreek:'ἡ σὴ ἁρμονία',infoH:'Il tuo sistema',infoSub:'{key} · {n} pianeti · {verdict}',
+   infoVoice:'Ogni pianeta canta una delle note che hai suonato, forte quanto suonava. La sua orbita segue la nota per la regola delle quaranta ottave e la terza legge di Keplero, così le note consonanti cadono in risonanza. Le lune segnano il battito e le sue divisioni. Apollo tiene la tonalità al centro.',
+   centre:'Ascolta dal centro',atCentre:'In ascolto dal centro',back:'Torna al sistema solare',listenFrom:'Ascolta da {name}',
+   days:'{n} giorni',years:'{n} anni',res:'{r} con {name}',ecc:'eccentrica',tilted:'inclinata',retro:'retrograda',faint:'debole',note:'nota',
+   v_ecc:'orbite selvagge ed eccentriche, come HD 80606 b',v_trappist:'una catena risonante compatta, come TRAPPIST-1',v_laplace:'bloccato in risonanza, come Io, Europa e Ganimede attorno a Zeus',
+   v_hot:'un gigante caldo vicinissimo, come 51 Pegasi b',v_tilt:'inclinato e intricato, come Upsilon Andromedae',v_crowd:'affollato, come Kepler-90 con i suoi otto pianeti',
+   v_wide:'molto spaziato, come il nostro',v_pair:'una coppia solitaria, come i pianeti di Proxima Centauri',v_plain:'un sistema quieto e ordinato, come Kepler-11',
+   extras:'Ascoltare un brano musicale',secs:'{n} s'},
+ zh:{chip:'♫ 聆听',chipHave:'♫ 你的星系',title:'聆听一段音乐',
+   intro:'对着麦克风播放音乐，或选择一个音频文件，应用会聆听约二十秒。调性成为太阳，最强的音成为行星，节拍成为它们的卫星。不会上传或保存任何内容：聆听只在这台设备上进行。',
+   mic:'使用麦克风',file:'选择文件',listening:'正在聆听…',analysing:'正在推算…',stop:'停止并推算',cancel:'取消',close:'关闭',
+   micDenied:'无法打开麦克风。请在浏览器中允许，或改为选择文件。',fileBad:'该文件无法作为音频读取。',
+   noNotes:'信息太少：没有找到清晰的音。请调大音量，或换一段音乐。',
+   saved:'你的星系，来自上一段音乐',linkH:'分享的星系',linkP:'有人分享了一段音乐的星系。进入即可聆听；声音在你点按后开始。',
+   key:'调性',major:'{k}大调',minor:'{k}小调',tempo:'速度',bpm:'每分钟 {n} 拍',noBeat:'没有稳定的节拍',planets:'行星',moons:'卫星',
+   enter:'进入你的星系',again:'聆听别的音乐',share:'复制链接',shared:'链接已复制',forget:'忘掉它',
+   sunName:'阿波罗',inside:'在你自己的星系里',infoGreek:'ἡ σὴ ἁρμονία',infoH:'你的星系',infoSub:'{key} · {n} 颗行星 · {verdict}',
+   infoVoice:'每颗行星唱出你播放的一个音，响度与当时相同。它的轨道按四十个八度法则和开普勒第三定律由该音决定，因此协和的音会落入共振。卫星标记节拍及其细分。阿波罗在中心守住调性。',
+   centre:'从中心聆听',atCentre:'正从中心聆听',back:'回到太阳系',listenFrom:'从{name}聆听',
+   days:'{n} 天',years:'{n} 年',res:'与{name}成 {r}',ecc:'偏心',tilted:'倾斜',retro:'逆行',faint:'微弱',note:'音',
+   v_ecc:'狂野的偏心轨道，像 HD 80606 b',v_trappist:'紧凑的共振链，像 TRAPPIST-1',v_laplace:'锁定在共振中，像宙斯身边的木卫一、木卫二和木卫三',
+   v_hot:'紧靠中心的热巨星，像 51 Pegasi b',v_tilt:'倾斜而纠缠，像仙女座 υ',v_crowd:'拥挤，像有八颗行星的开普勒-90',
+   v_wide:'间距宽阔，像我们自己的太阳系',v_pair:'孤独的一对，像比邻星的行星',v_plain:'安静有序的星系，像开普勒-11',
+   extras:'聆听一段音乐',secs:'{n} 秒'},
+ ja:{chip:'♫ 聴く',chipHave:'♫ あなたの系',title:'音楽を聴かせる',
+   intro:'マイクに向けて音楽を流すか、音声ファイルを選ぶと、アプリが二十秒ほど聴き取ります。調が太陽に、いちばん強い音が惑星に、拍がその衛星になります。何も送信も保存もされません。聴き取りはこの端末の中だけで行われます。',
+   mic:'マイクを使う',file:'ファイルを選ぶ',listening:'聴いています…',analysing:'計算しています…',stop:'止めて計算する',cancel:'キャンセル',close:'閉じる',
+   micDenied:'マイクを開けませんでした。ブラウザで許可するか、代わりにファイルを選んでください。',fileBad:'そのファイルは音声として読めませんでした。',
+   noNotes:'手がかりが足りません。はっきりした音が見つかりませんでした。もっと大きな音で、または別の曲で試してください。',
+   saved:'あなたの系（最後に聴かせた曲から）',linkH:'共有された系',linkP:'誰かが曲の系を共有しました。中に入ると聴けます。音はあなたのタップで始まります。',
+   key:'調',major:'{k}長調',minor:'{k}短調',tempo:'テンポ',bpm:'毎分 {n} 拍',noBeat:'一定の拍なし',planets:'惑星',moons:'衛星',
+   enter:'あなたの系に入る',again:'別の曲を聴かせる',share:'リンクをコピー',shared:'リンクをコピーしました',forget:'忘れる',
+   sunName:'アポロン',inside:'あなた自身の系の中',infoGreek:'ἡ σὴ ἁρμονία',infoH:'あなたの系',infoSub:'{key} · 惑星 {n} · {verdict}',
+   infoVoice:'それぞれの惑星は、あなたが聴かせた音のひとつを、鳴っていたのと同じ大きさで歌います。軌道は四十オクターブの法則とケプラーの第三法則によってその音から決まり、協和する音は共鳴に落ち着きます。衛星は拍とその分割を刻みます。中心ではアポロンが調を保ちます。',
+   centre:'中心から聴く',atCentre:'中心から聴いています',back:'太陽系に戻る',listenFrom:'{name}から聴く',
+   days:'{n} 日',years:'{n} 年',res:'{name}と {r}',ecc:'離心',tilted:'傾斜',retro:'逆行',faint:'かすか',note:'音',
+   v_ecc:'荒々しい離心軌道、HD 80606 b のように',v_trappist:'密な共鳴の連鎖、TRAPPIST-1 のように',v_laplace:'共鳴に閉じ込められた、ゼウスをめぐるイオ、エウロパ、ガニメデのように',
+   v_hot:'中心近くの熱い巨星、ペガスス座51番星b のように',v_tilt:'傾いてもつれた、アンドロメダ座υ星のように',v_crowd:'混み合った、八つの惑星をもつケプラー90のように',
+   v_wide:'広く隔たった、私たちの太陽系のように',v_pair:'孤独なひと組、プロキシマ・ケンタウリの惑星のように',v_plain:'静かで整った系、ケプラー11のように',
+   extras:'音楽を聴かせる',secs:'{n} 秒'},
+ vi:{chip:'♫ Lắng nghe',chipHave:'♫ Hệ của bạn',title:'Lắng nghe một bản nhạc',
+   intro:'Phát nhạc vào micrô hoặc chọn một tệp âm thanh, ứng dụng sẽ lắng nghe khoảng hai mươi giây. Giọng trở thành Mặt Trời, những nốt mạnh nhất thành hành tinh, và nhịp thành các mặt trăng của chúng. Không gì được tải lên hay lưu lại: việc lắng nghe diễn ra trên thiết bị này.',
+   mic:'Dùng micrô',file:'Chọn tệp',listening:'Đang nghe…',analysing:'Đang tính…',stop:'Dừng và tính',cancel:'Huỷ',close:'Đóng',
+   micDenied:'Không mở được micrô. Hãy cho phép trong trình duyệt, hoặc chọn một tệp thay thế.',fileBad:'Không đọc được tệp đó dưới dạng âm thanh.',
+   noNotes:'Quá ít để dựa vào: không tìm thấy nốt rõ ràng. Hãy thử to hơn, hoặc một bản khác.',
+   saved:'Hệ của bạn, từ bản nhạc vừa phát',linkH:'Một hệ được chia sẻ',linkP:'Ai đó đã chia sẻ hệ của một bản nhạc. Vào để nghe; âm thanh bắt đầu khi bạn chạm.',
+   key:'Giọng',major:'{k} trưởng',minor:'{k} thứ',tempo:'Nhịp độ',bpm:'{n} nhịp mỗi phút',noBeat:'không có nhịp đều',planets:'Hành tinh',moons:'Mặt trăng',
+   enter:'Vào hệ của bạn',again:'Nghe bản khác',share:'Chép liên kết',shared:'Đã chép liên kết',forget:'Quên đi',
+   sunName:'Apollo',inside:'Bên trong hệ của chính bạn',infoGreek:'ἡ σὴ ἁρμονία',infoH:'Hệ của bạn',infoSub:'{key} · {n} hành tinh · {verdict}',
+   infoVoice:'Mỗi hành tinh hát một nốt bạn đã phát, to như nó đã vang. Quỹ đạo của nó theo nốt ấy bởi quy tắc bốn mươi quãng tám và định luật thứ ba của Kepler, nên các nốt hoà hợp rơi vào cộng hưởng. Các mặt trăng đánh nhịp và các phần chia của nhịp. Apollo giữ giọng ở trung tâm.',
+   centre:'Nghe từ trung tâm',atCentre:'Đang nghe từ trung tâm',back:'Về hệ mặt trời',listenFrom:'Nghe từ {name}',
+   days:'{n} ngày',years:'{n} năm',res:'{r} với {name}',ecc:'lệch tâm',tilted:'nghiêng',retro:'nghịch hành',faint:'mờ',note:'nốt',
+   v_ecc:'những quỹ đạo lệch tâm hoang dại, như HD 80606 b',v_trappist:'một chuỗi cộng hưởng gọn, như TRAPPIST-1',v_laplace:'khoá trong cộng hưởng, như Io, Europa và Ganymede quanh Zeus',
+   v_hot:'một gã khổng lồ nóng sát bên trong, như 51 Pegasi b',v_tilt:'nghiêng và rối, như Upsilon Andromedae',v_crowd:'đông đúc, như Kepler-90 với tám hành tinh',
+   v_wide:'cách xa nhau, như hệ của chúng ta',v_pair:'một đôi lẻ loi, như các hành tinh của Proxima Centauri',v_plain:'một hệ yên tĩnh, ngăn nắp, như Kepler-11',
+   extras:'Lắng nghe một bản nhạc',secs:'{n} giây'}
+};
+const T=LT[LANG]||LT.en;
+const fill=(s,o)=>s.replace(/\{(\w+)\}/g,(_,k)=>o[k]!==undefined?o[k]:'{'+k+'}');
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// note names in the page's convention (the dial's own noteName gives the octave too; here only the class)
+const NOTES={en:['C','C♯','D','E♭','E','F','F♯','G','G♯','A','B♭','B'],de:['C','Cis','D','Es','E','F','Fis','G','Gis','A','B','H'],
+  fr:['Do','Do♯','Ré','Mi♭','Mi','Fa','Fa♯','Sol','Sol♯','La','Si♭','Si'],es:['Do','Do♯','Re','Mi♭','Mi','Fa','Fa♯','Sol','Sol♯','La','Si♭','Si'],it:['Do','Do♯','Re','Mi♭','Mi','Fa','Fa♯','Sol','Sol♯','La','Si♭','Si'],
+  vi:['Đô','Đô♯','Rê','Mi♭','Mi','Fa','Fa♯','Sol','Sol♯','La','Si♭','Si']};
+const NN=NOTES[LANG]||NOTES.en;
+const MUSES=['Calliope','Clio','Erato','Euterpe','Melpomene','Polyhymnia','Terpsichore','Thalia','Urania'];
+const HORAE=['Auge','Anatole','Mousika','Gymnastika','Nymphe','Mesembria','Sponde','Elete','Akte','Hesperis','Dysis','Arktos'];
+
+/* ================= analysis: all of it on this device ================= */
+// an in-place radix-2 FFT on Float32Arrays
+function FFT(n){
+  const rev=new Uint32Array(n);let bits=0;while((1<<bits)<n)bits++;
+  for(let i=0;i<n;i++){let r=0,x=i;for(let b=0;b<bits;b++){r=(r<<1)|(x&1);x>>=1}rev[i]=r}
+  const cos=new Float32Array(n/2),sin=new Float32Array(n/2);for(let i=0;i<n/2;i++){cos[i]=Math.cos(-2*Math.PI*i/n);sin[i]=Math.sin(-2*Math.PI*i/n)}
+  const win=new Float32Array(n);for(let i=0;i<n;i++)win[i]=.5-.5*Math.cos(2*Math.PI*i/n);
+  const re=new Float32Array(n),im=new Float32Array(n);
+  // returns the power spectrum (n/2 bins) of x[off..off+n), Hann windowed
+  return {n,win,power(x,off,out){
+    for(let i=0;i<n;i++){const j=off+i;re[rev[i]]=j<x.length?x[j]*win[i]:0}im.fill(0);
+    for(let size=2;size<=n;size<<=1){const half=size>>1,step=n/size;
+      for(let i=0;i<n;i+=size){for(let j=0,k=0;j<half;j++,k+=step){const tr=re[i+j+half]*cos[k]-im[i+j+half]*sin[k],ti=re[i+j+half]*sin[k]+im[i+j+half]*cos[k];
+        re[i+j+half]=re[i+j]-tr;im[i+j+half]=im[i+j]-ti;re[i+j]+=tr;im[i+j]+=ti}}}
+    for(let i=0;i<n/2;i++)out[i]=re[i]*re[i]+im[i]*im[i];return out}};
+}
+const yieldNow=()=>new Promise(r=>setTimeout(r,0));
+// Krumhansl–Kessler key profiles
+const KMAJ=[6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88],KMIN=[6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
+function corr(a,b){const n=a.length,ma=a.reduce((s,x)=>s+x,0)/n,mb=b.reduce((s,x)=>s+x,0)/n;let sa=0,sb=0,sab=0;for(let i=0;i<n;i++){sa+=(a[i]-ma)**2;sb+=(b[i]-mb)**2;sab+=(a[i]-ma)*(b[i]-mb)}return sab/Math.sqrt(sa*sb||1e-12)}
+const pcOf=f=>((Math.round(12*Math.log2(f/440))+9)%12+12)%12;
+
+/* the whole analysis of a clip: L and R (Float32Array, equal length; R may be L), sample rate, and a progress callback */
+async function analyse(L,R,sr,progress){
+  const n=L.length, mono=new Float32Array(n);let rms=0;for(let i=0;i<n;i++){mono[i]=(L[i]+R[i])*.5;rms+=mono[i]*mono[i]}
+  if(Math.sqrt(rms/(n||1))<2e-4)return null;   // silence
+  const stereo=R!==L;
+  // --- the long spectrum: 8192-point frames every 4096 samples; its average, each frame's chroma, and L/R balance by bin
+  const N=8192,hop=4096,fft=FFT(N),pw=new Float32Array(N/2),avg=new Float64Array(N/2),chromaT=[],binHz=sr/N;
+  const loBin=Math.max(1,Math.floor(50/binHz)),hiBin=Math.min(N/2-1,Math.ceil(2600/binHz)),topBin=Math.min(N/2-1,Math.ceil(4000/binHz));
+  const pcBin=new Int8Array(N/2);for(let b=loBin;b<=hiBin;b++)pcBin[b]=pcOf(b*binHz);
+  const lPow=new Float64Array(N/2),rPow=new Float64Array(N/2),pl=new Float32Array(N/2),pr=new Float32Array(N/2);
+  let frames=0;
+  for(let off=0;off+N<=n;off+=hop){
+    fft.power(mono,off,pw);const ch=new Float64Array(12);
+    for(let b=loBin;b<=hiBin;b++){avg[b]+=pw[b];ch[pcBin[b]]+=Math.sqrt(pw[b])}for(let b=hiBin+1;b<=topBin;b++)avg[b]+=pw[b];
+    chromaT.push(ch);frames++;
+    if(stereo&&frames%2===0){fft.power(L,off,pl);fft.power(R,off,pr);for(let b=loBin;b<=hiBin;b++){lPow[b]+=pl[b];rPow[b]+=pr[b]}}
+    if(frames%40===0){progress&&progress(.1+.5*off/n);await yieldNow()}
+  }
+  if(frames<4)return null;
+  for(let b=0;b<N/2;b++)avg[b]/=frames;
+  // chroma: mean, temporal variability per class, and how much it changes frame to frame
+  const chroma=new Float64Array(12),cv=new Float64Array(12);
+  chromaT.forEach(ch=>{for(let i=0;i<12;i++)chroma[i]+=ch[i]});for(let i=0;i<12;i++)chroma[i]/=frames;
+  chromaT.forEach(ch=>{for(let i=0;i<12;i++)cv[i]+=(ch[i]-chroma[i])**2});for(let i=0;i<12;i++)cv[i]=Math.sqrt(cv[i]/frames)/(chroma[i]||1e-9);
+  let change=0,nc=0;for(let t=2;t<frames;t++){const a=chromaT[t],b=chromaT[t-2];let ab=0,aa=0,bb=0;for(let i=0;i<12;i++){ab+=a[i]*b[i];aa+=a[i]*a[i];bb+=b[i]*b[i]}change+=1-ab/Math.sqrt(aa*bb||1e-18);nc++}
+  change=nc?change/nc:0;
+  // key
+  let key={pc:0,minor:false,score:-2,second:-2};
+  for(let k=0;k<12;k++){const rot=i=>chroma[(i+k)%12];const a=Array.from({length:12},(_,i)=>rot(i));
+    const cM=corr(a,KMAJ),cm=corr(a,KMIN);
+    for(const [c,m] of [[cM,false],[cm,true]]){if(c>key.score){key.second=key.score;key={pc:k,minor:m,score:c,second:key.score}}else if(c>key.second)key.second=c}}
+  // the average spectrum in dB, its floor (a low percentile in a window of a quarter octave either side), and the prominence of every bin
+  const dB=new Float64Array(N/2);for(let b=loBin;b<=hiBin;b++)dB[b]=10*Math.log10(avg[b]+1e-20);
+  const floor=new Float64Array(N/2);
+  for(let b=loBin;b<=hiBin;b++){const lo=Math.max(loBin,Math.floor(b/Math.pow(2,.25))),hi=Math.min(hiBin,Math.ceil(b*Math.pow(2,.25)));
+    const w=[];for(let j=lo;j<=hi;j++)w.push(dB[j]);w.sort((x,y)=>x-y);floor[b]=w[Math.floor(w.length*.3)]}
+  // spectral flatness over 100–4000 Hz: 0 tonal, 1 noise
+  {let gl=0,ar=0,m=0;const hb=topBin;for(let b=Math.floor(100/binHz);b<=hb;b++){gl+=Math.log(avg[b]+1e-20);ar+=avg[b];m++}
+    var flat=Math.exp(gl/m)/(ar/m+1e-20)}
+  const noisy=Math.max(0,Math.min(1,(Math.log10(Math.max(flat,1e-6))+3)/2.5));
+  // peaks: local maxima that stand well above the floor, with parabolic interpolation for the exact frequency
+  let maxdB=-1e9;for(let b=loBin;b<=hiBin;b++)if(dB[b]>maxdB)maxdB=dB[b];
+  let peaks=[];
+  for(let b=loBin+1;b<hiBin;b++){
+    if(dB[b]<dB[b-1]||dB[b]<=dB[b+1])continue;
+    const prom=dB[b]-floor[b];if(prom<5)continue;
+    const d=(dB[b-1]-dB[b+1])/(2*(dB[b-1]-2*dB[b]+dB[b+1])||1),f=(b+(isFinite(d)?Math.max(-.5,Math.min(.5,d)):0))*binHz;
+    if(f<55||f>2500)continue;
+    // brightness: the energy of this note's own harmonics against its fundamental
+    let hs=0;for(let k=2;k<=5;k++){const hb=Math.round(f*k/binHz);if(hb<N/2-1)hs+=Math.max(avg[hb-1],avg[hb],avg[hb+1])}
+    const bright=Math.max(0,Math.min(1,(10*Math.log10((hs+1e-20)/(avg[b]+1e-20))+24)/36));
+    let pan=0;if(stereo){const l=lPow[b-1]+lPow[b]+lPow[b+1],r=rPow[b-1]+rPow[b]+rPow[b+1];pan=(r-l)/(r+l+1e-20)}
+    peaks.push({f,lvl:dB[b]-maxdB,prom,bright,pan,pc:pcOf(f)});
+  }
+  // harmonics of a stronger note count for less
+  peaks.sort((a,b)=>(b.lvl+.5*b.prom)-(a.lvl+.5*a.prom));
+  const chMax=Math.max(...chroma,1e-9);
+  peaks.forEach((p,i)=>{p.sal=p.lvl+.5*p.prom;for(let j=0;j<i;j++){const q=peaks[j],r=p.f/q.f;for(let k=2;k<=8;k++)if(Math.abs(r/k-1)<.02)p.sal-=k===2?8:14}
+    p.harm=chroma[p.pc]<.3*chMax&&peaks.slice(0,i).some(q=>{const r=p.f/q.f;for(let k=2;k<=8;k++)if(Math.abs(r/k-1)<.02)return true;return false})});
+  peaks.sort((a,b)=>b.sal-a.sal);
+  // keep the strongest, none within 60 cents of a stronger one, at most nine, none more than 26 dB down once there are four
+  const chosen=[];for(const p of peaks){if(chosen.length>=9)break;if(p.sal<-26&&chosen.length>=4)break;if(p.harm)continue;if(chosen.some(q=>Math.abs(1200*Math.log2(p.f/q.f))<60))continue;chosen.push(p)}
+  // --- the rhythm: onset strength from spectral flux at 11.6 ms, autocorrelated
+  const N2=2048,hop2=512,fft2=FFT(N2),p2=new Float32Array(N2/2);let prev=null;const flux=[];const hb2=Math.min(N2/2-1,Math.ceil(8000*N2/sr));
+  for(let off=0,k=0;off+N2<=n;off+=hop2,k++){
+    fft2.power(mono,off,p2);let s=0;
+    if(prev)for(let b=1;b<=hb2;b++){const d=Math.log(1+p2[b]*1e3)-Math.log(1+prev[b]*1e3);if(d>0)s+=d}
+    flux.push(s);prev=prev||new Float32Array(N2/2);prev.set(p2);
+    if(k%300===0){progress&&progress(.6+.35*off/n);await yieldNow()}
+  }
+  const dt=hop2/sr;{const m=flux.reduce((a,x)=>a+x,0)/(flux.length||1);for(let i=0;i<flux.length;i++)flux[i]-=m}
+  const acf=lag=>{let s=0;for(let i=lag;i<flux.length;i++)s+=flux[i]*flux[i-lag];return s/(flux.length-lag||1)};
+  const a0=acf(0)||1e-12;
+  let beat=null;
+  if(flux.length>200&&a0>0){
+    // the beat: the best lag between 60 and 220 BPM, with a gentle preference for about 110
+    let best=-1,bl=0;for(let lag=Math.round(60/220/dt);lag<=Math.round(1/dt);lag++){const prior=Math.exp(-.5*Math.pow(Math.log2((60/(lag*dt))/110)/1.0,2));const v=acf(lag)/a0*(.6+.4*prior);if(v>best){best=v;bl=lag}}
+    const str=acf(bl)/a0;
+    if(str>.12){const Tb=bl*dt;
+      // the divisions and multiples of the beat that the music really marks
+      const at=r=>{const lag=Math.round(Tb*r/dt);if(lag<2||lag>flux.length/3)return 0;let v=-9;for(let d=-1;d<=1;d++)v=Math.max(v,acf(lag+d)/a0);return v};
+      const bar=at(3)>at(4)*1.08&&at(6)>at(8)?3:4;
+      const cand=[.25,1/3,.5,1,2,bar,2*bar].map(r=>({r,s:r===1?Math.max(str,at(1)):at(r)})).filter(x=>x.s>.1);
+      beat={bpm:60/Tb,str,bar,div:cand.sort((a,b)=>b.s-a.s).slice(0,4).map(c=>({r:c.r,s:Math.max(0,Math.min(1,c.s))}))};
+    }
+  }
+  progress&&progress(1);
+  return {key,chroma:Array.from(chroma),cv:Array.from(cv),change,noisy,flat,peaks:chosen,beat,stereo,seconds:n/sr};
+}
+
+/* ================= from the analysis to a system ================= */
+const RATIOS=[];for(let p=2;p<=6;p++)for(let q=1;q<p;q++){const g=(a,b)=>b?g(b,a%b):a;if(g(p,q)===1&&p/q<=4.5)RATIOS.push([p,q])}
+const SEC_PER_PERIOD=Math.pow(2,33); // a note's period, forty-odd octaves down: middle C → 1.04 years
+function derive(A){
+  if(!A)return null;
+  let notes=A.peaks.slice();
+  // too few clear peaks: fill from the strongest chroma classes, around middle C
+  if(notes.length<2){const order=A.chroma.map((v,i)=>[v,i]).sort((a,b)=>b[0]-a[0]);for(const [v,pc] of order){if(notes.length>=3)break;if(notes.some(p=>p.pc===pc))continue;
+    notes.push({f:440*Math.pow(2,(pc-9)/12)*(pc<6?1:.5),lvl:-6-6*notes.length,prom:4,bright:.5+.3*A.noisy,pan:0,pc,weak:true})}}
+  if(notes.length<2)return null;
+  // the Sun: the key's tonic, in a drone octave
+  const tonicF=(()=>{let f=440*Math.pow(2,(A.key.pc-9)/12);while(f>200)f/=2;while(f<100)f*=2;return f})();
+  // planets: period by the forty-octave rule, distance by Kepler
+  const pls=notes.map((p,i)=>{
+    const P=SEC_PER_PERIOD/p.f/86400;
+    return {f:p.f,P,lvl:p.lvl,bright:p.bright,pan:p.pan,pc:p.pc,
+      e:Math.max(0,Math.min(.75,.6*(1-Math.max(0,Math.min(1,(p.prom-6)/24)))*(.35+.65*A.noisy)+.35*A.noisy)),
+      i:Math.max(1,Math.min(60,Math.max(0,Math.min(1,A.change*4))*(10+50*Math.max(0,Math.min(1,(A.cv[p.pc]||0)*.8)))+2*A.noisy)),
+      res:null};
+  }).sort((a,b)=>a.P-b.P);
+  // resonance: neighbours whose periods are within 2.5 % of a small-integer ratio are snapped to it
+  for(let k=1;k<pls.length;k++){const r=pls[k].P/pls[k-1].P;let best=null,bd=.025;
+    for(const [p,q] of RATIOS){const d=Math.abs(r/(p/q)-1);if(d<bd){bd=d;best=[p,q]}}
+    if(best){pls[k].P=pls[k-1].P*best[0]/best[1];pls[k].res={p:best[0],q:best[1],with:k-1}}}
+  pls.forEach(p=>{p.a=Math.pow(p.P/365.25,2/3)});
+  // moons: the beat and its divisions, as fractions of the planet's year (the longest division is the year); the loudest planets get the most
+  const divs=A.beat?A.beat.div.slice().sort((a,b)=>b.s-a.s):[];
+  const byLoud=pls.slice().sort((a,b)=>b.lvl-a.lvl);
+  byLoud.forEach((p,j)=>{p.rank=j;p.moons=[];if(!divs.length)return;const n=Math.max(0,Math.min(divs.length,4-j));if(!n)return;
+    const mine=divs.slice(0,n),longest=Math.max(...divs.map(d=>d.r),2*A.beat.bar);
+    p.moons=mine.map(d=>({r:d.r/longest,s:d.s}))});
+  const sys={v:1,key:A.key.pc,minor:A.key.minor,tonic:tonicF,bpm:A.beat?Math.round(A.beat.bpm):0,bar:A.beat?A.beat.bar:0,stereo:A.stereo,noisy:+A.noisy.toFixed(2),change:+A.change.toFixed(3),
+    planets:pls.map((p,k)=>({f:+p.f.toFixed(1),pc:p.pc,P:+p.P.toFixed(2),a:+p.a.toFixed(3),e:+p.e.toFixed(2),i:+p.i.toFixed(1),lvl:+p.lvl.toFixed(1),bright:+p.bright.toFixed(2),pan:+p.pan.toFixed(2),rank:p.rank,res:p.res,moons:p.moons.map(m=>({r:+m.r.toFixed(4),s:+m.s.toFixed(2)}))}))};
+  sys.verdict=verdict(sys);
+  return sys;
+}
+function verdict(sys){
+  const P=sys.planets,n=P.length,links=P.filter(p=>p.res).length,span=P[n-1].P/P[0].P,meanE=P.reduce((s,p)=>s+p.e,0)/n,maxI=Math.max(...P.map(p=>p.i));
+  const biggest=P.slice().sort((a,b)=>b.lvl-a.lvl)[0];
+  if(meanE>.35)return 'v_ecc';
+  if(maxI>35)return 'v_tilt';
+  if(links>=3&&links>=n-2&&span<13)return 'v_trappist';
+  if(links>=2&&n<=5)return 'v_laplace';
+  if(n>=2&&biggest===P[0]&&P[0].P<120)return 'v_hot';
+  if(n>=7)return 'v_crowd';
+  if(span>12)return 'v_wide';
+  if(n<=2)return 'v_pair';
+  return 'v_plain';
+}
+const keyName=sys=>fill(sys.minor?T.minor:T.major,{k:NN[sys.key]});
+/* --- the share code: ?sys=1.key.minor.bpm.bar~planet~planet… with each planet f:P:e:i:lvl:bright:pan:rank:res:moons --- */
+function encode(sys){
+  const h=[1,sys.key,sys.minor?1:0,sys.bpm,sys.bar,sys.stereo?1:0,sys.noisy,sys.change].join('.');
+  const ps=sys.planets.map(p=>[p.f,p.P,p.e,p.i,p.lvl,p.bright,p.pan,p.rank,p.res?p.res.p+'/'+p.res.q+'/'+p.res.with:'',p.moons.map(m=>m.r+'/'+m.s).join('+')].join(':'));
+  return h+'~'+ps.join('~');
+}
+function decode(code){
+  try{
+    const parts=code.split('~'),h=parts[0].split('.').map(Number);if(h[0]!==1||parts.length<3)return null;
+    const sys={v:1,key:h[1]|0,minor:!!h[2],bpm:h[3]||0,bar:h[4]||0,stereo:!!h[5],noisy:h[6]||0,change:h[7]||0,planets:[]};
+    sys.tonic=(()=>{let f=440*Math.pow(2,(sys.key-9)/12);while(f>200)f/=2;while(f<100)f*=2;return f})();
+    for(const s of parts.slice(1)){const x=s.split(':');if(x.length<10)return null;const [f,P,e,i,lvl,bright,pan,rank]=x.slice(0,8).map(Number);
+      if(!(f>20&&P>0))return null;const res=x[8]?(()=>{const r=x[8].split('/').map(Number);return {p:r[0],q:r[1],with:r[2]}})():null;
+      const moons=x[9]?x[9].split('+').map(m=>{const [r,st]=m.split('/').map(Number);return {r,s:st}}):[];
+      sys.planets.push({f,pc:pcOf(f),P,a:Math.pow(P/365.25,2/3),e,i,lvl,bright,pan,rank,res,moons})}
+    if(sys.planets.length<2||sys.planets.length>12)return null;
+    sys.verdict=verdict(sys);return sys;
+  }catch(e){return null}
+}
+
+/* ================= the system on the dial, through the moon-system machinery ================= */
+let X=null;const ctx=()=>{if(!X&&MOTS.app&&MOTS.app._probe)MOTS.app._probe(o=>X=o);return X};
+const lerpHex=(a,b,t)=>{const A=parseInt(a.slice(1),16),B=parseInt(b.slice(1),16);const c=s=>Math.round(((A>>s&255)*(1-t)+(B>>s&255)*t));return '#'+[16,8,0].map(s=>c(s).toString(16).padStart(2,'0')).join('')};
+const STOPS=['#a8502f','#d9924f','#e9d093','#ece4d0','#b9d4ea'];
+function colourOf(b){const x=Math.max(0,Math.min(.999,b))*(STOPS.length-1),k=Math.floor(x);return lerpHex(STOPS[k],STOPS[k+1],x-k)}
+// the dial's own letter-to-syllable rule, for the child voices singing their names
+function g2p(name){let w=name.toLowerCase().replace(/\(.*\)/,'').trim().split(/\s/)[0].normalize('NFD').replace(/[̀-ͯ]/g,'');
+  w=w.replace(/ph/g,'f').replace(/th/g,'T').replace(/ch/g,'k').replace(/qu/g,'k').replace(/x/g,'ks').replace(/c/g,'k').replace(/y/g,'i').replace(/j/g,'i').replace(/w/g,'u').replace(/v/g,'f').replace(/(.)\1/g,'$1');
+  const toks=[];for(const ch of w){if('aeiou'.includes(ch))toks.push(ch);else if(ch==='T')toks.push('th');else if('sztpkdgbmnlrhf'.includes(ch))toks.push(ch)}
+  for(let k=toks.length-1;k>=0;k--)if('aeiou'.includes(toks[k])){toks[k]+=':';break}return toks.join(' ')||'a:'}
+const VT=f=>f<150?{type:'bass',tilt:1.1,vib:[4.8,.03],breath:.05,ens:.4,syl:1.2,rest:2.8}:f<260?{type:'tenor',tilt:1.0,vib:[5.4,.03],breath:.05,ens:.25,syl:.8,rest:2.2}:f<420?{type:'alto',tilt:1.15,vib:[5.2,.025],breath:.08,ens:.3,syl:.8,rest:2.4}:f<700?{type:'soprano',tilt:1.15,vib:[5.4,.03],breath:.1,ens:.2,syl:.7,rest:2.4}:{type:'child',tilt:1.1,vib:[5.8,.02],breath:.08,ens:0,syl:.5,rest:2.2};
+let CUR=null; // the system now on the dial: {sys,body,plucks}
+function buildBody(sys){
+  const Xc=ctx(),TAU=Xc.TAU,DEG=Xc.DEG,J2000=Xc.J2000;
+  const amin=Math.min(...sys.planets.map(p=>p.a)),KM=1e6;   // 1 AU drawn as a million km, so the moon-system projection spreads it well
+  const Rc=Math.max(20000,amin*KM/6);
+  const moons=sys.planets.map((p,k)=>{
+    const name=MUSES[p.rank%MUSES.length]+(p.rank>=MUSES.length?' '+['II','III'][Math.floor(p.rank/MUSES.length)-1]:'');
+    const sizeN=Math.max(0,Math.min(1,1+p.lvl/30));
+    const R=Math.min(6000,(60+2500*Math.pow(sizeN,1.5))*Math.pow(p.a/amin,.6));
+    const a=p.a*KM,e=p.e,inc=p.i*DEG,Om=(k*2.399+p.pan)%TAU;
+    const ph0=sys.stereo?((.25+.25*p.pan)%1+1)%1:(k*.618034)%1;
+    const ci=Math.cos(inc),si=Math.sin(inc),cO=Math.cos(Om),sO=Math.sin(Om);
+    const rot3=(x,y)=>({x:x*cO-y*ci*sO,y:x*sO+y*ci*cO,z:y*si});
+    const m={name,k:'song'+k,P:p.P,a,R,f:p.f,sizeN,color:colourOf(p.bright),ph0,rank:k,flash:0,e,inc:p.i,res:p.res,lvl:p.lvl,subs:[],
+      posAt(jd){const M=TAU*((jd-J2000)/p.P+ph0),E=Xc.kepler(M,e),r=a*(1-e*Math.cos(E)),nu=Math.atan2(Math.sqrt(1-e*e)*Math.sin(E),Math.cos(E)-e);return rot3(r*Math.cos(nu),r*Math.sin(nu))},
+      orbitPt(th){return rot3(a*(Math.cos(th)-e),a*Math.sqrt(1-e*e)*Math.sin(th))},
+      // the body as the dial's voice builder sees it: a voice by register, a vowel, a day that throbs at the tempo
+      body:{hv:Object.assign({jit:.004,words:g2p(name)},VT(p.f)),vowel:['ah','e','i','o','u','ah','ae'][p.pc%7],tremD:.12,
+        rot:sys.bpm?3.9*Math.pow(6/Math.max(.6,Math.min(7,sys.bpm/60)),2.222):Math.abs(p.P)*24}};
+    // the sub-moons: the beat and its divisions, each a fraction of the planet's year
+    m.subs=(p.moons||[]).map((mm,j)=>({name:HORAE[(k*3+j)%HORAE.length],Pm:p.P*mm.r,s:mm.s,ph0:(j*.37+k*.11)%1,orb:undefined,flash:0}));
+    return m;
+  });
+  const body={id:'song',virtual:true,name:T.infoH,god:T.sunName,greek:T.infoGreek,kind:'planet',color:'#f2c46a',R:Rc,obl:0,rot:600,sizeN:1,sizeG:1,hv:null,moons,
+    audLine:T.inside,info:infoHTML,wire:wireInfo,drawMore:drawMore,sys};
+  return body;
+}
+function enter(sys){
+  const Xc=ctx();if(!Xc)return;
+  if(Xc.SYS.id)Xc.leaveSystem();
+  if(Xc.S.thinker!=='today')MOTS.app.thinker('today');
+  const body=buildBody(sys);
+  Xc.byId.song=body;Xc.P.song={x:0,y:0,z:0,r:0,f:sys.tonic,om:0};
+  CUR={sys,body,lastT:0};
+  Xc.SYS.tonic=sys.tonic;
+  Xc.SYS.onLeave=()=>{Xc.SYS.tonic=null;delete Xc.byId.song;delete Xc.P.song;CUR=null;syncChip()};
+  Xc.enterSystem('song');
+  syncChip();
+}
+// the sub-moons: drawn around their planets, and plucked on each completed orbit
+function drawMore(g,sysProj,t,SK){
+  const Xc=ctx(),scr=Xc.scr(),S=Xc.S,TAU=Xc.TAU,J2000=Xc.J2000,AC=Xc.ac();
+  const st=Math.sin(S.tilt);
+  CUR.body.moons.forEach((m,k)=>{const s=scr['moon:'+k];if(!s||!m.subs.length)return;
+    const v=Xc.SYS.voices[k],on=v&&v.part;
+    m.subs.forEach((sm,j)=>{
+      const cyc=(S.jd-J2000)/sm.Pm+sm.ph0,th=TAU*cyc,orb=Math.floor(cyc),rad=(8+j*4.5)*SK;
+      const x=s.x+rad*Math.cos(th+S.az),y=s.y-rad*Math.sin(th+S.az)*st;
+      if(sm.orb!==undefined&&orb!==sm.orb&&on&&AC&&Xc.audioOn()&&S.playing){sm.flash=1;pluck(AC,v,m,sm,t)}
+      sm.orb=orb;sm.flash*=.9;
+      g.fillStyle=`rgba(233,225,204,${(on?.35:.18)+.6*sm.flash})`;g.beginPath();g.arc(x,y,(1.1+.9*sm.s+sm.flash*1.5)*SK,0,TAU);g.fill();
+    });
+  });
+}
+function pluck(AC,v,m,sm,t){
+  if(t-(sm.last||0)<120)return;sm.last=t;MOTS.listen.plucks=(MOTS.listen.plucks||0)+1;
+  const now=AC.currentTime;let f=m.f*2;while(f>1500)f/=2;
+  const amp=.05*(.4+.6*sm.s)*Math.min(1,v.gRel||0)*moonsVol();
+  if(amp<.002)return;
+  const o=AC.createOscillator();o.type='sine';o.frequency.value=f;const o2=AC.createOscillator();o2.type='sine';o2.frequency.value=f*2.003;
+  const g2=AC.createGain();g2.gain.value=.2;const g=AC.createGain();g.gain.setValueAtTime(0,now);g.gain.linearRampToValueAtTime(amp,now+.012);g.gain.setTargetAtTime(0,now+.025,.35);
+  o.connect(g);o2.connect(g2);g2.connect(g);g.connect(v.pan);o.start(now);o2.start(now);o.stop(now+2);o2.stop(now+2);
+  setTimeout(()=>{try{g.disconnect()}catch(e){}},2200);
+}
+const moonsVol=()=>{const Xc=ctx();return Xc.S.groups.moons.on?Xc.S.groups.moons.vol:0};
+/* --- the info card: the system's bodies, their notes, periods and resonances --- */
+const fmtN=(x,d)=>x.toLocaleString(({pl:'pl-PL',cy:'cy-GB',de:'de-DE',es:'es-ES',fr:'fr-FR',it:'it-IT',ja:'ja-JP',zh:'zh-CN',vi:'vi-VN'})[LANG]||'en-GB',{maximumFractionDigits:d});
+const perTxt=P=>P<700?fill(T.days,{n:fmtN(P,0)}):fill(T.years,{n:fmtN(P/365.25,P<365.25*20?1:0)});
+function infoHTML(){
+  const Xc=ctx(),SYS=Xc.SYS,b=CUR.body,sys=CUR.sys;
+  const rows=SYS.moons.map(sm=>{const m=sm.m,k=sm.k,v=SYS.voices[k];
+    const st=!Xc.ac()?'':(v&&v.part?Xc.noteName(Xc.P[v.body.id].f):T.faint);
+    const tags=[perTxt(m.P)];if(m.res)tags.push(fill(T.res,{r:m.res.p+':'+m.res.q,name:b.moons[m.res.with].name}));if(m.e>.25)tags.push(T.ecc);if(m.inc>25)tags.push(T.tilted);
+    return `<div class="vrow${SYS.vp===k?' sel':''}" data-moon="${k}" style="grid-template-columns:minmax(0,1fr) auto auto auto"><span class="sw" style="background:${m.color};width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px"></span><span class="nm">${esc(m.name)} <span>${esc(NN[sys.planets[k].pc])} · ${tags.map(esc).join(' · ')}</span></span><span class="nt" id="sm_${k}">${st}</span><button class="ms" data-act="here" title="${esc(fill(T.listenFrom,{name:m.name}))}" aria-pressed="${SYS.vp===k}">◎</button><span></span></div>`}).join('');
+  const code=encode(sys);
+  return `<div>
+      <div class="greek">${T.infoGreek}</div>
+      <h3>${esc(T.infoH)}</h3>
+      <div class="sub">${esc(fill(T.infoSub,{key:keyName(sys),n:sys.planets.length,verdict:T[sys.verdict]||''}))}${sys.bpm?' · '+esc(fill(T.bpm,{n:sys.bpm})):''}</div>
+      <div class="voice">${esc(T.infoVoice)}</div>
+      <div class="acts"><button class="btn" id="sysCentre">${SYS.vp==='centre'?esc(T.atCentre):esc(T.centre)}</button><button class="btn" id="lsShare" data-code="${esc(code)}">${esc(T.share)}</button><button class="btn" id="lsAgain">${esc(T.again)}</button><button class="btn" id="sysLeave" style="border-color:var(--bronze);color:var(--bronze)">${esc(T.back)}</button></div>
+    </div>
+    <div class="roster" id="sysRoster" style="max-height:none">${rows}</div>`;
+}
+function wireInfo(){
+  const Xc=ctx(),$=id=>document.getElementById(id);
+  $('sysLeave').onclick=()=>Xc.leaveSystem();
+  $('sysCentre').onclick=()=>{Xc.SYS.vp='centre';Xc.renderInfo()};
+  $('sysRoster').onclick=e=>{const row=e.target.closest('.vrow');if(!row)return;const k=+row.dataset.moon;Xc.SYS.vp=Xc.SYS.vp===k?'centre':k;Xc.renderInfo()};
+  $('lsShare').onclick=e=>share(e.currentTarget,CUR.sys);
+  $('lsAgain').onclick=()=>openPanel('start');
+}
+function shareURL(sys){const u=new URL(location.href);u.search='?sys='+encode(sys);u.hash='today';return u.toString()}
+async function share(btn,sys){const url=shareURL(sys);try{if(navigator.share&&matchMedia('(hover:none)').matches){await navigator.share({url});return}}catch(e){}
+  try{await navigator.clipboard.writeText(url)}catch(e){prompt('',url)}const t=btn.textContent;btn.textContent=T.shared;setTimeout(()=>btn.textContent=t,1800)}
+
+/* ================= the panel: listen, show the result, enter ================= */
+const css=document.createElement('style');
+css.textContent=`#lsPanel{--u:clamp(15px,10px + .4vw,26px);position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;width:min(34em,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;background:#13162a;color:#e9e1cc;border:1px solid #c9984f;border-radius:12px;padding:1em 1.1em 1.1em;font:var(--u)/1.45 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+#lsPanel h2{font:400 1.5em/1.2 "GFS Didot",Georgia,serif;margin:0 1.6em .4em 0;color:#e9d093}#lsPanel h3{font:600 .78em/1 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#aea791;margin:1em 0 .4em}
+#lsPanel p{margin:.3em 0 .6em;color:#d9d1bb}#lsPanel .n{color:#aea791;font-size:.93em}
+#lsPanel .b{appearance:none;border:1px solid #c9984f;background:transparent;color:#e9d093;border-radius:999px;padding:.6em 1.1em;font:inherit;cursor:pointer;min-height:44px}
+#lsPanel .b:hover{background:rgba(201,152,79,.12)}#lsPanel .b.pri{background:rgba(201,152,79,.18)}#lsPanel .b.q{border-color:#3a4068;color:#e9e1cc}
+#lsPanel .row{display:flex;gap:10px;align-items:center;margin-top:.6em;flex-wrap:wrap}
+#lsPanel .x{position:absolute;right:.6em;top:.6em;appearance:none;border:0;background:transparent;color:#aea791;font-size:1.3em;cursor:pointer;width:44px;height:44px;border-radius:50%}#lsPanel .x:hover{color:#e9e1cc;background:#1b1f38}
+#lsScope{display:block;width:100%;height:84px;border:1px solid #3a4068;border-radius:8px;margin-top:.4em;background:#0c0e1a}
+#lsPanel .bar{height:4px;background:#2b3050;border-radius:2px;margin-top:.6em;overflow:hidden}#lsPanel .bar i{display:block;height:100%;background:#c9984f;width:0;transition:width .3s}
+#lsPanel .err{color:#e8a98a}
+#lsPanel .sys{display:grid;grid-template-columns:auto 1fr;gap:.3em .9em;margin:.4em 0;font-variant-numeric:tabular-nums}#lsPanel .sys b{color:#aea791;font-weight:500;font-size:.8em;letter-spacing:.08em;text-transform:uppercase}
+#lsPanel .pl{display:flex;flex-wrap:wrap;gap:.35em .7em;margin:.2em 0 .6em}#lsPanel .pl span{display:inline-flex;align-items:center;gap:.35em;font-size:.92em}#lsPanel .pl i{width:.7em;height:.7em;border-radius:50%;display:inline-block}
+#lsPanel .pl small{color:#aea791}
+#lsPanel :focus-visible{outline:3px solid #c9984f;outline-offset:2px}
+#lsBack{position:fixed;inset:0;background:rgba(6,8,16,.55);z-index:59}
+#lsChip.have{color:#f3d9a4;border-color:var(--bronze)}`;
+document.head.appendChild(css);
+let PANEL=null,BACK=null,LAST=null,REC=null;
+function closePanel(){if(REC)REC.cancel();if(PANEL){PANEL.remove();PANEL=null}if(BACK){BACK.remove();BACK=null}}
+function openPanel(view,data){
+  closePanel();
+  BACK=document.createElement('div');BACK.id='lsBack';BACK.onclick=closePanel;document.body.appendChild(BACK);
+  PANEL=document.createElement('div');PANEL.id='lsPanel';PANEL.setAttribute('role','dialog');PANEL.setAttribute('aria-modal','true');PANEL.setAttribute('aria-labelledby','lsH');document.body.appendChild(PANEL);
+  render(view,data);
+}
+function render(view,data){
+  const P=PANEL;if(!P)return;
+  const x=`<button class="x" id="lsX" aria-label="${esc(T.close)}">✕</button>`;
+  if(view==='start'){
+    P.innerHTML=`${x}<h2 id="lsH">${esc(T.title)}</h2><p>${esc(T.intro)}</p>
+      <div class="row"><button class="b pri" id="lsMic">${esc(T.mic)}</button><button class="b" id="lsFile">${esc(T.file)}</button><input type="file" id="lsIn" accept="audio/*,video/*" hidden></div>
+      <p class="err n" id="lsErr" hidden></p>
+      ${LAST?`<h3>${esc(T.saved)}</h3>${sysSummary(LAST)}<div class="row"><button class="b" id="lsEnterSaved">${esc(T.enter)}</button><button class="b q" id="lsShare2">${esc(T.share)}</button><button class="b q" id="lsForget">${esc(T.forget)}</button></div>`:''}`;
+    P.querySelector('#lsMic').onclick=()=>startMic();
+    P.querySelector('#lsFile').onclick=()=>P.querySelector('#lsIn').click();
+    P.querySelector('#lsIn').onchange=e=>{const f=e.target.files[0];if(f)startFile(f)};
+    if(LAST){P.querySelector('#lsEnterSaved').onclick=()=>{enter(LAST);closePanel()};P.querySelector('#lsShare2').onclick=e=>share(e.currentTarget,LAST);
+      P.querySelector('#lsForget').onclick=()=>{LS.del('mots.listen.sys');LAST=null;syncChip();render('start')}}
+    if(data&&data.err){const e=P.querySelector('#lsErr');e.textContent=data.err;e.hidden=false}
+  }else if(view==='listen'){
+    P.innerHTML=`${x}<h2 id="lsH">${esc(T.listening)} <span class="n" id="lsSecs"></span></h2><canvas id="lsScope" width="600" height="84"></canvas><div class="bar"><i id="lsProg"></i></div>
+      <div class="row"><button class="b pri" id="lsStop">${esc(T.stop)}</button><button class="b q" id="lsCancel">${esc(T.cancel)}</button></div>`;
+    P.querySelector('#lsStop').onclick=()=>REC&&REC.stop();P.querySelector('#lsCancel').onclick=()=>{if(REC)REC.cancel();render('start')};
+  }else if(view==='work'){
+    P.innerHTML=`${x}<h2 id="lsH">${esc(T.analysing)}</h2><div class="bar"><i id="lsProg"></i></div>`;
+  }else if(view==='result'){
+    const sys=data.sys;
+    P.innerHTML=`${x}<h2 id="lsH">${esc(data.shared?T.linkH:T.infoH)}</h2>${data.shared?`<p>${esc(T.linkP)}</p>`:''}${sysSummary(sys)}
+      <div class="row"><button class="b pri" id="lsEnter">${esc(T.enter)}</button><button class="b q" id="lsShare3">${esc(T.share)}</button><button class="b q" id="lsAgain2">${esc(T.again)}</button></div>`;
+    P.querySelector('#lsEnter').onclick=()=>{LAST=sys;LS.set('mots.listen.sys',encode(sys));enter(sys);closePanel()};
+    P.querySelector('#lsShare3').onclick=e=>share(e.currentTarget,sys);
+    P.querySelector('#lsAgain2').onclick=()=>render('start');
+  }
+  P.querySelector('#lsX').onclick=closePanel;
+  const f=P.querySelector('.b.pri')||P.querySelector('.b');if(f)f.focus({preventScroll:true});
+}
+function sysSummary(sys){
+  const pls=sys.planets.map((p,k)=>`<span><i style="background:${colourOf(p.bright)}"></i>${esc(MUSES[p.rank%MUSES.length])} <small>${esc(NN[p.pc])}${p.res?' · '+p.res.p+':'+p.res.q:''}${p.moons.length?' · ☾'+p.moons.length:''}</small></span>`).join('');
+  return `<div class="sys"><b>${esc(T.key)}</b><span>${esc(keyName(sys))}</span><b>${esc(T.tempo)}</b><span>${sys.bpm?esc(fill(T.bpm,{n:sys.bpm})):esc(T.noBeat)}</span><b>${esc(T.planets)}</b><span>${sys.planets.length} · ${esc(T[sys.verdict]||'')}</span></div><div class="pl">${pls}</div>`;
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&PANEL){e.stopImmediatePropagation();closePanel()}},true);
+
+/* --- capture: the microphone for twenty seconds (or until stopped), or a decoded file --- */
+const MIC_SECS=20,FILE_SECS=30;
+async function startMic(){
+  let ac=null,stream=null;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+  }catch(e){render('start',{err:T.micDenied});return}
+  try{ac=new (window.AudioContext||window.webkitAudioContext)();await ac.resume()}catch(e){stream.getTracks().forEach(t=>t.stop());render('start',{err:T.micDenied});return}
+  render('listen');
+  // the spheres fall silent while the microphone is open, so they are not heard twice
+  const wasOn=MOTS.app&&MOTS.app.playing();if(wasOn)MOTS.app.stop();
+  const src=ac.createMediaStreamSource(stream),sr=ac.sampleRate,chs=2;
+  const proc=ac.createScriptProcessor(4096,chs,1),an=ac.createAnalyser();an.fftSize=2048;an.smoothingTimeConstant=.6;
+  const L=[],R=[];let got=0,done=false;const sink=ac.createGain();sink.gain.value=0;
+  src.connect(an);src.connect(proc);proc.connect(sink);sink.connect(ac.destination);
+  const t0=performance.now();
+  const finish=cancel=>{if(done)return;done=true;try{proc.disconnect();src.disconnect();an.disconnect()}catch(e){}stream.getTracks().forEach(t=>t.stop());ac.close().catch(()=>{});cancelAnimationFrame(raf);REC=null;
+    if(wasOn)MOTS.app.start();
+    if(cancel)return;
+    const n=got,l=new Float32Array(n),r=new Float32Array(n);let o=0;L.forEach((c,i)=>{l.set(c,o);r.set(R[i],o);o+=c.length});
+    // a mono microphone arrives as two equal channels
+    let same=true;for(let i=0;i<n&&same;i+=97)if(Math.abs(l[i]-r[i])>1e-6)same=false;
+    run(l,chs>1&&!same?r:l,sr)};
+  proc.onaudioprocess=e=>{if(done)return;const a=e.inputBuffer.getChannelData(0),b=chs>1?e.inputBuffer.getChannelData(1):a;L.push(new Float32Array(a));R.push(new Float32Array(b));got+=a.length;
+    if(got/sr>=MIC_SECS)finish(false)};
+  REC={stop:()=>{if(got/sr<4)return;finish(false)},cancel:()=>finish(true)};
+  const spec=new Uint8Array(an.frequencyBinCount);let raf=0;
+  const tick=()=>{if(done)return;raf=requestAnimationFrame(tick);const el=(performance.now()-t0)/1000,s=document.getElementById('lsSecs'),pg=document.getElementById('lsProg');
+    if(s)s.textContent=fill(T.secs,{n:Math.max(0,Math.ceil(MIC_SECS-el))});if(pg)pg.style.width=Math.min(100,100*el/MIC_SECS)+'%';
+    an.getByteFrequencyData(spec);scope(spec,sr/2)};
+  tick();
+}
+function scope(spec,nyq){
+  const c=document.getElementById('lsScope');if(!c)return;const g=c.getContext('2d'),W=c.width,H=c.height;g.clearRect(0,0,W,H);
+  // a log-frequency spectrum, 50 Hz to 8 kHz
+  g.fillStyle='rgba(201,152,79,.85)';const nb=120;for(let i=0;i<nb;i++){const f0=50*Math.pow(160,i/nb),f1=50*Math.pow(160,(i+1)/nb);const b0=Math.floor(f0/nyq*spec.length),b1=Math.max(b0+1,Math.floor(f1/nyq*spec.length));let m=0;for(let b=b0;b<b1&&b<spec.length;b++)m=Math.max(m,spec[b]);const h=m/255*(H-6);g.fillRect(i*W/nb+1,H-h-3,W/nb-2,h)}
+}
+async function startFile(file){
+  render('work');
+  let buf;
+  try{const ac=new OfflineAudioContext(2,44100,44100);const ab=await file.arrayBuffer();buf=await ac.decodeAudioData(ab)}catch(e){render('start',{err:T.fileBad});return}
+  const sr=buf.sampleRate,L0=buf.getChannelData(0);let R0=buf.numberOfChannels>1?buf.getChannelData(1):L0;
+  if(R0!==L0){let same=true;for(let i=0;i<L0.length&&same;i+=211)if(Math.abs(L0[i]-R0[i])>1e-6)same=false;if(same)R0=L0}
+  // the loudest half-minute of the file, so a quiet introduction does not take the whole clip
+  const win=Math.min(L0.length,Math.round(FILE_SECS*sr));let start=0;
+  if(L0.length>win){const sec=Math.round(sr),nsec=Math.floor(L0.length/sec),rms=new Float64Array(nsec);
+    for(let s=0;s<nsec;s++){let e=0;for(let i=s*sec;i<(s+1)*sec;i+=16)e+=L0[i]*L0[i]+R0[i]*R0[i];rms[s]=e}
+    const wsec=Math.round(win/sec);let best=-1;for(let s=0;s+wsec<=nsec;s++){let e=0;for(let k=0;k<wsec;k++)e+=rms[s+k];if(e>best){best=e;start=s*sec}}}
+  run(L0.subarray(start,start+win),R0===L0?null:R0.subarray(start,start+win),sr);
+}
+async function run(L,R,sr){
+  render('work');
+  const prog=document.getElementById('lsProg');
+  let A=null;try{A=await analyse(L,R||L,sr,p=>{if(prog)prog.style.width=Math.round(100*p)+'%'})}catch(e){console.error(e)}
+  const sys=A&&derive(A);
+  if(!sys){render('start',{err:T.noNotes});return}
+  MOTS.listen.last={A,sys};
+  render('result',{sys});
+}
+
+/* ================= wiring: the chip on the dial, the Extras link, the share link ================= */
+let CHIP=null;
+function syncChip(){if(!CHIP)return;CHIP.textContent=CUR||LAST?T.chipHave:T.chip;CHIP.classList.toggle('have',!!(CUR||LAST))}
+function addUI(){
+  const tools=document.querySelector('.dial-tools');if(!tools)return;
+  const box=document.createElement('div');box.className='chips today-only';CHIP=document.createElement('button');CHIP.className='chip';CHIP.id='lsChip';CHIP.type='button';
+  CHIP.onclick=()=>openPanel('start');box.appendChild(CHIP);tools.insertBefore(box,tools.firstChild);syncChip();
+  const menu=document.querySelector('.extras .menu');
+  if(menu&&!document.getElementById('listenLink')){const a=document.createElement('a');a.href='#';a.id='listenLink';a.textContent=T.extras;a.onclick=e=>{e.preventDefault();const d=menu.closest('details');if(d)d.open=false;openPanel('start')};menu.appendChild(a)}
+}
+{const s=LS.get('mots.listen.sys');if(s)LAST=decode(s)}
+addUI();
+MOTS.listen={analyse,derive,encode,decode,enter,open:()=>openPanel('start'),current:()=>CUR&&CUR.sys,saved:()=>LAST,last:null,T};
+// a shared system in the address: show it, and enter it at a tap (browsers want a touch before sound)
+{const m=location.search.match(/[?&]sys=([^&]+)/);if(m){const sys=decode(decodeURIComponent(m[1]));if(sys)setTimeout(()=>openPanel('result',{sys,shared:true}),400)}}
+})();
+/*LISTEN-END*/
 </script>
 
 </body>

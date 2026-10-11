@@ -288,10 +288,14 @@ function bgRoute(hidden){
       if(!BG.el){BG.el=new Audio();BG.el.setAttribute('playsinline','')}
       BG.el.srcObject=BG.msd.stream;_c.call(GUARD,BG.msd);try{GUARD.disconnect(ctx.destination)}catch(e){}
       BG.on=true;bgClock();
+      // nobody sees the screen: stop drawing the sky, and run on Eco quality (put back afterwards) so a phone has its strength for the sound
+      BG.sky=MOTS.skyHidden;MOTS.skyHidden=()=>true;
+      BG.q0=null;try{if(typeof quality!=='undefined'&&quality!=='eco'&&LS.get('mots.quality.manual')!=='1'&&MOTS.setQuality){BG.q0=quality;MOTS.setQuality('eco')}}catch(e){}
       BG.el.play().then(()=>bgSession('playing')).catch(()=>bgRoute(false));
     }else if(!hidden&&BG.on){
       _c.call(GUARD,ctx.destination);try{GUARD.disconnect(BG.msd)}catch(e){}
       if(BG.el)BG.el.pause();BG.on=false;
+      MOTS.skyHidden=BG.sky;BG.sky=undefined;if(BG.q0&&MOTS.setQuality){MOTS.setQuality(BG.q0);BG.q0=null}
       const q=BG.q;BG.q=[];q.forEach(cb=>_raf(cb));
     }
   }catch(e){}
@@ -2038,7 +2042,7 @@ function buildSunInst(v,fadeIn){
   I.srcs.push(I.d1,I.d2,I.d3,bl);I.srcs.forEach(o=>o.start());
   return I;
 }
-function droneFreqs(){let t=C_BASE*PY[S.mode]*8*Math.pow(2,keyShift());return [t,t*1.5,t/2]}
+function droneFreqs(){if(SYS.tonic)return [SYS.tonic,SYS.tonic*1.5,SYS.tonic/2];let t=C_BASE*PY[S.mode]*8*Math.pow(2,keyShift());return [t,t*1.5,t/2]}
 const APOLLO=[{type:'bass',tilt:1.25,vib:[4.6,.02],breath:.08,jit:.003,syl:2.0,rest:2.6,ens:.5,words:'a p o l o: n'},{type:'tenor',tilt:1.15,vib:[5.0,.02],breath:.06,jit:.003,syl:2.0,rest:2.6,ens:0,words:'a p o l o: n'}];
 
 // voices are built only while they can be heard; switching mode clears them and they rebuild in the new style
@@ -2368,6 +2372,7 @@ function g2p(name){
 function sysPitch(P){let f=S.F*1.33*Math.pow(1.77/Math.abs(P),.33);while(f<55)f*=2;while(f>1400)f/=2;return quantize(f)}
 // moons orbit in their planet's equatorial plane, tipped by the planet's axial tilt
 function moonPos(b,m,jd){
+  if(m.posAt)return m.posAt(jd);
   const th=TAU*((jd-J2000)/m.P+m.ph0), e=(b.obl||0)*DEG;
   return {x:m.a*Math.cos(th),y:m.a*Math.sin(th)*Math.cos(e),z:m.a*Math.sin(th)*Math.sin(e)};
 }
@@ -2391,7 +2396,7 @@ function enterSystem(id){
 function leaveSystem(){
   if(!SYS.id)return;
   killSystemVoices();
-  SYS.id=null;SYS.moons=[];
+  SYS.id=null;SYS.moons=[];if(SYS.onLeave){const f=SYS.onLeave;SYS.onLeave=null;f()}
   if(SYS.savedSpeed)setSpeed(SYS.savedSpeed);
   renderInfo();renderAud();
 }
@@ -2401,7 +2406,8 @@ function moonBody(b,sm){
     vowel:v0==='a'?'ah':v0,
     // nearly every major moon is tidally locked, so its day equals its orbit; Hyperion tumbles chaotically
     rot:m.name==='Hyperion'?13*24:Math.abs(m.P)*24,
-    hv:{type:'child',tilt:1.1,vib:[5.6,.02],breath:.08,jit:m.name==='Hyperion'?.02:.004,syl:.5,rest:2.2,ens:0,words:g2p(m.name)}};
+    hv:{type:'child',tilt:1.1,vib:[5.6,.02],breath:.08,jit:m.name==='Hyperion'?.02:.004,syl:.5,rest:2.2,ens:0,words:g2p(m.name)},
+    ...(m.body||{})};   // a derived system (listen.js) gives its bodies their own voice, day and vowel
 }
 function buildSystemVoices(){
   if(!AC||!SYS.id)return;
@@ -2446,7 +2452,7 @@ function updateSystemAudio(){
   // only the loudest few moons sing at once on a phone
   const mAllowed=new Set(SYS.moons.map(sm=>[sm.k,SYS.vp===sm.k?9:(sm.m.R/Math.max(audioDir(sm.pos,L).d,1))]).sort((a,c)=>c[1]-a[1]).slice(0,MAXMOONS).map(x=>x[0]));
   SYS.moons.forEach((sm,k)=>{
-    const v=SYS.voices[k], mb=v.body, f=P[mb.id].f=melodyPitch(sysPitch(sm.m.P),moonPhase(b,sm.m));
+    const v=SYS.voices[k], mb=v.body, f=P[mb.id].f=sm.m.f||melodyPitch(sysPitch(sm.m.P),moonPhase(b,sm.m));
     const isMe=SYS.vp===k;
     const a=audioDir(sm.pos,L);setPos(v.pan,a.x,a.y,a.z,.06);
     const g=v.gRel=isMe?.55:Math.min(1.6,Math.pow((sm.m.R/Math.max(a.d,1))/ref,law));
@@ -2458,8 +2464,8 @@ function updateSystemAudio(){
     tgt(v.vol.gain,.075*g*S.groups.moons.vol/(.8),.12);
   });
   // Apollo, the Sun, stays where the Sun is
-  const sd={x:-pp.x,y:-pp.y,z:-pp.z}, sl=Math.hypot(sd.x,sd.y,sd.z)||1;
-  setPos(sunV.pan,sd.x/sl,sd.z/sl,-sd.y/sl);
+  if(b.virtual){const a=audioDir({x:0,y:0,z:0},L);setPos(sunV.pan,a.x,a.y,a.z)}
+  else{const sd={x:-pp.x,y:-pp.y,z:-pp.z}, sl=Math.hypot(sd.x,sd.y,sd.z)||1;setPos(sunV.pan,sd.x/sl,sd.z/sl,-sd.y/sl)}
   const [d1,d2,d3]=droneFreqs(), sp=sunV.part;
   if(sunV.mode==='instrument'){tgt(sp.d1.frequency,d1,.3);tgt(sp.d2.frequency,d2,.3);tgt(sp.d3.frequency,d3,.3)}
   else if(sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
@@ -2479,7 +2485,7 @@ function drawSystem(g,t){
   // orbits
   SYS.moons.forEach(sm=>{
     const m=sm.m;g.strokeStyle=SYS.sel===sm.k?'rgba(201,152,79,.7)':'rgba(233,225,204,.16)';g.lineWidth=1;g.beginPath();
-    for(let k=0;k<=96;k++){const th=TAU*k/96, e=(b.obl||0)*DEG;const q=sysProj(m.a*Math.cos(th),m.a*Math.sin(th)*Math.cos(e),m.a*Math.sin(th)*Math.sin(e));k?g.lineTo(q.x,q.y):g.moveTo(q.x,q.y)}
+    for(let k=0;k<=96;k++){const th=TAU*k/96, e=(b.obl||0)*DEG;const o=m.orbitPt?m.orbitPt(th):{x:m.a*Math.cos(th),y:m.a*Math.sin(th)*Math.cos(e),z:m.a*Math.sin(th)*Math.sin(e)};const q=sysProj(o.x,o.y,o.z);k?g.lineTo(q.x,q.y):g.moveTo(q.x,q.y)}
     g.stroke();
   });
   // the planet at the centre
@@ -2490,19 +2496,20 @@ function drawSystem(g,t){
   screen[SYS.id]=c;
   g.font=`${15*K}px "GFS Didot",Georgia,serif`;g.fillStyle='rgba(233,225,204,.9)';g.textAlign='center';g.textBaseline='top';txt(g,b.god,c.x,c.y+pr+6);
   // the direction of the Sun
-  const sa=Math.atan2(-pp.y,-pp.x)+S.az, sx=CX+Math.cos(sa)*RR*1.0, sy=CY-Math.sin(sa)*RR*Math.sin(S.tilt);
+  if(!b.virtual){const sa=Math.atan2(-pp.y,-pp.x)+S.az, sx=CX+Math.cos(sa)*RR*1.0, sy=CY-Math.sin(sa)*RR*Math.sin(S.tilt);
   const sg=g.createRadialGradient(sx,sy,0,sx,sy,14);sg.addColorStop(0,'rgba(255,236,190,1)');sg.addColorStop(1,'rgba(201,152,79,0)');g.fillStyle=sg;g.beginPath();g.arc(sx,sy,14,0,TAU);g.fill();
-  g.font=`${11*K}px "Alegreya Sans",sans-serif`;g.fillStyle='rgba(233,225,204,.8)';{const f=g.fillText;g.fillText=function(t,x,y){g.fillText=f;txt(g,t,x,y)};g.fillText('hacia el Sol',sx,sy+14)}
+  g.font=`${11*K}px "Alegreya Sans",sans-serif`;g.fillStyle='rgba(233,225,204,.8)';{const f=g.fillText;g.fillText=function(t,x,y){g.fillText=f;txt(g,t,x,y)};g.fillText('hacia el Sol',sx,sy+14)}}
   // moons, nearest last
   SYS.moons.map(sm=>({sm,s:sysProj(sm.pos.x,sm.pos.y,sm.pos.z)})).sort((p,q)=>q.s.d-p.s.d).forEach(({sm,s})=>{
     const v=SYS.voices[sm.k], r=Math.max(2.5,Math.min(9,1.5+2.2*Math.log10(Math.max(sm.m.R,5)/20)))*SK;
     screen['moon:'+sm.k]=s;
     if(v&&v.part){const ph=(t/1000*(v.rate||1))%1,w=Math.sin(ph*TAU)*.5+.5;g.strokeStyle=`rgba(233,225,204,${.15+.3*w})`;g.lineWidth=1;g.beginPath();g.arc(s.x,s.y,r+4+w*5,0,TAU);g.stroke()}
-    g.fillStyle=v&&v.part?'#ece4d0':'rgba(233,225,204,.45)';g.beginPath();g.arc(s.x,s.y,r,0,TAU);g.fill();
+    g.fillStyle=v&&v.part?(sm.m.color||'#ece4d0'):'rgba(233,225,204,.45)';g.beginPath();g.arc(s.x,s.y,r,0,TAU);g.fill();
     if(SYS.vp===sm.k){g.strokeStyle='#62a597';g.lineWidth=1.5;g.beginPath();g.arc(s.x,s.y,r+9,0,TAU);g.stroke()}
     g.font=`${12*K}px "Alegreya Sans",sans-serif`;g.textAlign='left';g.textBaseline='middle';g.fillStyle='rgba(233,225,204,.85)';
     txt(g,sm.m.name.split(' ')[0],s.x+r+6,s.y);
   });
+  if(b.drawMore)b.drawMore(g,sysProj,t,SK);
   // listener
   const L=sysListener(), lp=sysProj(L.x,L.y,L.z);drawListener(g,lp,sysFacing()+S.az);
 }
@@ -3075,7 +3082,7 @@ function frame3(t){
   if(t-lastA>45){audioTick();lastA=t}
   if(t-lastU>250){lastU=t;computeAspects();$('dateTxt').textContent=dateStr(S.jd);$('zodTxt').innerHTML=zodiacLine();$('timeTxt').textContent=fmtSpeed(S.speed);readout(ns);resumeAudio()}
   // the names are placed in the same frame as the picture, from this frame's camera: placed between renders, or from the last frame's camera, they shook beside a planet seen close up
-  if(!MOBILE||t-lastR>=32){camera.updateMatrixWorld();updateLabels();renderer.render(scene,camera);lastR=t}
+  if((!MOBILE||t-lastR>=32)&&!(window.MOTS&&MOTS.skyHidden&&MOTS.skyHidden())){camera.updateMatrixWorld();updateLabels();renderer.render(scene,camera);lastR=t}
   requestAnimationFrame(frame3);
 }
 requestAnimationFrame(frame3);
