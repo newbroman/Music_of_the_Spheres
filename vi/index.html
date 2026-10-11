@@ -2637,7 +2637,7 @@ html.mots-proj #motsShow,html.mots-proj #motsShow *{visibility:visible!important
 @media (max-width:760px){#motsShow .cap{left:3vw;right:3vw;max-width:none;bottom:10vh}}
 `;
 document.head.appendChild(css);
-let el=null,frame=null,curPg='dial',i=-1,left=0,timer=null,tick=null,paused=false,elapsed=0,idleT=null,gen=0;
+let showQ=null,el=null,frame=null,curPg='dial',i=-1,left=0,timer=null,tick=null,paused=false,elapsed=0,idleT=null,gen=0;
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
 function capFor(sc){
   if(sc.th){const t=A().tt[sc.th];return {k:`${t.when} · ${t.work}`,h:t.name,p:t.idea,y:t.hear}}
@@ -2661,13 +2661,13 @@ function framed(pg){
       frame.classList.add('on');res(w)};
   });
 }
-function dropFrame(){if(!frame)return;const f=frame;frame=null;try{const w=f.contentWindow;w.MOTS&&w.MOTS.app&&w.MOTS.app.stop()}catch(e){}f.classList.remove('on');setTimeout(()=>f.remove(),900)}
+function dropFrame(){if(!frame)return;const f=frame;frame=null;try{const w=f.contentWindow;w.MOTS&&w.MOTS.app&&w.MOTS.app.stop();const c=w.MOTS&&w.MOTS.audioCtx&&w.MOTS.audioCtx();if(c&&c.state!=='closed')c.close()}catch(e){}f.classList.remove('on');setTimeout(()=>f.remove(),900)}
 async function toPage(pg){
   if(pg===curPg)return pg==='dial'?null:frame&&frame.contentWindow;
   if(curPg!=='dial')dropFrame();
   curPg=pg;
-  if(pg==='dial'){MOTS.hold=false;await A().start();return null}
-  A().stop();MOTS.hold=true;const w=await framed(pg);
+  if(pg==='dial'){MOTS.hold=false;const c=ctxDial();if(c&&c.state==='suspended')try{await c.resume()}catch(e){}await A().start();return null}
+  A().stop();MOTS.hold=true;{const c=ctxDial();if(c&&c.state==='running')setTimeout(()=>{if(curPg!=='dial')c.suspend()},400)}const w=await framed(pg);
   if(pg==='flight')await w.MOTS.app.start();
   return w;
 }
@@ -2692,6 +2692,7 @@ function fmt(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s
 function tickUI(){if(!el)return;if(!paused)left=Math.max(0,left-1);const done=elapsed+(SC[i]?SC[i].d-left:0);
   el.querySelector('.t').textContent=fmt(done)+' / '+fmt(TOTAL);el.querySelector('.prog').style.width=(100*done/TOTAL)+'%'}
 // a browser may hold the sound back until it gets a tap: offer one
+const ctxDial=()=>{try{return MOTS.audioCtx&&MOTS.audioCtx()}catch(e){return null}};
 const ctxOf=()=>{try{const w=frame?frame.contentWindow:window;return w.MOTS&&w.MOTS.audioCtx&&w.MOTS.audioCtx()}catch(e){return null}};
 function checkSound(){setTimeout(()=>{if(!el)return;const c=ctxOf();el.querySelector('.tap').style.display=c&&c.state==='suspended'?'block':'none'},1800)}
 function pause(p){paused=p;const b=el.querySelector('.pp');b.textContent=p?'▶':'❚❚';b.title=p?T.play:T.pause;if(p)clearTimeout(timer);else arm()}
@@ -2709,16 +2710,19 @@ async function start(){
   document.body.appendChild(el);
   el.querySelector('.pv').onclick=()=>run(i-1);el.querySelector('.nx').onclick=()=>run(i+1);el.querySelector('.pp').onclick=()=>pause(!paused);el.querySelector('.x').onclick=stop;
   el.querySelector('.tap').onclick=()=>{const c=ctxOf();if(c)c.resume();el.querySelector('.tap').style.display='none'};
-  addEventListener('keydown',key,true);addEventListener('pointermove',wake);wake();
+  addEventListener('keydown',key,true);addEventListener('pointermove',wake);addEventListener('pointerdown',wake,true);wake();
   if(window.MOTS&&MOTS.projector)MOTS.projector(true);
+  showQ=null;try{const phone=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
+    if(phone&&MOTS.quality&&MOTS.setQuality&&MOTS.quality()!=='eco'&&localStorage.getItem('mots.quality.manual')!=='1'){showQ=MOTS.quality();MOTS.setQuality('eco')}}catch(e){}
   paused=false;curPg='dial';tick=setInterval(tickUI,1000);
   try{await A().start()}catch(e){}
   await run(0);
 }
 function stop(){
-  clearTimeout(timer);clearInterval(tick);gen++;removeEventListener('keydown',key,true);removeEventListener('pointermove',wake);
+  clearTimeout(timer);clearInterval(tick);gen++;removeEventListener('keydown',key,true);removeEventListener('pointermove',wake);removeEventListener('pointerdown',wake,true);
   dropFrame();MOTS.hold=false;if(el){el.remove();el=null}document.documentElement.classList.remove('mots-show');
-  if(curPg!=='dial'){curPg='dial';try{A().start()}catch(e){}}
+  curPg='dial';try{A().stop()}catch(e){}{const c=ctxDial();if(c&&c.state==='suspended')c.resume().catch(()=>{})}
+  if(showQ&&MOTS.setQuality){MOTS.setQuality(showQ);showQ=null}
   if(window.MOTS&&MOTS.projector&&document.documentElement.classList.contains('mots-proj'))MOTS.projector(false);
 }
 window.MOTS=window.MOTS||{};MOTS.show={start,stop,scenes:SC,total:TOTAL};
