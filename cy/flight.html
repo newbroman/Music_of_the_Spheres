@@ -2683,9 +2683,32 @@ const DOTS=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial(
 const MOONREF=[];BODIES.forEach(b=>OBJ[b.id].moons.forEach((mm,k)=>MOONREF.push([b.id,k])));
 const MOONDOTS=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:2.6,sizeAttenuation:false,color:0xe9e1cc,transparent:true,opacity:.85,depthWrite:false}));
 MOONDOTS.geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(MOONREF.length*3),3));scene.add(MOONDOTS);
-// asteroid belt
-const BELTPTS=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:1.5,sizeAttenuation:false,color:0xa39c89,transparent:true,opacity:.55,depthWrite:false}));
-BELTPTS.geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(BELT.length*3),3));scene.add(BELTPTS);
+// the minor bodies: the main belt with its Kirkwood gaps (where Jupiter's resonances 3:1, 5:2, 7:3 and 2:1 have swept the orbits clear),
+// the Hildas in 3:2 with Jupiter, the Trojans gathered 60° ahead of and behind Jupiter, and, far out, the Kuiper belt with the Plutinos
+// in 3:2 with Neptune. Each rock keeps its own orbit (size, eccentricity, tilt) and moves by Kepler's law as the days run.
+const ROCKS=[];{
+  const lowp=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent),F=lowp?.45:1;
+  let sd=91;const R=()=>{sd=(sd*16807)%2147483647;return (sd-1)/2147483646};const gauss=()=>{let u=0;for(let k=0;k<4;k++)u+=R();return u/2-1};
+  const GAPS=[[2.502,.03],[2.825,.02],[2.958,.012],[3.279,.04]];
+  const add=(a,e,inc,kind,lon)=>{const th0=lon!==undefined?lon:R()*TAU;ROCKS.push({a,e,i:inc,Om:R()*TAU,w:R()*TAU,M0:th0,n:TAU/(365.25*Math.pow(a,1.5)),kind,
+    c:kind==='kb'?[.62+R()*.2,.5+R()*.15,.45+R()*.12]:R()<.55?[.72+R()*.15,.6+R()*.12,.48+R()*.1]:[.55+R()*.15,.55+R()*.15,.55+R()*.15]})};
+  for(let k=0;k<5200*F;){const a=2.06+Math.pow(R(),1.15)*1.24;if(GAPS.some(([g,w])=>Math.abs(a-g)<w))continue;add(a,Math.abs(gauss())*.12,Math.abs(gauss())*12*DEG,'mb');k++}
+  for(let k=0;k<260*F;k++)add(3.97+gauss()*.03,.08+R()*.2,Math.abs(gauss())*9*DEG,'hilda');
+  for(let k=0;k<900*F;k++)add(5.2+gauss()*.08,R()*.12,Math.abs(gauss())*16*DEG,'trojan',(R()<.6?1:-1)*(60+gauss()*18)*DEG);   // the leading camp is the larger
+  for(let k=0;k<700*F;k++)add(39.45+gauss()*.4,.1+R()*.2,Math.abs(gauss())*14*DEG,'kb');
+  for(let k=0;k<1500*F;k++)add(42+R()*5.5,R()*.1,Math.abs(gauss())*(R()<.7?4:20)*DEG,'kb');
+}
+const ROCKPTS=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:1.7,sizeAttenuation:false,vertexColors:true,transparent:true,opacity:.75,depthWrite:false}));
+{const pos=new Float32Array(ROCKS.length*3),col=new Float32Array(ROCKS.length*3);ROCKS.forEach((q,k)=>{const b=.55+Math.random()*.45;col.set([q.c[0]*b,q.c[1]*b,q.c[2]*b],k*3)});
+ ROCKPTS.geometry.setAttribute('position',new THREE.BufferAttribute(pos,3));ROCKPTS.geometry.setAttribute('color',new THREE.BufferAttribute(col,3));ROCKPTS.frustumCulled=false;scene.add(ROCKPTS)}
+// a rock's place on a given day: the mean anomaly, the equation of the centre to second order (good for the small eccentricities here), the
+// distance, then the tilt of its orbit; the Trojans ride with Jupiter at their own angle from it
+function rockPos(q,jd,jupLon){
+  const M=q.kind==='trojan'?0:q.M0+q.n*(jd-J2000),e=q.e,nu=M+2*e*Math.sin(M)+1.25*e*e*Math.sin(2*M),r=q.a*(1-e*e)/(1+e*Math.cos(nu));
+  const u=(q.kind==='trojan'?jupLon+q.M0-q.Om:nu+q.w),cu=Math.cos(u),su=Math.sin(u),cO=Math.cos(q.Om),sO=Math.sin(q.Om),ci=Math.cos(q.i),si=Math.sin(q.i);
+  return [r*(cO*cu-sO*su*ci),r*(sO*cu+cO*su*ci),r*su*si];
+}
+let rockTick=0;
 
 function moonLocal(o,mm){const th=TAU*((S.jd-J2000)/mm.m.P+mm.m.ph0),a=mm.m.a/AU_KM*MAG;return new THREE.Vector3(a*Math.cos(th),0,-a*Math.sin(th))}
 function moonWorld(o,k){return o.moons[k].mesh.getWorldPosition(new THREE.Vector3())}
@@ -2708,7 +2731,9 @@ function updateScene(dtSim){
   DOTS.geometry.attributes.position.needsUpdate=true;
   scene.updateMatrixWorld();
   const md=MOONDOTS.geometry.attributes.position;MOONREF.forEach(([id,k],i)=>{const w=moonWorld(OBJ[id],k);md.setXYZ(i,w.x,w.y,w.z)});md.needsUpdate=true;
-  const bp=BELTPTS.geometry.attributes.position;BELT.forEach((q,k)=>{const e=beltPos(q,S.jd);bp.setXYZ(k,e.x,e.z,-e.y)});bp.needsUpdate=true;
+  // the rocks move slowly: every other frame is plenty (every third on a phone)
+  if((rockTick++)%(ROCKS.length>6000?2:3)===0){const rp=ROCKPTS.geometry.attributes.position,J=P.jupiter,jl=J?Math.atan2(J.y,J.x):0;
+    for(let k=0;k<ROCKS.length;k++){const e=rockPos(ROCKS[k],S.jd,jl);rp.setXYZ(k,e[0],e[2],-e[1])}rp.needsUpdate=true}
 }
 
 /* ---- the ship ---- */
