@@ -258,6 +258,7 @@ details.how kbd{font-family:var(--f-mono);background:var(--sky-3);border:1px sol
 @media (max-width:600px){#stour .tcard{left:16px!important;right:16px;width:auto;bottom:16px;top:auto!important;max-height:55dvh;overflow:auto}}
 @media (prefers-reduced-motion:reduce){.toast,.mx tbody th .mt i,.strip .sw,#stour .spot,#stour .tcard{transition:none}}
 .mots-proj .floor .key,.mots-proj .floor .date{display:none}
+#lfoctl .lfobox{display:flex;flex-direction:column;align-items:stretch;gap:.35rem;flex:1 1 17rem;min-width:0;padding:.5rem .6rem;border:1px solid rgba(201,152,79,.18);border-radius:8px}.lfobox>select{width:100%}#lfoctl .lfobox .field{flex:0 0 auto}.lfoto{display:flex;align-items:center;gap:.45rem;margin:.3rem 0 .6rem;font-size:.82rem;color:var(--vellum-dim,#b9ae95)}.lfoto select{flex:1;min-width:0}.lfodot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#c9984f;margin:0 28px 0 22px;box-shadow:0 0 6px #c9984f}.lfohint{font-size:.78rem;color:#d9a35a;margin:-.2rem 0 .7rem;line-height:1.35}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Noto+Serif+JP:wght@400;600&display=swap">
 <style>:root{--f-display:"GFS Didot","Noto Serif JP",Georgia,serif;--f-body:"Alegreya Sans","Noto Sans JP",system-ui,sans-serif}body{line-break:strict;word-break:normal;overflow-wrap:anywhere}</style>
@@ -2300,11 +2301,33 @@ $('mxClear').onclick=()=>{Y.mx={};renderMatrix();dirty();toast(TX.cleared)};
 const TASTE=[['dlis','level'],['dlis','cut'],['rsun','pitch'],['rsun','vibD'],['lon','pan'],['height','cut'],['height','pan'],['spin','tremR'],['tilt','vowel'],['radius','det'],['mass','res'],['aspect','level'],['aspect','verb'],['retro','trig'],['retro','dly'],['lfo1','tremD'],['lfo1','vowel'],['lfo2','trig'],['lfo2','bright'],['clock','cut'],['elem','vowel'],['sign','pitch'],['ecc','vibD'],['moons','det'],['one','dly'],['sun','verb']];
 $('mxRand').onclick=()=>{Y.mx={};const n=3+Math.floor(Math.random()*3),pool=TASTE.slice();for(let k=0;k<n&&pool.length;k++){const [pair]=pool.splice(Math.floor(Math.random()*pool.length),1);const [s,d]=pair;const a=(d==='trig'||d==='dly'||d==='level'?.4:.25)+Math.random()*.45;Y.mx[s+'>'+d]={a:(Math.random()<.3&&d!=='trig'&&d!=='dly'?-a:a),c:Math.random()<.25?2:1}}
   renderMatrix();dirty();toast(TX.randomised)};
+// the quick route under each LFO, in the page's language, and a sensible depth for each destination
+const LFOU={en:{to:'Sends to',none:'nowhere (silent)',many:'several (see the matrix)',hint:'An LFO only changes the sound once it is routed: choose where it goes, or use its row in the matrix.'},
+pl:{to:'Wysyła do',none:'nigdzie (cisza)',many:'kilku (zobacz macierz)',hint:'LFO zmienia dźwięk dopiero po skierowaniu: wybierz, dokąd ma iść, albo użyj jego wiersza w macierzy.'},
+cy:{to:'Yn anfon i',none:'unman (tawel)',many:'sawl un (gweler y matrics)',hint:'Dim ond ar ôl ei gyfeirio y mae LFO yn newid y sain: dewiswch ble mae’n mynd, neu defnyddiwch ei res yn y matrics.'},
+de:{to:'Ziel',none:'nirgendwohin (stumm)',many:'mehrere (siehe Matrix)',hint:'Ein LFO verändert den Klang erst, wenn er geroutet ist: wähle ein Ziel oder nutze seine Zeile in der Matrix.'},
+es:{to:'Envía a',none:'ninguna parte (silencio)',many:'varios (ver la matriz)',hint:'Un LFO solo cambia el sonido cuando está enrutado: elige adónde va o usa su fila en la matriz.'},
+fr:{to:'Envoie vers',none:'nulle part (muet)',many:'plusieurs (voir la matrice)',hint:'Un LFO ne change le son qu’une fois routé : choisissez sa destination ou utilisez sa ligne dans la matrice.'},
+it:{to:'Invia a',none:'nessuna parte (muto)',many:'più destinazioni (vedi la matrice)',hint:'Un LFO cambia il suono solo quando è instradato: scegli dove va, o usa la sua riga nella matrice.'},
+zh:{to:'送往',none:'无（不起作用）',many:'多个（见矩阵）',hint:'LFO 只有被路由后才会改变声音：选择它的去向，或在矩阵中使用它那一行。'},
+ja:{to:'送り先',none:'なし（効果なし）',many:'複数（マトリクスを参照）',hint:'LFO はルーティングして初めて音を変えます。送り先を選ぶか、マトリクスの行を使ってください。'},
+vi:{to:'Gửi tới',none:'không đâu (không tác dụng)',many:'nhiều nơi (xem ma trận)',hint:'LFO chỉ thay đổi âm thanh khi đã được định tuyến: chọn nơi nó đi tới, hoặc dùng hàng của nó trong ma trận.'}};
+const LFOAMT={pitch:.15,vibD:.35,vibR:.4,tremD:.45,tremR:.4,cut:.5,res:.35,vowel:.5,bright:.45,det:.35,pan:.6,level:.35,verb:.35,dly:.35,dlyT:.25,att:.3,rel:.3};
+// the dots under the LFOs swing with them
+(function lfoDots(){try{document.querySelectorAll('.lfodot').forEach(d=>{const l=Y.lfo[+d.dataset.k];if(!l)return;const v=lfoAt(l,AC?AC.currentTime:performance.now()/1000);d.style.transform=`translateX(${(v*22).toFixed(1)}px)`})}catch(e){}requestAnimationFrame(lfoDots)})();
 function renderLfo(){
   const box=$('lfoctl');box.innerHTML='';
   Y.lfo.forEach((l,k)=>{const r=range('lfoR'+k,0,100,1,Math.round((Math.log10(l.rate)+1.3)/2.3*100),v=>{l.rate=Math.pow(10,-1.3+v/100*2.3);dirty();r.parentNode.querySelector('output').textContent=fmtN(l.rate,2)+' Hz'});
-    const f=field(TX.lfo+' '+(k+1),r,true);f.querySelector('output').textContent=fmtN(l.rate,2)+' Hz';box.appendChild(f);
-    const s=sel('lfoS'+k,['sine','tri','square','saw','rand'].map(x=>[x,TX.shapes[x]]),l.shape,v=>{l.shape=v;dirty()});s.setAttribute('aria-label',TX.shape+' '+(k+1));box.appendChild(s)});
+    const g=document.createElement('div');g.className='lfobox';box.appendChild(g);
+    const f=field(TX.lfo+' '+(k+1),r,true);f.querySelector('output').textContent=fmtN(l.rate,2)+' Hz';g.appendChild(f);
+    const s=sel('lfoS'+k,['sine','tri','square','saw','rand'].map(x=>[x,TX.shapes[x]]),l.shape,v=>{l.shape=v;dirty()});s.setAttribute('aria-label',TX.shape+' '+(k+1));g.appendChild(s);
+    // where this LFO goes: an LFO only sounds through the matrix, so each has a quick route of its own (the matrix shows and edits the same cells)
+    const id='lfo'+(k+1),U=LFOU[(document.documentElement.lang||'en').slice(0,2)]||LFOU.en,cur=DST.filter(d=>{const r=Y.mx[id+'>'+d];return r&&r.a});
+    const rt=sel('lfoD'+k,[['',U.none]].concat(DST.filter(d=>d!=='trig').map(d=>[d,TX.dst[d]])).concat(cur.length>1?[['*',U.many]]:[]),cur.length>1?'*':cur[0]||'',v=>{
+      if(v==='*')return;cur.forEach(d=>delete Y.mx[id+'>'+d]);if(v)Y.mx[id+'>'+v]={a:LFOAMT[v]||.4,c:1};dirty();renderMatrix();renderLfo()});
+    rt.setAttribute('aria-label',U.to+' '+(k+1));const w=document.createElement('div');w.className='lfoto';w.innerHTML=`<span>${esc(U.to)}</span>`;w.appendChild(rt);
+    const dot=document.createElement('i');dot.className='lfodot';dot.dataset.k=k;w.appendChild(dot);g.appendChild(w);
+    if(!cur.length){const h=document.createElement('p');h.className='lfohint';h.textContent=U.hint;g.appendChild(h)}});
   const st=document.createElement('label');st.className='chk';st.innerHTML=`<input type="checkbox" ${Y.stagger?'checked':''}> ${esc(TX.stagger)}`;st.title=TX.staggerTip;st.querySelector('input').onchange=e=>{Y.stagger=e.target.checked;dirty()};box.appendChild(st);
 }
 /* patches */
