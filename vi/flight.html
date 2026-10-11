@@ -259,6 +259,50 @@ MOTS.onOut=fn=>{outFns.push(fn);if(mode)fn(mode)};
 MOTS.setOut=m=>{if(m==='5.1'&&!surOK()){msgOut(T.s51No.replace('{n}',MOTS.surround?MOTS.surround.channels():2));return}mode=m;LS.set('mots.out',m);if(MOTS.surround&&SUR.cfg)surApply(m==='5.1');setWidth();outFns.forEach(f=>f(m));syncOut()};
 MOTS.outMode=()=>mode;MOTS.audioCtx=()=>ctx;
 MOTS.defaultOut=m=>{if(!mode)mode=m;syncOut()};
+/* ---------- background play: a phone stops a web page's sound when the screen goes off unless the page is playing media. While the page
+   is hidden the output therefore goes through an <audio> element (a MediaStream from the same graph), the page's animation loops, which
+   schedule the music, are kept turning by a worker clock (the browser stops requestAnimationFrame in the background), and the lock screen
+   gets the title and play/pause controls. When the page is seen again everything goes back to the direct output. ---------- */
+const BG={el:null,msd:null,on:false,q:[],w:null,ms:false};
+function bgIcon(){const l=document.querySelector('link[rel~="icon"],link[rel="apple-touch-icon"]');return l?l.href:''}
+function bgSession(state){
+  const ms=navigator.mediaSession;if(!ms)return;
+  try{if(!BG.ms){BG.ms=true;
+    ms.setActionHandler('pause',()=>{MOTS.projPaused=true;try{ctx&&ctx.suspend()}catch(e){}if(BG.el)BG.el.pause();ms.playbackState='paused'});
+    ms.setActionHandler('play',()=>{MOTS.projPaused=false;try{ctx&&ctx.resume()}catch(e){}if(BG.el&&BG.on)BG.el.play().catch(()=>{});ms.playbackState='playing'});
+    try{ms.setActionHandler('stop',()=>{MOTS.projPaused=true;try{ctx&&ctx.suspend()}catch(e){}if(BG.el)BG.el.pause();ms.playbackState='paused'})}catch(e){}}
+    const ic=bgIcon();ms.metadata=new MediaMetadata({title:document.title.split(' · ')[0]||'Music of the Spheres',artist:'Music of the Spheres',artwork:ic?[{src:ic,sizes:'512x512'}]:[]});
+    ms.playbackState=state}catch(e){}
+}
+function bgClock(){
+  if(BG.w)return;try{BG.w=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),40)'],{type:'text/javascript'})));
+    BG.w.onmessage=()=>{if(!BG.q.length)return;const q=BG.q;BG.q=[];const now=performance.now();
+      if(document.hidden&&BG.on)q.forEach(cb=>{try{cb(now)}catch(e){}});else q.forEach(cb=>_raf(cb))}}catch(e){}
+}
+const _raf=window.requestAnimationFrame.bind(window);
+window.requestAnimationFrame=cb=>{if(document.hidden&&BG.on){BG.q.push(cb);bgClock();return -1}return _raf(cb)};
+function bgRoute(hidden){
+  try{
+    if(!ctx||!GUARD||(typeof SUR!=='undefined'&&SUR.on))return;
+    if(hidden&&!BG.on){
+      if(ctx.state!=='running'||MOTS.projPaused)return;
+      if(!BG.msd)BG.msd=ctx.createMediaStreamDestination();
+      if(!BG.el){BG.el=new Audio();BG.el.setAttribute('playsinline','')}
+      BG.el.srcObject=BG.msd.stream;_c.call(GUARD,BG.msd);try{GUARD.disconnect(ctx.destination)}catch(e){}
+      BG.on=true;bgClock();
+      BG.el.play().then(()=>bgSession('playing')).catch(()=>bgRoute(false));
+    }else if(!hidden&&BG.on){
+      _c.call(GUARD,ctx.destination);try{GUARD.disconnect(BG.msd)}catch(e){}
+      if(BG.el)BG.el.pause();BG.on=false;
+      const q=BG.q;BG.q=[];q.forEach(cb=>_raf(cb));
+    }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>bgRoute(document.visibilityState==='hidden'));
+addEventListener('pagehide',()=>bgRoute(true));
+// the lock screen shows the app as soon as it plays
+setInterval(()=>{if(ctx&&ctx.state==='running'&&!MOTS.projPaused&&navigator.mediaSession&&navigator.mediaSession.playbackState!=='playing')bgSession('playing')},3000);
+MOTS.bg=()=>({on:BG.on,queued:BG.q.length,el:!!BG.el});
 
 /* --- 5.1 surround: each registered voice is placed among five speakers by its direction from the listener --- */
 // channel order (Web Audio 5.1): 0 L, 1 R, 2 C, 3 LFE, 4 Ls, 5 Rs. Speaker angles, left positive: C 0, L 30, Ls 110, Rs -110, R -30
