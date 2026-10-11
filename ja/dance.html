@@ -129,6 +129,7 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
 @media (max-width:560px){.floor-lyric{bottom:6%;font-size:1rem}}
 .vt{display:flex;align-items:center;gap:.35rem;margin:.2rem 0 .05rem;font-size:.74rem}
 .mrow>.vt{grid-column:2/-1;margin-top:-.2rem}
+.partybtn{font-size:1rem;padding:.45rem 1rem;background:transparent!important;border:1px solid #c9984f!important;color:#f3d9a4!important;border-radius:6px}.partybtn[aria-pressed="true"]{background:rgba(201,152,79,.32)!important;color:#fff3d6!important}.partyd{color:var(--vellum-dim);font-size:.8rem;margin-left:.7rem;line-height:1.3}
 .mrow>.vs{grid-column:2/-1;display:flex;align-items:center;gap:.5rem;font-size:.74rem;color:var(--vellum-dim);text-transform:uppercase;letter-spacing:.05em}.mrow>.vs input{flex:1;max-width:220px;accent-color:var(--gold,#c9984f)}
 /* on a narrow screen the instrument goes on its own line under the god's name, whole, so the slider leaves it room */
 @media (max-width:640px){.mrow .nm{white-space:normal}.mrow .nm>span{display:block;white-space:normal;line-height:1.25;margin-top:.1rem}.mrow{padding:.35rem .25rem}}
@@ -1633,9 +1634,9 @@ function atBar(bar,t){
   D.energy+=((.35+Math.min(.65,ASPNOW.reduce((a,x)=>a+x.str,0)*.35))-D.energy)*.35;
   const into=bar-D.secBar, st=STY();
   if(D.section==='intro'&&into>=D.secLen)setSection('groove',16,bar);
-  else if(D.section==='groove'&&into>=8&&bar%4===0&&((max>.55&&rising)||into>=32)&&bar-D.lastDrop>20){setSection('build',st.buildBars,bar);if(st.fam==='ball')ballRiser(t,st.buildBars*barDur());else riser(t,st.buildBars*barDur())}
-  else if(D.section==='build'&&into>=D.secLen){setSection('drop',16,bar);D.lastDrop=bar;if(!classical())crash(t);toast('ドロップ：'+(ASPNOW[0]?`${ASPNOW[0].a.god} ${ASPNOW[0].asp.sym}︎ ${ASPNOW[0].b.god}`:'天球がそろう'))}
-  else if(D.section==='drop'&&into>=D.secLen)setSection('break',8,bar);
+  else if(D.section==='groove'&&into>=8&&bar%4===0&&((max>.55&&rising)||into>=(D.party?16:32))&&(bar-D.lastDrop>20||D.party&&into>=16)){setSection('build',st.buildBars,bar);if(st.fam==='ball')ballRiser(t,st.buildBars*barDur());else riser(t,st.buildBars*barDur())}
+  else if(D.section==='build'&&into>=D.secLen){setSection('drop',16,bar);D.lastDrop=bar;if(D.party)partyNext(bar);if(!classical())crash(t);toast('ドロップ：'+(ASPNOW[0]?`${ASPNOW[0].a.god} ${ASPNOW[0].asp.sym}︎ ${ASPNOW[0].b.god}`:'天球がそろう'))}
+  else if(D.section==='drop'&&into>=D.secLen){if(D.party&&partySwitch(bar,t))setSection('groove',16,bar);else setSection('break',8,bar)}
   else if(D.section==='break'&&into>=D.secLen){skyMix(bar,t);setSection('groove',16,bar)}
   // the music filter opens and closes with the section
   const cut={intro:1400,groove:4200,build:900,drop:14000,break:1600}[D.section];
@@ -1763,6 +1764,51 @@ function mixButton(){
   mk('funk','mixPopBtn',MIXPT,'mots.mixpop',()=>D.mixPop,v=>{D.mixPop=v});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mixButton);else setTimeout(mixButton,0);
+/* ---- the party mix: one long set across the genres. At the end of each climax the band hands over to another dance style, chosen by the
+   sky from the danceable ones (never one of the last five), straight into its groove with no quiet break; grooves are kept short, and the
+   next band's recordings load during the build so it arrives with its real instruments ---- */
+const PARTY=['house','disco','funk','samba','techno','jive','tarantella','trance','soul','chacha','buleria','synthwave','oberek','jungle','swing','musette','tango','dub','alpine'];
+const PARTY_T={en:['Party mix','One long set across the genres: at the end of every climax the band hands over to another dance style chosen by the sky, with no quiet breaks'],
+pl:['Miks imprezowy','Jeden długi set przez wiele gatunków: po każdej kulminacji zespół przekazuje parkiet innemu stylowi tanecznemu, który wybiera niebo, bez cichych przerw'],
+cy:['Cymysgedd parti','Un set hir ar draws y genres: ar ddiwedd pob uchafbwynt mae’r band yn trosglwyddo i arddull ddawns arall a ddewisir gan yr awyr, heb doriadau tawel'],
+de:['Party-Mix','Ein langes Set quer durch die Genres: nach jedem Höhepunkt übergibt die Band an einen anderen Tanzstil, den der Himmel wählt, ohne ruhige Pausen'],
+es:['Mezcla de fiesta','Una larga sesión por todos los géneros: al final de cada clímax la banda pasa a otro estilo de baile elegido por el cielo, sin pausas tranquilas'],
+fr:['Mix de fête','Un long set à travers les genres : à la fin de chaque apogée, le groupe passe la main à un autre style de danse choisi par le ciel, sans pause calme'],
+it:['Mix da festa','Un lungo set attraverso i generi: alla fine di ogni culmine la band passa a un altro stile di ballo scelto dal cielo, senza pause tranquille'],
+zh:['派对混音','一场跨越各种曲风的长串烧：每次高潮结束，乐队都交给天空选出的另一种舞曲风格，没有安静的间歇'],
+ja:['パーティーミックス','ジャンルをまたぐ長いセット：クライマックスのたびに、空が選んだ次のダンススタイルへバンドが引き継ぎ、静かなブレイクはありません'],
+vi:['Mix tiệc tùng','Một set dài qua nhiều thể loại: cuối mỗi cao trào, ban nhạc chuyển sang một điệu nhảy khác do bầu trời chọn, không có đoạn nghỉ lặng']};
+const PARTYT=PARTY_T[(document.documentElement.lang||'en').slice(0,2)]||PARTY_T.en;
+D.party=(()=>{try{return localStorage.getItem('mots.party')==='1'}catch(e){return false}})();D.partyHist=[];
+function partyNext(bar){
+  if(D.partyNextBar===D.secBar&&D.partyNext)return D.partyNext;
+  const recent=new Set([D.style,...D.partyHist.slice(-5)]),cand=PARTY.filter(k=>STYLES[k]&&!recent.has(k));
+  const r=rng(moonSign()*131+sunSign()*17+bar*7),k=cand.length?cand[Math.floor(r()*cand.length)]:PARTY[0];
+  D.partyNext=k;D.partyNextBar=D.secBar;
+  // load the next band's recordings while this one builds
+  if(typeof smpManifest==='function')smpManifest().then(ok=>{if(ok)(BALL_SAMPLES[k]||STYLES[k].samples||[]).forEach(n=>{if(!smpReady(n))smpLoad(n)})});
+  return k;
+}
+function partySwitch(bar,t){
+  const k=partyNext(bar);if(!k||k===D.style)return false;D.partyHist.push(D.style);if(D.partyHist.length>12)D.partyHist.shift();
+  const pl=D.playing;D.playing=false;setStyle(k);D.playing=pl;D.step=bar*SPB();   // the same bar, on the new band's grid
+  if(AC&&pl)master.gain.setTargetAtTime(outGain(),AC.currentTime,.1);
+  if(AC&&pl&&t!==undefined)crash(t);
+  if(window.MOTS&&MOTS.midi&&MOTS.midi.transport&&pl)MOTS.midi.transport(true,D.bpm);
+  const b=document.querySelector(`#style button[data-v="${k}"]`);toast('☾ '+PARTYT[0]+': '+(b?b.textContent:k));D.partyNext=null;return true;
+}
+function partyButton(){
+  const box=document.getElementById('style');if(!box||document.getElementById('partyBtn'))return;
+  const g=document.createElement('div');g.className='sgrp';
+  const b=document.createElement('button');b.type='button';b.id='partyBtn';b.className='mixbtn partybtn';b.textContent='☾ '+PARTYT[0];b.title=PARTYT[1];b.setAttribute('aria-pressed',String(D.party));
+  b.onclick=()=>{D.party=!D.party;b.setAttribute('aria-pressed',String(D.party));try{localStorage.setItem('mots.party',D.party?'1':'0')}catch(e){}
+    // switching it on mid-song: if the band is not a dance band, hand over at the next bar line into a groove
+    if(D.party&&!PARTY.includes(D.style)){const k=partyNext(Math.floor(D.step/SPB()));setStyle(k);if(AC)master.gain.setTargetAtTime(outGain(),AC.currentTime,.1)}
+    toast('☾ '+PARTYT[0]+(D.party?' ✓':' ✗'))};
+  const d=document.createElement('span');d.className='partyd';d.textContent=PARTYT[1];
+  g.appendChild(b);g.appendChild(d);box.insertBefore(g,box.firstChild);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',partyButton);else setTimeout(partyButton,0);
 
 /* ================= BALLROOM & LATIN: each dance played by its own band ================= */
 // Recorded instruments come from the Fluid R3 General MIDI SoundFont (Frank Wen, CC BY 3.0), loaded per style.
@@ -2020,7 +2066,7 @@ function blRoll(pos,into,spb,hit){const prog=(into+pos/spb)/D.secLen,every=prog<
 
 /* ---- the patterns: the same planets, a different band ---- */
 function ballStep(s,pos,bar,t,st,L,deg,stepT,m,into,spb){
-  if(st.own){COMPOSE[D.style](s,pos,bar,t,st,L,stepT,m,into);return}
+  if(st.own){const f=COMPOSE[D.style];if(f&&STY()===st)f(s,pos,bar,t,st,L,stepT,m,into);return}
   const nxt=D.prog[(bar+1)%4], sec=D.section, sw=!!st.swing8, drop=sec==='drop', bd=barDur(), grv=sec==='groove', bld=sec==='build', brk=sec==='break', intro=sec==='intro', dyn=BALLDYN[sec]||1, last4=bar%4===3;
   const dropStart=drop&&into===0&&pos===0;
   switch(D.style){
