@@ -282,13 +282,27 @@ function bgSession(state){
 function bgClock(){
   if(BG.w)return;try{BG.w=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),40)'],{type:'text/javascript'})));
     BG.w.onmessage=()=>{if(!BG.q.length)return;const q=BG.q;BG.q=[];const now=performance.now();
-      if(document.hidden&&BG.on)q.forEach(cb=>{try{cb(now)}catch(e){}});else q.forEach(cb=>_raf(cb))}}catch(e){}
+      if(document.hidden&&(BG.on||BG.dk))q.forEach(cb=>{try{cb(now)}catch(e){}});else q.forEach(cb=>_raf(cb))}}catch(e){}
 }
 const _raf=window.requestAnimationFrame.bind(window);
-window.requestAnimationFrame=cb=>{if(document.hidden&&BG.on){BG.q.push(cb);bgClock();return -1}return _raf(cb)};
+// phones need the sound re-routed through an <audio> element to keep playing with the screen off; a desktop browser keeps the
+// AudioContext running in the background by itself, and the extra stream only adds latency and crackle there
+const BG_PHONE=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
+// a desktop window in the background (not focused): draw at about 20 frames a second, so the sound keeps the processor it needs
+const BLUR={q:[],t:0};
+const blurred=()=>!BG_PHONE&&!document.hidden&&!document.hasFocus()&&!document.documentElement.classList.contains('mots-proj');
+window.requestAnimationFrame=cb=>{if(document.hidden&&(BG.on||BG.dk)){BG.q.push(cb);bgClock();return -1}
+  if(blurred()){BLUR.q.push(cb);if(!BLUR.t)BLUR.t=setTimeout(()=>{BLUR.t=0;const q=BLUR.q;BLUR.q=[];q.forEach(f=>_raf(f))},45);return -1}
+  return _raf(cb)};
+MOTS.background=()=>document.hidden||blurred();
 function bgRoute(hidden){
   try{
     if(!ctx||!GUARD||(typeof SUR!=='undefined'&&SUR.on))return;
+    if(!BG_PHONE){
+      // desktop: the same output; only stop drawing while nobody can see the page, and keep the music's frame loops ticking
+      if(hidden&&!BG.dk){BG.dk=true;bgClock();BG.sky=MOTS.skyHidden;MOTS.skyHidden=()=>true}
+      else if(!hidden&&BG.dk){BG.dk=false;MOTS.skyHidden=BG.sky;BG.sky=undefined;const q=BG.q;BG.q=[];q.forEach(cb=>_raf(cb))}
+      return}
     if(hidden&&!BG.on){
       if(ctx.state!=='running'||MOTS.projPaused)return;
       if(!BG.msd)BG.msd=ctx.createMediaStreamDestination();
@@ -311,7 +325,7 @@ document.addEventListener('visibilitychange',()=>bgRoute(document.visibilityStat
 addEventListener('pagehide',()=>bgRoute(true));
 // the lock screen shows the app as soon as it plays
 setInterval(()=>{if(ctx&&ctx.state==='running'&&!MOTS.projPaused&&navigator.mediaSession&&navigator.mediaSession.playbackState!=='playing')bgSession('playing')},3000);
-MOTS.bg=()=>({on:BG.on,queued:BG.q.length,el:!!BG.el});
+MOTS.bg=()=>({on:BG.on,desk:!!BG.dk,phone:BG_PHONE,queued:BG.q.length,el:!!BG.el,blurred:blurred()});
 
 /* --- 5.1 surround: each registered voice is placed among five speakers by its direction from the listener --- */
 // channel order (Web Audio 5.1): 0 L, 1 R, 2 C, 3 LFE, 4 Ls, 5 Rs. Speaker angles, left positive: C 0, L 30, Ls 110, Rs -110, R -30
