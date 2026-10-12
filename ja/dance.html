@@ -1088,7 +1088,7 @@ const ext=t=>/mp4/.test(t)?'m4a':/ogg/.test(t)?'ogg':'webm';
 function panel(){
   let p=document.getElementById('recPanel');if(p)return p;
   p=document.createElement('div');p.id='recPanel';p.setAttribute('role','dialog');
-  p.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;width:min(420px,calc(100% - 32px));background:#13162a;color:#e9e1cc;border:1px solid #c9984f;border-radius:10px;padding:12px 14px;font:15px/1.4 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5)';
+  p.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;width:min(420px,calc(100% - 32px));background:#13162a;color:#e9e1cc;border:1px solid #c9984f;border-radius:10px;padding:12px 14px;font:15px/1.4 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5);max-height:calc(100% - 24px);overflow:auto;box-sizing:border-box';
   document.body.appendChild(p);return p;
 }
 function note(msg){const p=panel();p.innerHTML=`<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><span>${msg}</span><button id="recClose" style="appearance:none;border:1px solid #2b3050;background:transparent;color:#a39c89;border-radius:6px;padding:6px 10px;cursor:pointer">${T.close}</button></div>`;p.querySelector('#recClose').onclick=()=>p.remove()}
@@ -1128,6 +1128,160 @@ btn.onclick=async()=>{
   mr.start(1000);t0=performance.now();btn.classList.add('on');btn.setAttribute('aria-pressed','true');
   const upd=()=>{btn.innerHTML='<span aria-hidden="true">■</span> '+T.stop+' '+clock((performance.now()-t0)/1000)};upd();tick=setInterval(upd,250);
 };
+
+/* --- ringtone & alarm: the next few seconds of the output, taken straight from the audio graph as PCM and written as a WAV file,
+   the format every phone's sound picker accepts. A web page cannot set the system ringtone itself, so the file is shared or saved
+   with short instructions for the phone's settings. --- */
+const RT={
+ en:{btn:'Ringtone',title:'Ringtone & alarm',sub:'Capture the next few seconds of what is playing as a sound file for your phone.',notif:'Notification',ring:'Ringtone',alarm:'Alarm',play:'Press Play first, then choose a length.',cap:'Capturing… {n} s left',cancel:'Cancel',readyN:'Your notification sound is ready',readyR:'Your ringtone is ready',readyA:'Your alarm sound is ready',share:'Share',save:'Save file',how:'Set it on your phone',and1:'Save the file to the phone.',and2:'Ringtone or notification: Settings → Sound & vibration → Phone ringtone (or Notification sound) → “+” / My sounds → pick the file.',and3:'Alarm: Clock → the alarm → Sound → Add new / Your sounds → pick the file.',ios:'iPhone: iOS only takes ringtones made in GarageBand or through a computer; save the file and import it that way.',vary:'Names vary by phone.',desk:'Move the file to your phone, then:',none:'This browser cannot capture the sound.',fail:'Nothing was captured — is the sound playing?',file:{notif:'notification',ring:'ringtone',alarm:'alarm'}},
+ pl:{btn:'Dzwonek',title:'Dzwonek i alarm',sub:'Zapisz następne kilka sekund tego, co gra, jako plik dźwiękowy do telefonu.',notif:'Powiadomienie',ring:'Dzwonek',alarm:'Alarm',play:'Najpierw naciśnij Graj, potem wybierz długość.',cap:'Nagrywanie… zostało {n} s',cancel:'Anuluj',readyN:'Dźwięk powiadomienia jest gotowy',readyR:'Dzwonek jest gotowy',readyA:'Dźwięk alarmu jest gotowy',share:'Udostępnij',save:'Zapisz plik',how:'Jak ustawić w telefonie',and1:'Zapisz plik w telefonie.',and2:'Dzwonek lub powiadomienie: Ustawienia → Dźwięk i wibracje → Dzwonek telefonu (lub Dźwięk powiadomienia) → „+” / Moje dźwięki → wybierz plik.',and3:'Alarm: Zegar → alarm → Dźwięk → Dodaj nowy / Twoje dźwięki → wybierz plik.',ios:'iPhone: iOS przyjmuje tylko dzwonki zrobione w GarageBand lub przez komputer; zapisz plik i dodaj go w ten sposób.',vary:'Nazwy różnią się zależnie od telefonu.',desk:'Przenieś plik na telefon, a potem:',none:'Ta przeglądarka nie może zapisać dźwięku.',fail:'Nic nie nagrano — czy muzyka gra?',file:{notif:'powiadomienie',ring:'dzwonek',alarm:'alarm'}},
+ cy:{btn:'Tôn ffôn',title:'Tôn ffôn a larwm',sub:'Cipiwch yr ychydig eiliadau nesaf o’r hyn sy’n chwarae fel ffeil sain i’ch ffôn.',notif:'Hysbysiad',ring:'Tôn ffôn',alarm:'Larwm',play:'Pwyswch Chwarae yn gyntaf, yna dewiswch hyd.',cap:'Yn cipio… {n} e ar ôl',cancel:'Canslo',readyN:'Mae eich sain hysbysiad yn barod',readyR:'Mae eich tôn ffôn yn barod',readyA:'Mae eich sain larwm yn barod',share:'Rhannu',save:'Cadw’r ffeil',how:'Ei gosod ar eich ffôn',and1:'Cadwch y ffeil ar y ffôn.',and2:'Tôn ffôn neu hysbysiad: Gosodiadau → Sain a dirgryniad → Tôn ffôn (neu Sain hysbysiad) → “+” / Fy seiniau → dewiswch y ffeil.',and3:'Larwm: Cloc → y larwm → Sain → Ychwanegu newydd / Eich seiniau → dewiswch y ffeil.',ios:'iPhone: dim ond tonau ffôn a wnaed yn GarageBand neu drwy gyfrifiadur y mae iOS yn eu derbyn; cadwch y ffeil a’i mewnforio felly.',vary:'Mae’r enwau’n amrywio o ffôn i ffôn.',desk:'Symudwch y ffeil i’ch ffôn, yna:',none:'Ni all y porwr hwn gipio’r sain.',fail:'Ni chipiwyd dim — ydy’r sain yn chwarae?',file:{notif:'hysbysiad',ring:'ton-ffon',alarm:'larwm'}},
+ de:{btn:'Klingelton',title:'Klingelton & Wecker',sub:'Nimm die nächsten Sekunden dessen auf, was gerade spielt, als Klangdatei für dein Telefon.',notif:'Benachrichtigung',ring:'Klingelton',alarm:'Wecker',play:'Drücke zuerst Abspielen, dann wähle eine Länge.',cap:'Aufnahme… noch {n} s',cancel:'Abbrechen',readyN:'Dein Benachrichtigungston ist fertig',readyR:'Dein Klingelton ist fertig',readyA:'Dein Weckton ist fertig',share:'Teilen',save:'Datei speichern',how:'Auf dem Telefon einrichten',and1:'Speichere die Datei auf dem Telefon.',and2:'Klingelton oder Benachrichtigung: Einstellungen → Töne & Vibration → Klingelton (oder Benachrichtigungston) → „+“ / Meine Töne → Datei wählen.',and3:'Wecker: Uhr → der Wecker → Ton → Neu hinzufügen / Eigene Töne → Datei wählen.',ios:'iPhone: iOS nimmt nur Klingeltöne an, die in GarageBand oder über einen Computer erstellt wurden; speichere die Datei und füge sie so hinzu.',vary:'Die Namen sind je nach Telefon verschieden.',desk:'Übertrage die Datei auf dein Telefon, dann:',none:'Dieser Browser kann den Klang nicht aufnehmen.',fail:'Nichts aufgenommen — spielt die Musik?',file:{notif:'benachrichtigung',ring:'klingelton',alarm:'wecker'}},
+ es:{btn:'Tono',title:'Tono de llamada y alarma',sub:'Captura los próximos segundos de lo que suena como archivo de sonido para tu teléfono.',notif:'Notificación',ring:'Tono de llamada',alarm:'Alarma',play:'Pulsa primero Reproducir y luego elige una duración.',cap:'Capturando… quedan {n} s',cancel:'Cancelar',readyN:'Tu sonido de notificación está listo',readyR:'Tu tono de llamada está listo',readyA:'Tu sonido de alarma está listo',share:'Compartir',save:'Guardar archivo',how:'Cómo ponerlo en el teléfono',and1:'Guarda el archivo en el teléfono.',and2:'Tono o notificación: Ajustes → Sonido y vibración → Tono del teléfono (o Sonido de notificación) → «+» / Mis sonidos → elige el archivo.',and3:'Alarma: Reloj → la alarma → Sonido → Añadir nuevo / Tus sonidos → elige el archivo.',ios:'iPhone: iOS solo acepta tonos creados en GarageBand o mediante un ordenador; guarda el archivo y añádelo así.',vary:'Los nombres varían según el teléfono.',desk:'Pasa el archivo a tu teléfono y luego:',none:'Este navegador no puede capturar el sonido.',fail:'No se capturó nada: ¿está sonando la música?',file:{notif:'notificacion',ring:'tono',alarm:'alarma'}},
+ fr:{btn:'Sonnerie',title:'Sonnerie et alarme',sub:'Capturez les prochaines secondes de ce qui joue, en fichier son pour votre téléphone.',notif:'Notification',ring:'Sonnerie',alarm:'Alarme',play:'Appuyez d’abord sur Lecture, puis choisissez une durée.',cap:'Capture… encore {n} s',cancel:'Annuler',readyN:'Votre son de notification est prêt',readyR:'Votre sonnerie est prête',readyA:'Votre son d’alarme est prêt',share:'Partager',save:'Enregistrer le fichier',how:'L’installer sur le téléphone',and1:'Enregistrez le fichier sur le téléphone.',and2:'Sonnerie ou notification : Paramètres → Son et vibreur → Sonnerie du téléphone (ou Son de notification) → « + » / Mes sons → choisissez le fichier.',and3:'Alarme : Horloge → l’alarme → Son → Ajouter / Vos sons → choisissez le fichier.',ios:'iPhone : iOS n’accepte que les sonneries créées dans GarageBand ou via un ordinateur ; enregistrez le fichier et ajoutez-le ainsi.',vary:'Les noms varient selon le téléphone.',desk:'Transférez le fichier sur votre téléphone, puis :',none:'Ce navigateur ne peut pas capturer le son.',fail:'Rien n’a été capturé : la musique joue-t-elle ?',file:{notif:'notification',ring:'sonnerie',alarm:'alarme'}},
+ it:{btn:'Suoneria',title:'Suoneria e sveglia',sub:'Cattura i prossimi secondi di ciò che suona come file audio per il tuo telefono.',notif:'Notifica',ring:'Suoneria',alarm:'Sveglia',play:'Premi prima Riproduci, poi scegli una durata.',cap:'Cattura… ancora {n} s',cancel:'Annulla',readyN:'Il suono di notifica è pronto',readyR:'La suoneria è pronta',readyA:'Il suono della sveglia è pronto',share:'Condividi',save:'Salva file',how:'Impostarlo sul telefono',and1:'Salva il file sul telefono.',and2:'Suoneria o notifica: Impostazioni → Suoni e vibrazione → Suoneria telefono (o Suono di notifica) → «+» / I miei suoni → scegli il file.',and3:'Sveglia: Orologio → la sveglia → Suono → Aggiungi nuovo / I tuoi suoni → scegli il file.',ios:'iPhone: iOS accetta solo suonerie create in GarageBand o tramite un computer; salva il file e aggiungilo così.',vary:'I nomi cambiano da telefono a telefono.',desk:'Sposta il file sul telefono, poi:',none:'Questo browser non può catturare il suono.',fail:'Non è stato catturato nulla: la musica sta suonando?',file:{notif:'notifica',ring:'suoneria',alarm:'sveglia'}},
+ zh:{btn:'铃声',title:'铃声与闹钟',sub:'把接下来几秒正在播放的声音保存为手机用的音频文件。',notif:'通知音',ring:'铃声',alarm:'闹钟',play:'请先按“播放”，再选择长度。',cap:'正在录制… 还剩 {n} 秒',cancel:'取消',readyN:'通知音已就绪',readyR:'铃声已就绪',readyA:'闹钟声已就绪',share:'分享',save:'保存文件',how:'在手机上设置',and1:'把文件保存到手机。',and2:'铃声或通知音：设置 → 声音与振动 → 电话铃声（或通知音）→ “+” / 我的声音 → 选择该文件。',and3:'闹钟：时钟 → 该闹钟 → 声音 → 添加 / 你的声音 → 选择该文件。',ios:'iPhone：iOS 只接受在 GarageBand 中或通过电脑制作的铃声；请保存文件后用这种方式导入。',vary:'各款手机的名称有所不同。',desk:'把文件传到手机，然后：',none:'此浏览器无法录制声音。',fail:'没有录到任何声音——音乐在播放吗？',file:{notif:'tongzhi',ring:'lingsheng',alarm:'naozhong'}},
+ ja:{btn:'着信音',title:'着信音とアラーム',sub:'再生中の音の次の数秒を、スマートフォン用の音声ファイルとして保存します。',notif:'通知音',ring:'着信音',alarm:'アラーム',play:'まず「再生」を押してから、長さを選んでください。',cap:'録音中… 残り {n} 秒',cancel:'キャンセル',readyN:'通知音ができました',readyR:'着信音ができました',readyA:'アラーム音ができました',share:'共有',save:'ファイルを保存',how:'スマートフォンでの設定',and1:'ファイルをスマートフォンに保存します。',and2:'着信音・通知音：設定 → 音とバイブレーション → 着信音（または通知音）→「+」/ マイサウンド → ファイルを選ぶ。',and3:'アラーム：時計 → アラーム → サウンド → 新規追加 / あなたのサウンド → ファイルを選ぶ。',ios:'iPhone：iOS は GarageBand かパソコン経由で作った着信音しか受け付けません。ファイルを保存し、その方法で取り込んでください。',vary:'名称は機種によって異なります。',desk:'ファイルをスマートフォンに移してから：',none:'このブラウザでは音を録音できません。',fail:'何も録音されませんでした。音楽は再生中ですか？',file:{notif:'tsuchi',ring:'chakushin',alarm:'alarm'}},
+ vi:{btn:'Nhạc chuông',title:'Nhạc chuông và báo thức',sub:'Ghi vài giây tiếp theo của âm thanh đang phát thành tệp âm thanh cho điện thoại của bạn.',notif:'Thông báo',ring:'Nhạc chuông',alarm:'Báo thức',play:'Hãy nhấn Phát trước, rồi chọn độ dài.',cap:'Đang ghi… còn {n} giây',cancel:'Hủy',readyN:'Âm thông báo đã sẵn sàng',readyR:'Nhạc chuông đã sẵn sàng',readyA:'Âm báo thức đã sẵn sàng',share:'Chia sẻ',save:'Lưu tệp',how:'Cài đặt trên điện thoại',and1:'Lưu tệp vào điện thoại.',and2:'Nhạc chuông hoặc thông báo: Cài đặt → Âm thanh và rung → Nhạc chuông điện thoại (hoặc Âm thông báo) → “+” / Âm thanh của tôi → chọn tệp.',and3:'Báo thức: Đồng hồ → báo thức → Âm thanh → Thêm mới / Âm thanh của bạn → chọn tệp.',ios:'iPhone: iOS chỉ nhận nhạc chuông tạo trong GarageBand hoặc qua máy tính; hãy lưu tệp và thêm theo cách đó.',vary:'Tên gọi khác nhau tùy điện thoại.',desk:'Chuyển tệp sang điện thoại, rồi:',none:'Trình duyệt này không ghi được âm thanh.',fail:'Không ghi được gì — nhạc có đang phát không?',file:{notif:'thong-bao',ring:'nhac-chuong',alarm:'bao-thuc'}},
+ bg:{btn:'Мелодия',title:'Мелодия за звънене и аларма',sub:'Запиши следващите няколко секунди от това, което звучи, като звуков файл за телефона.',notif:'Известие',ring:'Мелодия за звънене',alarm:'Аларма',play:'Първо натисни „Пусни“, после избери дължина.',cap:'Записване… остават {n} с',cancel:'Отказ',readyN:'Звукът за известие е готов',readyR:'Мелодията за звънене е готова',readyA:'Звукът за аларма е готов',share:'Сподели',save:'Запази файла',how:'Как да го зададеш на телефона',and1:'Запази файла в телефона.',and2:'Мелодия или известие: Настройки → Звук и вибрация → Мелодия на телефона (или Звук за известия) → „+“ / Моите звуци → избери файла.',and3:'Аларма: Часовник → алармата → Звук → Добави нов / Твоите звуци → избери файла.',ios:'iPhone: iOS приема само мелодии, направени в GarageBand или през компютър; запази файла и го добави по този начин.',vary:'Имената се различават според телефона.',desk:'Прехвърли файла на телефона, после:',none:'Този браузър не може да запише звука.',fail:'Нищо не бе записано — звучи ли музиката?',file:{notif:'izvestie',ring:'melodiya',alarm:'alarma'}}
+};
+const LG=(document.documentElement.lang||'en').toLowerCase(),L=RT[LG]||RT[LG.split('-')[0]]||RT.en;
+// seconds captured, fade in and out, and for the alarm the seconds of its end that are blended back into its start so it loops without a click
+const KINDS={notif:{sec:3,fi:.02,fo:.3},ring:{sec:30,fi:.05,fo:1},alarm:{sec:60,fi:.005,fo:.005,loop:2}};
+const PHONE=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
+const IOS=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const WORKLET=`class P extends AudioWorkletProcessor{constructor(){super();this.l=[];this.r=[];this.n=0;this.on=true;this.port.onmessage=e=>{if(e.data==='stop'){this.flush();this.on=false;this.port.postMessage('end')}}}
+process(inp){if(!this.on)return false;const i=inp[0];let l,r;if(i&&i.length){l=new Float32Array(i[0]);r=new Float32Array(i[1]||i[0])}else{l=new Float32Array(128);r=new Float32Array(128)}
+this.l.push(l);this.r.push(r);this.n+=l.length;if(this.n>=8192)this.flush();return true}
+flush(){if(!this.n)return;const L=new Float32Array(this.n),R=new Float32Array(this.n);let o=0;for(let k=0;k<this.l.length;k++){L.set(this.l[k],o);R.set(this.r[k],o);o+=this.l[k].length}
+this.l=[];this.r=[];this.n=0;this.port.postMessage({l:L,r:R},[L.buffer,R.buffer])}}
+registerProcessor('mots-tap',P)`;
+let wkURL=null;const wkReady={};
+// the node to listen at: the stage's analyser sits after the output guard, so it carries exactly what the speakers get (an AnalyserNode passes its input on)
+function tapSource(c){let a=null;try{a=window.MOTS&&MOTS.master&&MOTS.master.analyser&&MOTS.master.analyser()}catch(e){}
+  if(a&&a.context===c)return a;
+  if(c.__rec){try{return c.createMediaStreamSource(c.__rec.stream)}catch(e){}}return null}
+// collects `secs` seconds of stereo PCM from the output. Resolves {l,r,rate}; onTick(secondsLeft); ctl.cancel() stops it early.
+function capture(c,secs,onTick,ctl){
+  return new Promise(async(res,rej)=>{
+    const src=tapSource(c);if(!src){rej(new Error('notap'));return}
+    const need=Math.ceil(secs*c.sampleRate),CL=[],CR=[];let got=0,node=null,sp=null,sink=null,done=false,tm=0;
+    const cleanup=()=>{clearInterval(tm);try{src.disconnect(node||sp)}catch(e){}try{if(node){node.port.onmessage=null;node.port.postMessage('stop');node.disconnect()}}catch(e){}try{if(sp){sp.onaudioprocess=null;sp.disconnect()}}catch(e){}try{if(sink)sink.disconnect()}catch(e){}if(src instanceof MediaStreamAudioSourceNode)try{src.disconnect()}catch(e){}};
+    const finish=()=>{if(done)return;done=true;cleanup();
+      const n=Math.min(got,need),l=new Float32Array(n),r=new Float32Array(n);let o=0;
+      for(let k=0;k<CL.length&&o<n;k++){const a=CL[k],m=Math.min(a.length,n-o);l.set(m===a.length?a:a.subarray(0,m),o);r.set(m===CR[k].length?CR[k]:CR[k].subarray(0,m),o);o+=m}
+      res({l,r,rate:c.sampleRate})};
+    const add=(l,r)=>{if(done)return;CL.push(l);CR.push(r);got+=l.length;if(got>=need)finish()};
+    ctl.cancel=()=>{if(done)return;done=true;cleanup();rej(new Error('cancel'))};
+    // the tap feeds a silent gain that reaches the real destination (the stage routes plain connect() calls into its own chain, which would make a loop)
+    sink=c.createGain();sink.gain.value=0;
+    try{
+      if(c.audioWorklet&&window.AudioWorkletNode){
+        if(!wkURL)wkURL=URL.createObjectURL(new Blob([WORKLET],{type:'text/javascript'}));
+        if(!wkReady[c.sampleRate+'']){await c.audioWorklet.addModule(wkURL);wkReady[c.sampleRate+'']=true}
+        if(done)return;
+        node=new AudioWorkletNode(c,'mots-tap',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[2],channelCount:2,channelCountMode:'explicit',channelInterpretation:'speakers'});
+        node.port.onmessage=e=>{if(e.data&&e.data.l)add(e.data.l,e.data.r)};
+        src.connect(node);node.connect(sink);
+      }else if(c.createScriptProcessor){
+        sp=c.createScriptProcessor(4096,2,2);
+        sp.onaudioprocess=e=>{const b=e.inputBuffer;add(new Float32Array(b.getChannelData(0)),new Float32Array(b.getChannelData(b.numberOfChannels>1?1:0)))};
+        src.connect(sp);sp.connect(sink);
+      }else{cleanup();rej(new Error('notap'));return}
+      _c.call(sink,c.destination,0,0);
+    }catch(e){cleanup();rej(e);return}
+    const t0=performance.now();
+    tm=setInterval(()=>{if(done)return;const left=Math.max(0,secs-(performance.now()-t0)/1000);onTick(left);
+      // a stalled graph (the context suspended meanwhile) must not hang the countdown
+      if((performance.now()-t0)/1000>secs+4)finish()},200);
+  });
+}
+// fades, the alarm's loop blend, a peak at about -1 dBFS, and the WAV bytes (16-bit stereo at the context's rate)
+function toWav(pcm,kind){
+  const K=KINDS[kind],rate=pcm.rate;let l=pcm.l,r=pcm.r,n=l.length;
+  if(K.loop&&n>rate*6){const F=Math.floor(K.loop*rate),m=n-F,l2=new Float32Array(m),r2=new Float32Array(m);
+    for(let i=0;i<m;i++){if(i<F){const a=i/F,b=1-a;l2[i]=a*l[i]+b*l[m+i];r2[i]=a*r[i]+b*r[m+i]}else{l2[i]=l[i];r2[i]=r[i]}}l=l2;r=r2;n=m}
+  const fi=Math.min(Math.floor(K.fi*rate),n>>1),fo=Math.min(Math.floor(K.fo*rate),n>>1);
+  for(let i=0;i<fi;i++){const g=i/fi;l[i]*=g;r[i]*=g}
+  for(let i=0;i<fo;i++){const g=i/fo;l[n-1-i]*=g;r[n-1-i]*=g}
+  let pk=0;for(let i=0;i<n;i++){const a=Math.abs(l[i]),b=Math.abs(r[i]);if(a>pk)pk=a;if(b>pk)pk=b}
+  if(!(pk>1e-4))return null;
+  const g=Math.pow(10,-1/20)/pk,buf=new ArrayBuffer(44+n*4),v=new DataView(buf),w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
+  w(0,'RIFF');v.setUint32(4,36+n*4,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,2,true);v.setUint32(24,rate,true);v.setUint32(28,rate*4,true);v.setUint16(32,4,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*4,true);
+  let o=44;for(let i=0;i<n;i++){const a=Math.max(-1,Math.min(1,l[i]*g)),b=Math.max(-1,Math.min(1,r[i]*g));v.setInt16(o,a<0?a*32768:a*32767,true);v.setInt16(o+2,b<0?b*32768:b*32767,true);o+=4}
+  return {blob:new Blob([buf],{type:'audio/wav'}),secs:n/rate};
+}
+// an ASCII file name: spheres-<kind in the page's language>-<style or thinker>-<date>.wav
+const CYR={а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'ts',ч:'ch',ш:'sh',щ:'sht',ъ:'a',ь:'',ю:'yu',я:'ya',ё:'yo',э:'e',ы:'y'};
+const slug=s=>String(s||'').toLowerCase().replace(/[а-яё]/g,ch=>CYR[ch]||'').replace(/đ/g,'d').replace(/ł/g,'l').replace(/ß/g,'ss').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').replace(/^(.{1,24})(-.*)?$/,'$1').slice(0,28).replace(/-+$/,'');
+function rtName(kind){
+  let h='';try{const np=window.MOTS&&MOTS.nowPlaying&&MOTS.nowPlaying();if(np&&np.h)h=np.h}catch(e){}
+  const d=new Date(),date=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const s=slug(h);return 'spheres-'+slug(L.file[kind])+(s?'-'+s:'')+'-'+date+'.wav';
+}
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const BTN='appearance:none;border:1px solid #c9984f;background:transparent;color:#e9d093;border-radius:999px;padding:9px 14px;font:inherit;cursor:pointer;min-height:44px';
+const GHOST='appearance:none;border:1px solid #2b3050;background:transparent;color:#a39c89;border-radius:999px;padding:9px 14px;font:inherit;cursor:pointer;min-height:44px';
+const HEAD='font-family:"GFS Didot","Playfair Display",Georgia,serif;color:#c9984f;margin-bottom:6px;font-size:17px';
+let rtURL=null,rtCtl=null;
+const playing=()=>!!(ctx&&ctx.state==='running'&&!(window.MOTS&&MOTS.projPaused)&&!(window.MOTS&&MOTS.transportOn===false));
+function rtChoose(){
+  if(!playing()){note(L.play);return}
+  const p=panel();p.setAttribute('aria-label',L.title);
+  const row=k=>`<button type="button" data-k="${k}" style="${BTN};flex:1 1 30%;display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.2"><span>${esc(L[k])}</span><span style="font:12px 'IBM Plex Mono',monospace;color:#a39c89">${KINDS[k].sec} s</span></button>`;
+  p.innerHTML=`<div style="${HEAD}">${esc(L.title)}</div><div style="font-size:14px;color:#cfc7b2;margin-bottom:10px">${esc(L.sub)}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${row('notif')}${row('ring')}${row('alarm')}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" id="recClose" style="${GHOST}">${esc(T.close)}</button></div>`;
+  p.querySelector('#recClose').onclick=()=>p.remove();
+  p.querySelectorAll('button[data-k]').forEach(b=>b.onclick=()=>rtGo(b.dataset.k));
+}
+async function rtGo(kind){
+  if(!playing()){note(L.play);return}
+  const c=ctx,K=KINDS[kind],secs=K.sec+(K.loop||0);
+  const p=panel();
+  const bar=()=>p.querySelector('#rtBar'),lab=()=>p.querySelector('#rtLab');
+  p.innerHTML=`<div style="${HEAD}">${esc(L[kind])}</div><div id="rtLab" role="status" style="font:14px 'IBM Plex Mono',monospace;color:#e9e1cc">${esc(L.cap.replace('{n}',String(Math.ceil(secs))))}</div>
+    <div style="height:6px;border-radius:3px;background:#2b3050;margin:8px 0;overflow:hidden"><div id="rtBar" style="height:100%;width:0;background:linear-gradient(90deg,#d7a75d,#a87a37);transition:width .2s linear"></div></div>
+    <div style="display:flex;justify-content:flex-end"><button type="button" id="rtCancel" style="${GHOST}">${esc(L.cancel)}</button></div>`;
+  const ctl={cancel:null};rtCtl=ctl;
+  p.querySelector('#rtCancel').onclick=()=>{if(ctl.cancel)ctl.cancel();else p.remove()};
+  let pcm=null;
+  try{pcm=await capture(c,secs,left=>{const l=lab(),b=bar();if(l)l.textContent=L.cap.replace('{n}',String(Math.ceil(left)));if(b)b.style.width=(100*(1-left/secs)).toFixed(1)+'%'},ctl)}
+  catch(e){rtCtl=null;if(e&&e.message==='cancel'){p.remove();return}note(L.none);return}
+  rtCtl=null;
+  const out=toWav(pcm,kind);if(!out){note(L.fail);return}
+  rtShow(out.blob,out.secs,kind);
+}
+function rtShow(blob,secs,kind){
+  if(rtURL)URL.revokeObjectURL(rtURL);rtURL=URL.createObjectURL(blob);
+  const name=rtName(kind),file=(()=>{try{return new File([blob],name,{type:'audio/wav'})}catch(e){return null}})();
+  const canShare=!!(PHONE&&file&&navigator.share&&navigator.canShare&&navigator.canShare({files:[file]}));
+  const steps=IOS?[L.ios,L.vary]:PHONE?[L.and1,L.and2,L.and3,L.vary]:[L.desk,L.and2,L.and3,L.ios,L.vary];
+  const p=panel();
+  p.innerHTML=`<div style="${HEAD}">${esc(L[kind==='notif'?'readyN':kind==='ring'?'readyR':'readyA'])} · ${clock(secs)}</div>
+    <audio controls src="${rtURL}" style="width:100%;display:block"></audio>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      ${canShare?`<button type="button" id="rtShare" style="flex:1;text-align:center;background:linear-gradient(180deg,#d7a75d,#a87a37);color:#1a1206;font-weight:700;border:0;border-radius:999px;padding:9px 14px;font:inherit;font-weight:700;cursor:pointer;min-height:44px">${esc(L.share)}</button>`:''}
+      <a href="${rtURL}" download="${esc(name)}" style="flex:1;text-align:center;text-decoration:none;${canShare?'border:1px solid #c9984f;color:#e9d093':'background:linear-gradient(180deg,#d7a75d,#a87a37);color:#1a1206;font-weight:700'};border-radius:999px;padding:9px 14px;min-height:44px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center">${esc(L.save)}</a>
+      <button type="button" id="recClose" style="${GHOST}">${esc(T.close)}</button>
+    </div>
+    <div style="font-size:12px;color:#a39c89;margin-top:6px;word-break:break-all">${esc(name)}</div>
+    <details style="margin-top:8px;font-size:13px;color:#cfc7b2"><summary style="cursor:pointer;color:#e9d093">${esc(L.how)}</summary><ol style="margin:6px 0 0;padding-left:1.2em">${steps.map(s=>`<li style="margin:3px 0">${esc(s)}</li>`).join('')}</ol></details>`;
+  p.querySelector('#recClose').onclick=()=>p.remove();
+  p.querySelector('details').open=true;
+  const sh=p.querySelector('#rtShare');if(sh)sh.onclick=async()=>{try{await navigator.share({files:[file],title:name})}catch(e){}};
+  const link=p.querySelector('a[download]');
+  if(window.claude&&window.claude.use)link.onclick=async e=>{e.preventDefault();let dl=null;try{dl=await window.claude.use('downloads')}catch(x){}if(!dl)return;try{await dl.save({filename:name,data:blob})}catch(x){}};
+}
+// the button, beside Record; it follows Record wherever the page's shell puts it (the "⋯" menu on phones)
+{
+  const b=document.createElement('button');b.type='button';b.id='ringBtn';b.className=btn.className.replace(/\brec\b/,'').trim();
+  b.textContent=L.btn;b.title=L.title;b.setAttribute('aria-haspopup','dialog');b.onclick=rtChoose;
+  btn.insertAdjacentElement('afterend',b);
+  {const cs=getComputedStyle(btn);['border','borderRadius','padding','font','color','background','letterSpacing','textTransform','minHeight','lineHeight'].forEach(k=>b.style[k]=cs[k])}
+  if(window.MutationObserver){let busy=false;new MutationObserver(()=>{if(busy)return;busy=true;try{if(b.parentElement!==btn.parentElement&&btn.parentElement)btn.insertAdjacentElement('afterend',b)}finally{busy=false}}).observe(document.body,{childList:true,subtree:true})}
+  window.MOTS=window.MOTS||{};window.MOTS.ringtone={open:rtChoose,make:rtGo,wav:toWav,capture,name:rtName};
+}
 })();
 </script>
 <script>
