@@ -179,11 +179,62 @@ and Xu, H. et al. 2022, Nature 609, 685 (FRB 20201124A).
 - Kjeldsen, H. & Bedding, T. R. 1995, A&A 293, 87 — scaling relations and the 23.4 cm/s amplitude scaling;
   Brown, T. M. et al. 1991, ApJ 368, 599 — νmax ∝ g/√T; Mosser, B. et al. 2012, A&A 537, A30 — envelope width.
 
+## The Local Group (`localgroup.json`)
+
+**McConnachie, A. W. 2012, AJ 144, 4, "The observed properties of dwarf galaxies in and around the Local Group"** —
+VizieR J/AJ/144/4 (`catalog` table, 102 rows: every galaxy within ~3 Mpc as of 2012; `refs` table for the
+original sources), obtained 2026-10-13 from https://vizier.cds.unistra.fr/viz-bin/asu-tsv?-source=J/AJ/144/4 and
+cached in `data/mcconnachie2012_raw.tsv`. Positions, Hubble types, distances, heliocentric radial velocities, Galactocentric
+distances and velocities, V magnitudes, half-light radii, central surface brightnesses, position angles, ellipticities,
+absolute magnitudes, [Fe/H], velocity dispersions and HI masses are the catalogue's (each with its own reference in the
+paper's tables). CDS/VizieR data are freely usable with the acknowledgement "This research has made use of the VizieR
+catalogue access tool, CDS, Strasbourg, France (DOI 10.26093/cds/vizier)." The two HIZSS 3 clouds (HI only, no
+magnitude) are dropped.
+
+Standard values added for the large galaxies (the catalogue gives them by name only):
+- Distances: M31 761 ± 11 kpc — Li, S., Riess, A. G. et al. 2021, ApJ 920, 84 (Cepheids and eclipsing binaries;
+  the catalogue's 783 kpc is kept in `dcat`); M33 859 ± 24 kpc — Breuval, L. et al. 2023, ApJ 951, 118 (catalogue 809);
+  LMC 49.59 ± 0.09 (stat) ± 0.54 (sys) kpc — Pietrzyński, G. et al. 2019, Nature 567, 200; SMC 62.44 ± 0.47 kpc —
+  Graczyk, D. et al. 2020, ApJ 904, 13; the Milky Way row sits at Sgr A*, R₀ = 8.178 kpc (GRAVITY Collaboration 2019).
+- M31: V = 3.44, M_V = −21.2 (de Vaucouleurs et al. 1991, RC3, corrected for extinction; range −21.0…−21.5 in the
+  literature); inclination 77°, position angle 38° (de Vaucouleurs 1958, ApJ 128, 465; Walterbos & Kennicutt 1988);
+  disc scale length 5.3 kpc (Courteau, S. et al. 2011, ApJ 739, 20). Rotation curve read (±10 km/s) from Corbelli, E.,
+  Lorenzoni, S., Walterbos, R., Braun, R. & Thilker, D. 2010, A&A 511, A89 (HI, 30-m + Arecibo, Fig. 3 and Table 1) and
+  Chemin, L., Carignan, C. & Foster, T. 2009, ApJ 705, 1395; baryonic masses for the no-dark-matter curve: bulge
+  3.2 × 10¹⁰, stellar disc 7 × 10¹⁰, gas 7 × 10⁹ M☉ (Corbelli et al. 2010; Tamm, A. et al. 2012, A&A 546, A4).
+- M33: M_V = −18.9, inclination 56°, PA 23°, disc scale length 1.8 kpc, rotation curve from Corbelli, E., Thilker, D.,
+  Zibetti, S., Giovanardi, C. & Salucci, P. 2014, A&A 572, A23 (HI, VLA + GBT; stellar disc 4.8 × 10⁹, gas 3.2 × 10⁹ M☉);
+  earlier Corbelli & Salucci 2000, MNRAS 311, 441.
+- LMC: inclination 34°, PA 140°, disc scale length 1.5 kpc (van der Marel, R. P. 2001, AJ 122, 1827; van der Marel &
+  Cioni 2001), bar half-length 1.5 kpc at PA 115° (Zaritsky, D. 2004); rotation curve 91.7 ± 18.8 km/s flat beyond ~4 kpc
+  from van der Marel, R. P. & Kallivayalil, N. 2014, ApJ 781, 121 (HST proper motions and line-of-sight velocities), in
+  agreement with Gaia Collaboration, Helmi, A. et al. 2018, A&A 616, A12; stellar mass 2.7 × 10⁹ M☉ (van der Marel et al.
+  2002, AJ 124, 2639), HI 4.8 × 10⁸ M☉ (Kim et al. 1998).
+- SMC: nominal inclination 65°, PA 45°, scale length 1 kpc; rotation ~60 km/s from Di Teodoro, E. M. et al. 2019, MNRAS
+  483, 392 (ASKAP HI) and Stanimirović, S., Staveley-Smith, L. & Jones, P. A. 2004, ApJ 604, 176 — **APPROX**: the SMC
+  is elongated along the line of sight and far from an equilibrium disc; stellar mass 3 × 10⁸, HI 4.6 × 10⁸ M☉.
+- Integrated colours: RC3 (de Vaucouleurs, G. et al. 1991, *Third Reference Catalogue of Bright Galaxies*) B−V, corrected
+  for Galactic extinction, for the bright galaxies; typical values by Hubble type for the dwarfs (`bvs:"type"`:
+  dSph 0.75, dE 0.85, cE 0.90, dIrr 0.45, transition 0.55 — Mateo 1998, ARA&A 36, 435). The temperature `T` is the
+  Ballesteros (2012) black body of that colour, the rule the app states for the "integrated starlight tone".
+- Baryons-only rotation curves: Freeman (1970, ApJ 160, 811) exponential discs plus a Hernquist (1990, ApJ 356, 359)
+  bulge with the masses above, evaluated with SciPy's modified Bessel functions. No dark halo. These are illustrative
+  mass models, not fits.
+
+## Names for the search (`names.json`)
+
+A hand-written dictionary (CC0): the 88 IAU constellations with their Latin nominative and genitive and their names in
+the twelve languages; the common names of about eighty bright or famous stars where a language spells them differently
+(IAU WGSN names; Wikipedia in each language; the Chinese traditional names, e.g. 天狼星 for Sirius, from the Chinese
+star catalogue tradition as given on Chinese Wikipedia); household names for the Crab and Vela pulsars, Sgr A*, the
+bright radio sources and the Local Group galaxies; and the Greek letters with the Latin and three-letter spellings used
+for Bayer designations.
+
 ## Software
 
 Python 3.13, numpy 2.5, pandas 3.0, galpy 1.12.0 (Bovy 2015), curl. No Astropy. Build scripts: `common.py`,
 `build_stars.py`, `build_stars_large.py`, `build_pulsars.py`, `build_radio.py`, `build_rotation.py`, `build_sunorbit.py`,
-`build_seismo.py`, `tests.py`, `build_all.sh`.
+`build_seismo.py`, `build_localgroup.py`, `build_names.py`, `tests.py`, `build_all.sh`. SciPy 1.18 for the Bessel functions of the galaxies' disc models.
 
 ## Short credits for the app
 
@@ -192,7 +243,9 @@ Python 3.13, numpy 2.5, pandas 3.0, galpy 1.12.0 (Bovy 2015), curl. No Astropy. 
 > bursts: CHIME/FRB Catalog 1 (CHIME/FRB Collaboration 2021). Rotation curve: Eilers et al. 2019; Sofue 2020;
 > mass model McMillan 2017 via galpy (Bovy 2015). Spiral arms: Reid et al. 2019. Solar motion: Schönrich et al.
 > 2010. Solar oscillations: BiSON (Broomhall et al. 2009). Radio sources: Baars et al. 1977; Trotter et al. 2017;
-> GRAVITY and EHT Collaborations.
+> GRAVITY and EHT Collaborations. Local Group: McConnachie 2012 via VizieR/CDS; distances Li et al. 2021 (M31), Breuval
+> et al. 2023 (M33), Pietrzyński et al. 2019 (LMC), Graczyk et al. 2020 (SMC); rotation curves Corbelli et al. 2010 and
+> 2014, van der Marel & Kallivayalil 2014, Di Teodoro et al. 2019.
 >
 > Large star pack (optional download): Gaia DR3, ESA/Gaia/DPAC (Gaia Collaboration, Vallenari et al. 2023), with
 > HYG v4.4 names (CC BY-SA 4.0); show the full ESA acknowledgement above with it.

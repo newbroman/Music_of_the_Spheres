@@ -151,6 +151,31 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
 @media (max-width:620px){.gcard{font-size:.78rem;padding:.4rem .7rem .45rem;line-height:1.35}.gcard .gcp{display:none}.gcard .gcf{font-size:.7rem}}
 @media (max-height:520px){.gcard{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + var(--tap) + 52px);transform:translateX(-50%);width:max-content;max-width:min(64vw,36rem);font-size:.74rem;padding:.3rem .7rem}.gcard .gcp{display:none}}
 @media (prefers-reduced-motion:reduce){.gcard{transition:none}}
+/* the star search (fly_galaxy.js): a box in the Travel panel with instant suggestions; rows are ≥ 44 px, the ⤼ button jumps */
+.gsearch{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.3rem}
+.gsbox{position:relative;display:flex}
+.gsbox input{flex:1;appearance:none;-webkit-appearance:none;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:10px;padding:.5rem 2.6rem .5rem .8rem;min-height:var(--tap);color:var(--vellum);font-size:1rem;min-width:0}
+.gsbox input::placeholder{color:var(--vellum-dim);opacity:.8}
+.gsbox input:focus{border-color:var(--bronze);outline:none}
+.gsbox input::-webkit-search-cancel-button{display:none}
+.gsbox .gsx{position:absolute;right:0;top:0;bottom:0;width:var(--tap);background:transparent;border:0;color:var(--vellum-dim);font-size:1.3rem;cursor:pointer}
+.gsbox .gsx:hover{color:var(--bronze)}
+.gsug{display:flex;flex-direction:column;gap:3px;max-height:min(44vh,24rem);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.gsug:empty{display:none}
+.gsr{display:flex;gap:3px}
+.gsr .gsm{flex:1;appearance:none;text-align:left;background:rgba(255,255,255,.03);border:1px solid rgba(201,152,79,.22);border-radius:8px;padding:.3rem .7rem;min-height:var(--tap);cursor:pointer;display:flex;flex-direction:column;justify-content:center;min-width:0;gap:1px}
+.gsr .gsn{font-family:var(--f-display);font-size:1.02rem;color:var(--vellum);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
+.gsr .gsn small{font-family:var(--f-body);color:var(--vellum-dim);font-size:.78rem;margin-left:.4rem}
+.gsr .gss{font-family:var(--f-mono);font-size:.72rem;color:var(--vellum-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.gsr .gsj{appearance:none;flex:none;width:var(--tap);min-height:var(--tap);background:rgba(255,255,255,.03);border:1px solid rgba(201,152,79,.22);border-radius:8px;color:var(--bronze);cursor:pointer;font-size:1.2rem;line-height:1}
+.gsr[aria-selected="true"] .gsm{border-color:var(--bronze);background:rgba(201,152,79,.12)}
+.gsr .gsm:hover,.gsr .gsj:hover{border-color:var(--bronze)}
+.gsr.gsback .gsm{background:rgba(201,152,79,.1)}
+.gsnone{font-size:.85rem;color:var(--vellum-dim);padding:.3rem .2rem}
+.gshint{display:none;font-size:.72rem}
+@media (hover:hover) and (pointer:fine){.gshint{display:block}}
+.lbl.gal{font-family:var(--f-body);font-style:italic;color:#d9c7a6}
+.gcard .gcf sub{font-size:.7em}
 .rec{background:transparent;cursor:pointer;font:inherit}
 .rec.on{background:#5a2b2b;color:#f2c7c7;border-color:#8a4444}
 </style>
@@ -2075,9 +2100,10 @@ MOTS.score.start=start;MOTS.score.stop=stop;MOTS.score.xml=musicXML;MOTS.score.m
   };
 
   /* ───────── 1. data ───────── */
-  const D = { stars: null, pulsars: null, radio: null, frb: null, rotation: null, sunorbit: null, seismo: null };
-  const G = { version: '0.2.0', K, data: D, ready: false, large: false };
+  const D = { stars: null, pulsars: null, radio: null, frb: null, rotation: null, sunorbit: null, seismo: null, localgroup: null, names: null };
+  const G = { version: '0.3.0', K, data: D, ready: false, large: false };
   const FILES = ['stars', 'pulsars', 'radio', 'frb', 'rotation', 'sunorbit', 'seismo'];
+  const OPTIONAL = ['localgroup', 'names'];   // step 4b: the Local Group and the search names; a page without them still works
   let fetchFn = (u) => fetch(u).then(r => { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); });
   G.setFetch = (f) => { fetchFn = f; };  // tests supply a file-reading shim
   let baseUrl = '';
@@ -2087,8 +2113,8 @@ MOTS.score.start=start;MOTS.score.stop=stop;MOTS.score.xml=musicXML;MOTS.score.m
   G.load = function (base) {
     if (G._p) return G._p;
     baseUrl = base == null ? './' : base;
-    G._p = Promise.all(FILES.map(f => fetchFn(baseUrl + 'galaxy/' + f + '.json'))).then(arr => {
-      FILES.forEach((f, i) => { D[f] = arr[i]; });
+    G._p = Promise.all(FILES.concat(OPTIONAL).map((f, i) => { const p = fetchFn(baseUrl + 'galaxy/' + f + '.json'); return i < FILES.length ? p : p.catch(() => null); })).then(arr => {
+      FILES.concat(OPTIONAL).forEach((f, i) => { D[f] = arr[i]; });
       build(); G.ready = true; return G;
     });
     return G._p;
@@ -2151,7 +2177,8 @@ MOTS.score.start=start;MOTS.score.stop=stop;MOTS.score.xml=musicXML;MOTS.score.m
     np: 0, PX: null, PY: null, PZ: null, PM: null, prow: null,     // pulsars: pc and "radio magnitude" −2.5 log10(S1400 Jy) at the Sun
     nr: 0, RX: null, RY: null, RZ: null, RM: null, rrow: null,     // radio sources (with d; extragalactic ones are placed at their distance)
     rotR0: 0.5, rotDR: 0.5, rotV: null, rotVbar: null, rotVobs: null, rotN: 0,
-    orbT0: -300, orbDT: 1, orb: null, orbN: 0, arms: null };
+    orbT0: -300, orbDT: 1, orb: null, orbN: 0, arms: null,
+    ng: 0, GX: null, GY: null, GZ: null, GM: null, grow: [] };                   // the Local Group galaxies (pc, absolute V)
   function build() {
     const c = D.sunorbit.constants; K.R0 = c.R0_kpc.v; K.V0 = c.V0_kms.v; K.Z0 = c.z0_pc.v;
     // stars: index 0 is the Sun (not in stars.json), so a listener elsewhere can hear it
@@ -2183,8 +2210,13 @@ MOTS.score.start=start;MOTS.score.stop=stop;MOTS.score.xml=musicXML;MOTS.score.m
     const ob = D.sunorbit.orbit.rows; T.orbN = ob.length; T.orbT0 = ob[0][0]; T.orbDT = ob[1][0] - ob[0][0]; T.orb = ob;
     // arms, with tan ψ precomputed
     T.arms = D.sunorbit.spiral.arms.map(a => Object.assign({}, a, { tlt: Math.tan(a.psi_lt * DEG), tgt: Math.tan(a.psi_gt * DEG), bk: a.beta_kink * DEG }));
+    // the Local Group (optional table): heliocentric galactic pc from l, b, d (kpc)
+    const LG = D.localgroup ? D.localgroup.galaxies : []; T.ng = LG.length; T.grow = LG;
+    T.GX = new Float64Array(T.ng); T.GY = new Float64Array(T.ng); T.GZ = new Float64Array(T.ng); T.GM = new Float64Array(T.ng);
+    LG.forEach((g, i) => { const L = g.l * DEG, B = g.b * DEG, d = g.d * 1000, cb = Math.cos(B); T.GX[i] = d * cb * Math.cos(L); T.GY[i] = d * cb * Math.sin(L); T.GZ[i] = d * Math.sin(B); T.GM[i] = g.M; g.__g = i; });
     bud.reset();
     G.filters.cache.clear();
+    srch.index = null;
   }
   /** "Radio magnitude": −2.5 log10(S / 1 Jy) at 1.4 GHz — Vela (1.05 Jy) ≈ 0, Cas A (2100 Jy) ≈ −8.3, the Crab pulsar (14 mJy) ≈ 4.6. */
   function radioMag(SJy) { return -2.5 * Math.log10(Math.max(SJy, 1e-9)); }
@@ -2571,9 +2603,126 @@ MOTS.score.start=start;MOTS.score.stop=stop;MOTS.score.xml=musicXML;MOTS.score.m
     return out;
   };
   /** Find a star row by IAU name, Bayer/Flamsteed (`bf`), HIP or HYG id; or a pulsar by J/B name. */
-  G.find = function (q) { const s = String(q).toLowerCase(); for (let i = 1; i < T.n; i++) { const r = T.rows[i]; if ((r.n && r.n.toLowerCase() === s) || (r.bf && r.bf.toLowerCase() === s) || String(r.hip) === s || String(r.id) === s) return r; } for (let i = 0; i < T.np; i++) { const p = T.prow[i]; if (p.j.toLowerCase() === s || (p.b && p.b.toLowerCase() === s)) return p; } return null; };
+  G.find = function (q) { const s = String(q).toLowerCase(); for (let i = 1; i < T.n; i++) { const r = T.rows[i]; if ((r.n && r.n.toLowerCase() === s) || (r.bf && r.bf.toLowerCase() === s) || String(r.hip) === s || String(r.id) === s) return r; } for (let i = 0; i < T.np; i++) { const p = T.prow[i]; if (p.j.toLowerCase() === s || (p.b && p.b.toLowerCase() === s)) return p; } return G.galaxy(q); };
   G.tables = () => T;
   G.stars = () => T.rows; G.pulsars = () => T.prow; G.radio = () => T.rrow;
+
+
+  /* ───────── 4b. the Local Group (localgroup.json; step 4b of the extension) ───────── */
+  /** The galaxy rows (the Milky Way first, at Sgr A*), or [] when the table is not loaded. */
+  G.galaxies = () => T.grow;
+  /** A galaxy row by id (`m31`, `lmc`…), name or other name (case-insensitive), or null. */
+  G.galaxy = function (q) { const s = String(q).toLowerCase(); for (let i = 0; i < T.ng; i++) { const g = T.grow[i]; if (g.id === s || g.n.toLowerCase() === s || (g.alt && g.alt.some(a => a.toLowerCase() === s))) return g; } return null; };
+  /** Heliocentric galactic position (pc) of a galaxy row. */
+  G.galaxyPos = function (g, out) { out = out || {}; const i = g.__g; if (i != null && T.grow[i] === g) { out.x = T.GX[i]; out.y = T.GY[i]; out.z = T.GZ[i]; return out; } const L = g.l * DEG, B = g.b * DEG, d = g.d * 1000, cb = Math.cos(B); out.x = d * cb * Math.cos(L); out.y = d * cb * Math.sin(L); out.z = d * Math.sin(B); return out; };
+  /** Apparent V magnitude, loudness and distance of a galaxy from a listener L (pc): {mag, loud, d}. Same rule as the stars
+   *  (inverse square on the absolute magnitude). opts as loudness(). */
+  G.galaxyLoudness = function (g, L, out, opts) { out = out || {}; const p = G.galaxyPos(g, gTmp), d = Math.hypot(p.x - L.x, p.y - L.y, p.z - L.z); out.d = d; out.mag = G.apparentMag(g.M, d); out.loud = d < 1 ? 0 : G.loudness(out.mag, opts); return out; };
+  const gTmp = { x: 0, y: 0, z: 0 };
+  /** Unit vectors of a galaxy's frame in heliocentric galactic coordinates: u (the line of sight from the Sun), n (north on the
+   *  sky), e (east), a (the major axis on the sky at position angle pa, E of N), b (the sky direction 90° east of it), N (the
+   *  disc normal: u tilted by the inclination i about the major axis; APPROX: which side is nearer is not decided by i and
+   *  pa alone — the convention here is the sky's b side tilting away). For the Milky Way N is the galactic pole. */
+  G.galaxyFrame = function (g, out) {
+    out = out || {}; const i = (g.disc && g.disc.i != null ? g.disc.i : (g.ell != null ? Math.acos(Math.max(0, 1 - g.ell)) / DEG : 0)) * DEG, pa = (g.disc && g.disc.pa != null ? g.disc.pa : (g.pa || 0)) * DEG;
+    const r = g.ra * DEG, dc = g.dec * DEG, sr = Math.sin(r), cr = Math.cos(r), sd = Math.sin(dc), cd = Math.cos(dc);
+    const eq = { u: [cd * cr, cd * sr, sd], e: [-sr, cr, 0], n: [-sd * cr, -sd * sr, cd] }, m = EG, rot = v => ({ x: m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2], y: m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2], z: m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2] });
+    const cp = Math.cos(pa), sp = Math.sin(pa), a = [eq.n[0] * cp + eq.e[0] * sp, eq.n[1] * cp + eq.e[1] * sp, eq.n[2] * cp + eq.e[2] * sp], b = [-eq.n[0] * sp + eq.e[0] * cp, -eq.n[1] * sp + eq.e[1] * cp, -eq.n[2] * sp + eq.e[2] * cp];
+    const ci = Math.cos(i), si = Math.sin(i), N = [eq.u[0] * ci + b[0] * si, eq.u[1] * ci + b[1] * si, eq.u[2] * ci + b[2] * si];
+    out.u = rot(eq.u); out.n = rot(eq.n); out.e = rot(eq.e); out.a = rot(a); out.b = rot(b); out.N = g.id === 'mw' ? { x: 0, y: 0, z: 1 } : rot(N); out.i = i / DEG; out.pa = pa / DEG;
+    if (g.id === 'mw') { out.a = { x: 1, y: 0, z: 0 }; out.b = { x: 0, y: 1, z: 0 }; }
+    return out;
+  };
+  /** Circular speed (km/s) at radius R (kpc) in a galaxy with a `rot` table (M31, M33, LMC, SMC): the observed curve, or the
+   *  baryons-only curve when dm === false. Solid body inside the first point, Keplerian beyond the last (APPROX). The Milky
+   *  Way (`id: 'mw'`) uses V(). Returns NaN for a galaxy without a curve. */
+  G.galaxyV = function (g, R, dm) {
+    if (g.id === 'mw' || g.rot_ref === 'rotation.json') return G.V(R, dm === false ? 'baryons' : 'model');
+    const r = g.rot; if (!r) return NaN; const tab = dm === false ? r.vbar : r.v, R0 = r.R[0], dR = r.R[1] - r.R[0], n = r.R.length;
+    let u = (R - R0) / dR; if (u <= 0) return tab[0] * Math.max(R, 1e-3) / R0; if (u >= n - 1) return tab[n - 1] * Math.sqrt(r.R[n - 1] / R);
+    const i = Math.floor(u), f = u - i; return tab[i] + (tab[i + 1] - tab[i]) * f;
+  };
+  /** The rotation chord of a galaxy, as rotationChord() for the Milky Way: rings at R_max/n (n = 1…opts.n, default 8) with
+   *  R_max = its visible extent (disc.rmax), Ω = V/R, the same 61-octave transposition, so the galaxies can be compared:
+   *  M31 (flat ~250 km/s) ≈ 90 Hz on its outer ring, the Milky Way ≈ 110 Hz, M33 ≈ 100 Hz, the LMC ≈ 120 Hz. opts.dm === false:
+   *  baryons only. Returns {freqs, omegas, radii, periodsMyr, expected, octaves, galaxy}. */
+  G.galaxyChord = function (g, opts) {
+    const o = opts || {}, n = o.n || 8, Rm = o.rmax || (g.id === 'mw' ? G.rotationChord.defaultRadii[0] : 0) || (g.disc && g.disc.rmax) || (g.rot ? g.rot.R[g.rot.R.length - 1] / 1.2 : 10), radii = new Array(n);
+    for (let i = 0; i < n; i++) radii[i] = Rm / (i + 1);
+    const oct = o.octaves == null ? 61 : o.octaves, k = Math.pow(2, oct) * K.KMSKPC_RADS / TAU, out = o.out || { freqs: new Float64Array(n), omegas: new Float64Array(n), periodsMyr: new Float64Array(n), expected: new Int32Array(n) };
+    for (let i = 0; i < n; i++) { const w = G.galaxyV(g, radii[i], o.dm) / radii[i]; out.omegas[i] = w; out.freqs[i] = w * k; out.periodsMyr[i] = TAU / (w * K.KMSKPC_RADS) / 3.15576e13; out.expected[i] = i + 1; }
+    out.radii = radii; out.octaves = oct; out.galaxy = g.id; out.dm = o.dm !== false; return out;
+  };
+  /** The most audible galaxies for a listener L (pc): the N loudest by apparent magnitude (sorted, loudest first), each
+   *  {kind: 'galaxy', row, loud, mag, d, x, y, z}. opts: n (default 6), bright/limit (passed to loudness), exclude (a row to
+   *  skip, e.g. the one you stand inside). Allocation-free after the first call. */
+  const gPool = [], gOut = [];
+  G.audibleGalaxies = function (L, opts) {
+    const o = opts || {}, N = o.n || 6, lx = L.x, ly = L.y, lz = L.z, br = o.bright == null ? -1.5 : o.bright, lim = o.limit == null ? 6.5 : o.limit, inv = 1 / (lim - br); let m = 0;
+    for (let i = 0; i < T.ng; i++) { const g = T.grow[i]; if (g === o.exclude) continue; const dx = T.GX[i] - lx, dy = T.GY[i] - ly, dz = T.GZ[i] - lz, d2 = dx * dx + dy * dy + dz * dz; if (d2 < 1) continue;
+      const mag = T.GM[i] + 2.5 * Math.log10(d2 / 100); let x = (lim - mag) * inv; if (x <= 0) continue; if (x > 1) x = 1;
+      const e = gPool[m] || (gPool[m] = {}); e.kind = 'galaxy'; e.row = g; e.loud = x; e.mag = mag; e.x = T.GX[i]; e.y = T.GY[i]; e.z = T.GZ[i]; e.d = Math.sqrt(d2); m++; }
+    gOut.length = m; for (let j = 0; j < m; j++) gOut[j] = gPool[j]; gOut.sort((a, b) => b.loud - a.loud || a.mag - b.mag); gOut.length = Math.min(m, N); return gOut;
+  };
+
+  /* ───────── 4c. search (names.json + the catalogues) ───────── */
+  const srch = { index: null, greek: null, con: null };
+  const GREEK_FALLBACK = 'α alpha,β beta,γ gamma,δ delta,ε epsilon,ζ zeta,η eta,θ theta,ι iota,κ kappa,λ lambda,μ mu,ν nu,ξ xi,ο omicron,π pi,ρ rho,σ sigma,τ tau,υ upsilon,φ phi,χ chi,ψ psi,ω omega';
+  /** Fold a name for matching: compatibility + canonical decomposition, accents off, lower case, ł/đ/ø/ß/æ folded, Greek letters
+   *  and their Latin spellings written out as the full Latin name, superscripts and punctuation dropped, spaces collapsed. */
+  G.fold = function (s) {
+    let t = String(s == null ? '' : s).normalize('NFKC').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    t = t.replace(/ł/g, 'l').replace(/đ/g, 'd').replace(/ø/g, 'o').replace(/ß/g, 'ss').replace(/æ/g, 'ae').replace(/œ/g, 'oe').replace(/[’'`´]/g, '').replace(/[¹²³⁰-⁹]/g, '').replace(/[-_.,;:/()\[\]]+/g, ' ');
+    const gk = greekTable(); t = t.replace(/[α-ω]/g, c => ' ' + gk.sym[c] + ' ');
+    // Latin spellings of the letters (alf, bet, alpha…) as whole words, and a letter glued to a digit (alpha1)
+    t = t.replace(/\b([a-z]+)(\d)?\b/g, (m, w, dgt) => (gk.name[w] ? gk.name[w] : w));
+    return t.replace(/\s+/g, ' ').trim();
+  };
+  function greekTable() { if (srch.greek) return srch.greek; const sym = {}, name = {}; const rows = (D.names && D.names.greek) || GREEK_FALLBACK.split(',').map(x => { const p = x.split(' '); return { s: p[0], n: p.slice(1) }; });
+    rows.forEach(r => { sym[r.s] = r.n[0]; r.n.forEach(x => { name[x] = r.n[0]; }); }); srch.greek = { sym, name }; return srch.greek; }
+  function conTable() { if (srch.con) return srch.con; const m = {}; ((D.names && D.names.con) || []).forEach(c => { m[c.ab] = c; m[c.ab.toLowerCase()] = c; }); srch.con = m; return m; }
+  /** The constellation record (names.json) for an abbreviation such as `CMa`, or null. */
+  G.constellation = ab => conTable()[ab] || null;
+  // the search index: for every object a list of folded keys; built once, rebuilt when the large pack arrives
+  function buildIndex() {
+    const ix = [], con = conTable(), nm = D.names || {}, SN = nm.stars || {}, OB = nm.objects || {}, LANGS = nm.meta ? nm.meta.langs : [];
+    const push = (kind, row, keys, name, mag) => { const ks = []; keys.forEach(k => { if (k == null || k === '') return; const f = G.fold(k); if (f && ks.indexOf(f) < 0) ks.push(f); }); if (ks.length) ix.push({ kind, row, keys: ks, name, mag }); };
+    const conNames = ab => { const c = con[ab]; if (!c) return [ab]; const out = [ab, c.la, c.gen]; LANGS.forEach(l => out.push(c[l])); return out; };
+    // the famous-star names by IAU name and by Bayer id
+    const byN = {}, byBf = {}; Object.keys(SN).forEach(k => { const v = SN[k], arr = Object.keys(v).filter(x => x !== 'bf').map(x => v[x]); if (v.bf) byBf[v.bf] = arr; byN[k] = arr; });
+    for (let i = 1; i < T.n; i++) { const r = T.rows[i], keys = [r.n, r.bf]; const nm2 = (r.n && byN[r.n]) || (r.bf && byBf[r.bf]) || (r.bf && byN[r.bf]); if (nm2) keys.push.apply(keys, nm2);
+      if (r.bf) { const m = r.bf.match(/^(\S+)\s+(\w+)$/); if (m) conNames(m[2]).forEach(c => keys.push(m[1] + ' ' + c)); }
+      if (r.hip) keys.push('hip ' + r.hip, 'hip' + r.hip); if (r.hd) keys.push('hd ' + r.hd, 'hd' + r.hd); if (r.gl) { keys.push(r.gl, String(r.gl).replace(/^(gl|gj|nn|wo)\s*/i, 'gliese ')); }
+      if (r.gaia) keys.push('gaia ' + r.gaia, r.gaia, 'gaia dr3 ' + r.gaia);
+      push('star', r, keys, r.n || r.bf || (r.hip ? 'HIP ' + r.hip : r.gl || ('HYG ' + r.id)), r.mag); }
+    for (let i = 0; i < T.np; i++) { const p = T.prow[i], keys = [p.j, 'psr ' + p.j, p.b, p.b && 'psr ' + p.b, p.nm], o = OB[p.j]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('pulsar', p, keys, p.b || p.j, T.PM[i]); }
+    for (let i = 0; i < T.nr; i++) { const r = T.rrow[i], keys = [r.n].concat(r.alt || []), o = OB[r.id]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('radio', r, keys, r.n, T.RM[i]); }
+    for (let i = 0; i < T.ng; i++) { const g = T.grow[i], keys = [g.n, g.id].concat(g.alt || []), o = OB[g.id]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('galaxy', g, keys, g.n, g.mag); }
+    // the constellations themselves: choosing one lists its stars
+    Object.keys(con).forEach(ab => { if (ab !== con[ab].ab) return; const c = con[ab]; push('constellation', c, conNames(ab), c.la, -99); });
+    srch.index = ix; return ix;
+  }
+  /** Search the catalogues: stars (IAU names, Bayer/Flamsteed in any spelling — "alpha Cen", "α Cen", "Alpha Centauri", "61 Cyg",
+   *  HIP/HD/Gliese/Gaia numbers, the localized names of famous stars), pulsars, radio sources, the Local Group galaxies and the
+   *  constellations (in all twelve languages). Accent- and case-insensitive. Returns at most opts.n (default 12) of
+   *  {kind: 'star'|'pulsar'|'radio'|'galaxy'|'constellation', row, name, score}, best first (exact > prefix > word prefix >
+   *  substring, then brighter first). For a constellation, G.constellationStars(row) lists its stars. */
+  G.search = function (q, opts) {
+    const o = opts || {}, N = o.n || 12, f = G.fold(q); if (!f) return [];
+    const ix = srch.index || buildIndex(), out = [], words = f.split(' '), cjk = /[぀-ヿ㐀-鿿가-힯]/.test(f);
+    if (f.length < (cjk ? 1 : 2)) return [];
+    for (let i = 0; i < ix.length; i++) { const e = ix[i]; let best = 0;
+      for (let j = 0; j < e.keys.length && best < 4; j++) { const k = e.keys[j]; if (k === f) { best = 4; break; } if (k.startsWith(f)) { if (best < 3) best = 3; continue; }
+        if (words.length > 1) { const kw = k.split(' '); if (words.every(w => kw.some(x => x.startsWith(w)))) { if (best < 2) best = 2; continue; } }
+        if ((' ' + k).indexOf(' ' + f) >= 0) { if (best < 2) best = 2; continue; } if (f.length >= 3 && k.indexOf(f) >= 0 && best < 1) best = 1; }
+      if (best) out.push({ kind: e.kind, row: e.row, name: e.name, score: best, mag: e.mag }); }
+    out.sort((a, b) => b.score - a.score || (a.kind === 'constellation' ? -1 : b.kind === 'constellation' ? 1 : 0) || a.mag - b.mag); out.length = Math.min(out.length, N); return out;
+  };
+  /** The stars of a constellation (record or abbreviation), brightest first. */
+  G.constellationStars = function (c) { const ab = typeof c === 'string' ? c : c.ab, out = []; for (let i = 1; i < T.n; i++) { const r = T.rows[i]; if (r.con === ab) out.push(r); } out.sort((a, b) => a.mag - b.mag); return out; };
+  /** A localized display name for a catalogue object in language `lang`: names.json first, else the catalogue's own. */
+  G.nameOf = function (kind, row, lang) { const nm = D.names || {}; if (kind === 'star') { const v = (nm.stars || {})[row.n] || (row.bf && (nm.stars || {})[row.bf]); if (v && v[lang] && lang !== 'en') return v[lang]; return row.n || row.bf || (row.hip ? 'HIP ' + row.hip : row.gl || ('HYG ' + row.id)); }
+    if (kind === 'constellation') return row[lang] || row.la; const o = (nm.objects || {})[kind === 'pulsar' ? row.j : row.id]; if (o && o[lang]) return o[lang].split(',')[0].trim(); return kind === 'pulsar' ? (row.b || row.j) : row.n; };
 
   /* ───────── 5. gods ───────── */
   /** Who speaks for what. `choice` picks the settings option for the pulsars and the black hole: 'forge' (Hephaestus
@@ -4474,11 +4623,171 @@ pt:{inter:'Interestelar',helio:'Heliopausa',oort:'Nuvem de Oort',acen:'Alfa Cent
 };/*FLYG-TEXTS-END*/
 const deep=(a,b)=>{const o={};for(const k in a)o[k]=(b&&typeof a[k]==='object'&&typeof b[k]==='object')?deep(a[k],b[k]):(b&&b[k]!==undefined?b[k]:a[k]);return o};
 const TX=deep(TX_ALL.en,TX_ALL[LANG]||{});
+/*FLYG-LG-TEXTS*/const TX_LG={
+en:{mag:'Magellanic Clouds',m31:'Andromeda',m33:'Triangulum',lg:'Above the Local Group',mpc:'Mpc',lmyr:'{n} million years',nearG:'Nearest galaxy: <em>{n}</em>',nextGal:'Next galaxy',
+ nm:{mag:'the Magellanic Clouds',m31:'Andromeda',m33:'Triangulum',lg:'a view above the Local Group'},
+ gk:{spiral:'spiral galaxy',irregular:'irregular galaxy',transition:'transition-type dwarf galaxy',spheroidal:'dwarf spheroidal galaxy',elliptical:'dwarf elliptical galaxy',compact:'compact elliptical galaxy'},
+ appr:'approaching at {v} km/s',rece:'receding at {v} km/s',rvh:'(heliocentric)',
+ hear:{gal:'A soft tone of its integrated starlight ({T} K, lowered forty octaves), as loud as it looks from here, from its true direction.',chord:'Its rotation chord: rings at R, R/2, R/3… turning on its own measured curve (flat at about {v} km/s). Switch off the dark matter and the chord sags.'},
+ cap:{leave:'<b>Leaving the Milky Way.</b> Behind you the whole Galaxy shrinks to a disc of light; ahead, the dwarf galaxies that circle it and, 2.5 million light-years away, Andromeda.',
+  mag:'<b>The Magellanic Clouds</b>: two irregular galaxies in orbit round the Milky Way, 160,000 and 200,000 light-years away, joined by a bridge of hydrogen. Their slower rotation (about 90 and 60 km/s) plays higher, softer chords than ours.',
+  m31:'<b>Andromeda</b>: a trillion stars, 2.5 million light-years away, coming towards us at 110 km/s — in about 4.5 billion years she and the Milky Way will merge. Her flat rotation curve (250 km/s) plays its own harmonic series.',
+  m33:'<b>Triangulum</b>, M33: the third spiral of the Local Group, 2.8 million light-years away, a tenth of the Milky Way’s mass. Its curve rises to 125 km/s, so its chord is nearly harmonic too.',
+  lg:'<b>The Local Group</b>: the Milky Way and Andromeda, two great spirals 2.5 million light-years apart, each with its train of dwarf galaxies, and Triangulum beside them. The whole group is falling together.',
+  gal:'<b>{n}</b> · {k} · {d} from home · light takes {t} · {v}'},
+ srch:{h:'Search for a star',btn:'Find a star',ph:'Star, constellation, galaxy, HIP, HD…',none:'Nothing found',fly:'Fly there',jump:'Jump',con:'constellation · {n} stars',stars:'{n} stars',kind:{star:'star',pulsar:'pulsar',radio:'radio source',galaxy:'galaxy',con:'constellation'},hint:'↑↓ choose · Enter fly · Shift+Enter jump'},
+ andromeda:'I am Andromeda. The Greeks chained me to a rock for the sea monster, then set me among the stars; the great galaxy wears my name. A trillion suns, and I am coming towards you.'},
+pl:{mag:'Obłoki Magellana',m31:'Andromeda',m33:'Trójkąt',lg:'Nad Grupą Lokalną',mpc:'Mpc',lmyr:'{n} mln lat',nearG:'Najbliższa galaktyka: <em>{n}</em>',nextGal:'Następna galaktyka',
+ nm:{mag:'Obłoki Magellana',m31:'Andromeda',m33:'Galaktyka Trójkąta',lg:'widok nad Grupą Lokalną'},
+ gk:{spiral:'galaktyka spiralna',irregular:'galaktyka nieregularna',transition:'galaktyka karłowata typu przejściowego',spheroidal:'karłowata galaktyka sferoidalna',elliptical:'karłowata galaktyka eliptyczna',compact:'zwarta galaktyka eliptyczna'},
+ appr:'zbliża się z prędkością {v} km/s',rece:'oddala się z prędkością {v} km/s',rvh:'(heliocentrycznie)',
+ hear:{gal:'Miękki ton jej zsumowanego światła gwiazd ({T} K, obniżony o czterdzieści oktaw), tak głośny, jak jasna wygląda stąd, z jej prawdziwego kierunku.',chord:'Jej akord rotacji: pierścienie w R, R/2, R/3… obracające się według jej własnej zmierzonej krzywej (płaskiej przy około {v} km/s). Wyłącz ciemną materię, a akord opadnie.'},
+ cap:{leave:'<b>Opuszczamy Drogę Mleczną.</b> Za tobą cała Galaktyka kurczy się do dysku światła; przed tobą galaktyki karłowate, które ją okrążają, i, 2,5 miliona lat świetlnych stąd, Andromeda.',
+  mag:'<b>Obłoki Magellana</b>: dwie galaktyki nieregularne na orbicie wokół Drogi Mlecznej, 160 000 i 200 000 lat świetlnych stąd, połączone mostem wodoru. Ich wolniejsza rotacja (około 90 i 60 km/s) gra wyższe, cichsze akordy niż nasza.',
+  m31:'<b>Andromeda</b>: bilion gwiazd, 2,5 miliona lat świetlnych stąd, zbliża się do nas z prędkością 110 km/s — za około 4,5 miliarda lat połączy się z Drogą Mleczną. Jej płaska krzywa rotacji (250 km/s) gra własny szereg harmoniczny.',
+  m33:'<b>Galaktyka Trójkąta</b>, M33: trzecia spirala Grupy Lokalnej, 2,8 miliona lat świetlnych stąd, o masie dziesięć razy mniejszej niż Droga Mleczna. Jej krzywa rośnie do 125 km/s, więc jej akord też jest niemal harmoniczny.',
+  lg:'<b>Grupa Lokalna</b>: Droga Mleczna i Andromeda, dwie wielkie spirale odległe o 2,5 miliona lat świetlnych, każda ze swoim orszakiem galaktyk karłowatych, a obok nich Galaktyka Trójkąta. Cała grupa spada ku sobie.',
+  gal:'<b>{n}</b> · {k} · {d} od domu · światło leci {t} · {v}'},
+ srch:{h:'Szukaj gwiazdy',btn:'Znajdź gwiazdę',ph:'Gwiazda, gwiazdozbiór, galaktyka, HIP, HD…',none:'Nic nie znaleziono',fly:'Leć tam',jump:'Skok',con:'gwiazdozbiór · {n} gwiazd',stars:'{n} gwiazd',kind:{star:'gwiazda',pulsar:'pulsar',radio:'źródło radiowe',galaxy:'galaktyka',con:'gwiazdozbiór'},hint:'↑↓ wybór · Enter lot · Shift+Enter skok'},
+ andromeda:'Jestem Andromeda. Grecy przykuli mnie do skały dla morskiego potwora, a potem umieścili wśród gwiazd; wielka galaktyka nosi moje imię. Bilion słońc, a ja zbliżam się ku wam.'},
+cy:{mag:'Cymylau Magellan',m31:'Andromeda',m33:'Y Triongl',lg:'Uwchlaw’r Grŵp Lleol',mpc:'Mpc',lmyr:'{n} miliwn o flynyddoedd',nearG:'Galaeth agosaf: <em>{n}</em>',nextGal:'Y galaeth nesaf',
+ nm:{mag:'Cymylau Magellan',m31:'Andromeda',m33:'Galaeth y Triongl',lg:'golwg uwchlaw’r Grŵp Lleol'},
+ gk:{spiral:'galaeth droellog',irregular:'galaeth afreolaidd',transition:'galaeth gorrach o fath trosiannol',spheroidal:'galaeth gorrach sfferoidaidd',elliptical:'galaeth gorrach eliptig',compact:'galaeth eliptig gryno'},
+ appr:'yn agosáu ar {v} km/s',rece:'yn pellhau ar {v} km/s',rvh:'(heliocentrig)',
+ hear:{gal:'Tôn feddal ei golau sêr cyfunol ({T} K, wedi’i ostwng ddeugain wythfed), mor uchel ag y mae’n edrych oddi yma, o’i chyfeiriad go iawn.',chord:'Ei chord cylchdroi: cylchoedd yn R, R/2, R/3… yn troi yn ôl ei chromlin fesuredig ei hun (gwastad ar tua {v} km/s). Diffoddwch y mater tywyll ac mae’r cord yn suddo.'},
+ cap:{leave:'<b>Gadael y Llwybr Llaethog.</b> Y tu ôl i chi mae’r Galaeth gyfan yn crebachu i ddisg o olau; o’ch blaen, y galaethau corrach sy’n ei chylchu ac, 2.5 miliwn o flynyddoedd golau i ffwrdd, Andromeda.',
+  mag:'<b>Cymylau Magellan</b>: dwy alaeth afreolaidd mewn orbit o amgylch y Llwybr Llaethog, 160,000 a 200,000 o flynyddoedd golau i ffwrdd, wedi’u cysylltu gan bont o hydrogen. Mae eu cylchdro arafach (tua 90 a 60 km/s) yn chwarae cordiau uwch a meddalach na’n un ni.',
+  m31:'<b>Andromeda</b>: triliwn o sêr, 2.5 miliwn o flynyddoedd golau i ffwrdd, yn dod tuag atom ar 110 km/s — mewn tua 4.5 biliwn o flynyddoedd bydd hi a’r Llwybr Llaethog yn uno. Mae ei chromlin gylchdroi wastad (250 km/s) yn chwarae ei chyfres harmonig ei hun.',
+  m33:'<b>Y Triongl</b>, M33: trydedd droell y Grŵp Lleol, 2.8 miliwn o flynyddoedd golau i ffwrdd, degfed ran o fàs y Llwybr Llaethog. Mae ei chromlin yn codi i 125 km/s, felly mae ei chord hithau bron yn harmonig.',
+  lg:'<b>Y Grŵp Lleol</b>: y Llwybr Llaethog ac Andromeda, dwy droell fawr 2.5 miliwn o flynyddoedd golau ar wahân, pob un â’i gosgordd o alaethau corrach, a’r Triongl wrth eu hymyl. Mae’r grŵp cyfan yn cwympo at ei gilydd.',
+  gal:'<b>{n}</b> · {k} · {d} o adref · mae golau’n cymryd {t} · {v}'},
+ srch:{h:'Chwilio am seren',btn:'Dod o hyd i seren',ph:'Seren, cytser, galaeth, HIP, HD…',none:'Dim i’w gael',fly:'Hedfan yno',jump:'Neidio',con:'cytser · {n} seren',stars:'{n} seren',kind:{star:'seren',pulsar:'pwlsar',radio:'ffynhonnell radio',galaxy:'galaeth',con:'cytser'},hint:'↑↓ dewis · Enter hedfan · Shift+Enter neidio'},
+ andromeda:'Andromeda ydw i. Clymodd y Groegiaid fi wrth graig i’r anghenfil môr, yna fy ngosod ymysg y sêr; mae’r alaeth fawr yn gwisgo fy enw. Triliwn o heuliau, ac rwy’n dod tuag atoch.'},
+de:{mag:'Magellansche Wolken',m31:'Andromeda',m33:'Dreiecksgalaxie',lg:'Über der Lokalen Gruppe',mpc:'Mpc',lmyr:'{n} Millionen Jahre',nearG:'Nächste Galaxie: <em>{n}</em>',nextGal:'Nächste Galaxie',
+ nm:{mag:'die Magellanschen Wolken',m31:'Andromeda',m33:'die Dreiecksgalaxie',lg:'ein Blick über die Lokale Gruppe'},
+ gk:{spiral:'Spiralgalaxie',irregular:'irreguläre Galaxie',transition:'Zwerggalaxie vom Übergangstyp',spheroidal:'sphäroidale Zwerggalaxie',elliptical:'elliptische Zwerggalaxie',compact:'kompakte elliptische Galaxie'},
+ appr:'nähert sich mit {v} km/s',rece:'entfernt sich mit {v} km/s',rvh:'(heliozentrisch)',
+ hear:{gal:'Ein weicher Ton ihres gesamten Sternenlichts ({T} K, um vierzig Oktaven gesenkt), so laut, wie sie von hier aussieht, aus ihrer wahren Richtung.',chord:'Ihr Rotationsakkord: Ringe bei R, R/2, R/3…, die sich nach ihrer eigenen gemessenen Kurve drehen (flach bei etwa {v} km/s). Schalte die Dunkle Materie ab, und der Akkord sackt ab.'},
+ cap:{leave:'<b>Die Milchstraße wird verlassen.</b> Hinter dir schrumpft die ganze Galaxis zu einer Scheibe aus Licht; vor dir die Zwerggalaxien, die sie umkreisen, und, 2,5 Millionen Lichtjahre entfernt, Andromeda.',
+  mag:'<b>Die Magellanschen Wolken</b>: zwei irreguläre Galaxien im Umlauf um die Milchstraße, 160 000 und 200 000 Lichtjahre entfernt, durch eine Brücke aus Wasserstoff verbunden. Ihre langsamere Rotation (etwa 90 und 60 km/s) spielt höhere, leisere Akkorde als unsere.',
+  m31:'<b>Andromeda</b>: eine Billion Sterne, 2,5 Millionen Lichtjahre entfernt, kommt uns mit 110 km/s entgegen — in etwa 4,5 Milliarden Jahren werden sie und die Milchstraße verschmelzen. Ihre flache Rotationskurve (250 km/s) spielt ihre eigene Obertonreihe.',
+  m33:'<b>Die Dreiecksgalaxie</b>, M33: die dritte Spirale der Lokalen Gruppe, 2,8 Millionen Lichtjahre entfernt, ein Zehntel der Masse der Milchstraße. Ihre Kurve steigt auf 125 km/s, deshalb ist auch ihr Akkord fast harmonisch.',
+  lg:'<b>Die Lokale Gruppe</b>: Milchstraße und Andromeda, zwei große Spiralen 2,5 Millionen Lichtjahre voneinander entfernt, jede mit ihrem Gefolge von Zwerggalaxien, und daneben die Dreiecksgalaxie. Die ganze Gruppe fällt zusammen.',
+  gal:'<b>{n}</b> · {k} · {d} von zu Hause · Licht braucht {t} · {v}'},
+ srch:{h:'Einen Stern suchen',btn:'Stern finden',ph:'Stern, Sternbild, Galaxie, HIP, HD…',none:'Nichts gefunden',fly:'Hinfliegen',jump:'Sprung',con:'Sternbild · {n} Sterne',stars:'{n} Sterne',kind:{star:'Stern',pulsar:'Pulsar',radio:'Radioquelle',galaxy:'Galaxie',con:'Sternbild'},hint:'↑↓ wählen · Enter fliegen · Umschalt+Enter springen'},
+ andromeda:'Ich bin Andromeda. Die Griechen ketteten mich für das Seeungeheuer an einen Felsen und setzten mich dann unter die Sterne; die große Galaxie trägt meinen Namen. Eine Billion Sonnen, und ich komme auf euch zu.'},
+es:{mag:'Nubes de Magallanes',m31:'Andrómeda',m33:'Triángulo',lg:'Sobre el Grupo Local',mpc:'Mpc',lmyr:'{n} millones de años',nearG:'Galaxia más cercana: <em>{n}</em>',nextGal:'Siguiente galaxia',
+ nm:{mag:'las Nubes de Magallanes',m31:'Andrómeda',m33:'la galaxia del Triángulo',lg:'una vista sobre el Grupo Local'},
+ gk:{spiral:'galaxia espiral',irregular:'galaxia irregular',transition:'galaxia enana de tipo de transición',spheroidal:'galaxia enana esferoidal',elliptical:'galaxia enana elíptica',compact:'galaxia elíptica compacta'},
+ appr:'se acerca a {v} km/s',rece:'se aleja a {v} km/s',rvh:'(heliocéntrica)',
+ hear:{gal:'Un tono suave de toda su luz estelar ({T} K, bajada cuarenta octavas), tan fuerte como brilla desde aquí, desde su dirección real.',chord:'Su acorde de rotación: anillos en R, R/2, R/3… que giran según su propia curva medida (plana a unos {v} km/s). Apaga la materia oscura y el acorde se hunde.'},
+ cap:{leave:'<b>Saliendo de la Vía Láctea.</b> Detrás de ti, toda la Galaxia se encoge hasta ser un disco de luz; delante, las galaxias enanas que la rodean y, a 2,5 millones de años luz, Andrómeda.',
+  mag:'<b>Las Nubes de Magallanes</b>: dos galaxias irregulares en órbita alrededor de la Vía Láctea, a 160 000 y 200 000 años luz, unidas por un puente de hidrógeno. Su rotación más lenta (unos 90 y 60 km/s) toca acordes más agudos y suaves que el nuestro.',
+  m31:'<b>Andrómeda</b>: un billón de estrellas, a 2,5 millones de años luz, que viene hacia nosotros a 110 km/s; dentro de unos 4 500 millones de años ella y la Vía Láctea se fundirán. Su curva de rotación plana (250 km/s) toca su propia serie armónica.',
+  m33:'<b>El Triángulo</b>, M33: la tercera espiral del Grupo Local, a 2,8 millones de años luz, con una décima parte de la masa de la Vía Láctea. Su curva sube hasta 125 km/s, así que su acorde también es casi armónico.',
+  lg:'<b>El Grupo Local</b>: la Vía Láctea y Andrómeda, dos grandes espirales separadas 2,5 millones de años luz, cada una con su cortejo de galaxias enanas, y junto a ellas el Triángulo. Todo el grupo cae sobre sí mismo.',
+  gal:'<b>{n}</b> · {k} · a {d} de casa · la luz tarda {t} · {v}'},
+ srch:{h:'Buscar una estrella',btn:'Buscar estrella',ph:'Estrella, constelación, galaxia, HIP, HD…',none:'Nada encontrado',fly:'Volar allí',jump:'Saltar',con:'constelación · {n} estrellas',stars:'{n} estrellas',kind:{star:'estrella',pulsar:'púlsar',radio:'fuente de radio',galaxy:'galaxia',con:'constelación'},hint:'↑↓ elegir · Intro volar · Mayús+Intro saltar'},
+ andromeda:'Soy Andrómeda. Los griegos me encadenaron a una roca para el monstruo marino y luego me pusieron entre las estrellas; la gran galaxia lleva mi nombre. Un billón de soles, y voy hacia vosotros.'},
+fr:{mag:'Nuages de Magellan',m31:'Andromède',m33:'Triangle',lg:'Au-dessus du Groupe local',mpc:'Mpc',lmyr:'{n} millions d’années',nearG:'Galaxie la plus proche : <em>{n}</em>',nextGal:'Galaxie suivante',
+ nm:{mag:'les Nuages de Magellan',m31:'Andromède',m33:'la galaxie du Triangle',lg:'une vue au-dessus du Groupe local'},
+ gk:{spiral:'galaxie spirale',irregular:'galaxie irrégulière',transition:'galaxie naine de type transitoire',spheroidal:'galaxie naine sphéroïdale',elliptical:'galaxie naine elliptique',compact:'galaxie elliptique compacte'},
+ appr:'s’approche à {v} km/s',rece:'s’éloigne à {v} km/s',rvh:'(héliocentrique)',
+ hear:{gal:'Une note douce de toute sa lumière stellaire ({T} K, abaissée de quarante octaves), aussi forte qu’elle paraît d’ici, depuis sa vraie direction.',chord:'Son accord de rotation : des anneaux à R, R/2, R/3… qui tournent selon sa propre courbe mesurée (plate vers {v} km/s). Coupez la matière noire et l’accord s’affaisse.'},
+ cap:{leave:'<b>Sortie de la Voie lactée.</b> Derrière vous, toute la Galaxie se réduit à un disque de lumière ; devant, les galaxies naines qui l’entourent et, à 2,5 millions d’années-lumière, Andromède.',
+  mag:'<b>Les Nuages de Magellan</b> : deux galaxies irrégulières en orbite autour de la Voie lactée, à 160 000 et 200 000 années-lumière, reliées par un pont d’hydrogène. Leur rotation plus lente (environ 90 et 60 km/s) joue des accords plus aigus et plus doux que le nôtre.',
+  m31:'<b>Andromède</b> : mille milliards d’étoiles, à 2,5 millions d’années-lumière, qui vient vers nous à 110 km/s — dans environ 4,5 milliards d’années, elle et la Voie lactée fusionneront. Sa courbe de rotation plate (250 km/s) joue sa propre série harmonique.',
+  m33:'<b>Le Triangle</b>, M33 : la troisième spirale du Groupe local, à 2,8 millions d’années-lumière, un dixième de la masse de la Voie lactée. Sa courbe monte à 125 km/s, si bien que son accord est presque harmonique lui aussi.',
+  lg:'<b>Le Groupe local</b> : la Voie lactée et Andromède, deux grandes spirales distantes de 2,5 millions d’années-lumière, chacune avec son cortège de galaxies naines, et le Triangle à leurs côtés. Tout le groupe tombe sur lui-même.',
+  gal:'<b>{n}</b> · {k} · à {d} de la maison · la lumière met {t} · {v}'},
+ srch:{h:'Chercher une étoile',btn:'Trouver une étoile',ph:'Étoile, constellation, galaxie, HIP, HD…',none:'Rien trouvé',fly:'Y aller',jump:'Sauter',con:'constellation · {n} étoiles',stars:'{n} étoiles',kind:{star:'étoile',pulsar:'pulsar',radio:'radiosource',galaxy:'galaxie',con:'constellation'},hint:'↑↓ choisir · Entrée voler · Maj+Entrée sauter'},
+ andromeda:'Je suis Andromède. Les Grecs m’ont enchaînée à un rocher pour le monstre marin, puis m’ont placée parmi les étoiles ; la grande galaxie porte mon nom. Mille milliards de soleils, et je viens vers vous.'},
+it:{mag:'Nubi di Magellano',m31:'Andromeda',m33:'Triangolo',lg:'Sopra il Gruppo Locale',mpc:'Mpc',lmyr:'{n} milioni di anni',nearG:'Galassia più vicina: <em>{n}</em>',nextGal:'Prossima galassia',
+ nm:{mag:'le Nubi di Magellano',m31:'Andromeda',m33:'la galassia del Triangolo',lg:'una vista sopra il Gruppo Locale'},
+ gk:{spiral:'galassia a spirale',irregular:'galassia irregolare',transition:'galassia nana di tipo transitorio',spheroidal:'galassia nana sferoidale',elliptical:'galassia nana ellittica',compact:'galassia ellittica compatta'},
+ appr:'si avvicina a {v} km/s',rece:'si allontana a {v} km/s',rvh:'(eliocentrica)',
+ hear:{gal:'Un tono morbido di tutta la sua luce stellare ({T} K, abbassata di quaranta ottave), forte quanto appare da qui, dalla sua vera direzione.',chord:'Il suo accordo di rotazione: anelli a R, R/2, R/3… che girano secondo la sua curva misurata (piatta a circa {v} km/s). Spegni la materia oscura e l’accordo si affloscia.'},
+ cap:{leave:'<b>Si lascia la Via Lattea.</b> Dietro di te l’intera Galassia si restringe a un disco di luce; davanti, le galassie nane che le girano intorno e, a 2,5 milioni di anni luce, Andromeda.',
+  mag:'<b>Le Nubi di Magellano</b>: due galassie irregolari in orbita attorno alla Via Lattea, a 160 000 e 200 000 anni luce, unite da un ponte di idrogeno. La loro rotazione più lenta (circa 90 e 60 km/s) suona accordi più acuti e più morbidi del nostro.',
+  m31:'<b>Andromeda</b>: mille miliardi di stelle, a 2,5 milioni di anni luce, che viene verso di noi a 110 km/s — fra circa 4,5 miliardi di anni lei e la Via Lattea si fonderanno. La sua curva di rotazione piatta (250 km/s) suona la propria serie armonica.',
+  m33:'<b>Il Triangolo</b>, M33: la terza spirale del Gruppo Locale, a 2,8 milioni di anni luce, un decimo della massa della Via Lattea. La sua curva sale fino a 125 km/s, così anche il suo accordo è quasi armonico.',
+  lg:'<b>Il Gruppo Locale</b>: la Via Lattea e Andromeda, due grandi spirali distanti 2,5 milioni di anni luce, ciascuna con il suo seguito di galassie nane, e accanto a loro il Triangolo. Tutto il gruppo sta cadendo su se stesso.',
+  gal:'<b>{n}</b> · {k} · a {d} da casa · la luce impiega {t} · {v}'},
+ srch:{h:'Cerca una stella',btn:'Trova una stella',ph:'Stella, costellazione, galassia, HIP, HD…',none:'Nessun risultato',fly:'Vola lì',jump:'Salta',con:'costellazione · {n} stelle',stars:'{n} stelle',kind:{star:'stella',pulsar:'pulsar',radio:'radiosorgente',galaxy:'galassia',con:'costellazione'},hint:'↑↓ scegli · Invio vola · Maiusc+Invio salta'},
+ andromeda:'Sono Andromeda. I Greci mi incatenarono a una roccia per il mostro marino, poi mi posero fra le stelle; la grande galassia porta il mio nome. Mille miliardi di soli, e vengo verso di voi.'},
+zh:{mag:'麦哲伦云',m31:'仙女座星系',m33:'三角座星系',lg:'本星系群上方',mpc:'Mpc',lmyr:'{n}万年',nearG:'最近的星系：<em>{n}</em>',nextGal:'下一个星系',
+ nm:{mag:'麦哲伦云',m31:'仙女座星系',m33:'三角座星系',lg:'本星系群上方'},
+ gk:{spiral:'旋涡星系',irregular:'不规则星系',transition:'过渡型矮星系',spheroidal:'矮椭球星系',elliptical:'矮椭圆星系',compact:'致密椭圆星系'},
+ appr:'以 {v} km/s 接近',rece:'以 {v} km/s 远离',rvh:'（日心）',
+ hear:{gal:'它全部星光的柔和音调（{T} K，降低四十个八度），响度如同从这里看到的亮度，来自真实方向。',chord:'它的自转和弦：R、R/2、R/3…处的环按它自己实测的曲线转动（在约 {v} km/s 处平坦）。关掉暗物质，和弦便会下沉。'},
+ cap:{leave:'<b>离开银河系。</b>身后，整个银河系缩成一片光盘；前方，是环绕它的矮星系，以及250万光年外的仙女座星系。',
+  mag:'<b>麦哲伦云</b>：两个围绕银河系运行的不规则星系，距离16万和20万光年，由一座氢桥相连。它们较慢的自转（约90和60 km/s）奏出比我们更高、更柔和的和弦。',
+  m31:'<b>仙女座星系</b>：一万亿颗恒星，距离250万光年，正以110 km/s向我们靠近——约45亿年后，它将与银河系合并。它平坦的自转曲线（250 km/s）奏出自己的泛音列。',
+  m33:'<b>三角座星系</b>，M33：本星系群的第三个旋涡星系，距离280万光年，质量是银河系的十分之一。它的曲线升至125 km/s，所以它的和弦也近乎和谐。',
+  lg:'<b>本星系群</b>：银河系与仙女座星系，两个相距250万光年的大旋涡星系，各自带着一群矮星系，三角座星系在它们旁边。整个星系群正在相互落向彼此。',
+  gal:'<b>{n}</b> · {k} · 距家 {d} · 光需要 {t} · {v}'},
+ srch:{h:'搜索恒星',btn:'找恒星',ph:'恒星、星座、星系、HIP、HD…',none:'未找到',fly:'飞往',jump:'跳跃',con:'星座 · {n} 颗恒星',stars:'{n} 颗恒星',kind:{star:'恒星',pulsar:'脉冲星',radio:'射电源',galaxy:'星系',con:'星座'},hint:'↑↓ 选择 · Enter 飞行 · Shift+Enter 跳跃'},
+ andromeda:'我是安德洛墨达。希腊人把我锁在岩石上献给海怪，后来又把我放到星辰之间；这座大星系以我为名。一万亿颗太阳，而我正向你们而来。'},
+ja:{mag:'マゼラン雲',m31:'アンドロメダ',m33:'さんかく座銀河',lg:'局所銀河群の上空',mpc:'Mpc',lmyr:'{n}万年',nearG:'最も近い銀河：<em>{n}</em>',nextGal:'次の銀河',
+ nm:{mag:'マゼラン雲',m31:'アンドロメダ銀河',m33:'さんかく座銀河',lg:'局所銀河群の上空'},
+ gk:{spiral:'渦巻銀河',irregular:'不規則銀河',transition:'遷移型の矮小銀河',spheroidal:'矮小楕円体銀河',elliptical:'矮小楕円銀河',compact:'コンパクト楕円銀河'},
+ appr:'{v} km/s で接近中',rece:'{v} km/s で後退中',rvh:'（太陽中心）',
+ hear:{gal:'その星の光すべてを合わせたやわらかな音（{T} K、40オクターブ下げ）。ここから見える明るさの大きさで、本当の方向から聞こえます。',chord:'その回転の和音：R、R/2、R/3…の環が、実測された自身の曲線（約 {v} km/s で平坦）に従って回ります。暗黒物質を切ると和音は沈みます。'},
+ cap:{leave:'<b>天の川を離れます。</b>背後では銀河全体が光の円盤へと縮み、前方には銀河をめぐる矮小銀河たちと、250万光年先のアンドロメダ。',
+  mag:'<b>マゼラン雲</b>：天の川の周りを回る二つの不規則銀河、16万光年と20万光年の距離にあり、水素の橋で結ばれています。そのゆるやかな回転（約90と60 km/s）は、私たちの銀河より高くやわらかな和音を奏でます。',
+  m31:'<b>アンドロメダ</b>：一兆の星、250万光年の距離から110 km/sで私たちに近づいています。約45億年後、彼女と天の川は一つになります。その平坦な回転曲線（250 km/s）は自身の倍音列を奏でます。',
+  m33:'<b>さんかく座銀河</b>、M33：局所銀河群の第三の渦巻銀河、280万光年の距離、質量は天の川の十分の一。曲線は125 km/sまで上がるので、その和音もほぼ倍音列です。',
+  lg:'<b>局所銀河群</b>：天の川とアンドロメダ、250万光年を隔てた二つの大渦巻銀河が、それぞれ矮小銀河の群れを従え、そのそばにさんかく座銀河。群れ全体が互いに落ち込んでいきます。',
+  gal:'<b>{n}</b> · {k} · 故郷から {d} · 光は {t} · {v}'},
+ srch:{h:'星を探す',btn:'星を探す',ph:'星、星座、銀河、HIP、HD…',none:'見つかりません',fly:'そこへ飛ぶ',jump:'ジャンプ',con:'星座 · {n} 個の星',stars:'{n} 個の星',kind:{star:'恒星',pulsar:'パルサー',radio:'電波源',galaxy:'銀河',con:'星座'},hint:'↑↓ 選ぶ · Enter 飛行 · Shift+Enter ジャンプ'},
+ andromeda:'私はアンドロメダ。ギリシア人は海の怪物のために私を岩に鎖でつなぎ、やがて星々の間に置きました。大いなる銀河は私の名を帯びています。一兆の太陽、そして私はあなたたちへ向かっています。'},
+vi:{mag:'Các đám mây Magellan',m31:'Tiên Nữ',m33:'Tam Giác',lg:'Trên Nhóm Địa phương',mpc:'Mpc',lmyr:'{n} triệu năm',nearG:'Thiên hà gần nhất: <em>{n}</em>',nextGal:'Thiên hà tiếp theo',
+ nm:{mag:'các đám mây Magellan',m31:'thiên hà Tiên Nữ',m33:'thiên hà Tam Giác',lg:'điểm nhìn trên Nhóm Địa phương'},
+ gk:{spiral:'thiên hà xoắn ốc',irregular:'thiên hà vô định hình',transition:'thiên hà lùn kiểu chuyển tiếp',spheroidal:'thiên hà lùn hình cầu',elliptical:'thiên hà lùn elip',compact:'thiên hà elip đặc'},
+ appr:'đang tiến lại với {v} km/s',rece:'đang lùi xa với {v} km/s',rvh:'(nhật tâm)',
+ hear:{gal:'Một âm dịu của toàn bộ ánh sao của nó ({T} K, hạ xuống bốn mươi quãng tám), to như độ sáng nhìn từ đây, từ đúng hướng của nó.',chord:'Hợp âm quay của nó: các vòng ở R, R/2, R/3… quay theo đường cong thực đo của chính nó (phẳng ở khoảng {v} km/s). Tắt vật chất tối và hợp âm chùng xuống.'},
+ cap:{leave:'<b>Rời khỏi Ngân Hà.</b> Phía sau bạn, cả Ngân Hà thu lại thành một đĩa ánh sáng; phía trước là các thiên hà lùn quay quanh nó và, cách 2,5 triệu năm ánh sáng, thiên hà Tiên Nữ.',
+  mag:'<b>Các đám mây Magellan</b>: hai thiên hà vô định hình quay quanh Ngân Hà, cách 160 000 và 200 000 năm ánh sáng, nối với nhau bằng một cầu hydro. Sự quay chậm hơn của chúng (khoảng 90 và 60 km/s) chơi những hợp âm cao hơn và dịu hơn hợp âm của chúng ta.',
+  m31:'<b>Tiên Nữ</b>: một nghìn tỷ ngôi sao, cách 2,5 triệu năm ánh sáng, đang tiến về phía chúng ta với 110 km/s — khoảng 4,5 tỷ năm nữa nàng và Ngân Hà sẽ hòa làm một. Đường cong quay phẳng của nàng (250 km/s) chơi chuỗi họa âm của riêng mình.',
+  m33:'<b>Tam Giác</b>, M33: thiên hà xoắn ốc thứ ba của Nhóm Địa phương, cách 2,8 triệu năm ánh sáng, bằng một phần mười khối lượng Ngân Hà. Đường cong của nó lên tới 125 km/s, nên hợp âm của nó cũng gần như họa âm.',
+  lg:'<b>Nhóm Địa phương</b>: Ngân Hà và Tiên Nữ, hai thiên hà xoắn ốc lớn cách nhau 2,5 triệu năm ánh sáng, mỗi bên với đoàn thiên hà lùn của mình, và Tam Giác bên cạnh. Cả nhóm đang rơi về phía nhau.',
+  gal:'<b>{n}</b> · {k} · cách nhà {d} · ánh sáng mất {t} · {v}'},
+ srch:{h:'Tìm một ngôi sao',btn:'Tìm sao',ph:'Sao, chòm sao, thiên hà, HIP, HD…',none:'Không tìm thấy',fly:'Bay tới đó',jump:'Nhảy',con:'chòm sao · {n} ngôi sao',stars:'{n} ngôi sao',kind:{star:'ngôi sao',pulsar:'sao xung',radio:'nguồn vô tuyến',galaxy:'thiên hà',con:'chòm sao'},hint:'↑↓ chọn · Enter bay · Shift+Enter nhảy'},
+ andromeda:'Ta là Andromeda. Người Hy Lạp xích ta vào tảng đá cho quái vật biển, rồi đặt ta giữa các vì sao; thiên hà lớn mang tên ta. Một nghìn tỷ mặt trời, và ta đang tiến về phía các ngươi.'},
+bg:{mag:'Магеланови облаци',m31:'Андромеда',m33:'Триъгълник',lg:'Над Местната група',mpc:'Mpc',lmyr:'{n} милиона години',nearG:'Най-близка галактика: <em>{n}</em>',nextGal:'Следваща галактика',
+ nm:{mag:'Магелановите облаци',m31:'Андромеда',m33:'галактиката Триъгълник',lg:'изглед над Местната група'},
+ gk:{spiral:'спирална галактика',irregular:'неправилна галактика',transition:'галактика джудже от преходен тип',spheroidal:'сфероидална галактика джудже',elliptical:'елиптична галактика джудже',compact:'компактна елиптична галактика'},
+ appr:'приближава се с {v} km/s',rece:'отдалечава се с {v} km/s',rvh:'(хелиоцентрично)',
+ hear:{gal:'Мек тон на цялата ѝ звездна светлина ({T} K, снижена с четиридесет октави), силен колкото ярка изглежда оттук, от истинската ѝ посока.',chord:'Нейният акорд на въртенето: пръстени на R, R/2, R/3…, които се въртят по собствената ѝ измерена крива (плоска при около {v} km/s). Изключи тъмната материя и акордът провисва.'},
+ cap:{leave:'<b>Напускаме Млечния път.</b> Зад теб цялата Галактика се свива до диск от светлина; отпред са галактиките джуджета, които я обикалят, и на 2,5 милиона светлинни години — Андромеда.',
+  mag:'<b>Магелановите облаци</b>: две неправилни галактики в орбита около Млечния път, на 160 000 и 200 000 светлинни години, свързани с мост от водород. По-бавното им въртене (около 90 и 60 km/s) свири по-високи и по-меки акорди от нашия.',
+  m31:'<b>Андромеда</b>: трилион звезди, на 2,5 милиона светлинни години, идва към нас със 110 km/s — след около 4,5 милиарда години тя и Млечният път ще се слеят. Плоската ѝ крива на въртене (250 km/s) свири собствена хармонична редица.',
+  m33:'<b>Триъгълник</b>, M33: третата спирала на Местната група, на 2,8 милиона светлинни години, с една десета от масата на Млечния път. Кривата ѝ се издига до 125 km/s, така че и нейният акорд е почти хармоничен.',
+  lg:'<b>Местната група</b>: Млечният път и Андромеда, две големи спирали на 2,5 милиона светлинни години една от друга, всяка със своята свита от галактики джуджета, а до тях Триъгълник. Цялата група пада една към друга.',
+  gal:'<b>{n}</b> · {k} · на {d} от дома · светлината пътува {t} · {v}'},
+ srch:{h:'Търси звезда',btn:'Намери звезда',ph:'Звезда, съзвездие, галактика, HIP, HD…',none:'Нищо не е намерено',fly:'Лети дотам',jump:'Скок',con:'съзвездие · {n} звезди',stars:'{n} звезди',kind:{star:'звезда',pulsar:'пулсар',radio:'радиоизточник',galaxy:'галактика',con:'съзвездие'},hint:'↑↓ избор · Enter полет · Shift+Enter скок'},
+ andromeda:'Аз съм Андромеда. Гърците ме оковаха на скала за морското чудовище, а после ме поставиха сред звездите; голямата галактика носи моето име. Трилион слънца, и аз идвам към вас.'},
+pt:{mag:'Nuvens de Magalhães',m31:'Andrômeda',m33:'Triângulo',lg:'Acima do Grupo Local',mpc:'Mpc',lmyr:'{n} milhões de anos',nearG:'Galáxia mais próxima: <em>{n}</em>',nextGal:'Próxima galáxia',
+ nm:{mag:'as Nuvens de Magalhães',m31:'Andrômeda',m33:'a galáxia do Triângulo',lg:'uma vista acima do Grupo Local'},
+ gk:{spiral:'galáxia espiral',irregular:'galáxia irregular',transition:'galáxia anã de tipo de transição',spheroidal:'galáxia anã esferoidal',elliptical:'galáxia anã elíptica',compact:'galáxia elíptica compacta'},
+ appr:'aproximando-se a {v} km/s',rece:'afastando-se a {v} km/s',rvh:'(heliocêntrica)',
+ hear:{gal:'Um tom suave de toda a sua luz estelar ({T} K, baixada quarenta oitavas), tão forte quanto ela parece daqui, vindo de sua direção real.',chord:'Seu acorde de rotação: anéis em R, R/2, R/3… girando segundo sua própria curva medida (plana a cerca de {v} km/s). Desligue a matéria escura e o acorde afunda.'},
+ cap:{leave:'<b>Saindo da Via Láctea.</b> Atrás de você, a Galáxia inteira se encolhe até virar um disco de luz; à frente, as galáxias anãs que a rodeiam e, a 2,5 milhões de anos-luz, Andrômeda.',
+  mag:'<b>As Nuvens de Magalhães</b>: duas galáxias irregulares em órbita da Via Láctea, a 160.000 e 200.000 anos-luz, ligadas por uma ponte de hidrogênio. Sua rotação mais lenta (cerca de 90 e 60 km/s) toca acordes mais agudos e suaves que o nosso.',
+  m31:'<b>Andrômeda</b>: um trilhão de estrelas, a 2,5 milhões de anos-luz, vindo em nossa direção a 110 km/s — em cerca de 4,5 bilhões de anos, ela e a Via Láctea vão se fundir. Sua curva de rotação plana (250 km/s) toca sua própria série harmônica.',
+  m33:'<b>O Triângulo</b>, M33: a terceira espiral do Grupo Local, a 2,8 milhões de anos-luz, com um décimo da massa da Via Láctea. Sua curva sobe até 125 km/s, por isso seu acorde também é quase harmônico.',
+  lg:'<b>O Grupo Local</b>: a Via Láctea e Andrômeda, duas grandes espirais separadas por 2,5 milhões de anos-luz, cada uma com seu cortejo de galáxias anãs, e o Triângulo ao lado delas. O grupo inteiro está caindo sobre si mesmo.',
+  gal:'<b>{n}</b> · {k} · a {d} de casa · a luz leva {t} · {v}'},
+ srch:{h:'Buscar uma estrela',btn:'Achar estrela',ph:'Estrela, constelação, galáxia, HIP, HD…',none:'Nada encontrado',fly:'Voar até lá',jump:'Saltar',con:'constelação · {n} estrelas',stars:'{n} estrelas',kind:{star:'estrela',pulsar:'pulsar',radio:'fonte de rádio',galaxy:'galáxia',con:'constelação'},hint:'↑↓ escolher · Enter voar · Shift+Enter saltar'},
+ andromeda:'Eu sou Andrômeda. Os gregos me acorrentaram a uma rocha para o monstro do mar e depois me puseram entre as estrelas; a grande galáxia leva o meu nome. Um trilhão de sóis, e eu venho na direção de vocês.'}
+};/*FLYG-LG-TEXTS-END*/
+const TL=deep(TX_LG.en,TX_LG[LANG]||{});   // step 4b: the Local Group and the star search
+const MPC_PC=1e6;
 
 /* ---------- state ---------- */
 const G=()=>window.GALAXY;
 const ST={ready:false,gf:0,sf:1,gv:0,r:0,dSunPc:0,zPc:0,throttle:1,exag:1,dm:true,warp:1,seen:{},capT:0,nearStar:null,nearStarAU:1e30,nearStarIdx:-1,spokeHera:false,
-  lastSolar:{},large:0,discLeft:false,wholeSeen:false,labelsFar:false,lastScan:0,caps:[],visited:{},card:null,orbit:null};
+  lastSolar:{},large:0,discLeft:false,wholeSeen:false,labelsFar:false,lastScan:0,caps:[],visited:{},card:null,orbit:null,nearGal:null,nearGalAU:1e30,lgLeft:false,spokeAndro:false};
 const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 try{const t=+LS.get('mots.fly.throttle');if(t>0)ST.throttle=t;const x=+LS.get('mots.fly.exag');if(x>=1)ST.exag=x;if(LS.get('mots.fly.dm')==='0')ST.dm=false}catch(e){}
 // the Stars options (the navigation panel's Stars group), remembered: the stars' own volume, how a star sounds, whether it sings its name
@@ -4497,7 +4806,7 @@ function shipGal(){TMPE.x=ship.pos.x/AU_PC;TMPE.y=-ship.pos.z/AU_PC;TMPE.z=ship.
 
 /* ---------- the galactic scene ---------- */
 const gscene=new THREE.Scene();
-const gcam=new THREE.PerspectiveCamera(62,1,2e-5,3e5);
+const gcam=new THREE.PerspectiveCamera(62,1,2e-5,6e6);
 let STARS=null,MW=null,OORT=null,PULS=null,GCGLOW=null,HELIO=null,HELIO2=null;
 // a star's colour from its temperature (a black-body fit, lifted a little toward white so the faint ones still read)
 function bbRGB(T){const t=clamp(T,1000,40000)/100;let r,g,b;
@@ -4507,8 +4816,8 @@ const STAR_VS=`attribute vec3 col;attribute float absMag;uniform float uPx;unifo
 void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);float d=max(length(mv.xyz),1e-7);float m=absMag+2.1714724*log(d/10.0);
 float s=clamp(2.2*pow(10.0,-0.1*(m-2.0)),1.3,70.0);vA=clamp(1.0-(m-3.0)/3.5,0.22,1.0)*uFade;vC=col;gl_PointSize=s*uPx;gl_Position=projectionMatrix*mv;}`;
 const STAR_FS=`varying vec3 vC;varying float vA;void main(){vec2 q=gl_PointCoord-0.5;float r2=dot(q,q)*4.0;if(r2>1.0)discard;float a=exp(-r2*3.2)*0.9+0.5*max(0.0,1.0-r2*9.0);gl_FragColor=vec4(vC*a*vA,a*vA);}`;
-const MW_VS=`attribute vec4 col;uniform float uPx;uniform float uFade;uniform float uSize;uniform float uBoost;varying vec4 vC;
-void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);float d=max(length(mv.xyz),1.0);float s=clamp(uSize*2600.0/d,1.0+0.9*uBoost,7.0);float near=smoothstep(60.0,900.0,d);vC=vec4(col.rgb,min(1.0,col.a*(1.0+0.7*uBoost))*near*uFade);gl_PointSize=s*uPx;gl_Position=projectionMatrix*mv;}`;
+const MW_VS=`attribute vec4 col;uniform float uPx;uniform float uFade;uniform float uSize;uniform float uBoost;uniform float uAlpha;varying vec4 vC;
+void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);float d=max(length(mv.xyz),1.0);float s=clamp(uSize*2600.0/d,1.0+0.9*uBoost,7.0);float near=smoothstep(60.0,900.0,d);vC=vec4(col.rgb,min(1.0,col.a*(1.0+0.7*uBoost))*near*uFade*uAlpha);gl_PointSize=s*uPx;gl_Position=projectionMatrix*mv;}`;
 const MW_FS=`varying vec4 vC;void main(){vec2 q=gl_PointCoord-0.5;float r2=dot(q,q)*4.0;if(r2>1.0)discard;float a=exp(-r2*2.5)*vC.a;gl_FragColor=vec4(vC.rgb*a,a);}`;
 function buildStars(){const g=G(),T=g.tables(),n=T.n,pos=new Float32Array(n*3),col=new Float32Array(n*3),mag=new Float32Array(n),v={x:0,y:0,z:0};
   for(let i=0;i<n;i++){galToScene(T.X[i],T.Y[i],T.Z[i],v);pos[i*3]=v.x;pos[i*3+1]=v.y;pos[i*3+2]=v.z;const row=T.rows[i],c=bbRGB(row.T||5772);col[i*3]=c[0];col[i*3+1]=c[1];col[i*3+2]=c[2];mag[i]=T.M[i]}
@@ -4534,7 +4843,7 @@ function buildMilkyWay(){const g=G(),q=QUAL(),N=Math.round((q==='eco'?9000:LOW?1
     const R=Math.hypot(xg,yg),beta=Math.atan2(yg,xg)*180/Math.PI,bright=.6+.4*rnd();put(R,beta,z,1.0*bright,.84*bright,.6*bright,.6)}
   if(MW){gscene.remove(MW);MW.geometry.dispose()}
   const gm=new THREE.BufferGeometry();gm.setAttribute('position',new THREE.BufferAttribute(pos,3));gm.setAttribute('col',new THREE.BufferAttribute(col,4));
-  MW=new THREE.Points(gm,new THREE.ShaderMaterial({uniforms:{uPx:{value:renderer.getPixelRatio()},uFade:{value:0},uSize:{value:LOW?16:20},uBoost:{value:0}},vertexShader:MW_VS,fragmentShader:MW_FS,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+  MW=new THREE.Points(gm,new THREE.ShaderMaterial({uniforms:{uPx:{value:renderer.getPixelRatio()},uFade:{value:0},uSize:{value:LOW?16:20},uBoost:{value:0},uAlpha:{value:1}},vertexShader:MW_VS,fragmentShader:MW_FS,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
   MW.frustumCulled=false;gscene.add(MW);
   // the centre: a warm glow around Sagittarius A*
   gc.R=0;gc.beta=0;gc.z=0;g.fromGC(gc,h);galToScene(h.x,h.y,h.z,v);
@@ -4587,14 +4896,86 @@ function labels(){const far=ST.r>FAR_AU;
     return false}
   if(!ST.labelsFar){ST.labelsFar=true;for(const k in LBL)LBL[k].hidden=true;if(GL.helio)GL.helio.hidden=true}
   if(!ST.ready)return true;
-  PLACED.length=0;placeG(LBL.sun,0,0,0,true);if(!LBL.sun.hidden)clash();LBL.sun.classList.toggle('target',!!(ship.gap&&ship.gap.id==='home'));
+  PLACED.length=0;placeG(LBL.sun,0,0,0,ST.dSunPc<120000);if(!LBL.sun.hidden)clash();LBL.sun.classList.toggle('target',!!(ship.gap&&ship.gap.id==='home'));
   // named stars: the brightest as seen from the ship (reusing the audio ranking when it runs), at most 14
   const list=AS.labelList||[];let n=0;
   for(let i=0;i<NAMED.length;i++){const e=NAMED[i];const show=n<14&&list.indexOf(e.row)>=0;if(show){starScene(e.row,SV);placeG(e.el,SV.x,SV.y,SV.z,true);if(!e.el.hidden&&clash())e.el.hidden=true;e.el.classList.toggle('target',!!(ship.gap&&ship.gap.row===e.row));n++}else e.el.hidden=true}
   if(GL.sgra){placeG(GL.sgra,ST.gcPos.x,ST.gcPos.y,ST.gcPos.z,ST.dSunPc>300);GL.sgra.classList.toggle('target',!!(ship.gap&&ship.gap.id==='gc'))}
   if(GL.vela&&ST.velaPos)placeG(GL.vela,ST.velaPos.x,ST.velaPos.y,ST.velaPos.z,ST.dSunPc>.3&&ST.dSunPc<3000);
   if(GL.crab&&ST.crabPos)placeG(GL.crab,ST.crabPos.x,ST.crabPos.y,ST.crabPos.z,ST.dSunPc>.3&&ST.dSunPc<3000);
+  for(const id in GALPOS){const el=GL['g_'+id];if(!el)continue;const p=GALPOS[id],tg=ship.gap&&ship.gap.gal&&ship.gap.gal.id===id,big=id==='m31'||id==='m33'||id==='lmc'||id==='smc',dShip=p.distanceTo(gcam.position);
+    placeG(el,p.x,p.y,p.z,ST.dSunPc>2500&&(big||tg||dShip<60000)&&(!ST.card||!ST.card.gal||ST.card.gal.id!==id||dShip>2e5));if(!el.hidden&&!tg&&clash())el.hidden=true;el.classList.toggle('target',!!tg)}
   return true}
+
+
+/* ---------- the Local Group (step 4b): the galaxies as particle systems shaped by their type, sized by their measured radii ----------
+   One shader for all of them: a point's size falls with distance and its alpha with the inverse square (36 r²/d² of its galaxy's
+   reference radius r), so a galaxy is a soft glow from afar and resolves into stars as you come near; nothing saturates. The
+   spirals (M31, M33) sit at their true inclinations and position angles as seen from the Milky Way (GALAXY.galaxyFrame); the
+   Magellanic Clouds are irregular clouds, the LMC with its bar; dwarf spheroidals are faint fuzzy ellipses with their catalogued
+   ellipticity and position angle; M32 is a compact knot. Counts adapt to the device, and halve when frames are slow. */
+const GAL_VS=`attribute vec4 col;attribute float ref;attribute float sz;uniform float uPx;uniform float uFade;uniform float uPxRad;varying vec4 vC;
+void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);float d=max(length(mv.xyz),1.0);float q=ref/d;float s=clamp(sz*uPxRad/d,1.5,40.0);float a=col.a*clamp(max(36.0*q*q,0.35),0.0,1.0);vC=vec4(col.rgb,a*uFade);gl_PointSize=s*uPx;gl_Position=projectionMatrix*mv;}`;
+const GAL_FS=`varying vec4 vC;void main(){vec2 q=gl_PointCoord-0.5;float r2=dot(q,q)*4.0;if(r2>1.0)discard;float a=exp(-r2*2.6)*vC.a;gl_FragColor=vec4(vC.rgb*a,a);}`;
+let GAL=null,GALGLOW=[],galScale=1;const GALPOS={};   // scene positions (pc) of the galaxies by id
+let _gw=null,_gb=null;const GLOWW=()=>_gw||(_gw=glowTex('rgba(255,232,200,1)','rgba(235,180,120,.35)')),GLOWB=()=>_gb||(_gb=glowTex('rgba(225,235,255,1)','rgba(170,190,245,.32)'));
+const MWROW=()=>G().galaxy('mw');
+function buildGalaxies(){const g=G(),rows=g.galaxies();if(!rows.length)return;const q=QUAL(),dev=(q==='eco'?.35:LOW?.45:q==='high'?1.4:1)*galScale;
+  const rnd=g.rng(31),gauss=()=>{let u=0;for(let k=0;k<4;k++)u+=rnd();return (u-2)*1.1};
+  const BIGN={m31:20000,m33:9000,lmc:7000,smc:3500,m110:900,m32:500,ngc147:500,ngc185:500,ic10:600};
+  let total=0;const plan=[];
+  rows.forEach(r=>{if(r.id==='mw')return;let n=BIGN[r.id]||clamp(120+40*(-r.M),120,900);n=Math.max(24,Math.round(n*dev));plan.push([r,n]);total+=n});
+  const pos=new Float32Array(total*3),col=new Float32Array(total*4),ref=new Float32Array(total),szA=new Float32Array(total),v={x:0,y:0,z:0};let i=0;
+  GALGLOW.forEach(sp=>{gscene.remove(sp);sp.material.dispose()});GALGLOW.length=0;
+  for(const [r,n] of plan){const fr=g.galaxyFrame(r,{}),c=g.galaxyPos(r,{});galToScene(c.x,c.y,c.z,v);GALPOS[r.id]=new THREE.Vector3(v.x,v.y,v.z);
+    // the frame in scene coordinates: a (major axis, in the disc), bp (in the disc, 90° from a), N (the disc normal), u (the line of sight from the Sun), b (sky minor axis)
+    const A=galToScene(fr.a.x,fr.a.y,fr.a.z,{}),N=galToScene(fr.N.x,fr.N.y,fr.N.z,{}),U=galToScene(fr.u.x,fr.u.y,fr.u.z,{}),B=galToScene(fr.b.x,fr.b.y,fr.b.z,{});
+    const BP={x:N.y*A.z-N.z*A.y,y:N.z*A.x-N.x*A.z,z:N.x*A.y-N.y*A.x};
+    // each point stands for many stars: its size is the typical spacing of the points in its galaxy (so a galaxy reads as a glow, not a sprinkle, however many points the device affords)
+    const put=(x,y,z,rr,gg,bb,a,rf,basis)=>{const [e1,e2,e3]=basis||[A,BP,N];pos[i*3]=v.x+e1.x*x+e2.x*y+e3.x*z;pos[i*3+1]=v.y+e1.y*x+e2.y*y+e3.y*z;pos[i*3+2]=v.z+e1.z*x+e2.z*y+e3.z*z;col[i*4]=rr;col[i*4+1]=gg;col[i*4+2]=bb;col[i*4+3]=a;ref[i]=rf;szA[i]=rf/Math.sqrt(n)*(r.disc?2.2:1.3);i++};
+    const rh=(r.rhpc||((r.rh||5)/60*Math.PI/180*r.d*1000)),T=r.T||5000,cT=bbRGB(T);
+    if(r.k==='spiral'&&r.disc){const rd=r.disc.rd*1000,rmax=r.disc.rmax*1000,bul=r.disc.bulge||0,pitch=(r.id==='m31'?9:19)*Math.PI/180,tp=Math.tan(pitch),nB=Math.round(n*(bul?.13:.03)),nA=Math.round((n-nB)*.58),nD=n-nB-nA;
+      for(let k=0;k<nA;k++){let R=-rd*Math.log(1-rnd()*.995);if(R<rd*.3||R>rmax){k--;continue}const u=rnd(),arm=u<.38?0:u<.76?Math.PI:u<.88?Math.PI*.5:Math.PI*1.5,th=arm+Math.log(R/(rd*.35))/tp;
+        const ring=r.id==='m31'?1+1.3*Math.exp(-.5*Math.pow((R-10500)/1800,2)):1;if(rnd()>ring/2.3){k--;continue}
+        const sig=(350+.06*R),dr=gauss()*sig,z=gauss()*rd*.05,br=.5+.5*rnd(),c=rnd(),Rr=R+dr;
+        if(c<.62)put(Rr*Math.cos(th),Rr*Math.sin(th),z,.62*br,.76*br,1*br,.5,rmax);else if(c<.74)put(Rr*Math.cos(th),Rr*Math.sin(th),z,1*br,.7*br,.8*br,.55,rmax);else put(Rr*Math.cos(th),Rr*Math.sin(th),z,.95*br,.95*br,1*br,.45,rmax)}
+      for(let k=0;k<nD;k++){let R=-rd*Math.log(1-rnd()*.995);if(R>rmax){k--;continue}const th=rnd()*Math.PI*2,z=gauss()*rd*.08,br=.45+.55*rnd();put(R*Math.cos(th),R*Math.sin(th),z,1*br,.92*br,.76*br,.4,rmax)}
+      for(let k=0;k<nB;k++){const m=Math.pow(Math.abs(gauss()),1.3)*rd*.3,th=rnd()*Math.PI*2,ph=Math.acos(rnd()*2-1),br=.6+.4*rnd();put(m*Math.sin(ph)*Math.cos(th),m*Math.sin(ph)*Math.sin(th),m*Math.cos(ph)*.6,1*br,.86*br,.6*br,.4,rmax)}
+    }
+    else if(r.id==='lmc'){const rd=r.disc.rd*1000,rmax=r.disc.rmax*1000,barL=(r.disc.bar||3)*1000,ba=((r.disc.barpa||115)-(r.disc.pa||140))*Math.PI/180,cb=Math.cos(ba),sb=Math.sin(ba),nBar=Math.round(n*.2),nCl=Math.round(n*.1),nD=n-nBar-nCl;
+      for(let k=0;k<nD;k++){let R=-rd*Math.log(1-rnd()*.995);if(R>rmax){k--;continue}const th=rnd()*Math.PI*2,z=gauss()*rd*.12,br=.5+.5*rnd();put(R*Math.cos(th),R*Math.sin(th),z,.9*br,.92*br,1*br,.45,rmax)}
+      for(let k=0;k<nBar;k++){const s=(rnd()*2-1)*barL*.5*(1+.15*gauss()),t=gauss()*barL*.16,z=gauss()*rd*.1,br=.6+.4*rnd();put(s*cb-t*sb,s*sb+t*cb,z,1*br,.92*br,.78*br,.4,rmax)}
+      const clumps=[];for(let c=0;c<7;c++)clumps.push([(rnd()*2-1)*rmax*.55,(rnd()*2-1)*rmax*.55,120+rnd()*260]);
+      for(let k=0;k<nCl;k++){const c=clumps[k%clumps.length],br=.6+.4*rnd();put(c[0]+gauss()*c[2],c[1]+gauss()*c[2],gauss()*c[2]*.5,.75*br,.85*br,1*br,.32,rmax)}
+    }
+    else if(r.id==='smc'){const rd=r.disc.rd*1000,rmax=r.disc.rmax*1000,nCl=Math.round(n*.2),nD=n-nCl;   // an elongated cloud, deep along the line of sight (APPROX)
+      for(let k=0;k<nD;k++){const x=gauss()*rd*1.2,y=gauss()*rd*.7,z=gauss()*rd*2.2,br=.5+.5*rnd();if(Math.hypot(x,y,z*.5)>rmax){k--;continue}put(x,y,z,.88*br,.92*br,1*br,.45,rmax,[A,B,U])}
+      const clumps=[];for(let c=0;c<4;c++)clumps.push([(rnd()*2-1)*rd,(rnd()*2-1)*rd*.6,(rnd()*2-1)*rd*1.5,100+rnd()*200]);
+      for(let k=0;k<nCl;k++){const c=clumps[k%clumps.length],br=.6+.4*rnd();put(c[0]+gauss()*c[3],c[1]+gauss()*c[3],c[2]+gauss()*c[3],.75*br,.85*br,1*br,.35,rmax,[A,B,U])}}
+    else{// dwarfs: a gaussian ellipsoid with the catalogued ellipticity and position angle on the sky, the depth the geometric mean; M32 and the dE's concentrated
+      const ell=clamp(r.ell||0,0,.9),sa=rh/1.18*(r.k==='compact'?.6:1),sb2=sa*(1-ell),su=sa*Math.sqrt(1-ell),warm=r.k==='spheroidal'||r.k==='elliptical'||r.k==='compact';
+      const cr=warm?1:.82,cg=warm?.9:.88,cbb=warm?.72:1,rf=Math.max(3*rh,r.k==='compact'?2*rh:0);
+      for(let k=0;k<n;k++){const pw=r.k==='compact'||r.k==='elliptical'?.7:1;let x=gauss(),y=gauss(),z=gauss();if(pw<1){const m=Math.hypot(x,y,z)||1,m2=Math.pow(m,pw);x*=m2/m;y*=m2/m;z*=m2/m}
+        const br=.55+.45*rnd();put(x*sa,y*sb2,z*su,cr*br,cg*br,cbb*br,r.k==='compact'?.8:.62,rf,[A,B,U])}}
+    // the glow: colour of its integrated light, size its half-light radius (never under ~0.7° of the view), brightness by its apparent magnitude from the ship
+    {const warm=T<5600;const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:warm?GLOWW():GLOWB(),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:0}));sp.position.set(v.x,v.y,v.z);
+      sp.userData={row:r,ref:r.disc?r.disc.rmax*1000:3*rh,size:r.disc?Math.max(r.disc.rd*1000*1.3,rh):rh*1.4,base:r.k==='spiral'?.5:r.k==='compact'?.5:.38};gscene.add(sp);GALGLOW.push(sp)}}
+  const gm=new THREE.BufferGeometry();gm.setAttribute('position',new THREE.BufferAttribute(pos.subarray(0,i*3),3));gm.setAttribute('col',new THREE.BufferAttribute(col.subarray(0,i*4),4));gm.setAttribute('ref',new THREE.BufferAttribute(ref.subarray(0,i),1));gm.setAttribute('sz',new THREE.BufferAttribute(szA.subarray(0,i),1));
+  GAL=new THREE.Points(gm,GAL&&GAL.material||new THREE.ShaderMaterial({uniforms:{uPx:{value:renderer.getPixelRatio()},uFade:{value:0},uPxRad:{value:600}},vertexShader:GAL_VS,fragmentShader:GAL_FS,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+  GAL.frustumCulled=false;gscene.add(GAL);ST.galN=i}
+// the galaxies' glows: brightness by the inverse square of the distance to each (so they are faint smudges from afar), and the whole layer with the galactic fade
+function galaxyFrame(){if(!GAL)return;GAL.material.uniforms.uFade.value=ST.gf;GAL.material.uniforms.uPxRad.value=(renderer.domElement.clientHeight||innerHeight)/(2*Math.tan(gcam.fov*Math.PI/360));const g=G(),L=LPOS;
+  for(const sp of GALGLOW){const d=Math.max(sp.position.distanceTo(gcam.position),1),u=sp.userData,r=u.row;
+    const mag=g.apparentMag(r.M,d),lv=g.loudness(mag,{bright:-4,limit:9}),ang=u.ref/d;   // 0..1 over nine magnitudes: a naked-eye smudge is faint, a galaxy you stand beside is full
+    const sz=Math.max(u.size,d*.05);sp.scale.set(sz,sz,1);sp.material.opacity=ST.gf*u.base*Math.max(lv,.35)*(1-sm(.35,1.2,ang))}}
+// the nearest galaxy to the ship (its edge: centre distance minus 1.5 half-light radii), for the speed law and the readout; the Milky Way is skipped (its stars are the bodies there)
+function scanGalaxies(){const g=G(),rows=g.galaxies();if(!rows.length)return;const L=shipGal();let best=null,bd=1e30;
+  for(let i=0;i<rows.length;i++){const r=rows[i];if(r.id==='mw')continue;const p=g.galaxyPos(r,TMPG),d=Math.hypot(p.x-L.x,p.y-L.y,p.z-L.z)-1.5*(r.rhpc||50);if(d<bd){bd=d;best=r}}
+  ST.nearGal=best;ST.nearGalAU=best?Math.max(bd,.05)*AU_PC:1e30}
+const gkWord=r=>TL.gk[r.k]||TL.gk.spheroidal;
+const galName=r=>G().nameOf('galaxy',r,LANG);
+function fmtPc(pc){if(pc<999)return fmtN(pc,0)+' '+TX.pc;if(pc<MPC_PC)return fmtN(pc/1000,pc<9999?2:pc<99999?1:0)+' '+TX.kpc;return fmtN(pc/MPC_PC,2)+' '+TL.mpc}
+function rvWord(r){if(r.rv==null)return '';const v=Math.abs(r.rv);return uf(r.rv<0?TL.appr:TL.rece,{v:fmtN(v,0)})}
 
 /* ---------- loading ---------- */
 async function sha256hex(buf){const h=await crypto.subtle.digest('SHA-256',buf);return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('')}
@@ -4612,16 +4993,33 @@ function onReady(){const g=G();buildStars();buildMilkyWay();buildOort();buildPul
   if(vela){const p=g.pulsars().indexOf(vela);ST.velaPos=galToScene(T.PX[p],T.PY[p],T.PZ[p],new THREE.Vector3());ST.velaRow=vela;glbl('vela',TX.vela,'minor',()=>travelG('vela'))}
   if(crab){const p=g.pulsars().indexOf(crab);ST.crabPos=galToScene(T.PX[p],T.PY[p],T.PZ[p],new THREE.Vector3());glbl('crab',TX.crab,'minor',null)}
   glbl('helio',TX.helioLbl,'minor',()=>travelG('helio'));
+  buildGalaxies();['m31','m33','lmc','smc','m110','m32','sagittariusdsph','fornax','ic10','ngc6822'].forEach(id=>{const r=g.galaxy(id);if(r&&GALPOS[id])glbl('g_'+id,galName(r),'minor gal',()=>travelG({galaxy:r}))});
   ST.ready=true;buildPanel();loadLargeIfChosen()}
 const loading=G()?G().load(BASE).then(onReady).catch(e=>console.warn('flight: galaxy data',e&&e.message||e)):null;
 
 /* ---------- destinations and the interstellar autopilot ---------- */
-const DEST=['helio','oort','acen','sirius','vela','gc','above','home'];
+const DEST=['helio','oort','acen','sirius','vela','gc','above','mag','m31','m33','lg','home'];
+const DN=id=>TX[id]||TL[id]||id;
 const STAR_OF={acen:'Rigil Kentaurus',sirius:'Sirius'};
-function goalOf(id){const g=G(),out={id,goal:new THREE.Vector3(),look:new THREE.Vector3(),stand:1,name:TX.nm[id]||id,cap:id};
+function goalOf(id){const g=G(),out={id,goal:new THREE.Vector3(),look:new THREE.Vector3(),stand:1,name:TX.nm[id]||TL.nm[id]||id,cap:id};
   const outward=ship.pos.length()>1e-6?ship.pos.clone().normalize():new THREE.Vector3(0,.3,-1).normalize();
   if(typeof id==='object'&&id.star){const row=id.star;out.id='star';out.row=row;starScene(row,SV);const p=new THREE.Vector3(SV.x,SV.y,SV.z).multiplyScalar(AU_PC);
     const standAU=Math.max(400,(row.R||1)*0.00465*SUN_MAG*160);out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(standAU));out.look.copy(p);out.stand=standAU;out.name=row.n||row.bf||('HIP '+row.hip);out.cap=row.n==='Rigil Kentaurus'||row.n==='Toliman'||row.n==='Proxima Centauri'?'acen':row.n==='Sirius'?'sirius':'star';return out}
+  if(typeof id==='object'&&id.galaxy){const r=id.galaxy,c=GALPOS[r.id]||galToScene(g.galaxyPos(r,{}).x,g.galaxyPos(r,{}).y,g.galaxyPos(r,{}).z,new THREE.Vector3());const p=c.clone().multiplyScalar(AU_PC);
+    const big=r.disc&&r.disc.rmax,rh=r.rhpc||((r.rh||5)/60*Math.PI/180*r.d*1000),standPc=big?r.disc.rmax*1000*(r.k==='spiral'?1.7:2.4):Math.max(6*rh,r.k==='compact'?4*rh:0,400);
+    const fr=g.galaxyFrame(r,{}),N=galToScene(fr.N.x,fr.N.y,fr.N.z,new THREE.Vector3()),from=ship.pos.clone().sub(p).normalize();if(N.dot(from)<0)N.negate();
+    // approach spirals from above their disc, so the arms show; everything else straight from where we come
+    const dir=big&&r.k==='spiral'?from.multiplyScalar(.78).addScaledVector(N,.62).normalize():from;
+    out.id='galaxy';out.row=r;out.gal=r;out.goal.copy(p).addScaledVector(dir,standPc*AU_PC);out.look.copy(p);out.stand=standPc*AU_PC;out.up=big&&r.k==='spiral'?N:null;out.name=galName(r);out.cap=r.id==='m31'||r.id==='m33'?r.id:'gal';return out}
+  if(typeof id==='object'&&id.pulsar){const P=id.pulsar,T=g.tables(),k=g.pulsars().indexOf(P),p=galToScene(T.PX[k],T.PY[k],T.PZ[k],new THREE.Vector3()).multiplyScalar(AU_PC);out.id='pulsar';out.row=P;out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(2*AU_PC));out.look.copy(p);out.stand=2*AU_PC;out.name=g.nameOf('pulsar',P,LANG);out.cap='pulsar';return out}
+  if(typeof id==='object'&&id.radio){const R=id.radio;if(R.id==='sgra')return goalOf('gc');const T=g.tables(),k=g.radio().indexOf(R),p=galToScene(T.RX[k],T.RY[k],T.RZ[k],new THREE.Vector3()).multiplyScalar(AU_PC);out.id='radio';out.row=R;out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(25*AU_PC));out.look.copy(p);out.stand=25*AU_PC;out.name=g.nameOf('radio',R,LANG);out.cap='radio';return out}
+  if(id==='m31'||id==='m33'){const r=g.galaxy(id);if(!r)return null;const o=goalOf({galaxy:r});o.id=id;o.name=TL.nm[id];return o}
+  if(id==='mag'){const l=GALPOS.lmc,s2=GALPOS.smc;if(!l||!s2)return null;const mid=l.clone().add(s2).multiplyScalar(.5),from=ship.pos.clone().divideScalar(AU_PC).sub(mid).normalize();
+    const up0=new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z),along=s2.clone().sub(l).normalize(),fL=g.galaxyFrame(g.galaxy('lmc'),{}),NL=galToScene(fL.N.x,fL.N.y,fL.N.z,new THREE.Vector3());if(NL.dot(from)<0)NL.negate();
+    const fromP=from.clone().multiplyScalar(.3).addScaledVector(NL,1).normalize();   // from above the LMC's disc, so its bar and disc show; the SMC beside it (landscape) or below (portrait)
+    out.goal.copy(mid).addScaledVector(fromP,34000).multiplyScalar(AU_PC);out.look.copy(mid).multiplyScalar(AU_PC);out.stand=28000*AU_PC;out.gal=g.galaxy('lmc');out.up=innerWidth>innerHeight?new THREE.Vector3().crossVectors(fromP,along).normalize():along.clone().negate();return out}
+  if(id==='lg'){const m=GALPOS.m31,c=ST.gcPos;if(!m)return null;const mid=m.clone().add(c).multiplyScalar(.5),along=m.clone().sub(c).normalize(),up0=new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z),up=up0.clone().addScaledVector(along,-up0.dot(along)).normalize(),side=new THREE.Vector3().crossVectors(along,up).normalize();   // the viewpoint sits on the plane through the midpoint perpendicular to the line between the two spirals, so both are at the same distance
+    out.goal.copy(mid).addScaledVector(up,innerWidth>innerHeight?820000:1000000).addScaledVector(side,180000).multiplyScalar(AU_PC);out.look.copy(mid).multiplyScalar(AU_PC);out.stand=450000*AU_PC;out.up=innerWidth>innerHeight?side.clone().negate():along;return out}   // landscape: the pair side by side; portrait: one above the other
   if(id==='helio'){out.goal.copy(outward).multiplyScalar(126);out.look.set(0,0,0);out.stand=6;return out}
   if(id==='oort'){out.goal.copy(outward).multiplyScalar(20000);out.look.set(0,0,0);out.stand=800;return out}
   if(id==='acen'||id==='sirius'){const row=g.find(STAR_OF[id]);const o=goalOf({star:row});o.id=id;o.cap=id;o.name=TX.nm[id];return o}
@@ -4641,12 +5039,13 @@ function autopilot(dt){const gp=ship.gap;if(!gp)return;
   const step=Math.min(dist,v*dt);if(dist>1e-9)ship.pos.addScaledVector(D,step/dist);
   // look at the target; while far from it, blend toward the direction of travel so the sky streams past
   const lookAt=gp.look.clone();if(dist>gp.stand*40&&gp.id!=='helio'&&gp.id!=='oort'){lookAt.copy(ship.pos).addScaledVector(D,1/dist)}
-  const upv=gp.id==='above'||gp.id==='gc'?new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z):UP;
+  const upv=gp.up?gp.up:gp.id==='above'||gp.id==='gc'||gp.id==='mag'?new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z):UP;
   lookM.lookAt(ship.pos,lookAt,upv);lookQ.setFromRotationMatrix(lookM);camera.quaternion.slerp(lookQ,1-Math.exp(-dt*(gp.id==='above'?1.2:2.4)));
   if(dist<gp.stand*.03){ship.gap=null;
     if(gp.id==='home'){ship.ap=null;if(typeof travelTo==='function')travelTo('earth');caption('home');return}
     toast(uf(TX.arrived,{n:gp.name}));arrive(gp);
-    if(gp.id==='above')ship.drift={centre:gp.look.clone(),axis:new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z),look:gp.look.clone(),rate:.006}}
+    if(gp.id==='above')ship.drift={centre:gp.look.clone(),axis:new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z),look:gp.look.clone(),rate:.006};
+    if(gp.id==='lg')ship.drift={centre:gp.look.clone(),axis:gp.up.clone(),look:gp.look.clone(),rate:.004}}
   camera.position.copy(ship.pos)}
 // "orbit it": the ship circles the star slowly at its stand-off distance with its heading kept, so the star (and its sound) sweeps around you:
 // left, ahead, right, behind, once in about forty seconds; any control ends it, as the drift
@@ -4662,16 +5061,16 @@ function drift(dt){const d=ship.drift;if(!d)return;if(keys.size||hold||ship.crui
   driftRel.copy(ship.pos).sub(d.centre);driftQ.setFromAxisAngle(d.axis,d.rate*dt);driftRel.applyQuaternion(driftQ);ship.pos.copy(d.centre).add(driftRel);
   lookM.lookAt(ship.pos,d.look,d.axis);lookQ.setFromRotationMatrix(lookM);camera.quaternion.slerp(lookQ,1-Math.exp(-dt*1.5));camera.position.copy(ship.pos)}
 function nearestBodyAU(){let best=ship.pos.length()-SUN_R;for(const b of BODIES){const o=OBJ[b.id];if(!o.pos)continue;const d=ship.pos.distanceTo(o.pos)-o.r;if(d<best)best=d}
-  if(ST.nearStarAU<best)best=ST.nearStarAU;return Math.max(best,1e-7)}
+  if(ST.nearStarAU<best)best=ST.nearStarAU;if(ST.nearGalAU<best)best=ST.nearGalAU;return Math.max(best,1e-7)}
 // the nearest star to the ship (every ~100 ms; the Sun is index 0)
 function scanStars(now){if(!ST.ready||now-ST.lastScan<100)return;ST.lastScan=now;const g=G(),T=g.tables(),L=shipGal(),t=tYr();let bi=-1,bd=1e30;
   for(let i=0;i<T.n;i++){const dx=T.X[i]+T.VX[i]*t-L.x,dy=T.Y[i]+T.VY[i]*t-L.y,dz=T.Z[i]+T.VZ[i]*t-L.z,d2=dx*dx+dy*dy+dz*dz;if(d2<bd){bd=d2;bi=i}}
-  ST.nearStarIdx=bi;ST.nearStar=bi>=0?T.rows[bi]:null;ST.nearStarAU=bi>=0?Math.sqrt(bd)*AU_PC:1e30;
+  ST.nearStarIdx=bi;ST.nearStar=bi>=0?T.rows[bi]:null;ST.nearStarAU=bi>=0?Math.sqrt(bd)*AU_PC:1e30;scanGalaxies();
   // never fly into a star: keep a little way off its centre
   if(bi>0&&ST.nearStarAU<.3){starScene(T.rows[bi],SV);const c=new THREE.Vector3(SV.x,SV.y,SV.z).multiplyScalar(AU_PC);ship.pos.copy(c).add(ship.pos.clone().sub(c).normalize().multiplyScalar(.3));camera.position.copy(ship.pos)}}
 
 /* ---------- the manual flight's speed law: the planets' law, with the cap lifted once past them, and the stars counted as bodies ---------- */
-function base(ns){const r=ship.pos.length(),d=Math.min(ns.d,ST.nearStarAU),cap=40*Math.max(1,r/73);return Math.min(cap,Math.max(2e-6,d*.55))*ST.throttle}
+function base(ns){const r=ship.pos.length(),d=Math.min(ns.d,ST.nearStarAU,ST.nearGalAU),cap=40*Math.max(1,r/73);return Math.min(cap,Math.max(2e-6,d*.55))*ST.throttle}
 
 /* ---------- each frame ---------- */
 let lastCam={far:0},slowT=0,mwScale=1;
@@ -4682,12 +5081,13 @@ function frame(dt,t,ns){const r=ship.pos.length();ST.r=r;
   const sf=1-sm(Math.log10(150),Math.log10(3000),Math.log10(Math.max(r,1)));ST.sf=sf;ST.gf=1-sf;
   if(ST.ready){const L=shipGal();ST.dSunPc=Math.hypot(L.x,L.y,L.z);ST.zPc=L.z+G().K.Z0;
     ST.gv=sm(0,1,Math.max((Math.abs(ST.zPc)-700)/3000,(ST.dSunPc*.38-700)/3000));
-    STARS.material.uniforms.uFade.value=ST.gf;MW.material.uniforms.uFade.value=ST.gf;MW.material.uniforms.uBoost.value=ST.gv;OORT.material.opacity=ST.gf*.85*(1-sm(.6,4,ST.dSunPc));PULS.material.opacity=ST.gf*.8*(1-ST.gv*.6);GCGLOW.material.opacity=.3*sm(100,2500,ST.dSunPc);
+    const farF=1-sm(30000,150000,ST.dSunPc);ST.farF=farF;   // the catalogue stars and pulsars fade out as the whole Galaxy shrinks to a disc (they would all pile into one pixel)
+    STARS.material.uniforms.uFade.value=ST.gf*farF;MW.material.uniforms.uFade.value=ST.gf;MW.material.uniforms.uBoost.value=ST.gv;MW.material.uniforms.uAlpha.value=clamp(Math.pow(100000/Math.max(ST.dSunPc,1),2),.35,1);OORT.material.opacity=ST.gf*.85*(1-sm(.6,4,ST.dSunPc));PULS.material.opacity=ST.gf*.8*(1-ST.gv*.6)*farF;GCGLOW.material.opacity=.3*sm(100,2500,ST.dSunPc)*clamp(Math.pow(200000/Math.max(ST.dSunPc,1),2),0,1);galaxyFrame();
     const hp=sm(25,60,r)*(1-sm(300,900,r));HELIO.material.opacity=.75*hp;HELIO2.material.opacity=.05*hp*(r<120?1:0);HELIO.visible=hp>.01;HELIO2.visible=HELIO2.material.opacity>.002;
     thresholds(r)}
   applyFades();
   {const z=$('zodTxt');if(z){const o=sf<.02?'0':sf.toFixed(2);if(z.style.opacity!==o){z.style.opacity=o;z.style.visibility=sf<.02?'hidden':''}}}
-  if(ST.ready&&ST.gf>.5&&ST.adapt!==false){if(dt>.06)slowT+=dt;else slowT=Math.max(0,slowT-dt*.5);if(slowT>3&&mwScale>.26){slowT=0;mwScale*=.5;buildMilkyWay()}}
+  if(ST.ready&&ST.gf>.5&&ST.adapt!==false){if(dt>.06)slowT+=dt;else slowT=Math.max(0,slowT-dt*.5);if(slowT>3&&mwScale>.26){slowT=0;mwScale*=.5;galScale*=.5;buildMilkyWay();buildGalaxies()}}
   // the planetary bus fades with the painted sky
   if(typeof solarBus!=='undefined'&&solarBus&&AC&&Math.abs(sf-(ST.sfSent||0))>.01){ST.sfSent=sf;tgt(solarBus.gain,sf,.25)}
   if(ST.ready&&ST.gf>0&&!(AC&&audioOn))assign(performance.now()/1000);
@@ -4698,7 +5098,8 @@ function thresholds(r){const out=k=>{if(!ST.seen[k]){ST.seen[k]=true;caption(k)}
   if(r>2000&&r<9000&&(dirOut||!ship.gap))out('oort');if(r<800)ST.seen.oort=false;
   if(r>110000&&r<4e5&&(dirOut||!ship.gap))out('inter');if(r<50000)ST.seen.inter=false;
   if(Math.abs(ST.zPc)>500&&!ST.discLeft){ST.discLeft=true;caption('disc')}if(Math.abs(ST.zPc)<200)ST.discLeft=false;
-  if(ST.gv>=.98&&!ST.wholeSeen){ST.wholeSeen=true;caption('whole');speakHera()}}
+  if(ST.gv>=.98&&!ST.wholeSeen){ST.wholeSeen=true;caption('whole');speakHera()}
+  if(ST.dSunPc>45000&&!ST.lgLeft&&(!ship.gap||ship.gap.id!=='home')){ST.lgLeft=true;caption('leave')}if(ST.dSunPc<25000)ST.lgLeft=false}
 
 /* ---------- rendering: the far scene first, then the solar system over it ---------- */
 function render(){const r=ST.r;camera.updateMatrixWorld();
@@ -4710,19 +5111,21 @@ function render(){const r=ST.r;camera.updateMatrixWorld();
   renderer.autoClear=true}
 
 /* ---------- readout: distance in the right unit, light-travel time, speed ---------- */
-function fmtDist(rAU){if(rAU<9999)return fmtN(rAU,rAU<100?1:0)+' '+TX.au;const ly=rAU/AU_PC*PC_LY;if(ly<999)return fmtN(ly,ly<10?2:ly<100?1:0)+' '+TX.ly;const pc=rAU/AU_PC;if(pc<999)return fmtN(pc,0)+' '+TX.pc;return fmtN(pc/1000,pc<9999?2:1)+' '+TX.kpc}
-function fmtLight(rAU){const s=rAU*AU_LS;if(s<90)return uf(TX.lsec,{n:fmtN(s,0)});const m=s/60;if(m<90)return uf(TX.lmin,{n:fmtN(m,m<10?1:0)});const h=m/60;if(h<36)return uf(TX.lhr,{n:fmtN(h,h<10?1:0)});const d=h/24;if(d<300)return uf(TX.lday,{n:fmtN(d,d<10?1:0)});const y=d/365.25;if(y<1.05)return TX.lyr1;return uf(TX.lyr,{n:fmtN(y,y<10?1:0)})}
+function fmtDist(rAU){if(rAU<9999)return fmtN(rAU,rAU<100?1:0)+' '+TX.au;const ly=rAU/AU_PC*PC_LY;if(ly<999)return fmtN(ly,ly<10?2:ly<100?1:0)+' '+TX.ly;const pc=rAU/AU_PC;if(pc<999)return fmtN(pc,0)+' '+TX.pc;if(pc<MPC_PC)return fmtN(pc/1000,pc<9999?2:1)+' '+TX.kpc;return fmtN(pc/MPC_PC,2)+' '+TL.mpc}
+function fmtLight(rAU){const s=rAU*AU_LS;if(s<90)return uf(TX.lsec,{n:fmtN(s,0)});const m=s/60;if(m<90)return uf(TX.lmin,{n:fmtN(m,m<10?1:0)});const h=m/60;if(h<36)return uf(TX.lhr,{n:fmtN(h,h<10?1:0)});const d=h/24;if(d<300)return uf(TX.lday,{n:fmtN(d,d<10?1:0)});const y=d/365.25;if(y<1.05)return TX.lyr1;if(y>=1e6)return /万/.test(TL.lmyr)?uf(TL.lmyr,{n:fmtN(y/1e4,0)}):uf(TL.lmyr,{n:fmtN(y/1e6,y<1e7?1:0)});return uf(TX.lyr,{n:fmtN(y,y<10?1:0)})}
 function fmtSpeedG(vAU){const kms=vAU*AU_KM;if(kms<C_KMS*.95)return uf(TX.kms,{n:fmtN(kms,0)});const lys=vAU/AU_PC*PC_LY;if(lys<.5)return uf(TX.xc,{n:fmtN(kms/C_KMS,kms/C_KMS<10?1:0)});if(lys<500)return uf(TX.lys,{n:fmtN(lys,lys<10?1:0)});const pcs=vAU/AU_PC;if(pcs<500)return uf(TX.pcs,{n:fmtN(pcs,0)});return uf(TX.kpcs,{n:fmtN(pcs/1000,pcs<5000?2:0)})}
 function readout(ns){const r=ST.r;galChips();interLine(r);
   if(r<=FAR_AU&&!ship.gap)return;
   const v=ship.speed||0;$('speedTxt').textContent=`${fmtSpeedG(v)} · ${uf(TX.fromSun,{d:fmtDist(r)})} · ${uf(TX.light,{t:fmtLight(r)})}`;
   if(ship.gap)$('nearTxt').innerHTML=uf(TX.toward,{n:ship.gap.name});
-  else if(r>FAR_AU){const s=ST.nearStar;$('nearTxt').innerHTML=uf(TX.nearest,{n:s?(s.sun?TX.sun:(s.n||s.bf||s.gl||('HIP '+s.hip))):'—'})}}
+  else if(r>FAR_AU){const s=ST.nearStar,gl=ST.nearGal;if(gl&&ST.dSunPc>60000&&ST.nearGalAU<ST.nearStarAU)$('nearTxt').innerHTML=uf(TL.nearG,{n:galName(gl)});else $('nearTxt').innerHTML=uf(TX.nearest,{n:s?(s.sun?TX.sun:(s.n||s.bf||s.gl||('HIP '+s.hip))):'—'})}}
 // the readout's second line (light.js's planet description while among the planets): out here, the nearest star's class, temperature and
 // distance from the ship, or, once the whole Galaxy is in view, the rotation chord and its dark-matter switch
 function interLine(r){const el=$('lightTxt');if(!el)return;let t='';
   if(r>FAR_AU){const s=ST.nearStar;
-    if(ST.gv>=.5)t=ST.dm?TX.chordOn:TX.chordOff;
+    const gl=ST.nearGal;
+    if(gl&&ST.dSunPc>60000&&ST.nearGalAU<ST.nearStarAU)t=galName(gl)+' · '+gkWord(gl)+' · '+uf(TX.away,{d:fmtDist(Math.max(0,ST.nearGalAU))});
+    else if(ST.gv>=.5)t=ST.dm?TX.chordOn:TX.chordOff;
     else if(s){const nm=s.sun?TX.sun:(s.n||s.bf||s.gl||('HIP '+s.hip)),sp=String(s.sp||'').replace(/\.\.\./,'').trim();
       t=nm+' · '+(sp?sp+' · ':'')+fmtN(Math.round(s.T||0),0)+' K · '+uf(TX.away,{d:fmtDist(Math.max(0,ST.nearStarAU))})}}
   if(t===(ST.interTxt||''))return;
@@ -4736,16 +5139,18 @@ function hud(){const bc=document.querySelector('.hud.bc');if(!bc)return;
   capEl=document.createElement('div');capEl.className='gcap';capEl.id='galCap';capEl.setAttribute('aria-live','polite');bc.insertBefore(capEl,bc.firstChild);
   cardEl=document.createElement('div');cardEl.className='gcard';cardEl.id='galCard';cardEl.hidden=true;cardEl.setAttribute('aria-live','polite');bc.insertBefore(cardEl,capEl);
   cardEl.onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;if(typeof resumeAudio==='function')resumeAudio();
-    if(a==='x')hideCard();else if(a==='orbit'){if(ST.orbit)stopOrbit();else startOrbit(ST.card)}else if(a==='next')nextStar();else if(a==='home')travelG('home')};
+    if(a==='x')hideCard();else if(a==='orbit'){if(ST.orbit)stopOrbit();else startOrbit(ST.card)}else if(a==='next'){if(ST.card&&ST.card.gal)nextGalaxy();else nextStar()}else if(a==='home')travelG('home')};
   chipsEl=document.createElement('div');chipsEl.className='chips gchips';chipsEl.id='galChips';bc.insertBefore(chipsEl,$('courseChips'));
   chipsEl.onclick=e=>{const c=e.target.closest('.chip');if(!c)return;if(typeof resumeAudio==='function')resumeAudio();travelG(c.dataset.g)};
   // the "Interstellar ▶" chip on the planets' course row, past the last planet
   $('courseChips').addEventListener('click',e=>{const c=e.target.closest('.chip');if(c&&c.dataset.c==='g:helio'){e.stopPropagation();if(typeof resumeAudio==='function')resumeAudio();travelG('helio')}},true);
   if(window.MOTS&&MOTS.fade)try{MOTS.fade(chipsEl)}catch(e){}}
 function galChips(){if(!chipsEl)return;const r=ST.r,show=r>60||!!ship.gap;const key=show+':'+(ship.gap?ship.gap.id:'')+':'+ST.ready;
-  if(key!==chipsKey){chipsKey=key;chipsEl.innerHTML=show?DEST.map(id=>`<button class="chip${ship.gap&&ship.gap.id===id?' on':''}" data-g="${id}">${TX[id]}</button>`).join(''):''}
+  if(key!==chipsKey){chipsKey=key;chipsEl.innerHTML=show?DEST.map(id=>`<button class="chip${ship.gap&&ship.gap.id===id?' on':''}" data-g="${id}">${DN(id)}</button>`).join(''):''}
   const cc=$('courseChips');if(!show&&!cc.querySelector('[data-c="g:helio"]')&&typeof neighbours==='function'&&!neighbours().out){const b=document.createElement('button');b.className='chip';b.dataset.c='g:helio';b.textContent=TX.beyond;cc.appendChild(b)}}
-function caption(k,gp){if(!capEl)return;let t=TX.cap[k];if(k==='star'&&gp&&gp.row){const row=gp.row,d=(row.d||0)*PC_LY;t=`<b>${gp.name}</b> · ${uf(TX.fromSun,{d:fmtN(d,1)+' '+TX.ly})} · ${uf(TX.light,{t:fmtLight(d/PC_LY*AU_PC)})}`}
+function caption(k,gp){if(!capEl)return;if(cardEl&&!cardEl.hidden&&!gp)return;let t=TX.cap[k]||TL.cap[k];
+  if(k==='gal'&&gp&&gp.gal){const r=gp.gal,dPc=r.d*1000;t=uf(TL.cap.gal,{n:ESC(galName(r)),k:gkWord(r),d:fmtPc(dPc),t:fmtLight(dPc*AU_PC),v:rvWord(r)})}
+  if(k==='star'&&gp&&gp.row){const row=gp.row,d=(row.d||0)*PC_LY;t=`<b>${gp.name}</b> · ${uf(TX.fromSun,{d:fmtN(d,1)+' '+TX.ly})} · ${uf(TX.light,{t:fmtLight(d/PC_LY*AU_PC)})}`}
   if(!t)return;capEl.innerHTML=t;capEl.classList.add('on');clearTimeout(caption.h);caption.h=setTimeout(()=>capEl.classList.remove('on'),k==='whole'?12000:8000);ST.caps.push(k)}
 
 /* ---------- arrival at a star: the card (name, type, temperature, distance from home, what you hear; orbit it · next star · home), the sung name ---------- */
@@ -4759,37 +5164,45 @@ function typeWord(row){const g=G(),S2=TX.st;if(!row)return '';const sp=String(ro
   const kq=kk==='V'&&/[OBAF]/.test(cls)?'S':kk;const [noun,gen]=String(S2.kind[kq]||S2.kind.S).split('|');let c=S2.col[cls]||'';if(typeof c==='object')c=c[gen||'m']||c.m||'';
   return uf(S2.tpl,{c,k:noun}).trim()}
 function starFacts(gp){const row=gp.row,S2=TX.st,bits=[];
+  if(gp.gal){const r=gp.gal;bits.push(ESC(gkWord(r)));if(r.t)bits.push(ESC(r.t));bits.push('M<sub>V</sub> '+fmtN(r.M,1));bits.push(uf(S2.fromHome,{d:fmtPc(r.d*1000)}));if(r.rv!=null)bits.push(rvWord(r)+' '+TL.rvh);return bits}
   if(gp.id==='gc'){bits.push(S2.kind.BH);bits.push(uf(S2.fromHome,{d:fmtDist(ST.gcPos.length()*AU_PC)}));return bits}
   if(gp.id==='vela'||(row&&row.P0!=null)){bits.push(S2.kind.P);if(row&&row.d)bits.push(uf(S2.fromHome,{d:fmtDist(row.d*1000*AU_PC)}));return bits}
   if(!row)return bits;const sp=String(row.sp||'').replace(/\.\.\./,'').trim();if(sp)bits.push(ESC(sp));bits.push(ESC(typeWord(row)));if(row.T)bits.push(fmtN(Math.round(row.T),0)+' K');if(row.d)bits.push(uf(S2.fromHome,{d:fmtDist(row.d*AU_PC)}));return bits}
 function hearLine(gp){const S2=TX.st,row=gp.row;if(gp.id==='gc')return S2.hear.gc;
+  if(gp.gal){const r=gp.gal;if(r.rot&&AS.chordOwner===r.id)return uf(TL.hear.chord,{v:fmtN(r.rot.vflat,0)});return uf(TL.hear.gal,{T:fmtN(r.T||5000,0)})}
   if(gp.id==='vela'||(row&&row.P0!=null)){let f=0;try{f=G().pulsarSound(row).f}catch(e){}return uf(S2.hear.pulsar,{n:fmtN(f,f<10?1:0)})}
   if(GA&&GA.quake&&GA.quake.row===row)return uf(S2.hear.quake,{oct:GA.quake.oct});
   return S2.hear[OPT.mode]||S2.hear.tone}
-function card(gp){if(!cardEl||!gp)return;ST.card=gp;const S2=TX.st,cap=TX.cap[gp.cap]&&gp.cap!=='star'?TX.cap[gp.cap]:'';
+function card(gp){if(!cardEl||!gp)return;ST.card=gp;const S2=TX.st,cap=gp.cap!=='star'&&gp.cap!=='gal'?(TX.cap[gp.cap]||TL.cap[gp.cap]||''):'';
   const nm=gp.id==='vela'||gp.id==='gc'?TX[gp.id]:gp.name;cardEl.innerHTML=`<div class="gch"><b>${ESC(nm)}</b><button class="gx" data-a="x" aria-label="${ESC(S2.close)}">×</button></div>`+(cap?`<div class="gcp">${cap}</div>`:'')+
     `<div class="gcf">${starFacts(gp).join(' · ')}</div><div class="gcl" id="galHear">${hearLine(gp)}</div>`+
-    `<div class="gcb"><button class="chip" data-a="orbit">${ESC(S2.orbit)}</button><button class="chip" data-a="next">${ESC(S2.next)}</button><button class="chip" data-a="home">${ESC(S2.home)}</button></div>`;
+    `<div class="gcb"><button class="chip" data-a="orbit">${ESC(S2.orbit)}</button><button class="chip" data-a="next">${ESC(gp.gal?TL.nextGal:S2.next)}</button><button class="chip" data-a="home">${ESC(S2.home)}</button></div>`;
   cardEl.hidden=false;cardEl.classList.add('on');cardButtons();if(capEl){capEl.classList.remove('on');clearTimeout(caption.h)}}
 function cardButtons(){if(!cardEl||cardEl.hidden)return;const b=cardEl.querySelector('[data-a="orbit"]');if(b){b.textContent=ST.orbit?TX.st.orbiting:TX.st.orbit;b.classList.toggle('on',!!ST.orbit)}}
 function refreshHear(){const el=$('galHear');if(el&&ST.card&&!cardEl.hidden){const t=hearLine(ST.card);if(el.innerHTML!==t)el.innerHTML=t}}
 function hideCard(){if(!cardEl)return;cardEl.classList.remove('on');cardEl.hidden=true;ST.card=null}
 function arrive(gp){ST.caps.push(gp.cap);if(gp.row)ST.visited[gp.row.id!=null?gp.row.id:gp.name]=true;if(gp.id==='gc')ST.visited.gc=true;
-  if(gp.cap==='star'||gp.cap==='acen'||gp.cap==='sirius'||gp.id==='vela'||gp.id==='gc'){card(gp);speakName(gp)}else caption(gp.cap,gp)}
+  if(gp.gal&&gp.id!=='mag'){card(gp);if(gp.gal.id==='m31')speakAndromeda();else speakName(gp)}
+  else if(gp.cap==='star'||gp.cap==='acen'||gp.cap==='sirius'||gp.id==='vela'||gp.id==='gc'||gp.id==='pulsar'||gp.id==='radio'){card(gp);speakName(gp)}else caption(gp.cap,gp)}
+// the nearest galaxy not yet visited (the Milky Way and the current one excluded)
+function nextGalaxy(){const g=G(),L=shipGal();let best=null,bd=1e30;const cur=ST.card&&ST.card.gal;
+  for(const r of g.galaxies()){if(r.id==='mw'||r===cur||ST.visited[r.id])continue;const p=g.galaxyPos(r,TMPG),d=Math.hypot(p.x-L.x,p.y-L.y,p.z-L.z);if(d<bd){bd=d;best=r}}
+  if(best)travelG({galaxy:best})}
 // the nearest named star not yet visited (the current one excluded)
 function nextStar(){const g=G(),L=shipGal(),t=tYr();let best=null,bd=1e30;const cur=ST.card&&ST.card.row;
   for(const e of NAMED){const r=e.row;if(r===cur||ST.visited[r.id])continue;g.posAt(r,t,TMPG);const d=Math.hypot(TMPG.x-L.x,TMPG.y-L.y,TMPG.z-L.z);if(d<bd){bd=d;best=r}}
   if(best)travelG({star:best})}
 // the star's name, spoken by the device in the page's language, pitched by its temperature (hot stars high, cool stars low); short, and only if speech is on
-function speakName(gp){if(!OPT.name||!S.speak||!window.speechSynthesis||!gp)return;const name=gp.id==='gc'?TX.sgra:gp.id==='vela'?TX.vela:gp.name;if(!name)return;
+function speakName(gp){if(!OPT.name||!S.speak||!window.speechSynthesis||!gp)return;const name=gp.id==='gc'?TX.sgra:gp.id==='vela'?TX.vela:gp.name;if(!name)return;if(gp.gal){gp={row:{T:gp.gal.T},name,gal:true}}
   try{const u=new SpeechSynthesisUtterance(String(name));let v=null;const vs=speechSynthesis.getVoices().filter(x=>x.lang&&x.lang.toLowerCase().replace('_','-').startsWith(LOCALE.slice(0,2)));
     v=vs.find(x=>x.lang.toLowerCase().replace('_','-')===LOCALE.toLowerCase())||vs[0]||null;if(v){u.voice=v;u.lang=v.lang}else u.lang=LOCALE;
     const T=gp.row&&gp.row.T||(gp.id==='vela'?30000:gp.id==='gc'?2000:5772);u.pitch=clamp(.75+Math.log10(T/5000)*1.1,.7,1.4);u.rate=.88;
     const duck=()=>{if(typeof master!=='undefined'&&master&&AC&&audioOn)tgt(master.gain,S.vol*.45,.12)},back=()=>{if(typeof master!=='undefined'&&master&&AC&&audioOn&&!S.speaking)tgt(master.gain,S.vol,.5)};
     u.onstart=duck;u.onend=u.onerror=back;speechSynthesis.cancel();speechSynthesis.speak(u);setTimeout(back,4000)}catch(e){}}
 function buildPanel(){const dest=$('dest');if(!dest||$('gdest'))return;
-  const wrap=document.createElement('div');wrap.innerHTML=`<h3>${TX.inter}</h3><div class="dest" id="gdest">${DEST.map(id=>`<button data-g="${id}"><span class="sw" style="background:${{helio:'#9fb0ff',oort:'#aabcd4',acen:'#ffd9a0',sirius:'#dfe8ff',vela:'#9fd3ff',gc:'#ffb060',above:'#c9984f',home:'#4a90d9'}[id]}"></span><span class="nm">${TX[id]}</span></button>`).join('')}</div>`;
+  const wrap=document.createElement('div');wrap.innerHTML=`<h3>${TX.inter}</h3><div class="dest" id="gdest">${DEST.map(id=>`<button data-g="${id}"><span class="sw" style="background:${{helio:'#9fb0ff',oort:'#aabcd4',acen:'#ffd9a0',sirius:'#dfe8ff',vela:'#9fd3ff',gc:'#ffb060',above:'#c9984f',mag:'#cfdcff',m31:'#f0d6b0',m33:'#bcd3ff',lg:'#e0c080',home:'#4a90d9'}[id]}"></span><span class="nm">${DN(id)}</span></button>`).join('')}</div>`;
   dest.parentElement.after(wrap);$('gdest').onclick=e=>{const c=e.target.closest('button');if(c){if(typeof resumeAudio==='function')resumeAudio();travelG(c.dataset.g)}};
+  buildSearch(wrap);
   const speedField=$('speed').closest('.field');
   const f=document.createElement('div');f.className='field';f.innerHTML=`<label for="gThrottle">${TX.shipSpeed} <output id="gThrottleOut"></output></label><input id="gThrottle" type="range" min="0" max="1000" value="500">`;speedField.after(f);
   const th=$('gThrottle'),to=$('gThrottleOut');const showT=()=>{to.textContent='×'+fmtN(ST.throttle,ST.throttle<1?2:ST.throttle<10?1:0)};th.value=Math.round((Math.log10(ST.throttle)+1.5)/3*1000);showT();
@@ -4810,7 +5223,62 @@ function buildPanel(){const dest=$('dest');if(!dest||$('gdest'))return;
   $('gDmVol').oninput=e=>{OPT.dmVol=e.target.value/100;$('gDmVolOut').textContent=pc(OPT.dmVol);if(GA)tgt(GA.chordG.gain,OPT.dmVol,.1);saveOpt()};
   $('gMode').querySelectorAll('button').forEach(b=>b.onclick=()=>{OPT.mode=b.dataset.m;$('gMode').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));saveOpt();refreshHear();if(typeof resumeAudio==='function')resumeAudio()});
   $('gName').onchange=e=>{OPT.name=e.target.checked;saveOpt()};$('gQuake').onchange=e=>{OPT.quake=e.target.checked;saveOpt();refreshHear()}}
-hud();
+
+/* ---------- the star search (step 4b): a box in the Travel panel (also from the HUD's "⋯" menu) with instant suggestions over everything the
+   engine knows — the bundled stars (and the Gaia pack when it is cached), pulsars, radio sources, the Local Group galaxies and the 88
+   constellations — matched by GALAXY.search: proper names, Bayer/Flamsteed in any spelling, HIP/HD/Gliese/Gaia numbers, and the names in
+   all twelve languages, accent- and case-insensitive. Choosing a result flies there with the autopilot; the ⤼ button (or Shift+Enter) jumps. */
+const SR={q:'',res:[],sel:0,con:null,t:0};
+function buildSearch(wrap){if($('gSearch'))return;const S2=TL.srch;const d=document.createElement('div');d.className='gsearch';d.id='gSearch';
+  d.innerHTML=`<h3>${ESC(S2.h)}</h3><div class="gsbox"><input id="gQ" type="search" placeholder="${ESC(S2.ph)}" aria-label="${ESC(S2.h)}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" role="combobox" aria-expanded="false" aria-controls="gSug" aria-autocomplete="list"><button class="gsx" id="gQx" aria-label="${ESC(TX.st.close)}" hidden>×</button></div><div id="gSug" class="gsug" role="listbox"></div><p class="note gshint">${ESC(S2.hint)}</p>`;
+  const h3=wrap.querySelector('h3');h3.after(d);
+  const inp=$('gQ'),sug=$('gSug');
+  inp.oninput=()=>{clearTimeout(SR.t);SR.t=setTimeout(()=>searchFor(inp.value),60);$('gQx').hidden=!inp.value};
+  inp.onkeydown=e=>{if(e.key==='ArrowDown'){e.preventDefault();SR.sel=Math.min(SR.res.length-1,SR.sel+1);renderSug()}else if(e.key==='ArrowUp'){e.preventDefault();SR.sel=Math.max(0,SR.sel-1);renderSug()}
+    else if(e.key==='Enter'){e.preventDefault();if(SR.res[SR.sel])pick(SR.res[SR.sel],e.shiftKey)}else if(e.key==='Escape'){if(inp.value){e.stopPropagation();clearSearch()}}};
+  $('gQx').onclick=()=>{clearSearch();inp.focus()};
+  sug.onclick=e=>{const b=e.target.closest('button');if(!b)return;const row=b.closest('.gsr');const i=+row.dataset.i;if(row.classList.contains('gsback')){SR.con=null;searchFor(SR.q);return}if(SR.res[i])pick(SR.res[i],b.dataset.a==='jump')};
+  // phones: the suggestions stay in view above the keyboard
+  inp.onfocus=()=>{setTimeout(()=>{try{d.scrollIntoView({block:'start',behavior:'smooth'})}catch(e){}},250)}}
+function clearSearch(){const inp=$('gQ');if(inp)inp.value='';SR.q='';SR.res=[];SR.con=null;SR.sel=0;$('gQx').hidden=true;renderSug()}
+function searchFor(q){SR.q=q;SR.sel=0;const g=G();if(!g||!g.ready){SR.res=[];renderSug();return}
+  if(SR.con){SR.res=g.constellationStars(SR.con).slice(0,40).map(r=>({kind:'star',row:r,name:r.n||r.bf}));renderSug();return}
+  SR.res=q.trim()?g.search(q,{n:9}):[];renderSug()}
+function subOf(r){const g=G(),S2=TL.srch,K=S2.kind;const row=r.row;
+  if(r.kind==='star'){const sp=String(row.sp||'').replace(/\.\.\./,'').trim(),bits=[K.star];if(sp)bits.push(sp);if(row.d)bits.push(fmtN(row.d*PC_LY,row.d*PC_LY<100?1:0)+' '+TX.ly);return bits.join(' · ')}
+  if(r.kind==='pulsar'){const bits=[K.pulsar];if(row.P0)bits.push(fmtN(row.P0*1000,row.P0<.1?2:0)+' ms');if(row.d)bits.push(fmtPc(row.d*1000));return bits.join(' · ')}
+  if(r.kind==='galaxy')return gkWord(row)+' · '+fmtPc(row.d*1000);
+  if(r.kind==='radio')return K.radio+(row.d_kpc?' · '+fmtPc(row.d_kpc*1000):'');
+  if(r.kind==='constellation')return uf(S2.con,{n:g.constellationStars(row).length});return ''}
+function dispName(r){const g=G(),loc=g.nameOf(r.kind,r.row,LANG),row=r.row;let own='';
+  if(r.kind==='star'){own=[row.n,row.bf].filter(x=>x&&x!==loc).join(' · ');if(!own&&!row.n&&!row.bf)own=row.hip?'HIP '+row.hip:(row.gl||'')}
+  else if(r.kind==='constellation')own=row.la!==loc?row.la:'';else if(r.kind==='galaxy')own=row.n!==loc?row.n:(row.alt&&row.alt[0]!==loc?row.alt[0]:'');else if(r.kind==='pulsar')own=row.j!==loc?row.j:'';
+  return ESC(loc)+(own?` <small>${ESC(own)}</small>`:'')}
+function renderSug(){const sug=$('gSug'),inp=$('gQ');if(!sug)return;const S2=TL.srch;let h='';
+  if(SR.con){const g=G();h+=`<div class="gsr gsback" data-i="-1"><button class="gsm"><span class="gsn">← ${ESC(g.nameOf('constellation',SR.con,LANG))}</span><span class="gss">${ESC(uf(S2.con,{n:g.constellationStars(SR.con).length}))}</span></button></div>`}
+  if(!SR.res.length&&SR.q.trim().length>=2&&!SR.con)h+=`<div class="gsnone">${ESC(S2.none)}</div>`;
+  SR.res.forEach((r,i)=>{const far=r.kind==='galaxy'||r.kind==='constellation';h+=`<div class="gsr" role="option" data-i="${i}" aria-selected="${i===SR.sel}"><button class="gsm" data-a="fly" title="${ESC(r.kind==='constellation'?S2.kind.con:S2.fly)}"><span class="gsn">${dispName(r)}</span><span class="gss">${ESC(subOf(r))}</span></button>${r.kind==='constellation'?'':`<button class="gsj" data-a="jump" title="${ESC(S2.jump)}" aria-label="${ESC(S2.jump)}">⤼</button>`}</div>`});
+  sug.innerHTML=h;if(inp)inp.setAttribute('aria-expanded',String(!!h));const el=sug.querySelector('[aria-selected="true"]');if(el&&el.scrollIntoView)try{el.scrollIntoView({block:'nearest'})}catch(e){}}
+function specOf(r){if(r.kind==='star')return {star:r.row};if(r.kind==='galaxy')return r.row.id==='mw'?'gc':{galaxy:r.row};if(r.kind==='pulsar')return {pulsar:r.row};if(r.kind==='radio')return {radio:r.row};return null}
+function pick(r,jump){if(r.kind==='constellation'){SR.con=r.row;searchFor(SR.q);return}const spec=specOf(r);if(!spec)return;if(typeof resumeAudio==='function')resumeAudio();
+  if(jump)jumpTo(spec);else travelG(spec);if(typeof closeNav==='function')closeNav()}
+function jumpTo(id){const gp=goalOf(id);if(!gp)return;ship.gap=null;ship.ap=null;ship.drift=null;ship.cruise=false;ship.vel.set(0,0,0);ST.orbit=null;hideCard();ship.pos.copy(gp.goal);camera.position.copy(ship.pos);lookM.lookAt(ship.pos,gp.look,gp.up||UP);camera.quaternion.setFromRotationMatrix(lookM);
+  if(gp.id!=='home'&&gp.id!=='helio'&&gp.id!=='oort'){AS.dirty=true;toast(uf(TX.arrived,{n:gp.name}));arrive(gp)}}
+// the HUD: a "Find a star" entry in the "⋯" menu (on a desktop the shell shows the menu's entries as buttons in the top-right row)
+function searchButton(force){if($('gSearchBtn'))return true;const mm=document.querySelector('#moreMenu .mmenu'),tr=document.querySelector('.hud.tr');if(!mm&&!(force&&tr))return false;
+  const b=document.createElement('button');b.type='button';b.id='gSearchBtn';b.className='btn';b.textContent=TL.srch.btn;b.setAttribute('aria-label',TL.srch.h);
+  b.onclick=()=>{const dd=document.getElementById('moreMenu');if(dd)dd.open=false;if(typeof openNav==='function')openNav();const inp=$('gQ');if(inp){try{inp.closest('.gsearch').scrollIntoView({block:'start'})}catch(e){}inp.focus({preventScroll:true})}};
+  if(mm)mm.appendChild(b);else tr.appendChild(b);return true}
+
+hud();if(!searchButton()){document.addEventListener('DOMContentLoaded',()=>searchButton());setTimeout(()=>searchButton(),400);setTimeout(()=>searchButton(),1200);setTimeout(()=>searchButton(true),2500)}
+
+/* ---------- Andromeda: a short line on arrival, once (device voice; the lead records the gods' lines from voicegen/fly_lines.json) ---------- */
+function speakAndromeda(){if(ST.spokeAndro||!S.speak||!window.speechSynthesis){if(!ST.spokeAndro&&OPT.name)speakName({gal:G().galaxy('m31'),name:TL.m31});return}ST.spokeAndro=true;
+  try{const u=new SpeechSynthesisUtterance(TL.andromeda);let v=null;try{if(typeof pickVoice==='function')v=pickVoice('f',5)}catch(e){}
+    if(!v){const vs=speechSynthesis.getVoices().filter(x=>x.lang&&x.lang.toLowerCase().startsWith(LOCALE.slice(0,2)));v=vs.find(x=>/female|woman|zira|samantha|anna|hazel/i.test(x.name))||vs[0]}
+    if(v){u.voice=v;u.lang=v.lang}else u.lang=LOCALE;u.rate=.92;u.pitch=1.05;
+    const duck=()=>{if(typeof master!=='undefined'&&master&&AC&&audioOn)tgt(master.gain,S.vol*.45,.12)},back=()=>{if(typeof master!=='undefined'&&master&&AC&&audioOn&&!S.speaking)tgt(master.gain,S.vol,.5)};
+    u.onstart=duck;u.onend=u.onerror=back;speechSynthesis.cancel();speechSynthesis.speak(u);setTimeout(back,16000)}catch(e){}}
 
 /* ---------- Hera ---------- */
 function speakHera(){if(ST.spokeHera||!S.speak||!window.speechSynthesis)return;ST.spokeHera=true;
@@ -4831,15 +5299,15 @@ const budget=()=>{const q=QUAL();if(LOW)return q==='eco'?4:q==='high'?8:6;return
 const NLINES=()=>QUAL()==='eco'?0:LOW?2:3;
 const KR=p=>{try{p.automationRate='k-rate'}catch(e){}};const krBiq=f=>{KR(f.frequency);KR(f.Q);KR(f.gain);KR(f.detune);return f};
 function mkPan(to){const p=AC.createPanner();p.panningModel='equalpower';p.distanceModel='linear';p.refDistance=1;p.maxDistance=10000;p.rolloffFactor=0;p.coneInnerAngle=360;p.coneOuterAngle=360;if(p.positionX){KR(p.positionX);KR(p.positionY);KR(p.positionZ)}p.connect(to);return p}
-function audioInit(){if(GA||!AC)return;GA={bus:mkGain(1,bus),starG:null,chordG:null,star:[],pulsar:[],radio:[],chord:[],quake:null,hiss:null,pulseWaves:new Map(),churn:0,swaps:0};
+function audioInit(){if(GA||!AC)return;GA={bus:mkGain(1,bus),starG:null,chordG:null,star:[],pulsar:[],radio:[],chord:[],gal:[],quake:null,hiss:null,pulseWaves:new Map(),churn:0,swaps:0};
   GA.starG=mkGain(OPT.vol,GA.bus);GA.chordG=mkGain(OPT.dmVol,GA.bus);
   // the solar wind: a hiss that grows toward the heliopause and stops there
   const h={};h.hp=krBiq(AC.createBiquadFilter());h.hp.type='highpass';h.hp.frequency.value=180;h.lp=krBiq(AC.createBiquadFilter());h.lp.type='lowpass';h.lp.frequency.value=1500;h.lp.Q.value=.5;
   h.g=mkGain(0,GA.bus);h.tap=mkGain(.6,h.hp);noiseBus.connect(h.tap);h.hp.connect(h.lp);h.lp.connect(h.g);GA.hiss=h}
 function pulseWave(duty){const d=Math.round(clamp(duty,.02,.5)*50)/50;let w=GA.pulseWaves.get(d);if(w)return w;const N=64,re=new Float32Array(N),im=new Float32Array(N);for(let n=1;n<N;n++)re[n]=2*Math.sin(n*Math.PI*d)/(n*Math.PI);w=AC.createPeriodicWave(re,im,{disableNormalization:true});GA.pulseWaves.set(d,w);return w}
 // the star sound's three characters: tone (the Wien note, tamed), shimmer (a soft cloud of grains: strong granulation, a chorus of detuned partners), pulse (the tone, breathing left to the light curve)
-const MODEP={tone:{g2:.15,det2:0,vib:2.2,vibR:0,lp:2000,nf:6,nd:5,am:.84,b1:.1,b2:.06},shim:{g2:.05,det2:9,vib:7,vibR:.3,lp:1400,nf:28,nd:16,am:.62,b1:.1,b2:.08},pulse:{g2:.12,det2:0,vib:2.2,vibR:0,lp:2000,nf:5,nd:4,am:.92,b1:0,b2:0},off:{g2:0,det2:0,vib:0,vibR:0,lp:2000,nf:6,nd:0,am:1,b1:0,b2:0}};
-function applyMode(sl){const I=sl.I,m=OPT.mode,P=MODEP[m]||MODEP.tone,t=AC.currentTime,tc=.3;sl.mode=m;sl.P=P;
+const MODEP={gal:{g2:.04,det2:7,vib:5,vibR:.23,lp:1200,nf:22,nd:14,am:.6,b1:.12,b2:.08},tone:{g2:.15,det2:0,vib:2.2,vibR:0,lp:2000,nf:6,nd:5,am:.84,b1:.1,b2:.06},shim:{g2:.05,det2:9,vib:7,vibR:.3,lp:1400,nf:28,nd:16,am:.62,b1:.1,b2:.08},pulse:{g2:.12,det2:0,vib:2.2,vibR:0,lp:2000,nf:5,nd:4,am:.92,b1:0,b2:0},off:{g2:0,det2:0,vib:0,vibR:0,lp:2000,nf:6,nd:0,am:1,b1:0,b2:0}};
+function applyMode(sl,mode){const I=sl.I,m=mode||OPT.mode,P=MODEP[m]||MODEP.tone,t=AC.currentTime,tc=.3;sl.mode=m;sl.P=P;
   I.o2.detune.setTargetAtTime(P.det2,t,tc);I.vd.gain.setTargetAtTime(P.vib,t,tc);I.vib.frequency.setTargetAtTime(P.vibR||(.11+sl.k*.017),t,tc);
   I.nf.frequency.setTargetAtTime(P.nf,t,tc);I.nd.gain.setTargetAtTime(P.nd,t,tc);I.am.gain.setTargetAtTime(P.am,t,tc);I.bd1.gain.setTargetAtTime(P.b1,t,tc);I.bd2.gain.setTargetAtTime(P.b2,t,tc)}
 function buildSlot(kind,k){const sl={kind,k,row:null,f:220,loud:0,d:0,rv:0,on:false,I:null,swT:0,rise:0,hold:false,lines:null,f0:0,mode:''};
@@ -4876,7 +5344,13 @@ function holdSlots(held,cand,n,copy){const lim=Math.min(cand.length,n+slackOf(n)
   let j=0;for(let k=0;k<n;k++){if(held[k]&&held[k].row)continue;while(j<cand.length&&cand[j].held)j++;if(j>=cand.length)break;const o=held[k]||(held[k]={});copy(cand[j],o);cand[j].held=true;j++}
   held.length=n}
 const cpAud=(e,o)=>{o.i=e.i;o.loud=e.loud;o.mag=e.mag;o.row=e.row;o.x=e.x;o.y=e.y;o.z=e.z;o.d=e.d};
-const AS={t:0,star:[],pulsar:[],radio:[],labelList:[],chord:null,chordKey:'',dirty:true};
+const AS={t:0,star:[],pulsar:[],radio:[],gal:[],labelList:[],chord:null,chordKey:'',dirty:true,chordOwner:'mw',chordPending:'mw',chordScore:0,chordXf:0,chordIn:0};
+const NGAL=()=>LOW?2:3;
+// whose rotation chord plays: the Milky Way's when the whole Galaxy is in view (as before), else the spiral or Cloud that looks brightest from the ship;
+// a change needs a clear margin (hysteresis), and the chord crossfades (0.4 s down, 0.6 s up) so nothing jumps
+function chordScores(L){const g=G(),out=[],mw=g.galaxy('mw');out.push({id:'mw',row:mw,score:Math.min(ST.gv,mw?g.galaxyLoudness(mw,L,TMPRV,{bright:-2,limit:9}).loud:ST.gv)});   // the Milky Way: in view (gv), and, once far away, as bright as it looks
+  for(const id of ['m31','m33','lmc','smc']){const r=g.galaxy(id);if(!r||!r.rot)continue;const gl=g.galaxyLoudness(r,L,TMPRV,{bright:-2,limit:9});out.push({id,row:r,score:gl.loud*.8})}   // a galaxy-scale loudness (nine magnitudes); other galaxies' chords a little under the Milky Way's
+  return out}
 // loudness saturates at magnitude −3 (not Sirius's −1.5): only a star within a few thousand AU is at the ceiling, so the near star stands out
 const STAR_BRIGHT=-3;
 function assign(now){const g=G();if(!g||!g.ready)return;const quick=AS.dirty;if(!quick&&now-AS.t<.3)return;AS.t=now;AS.dirty=false;
@@ -4885,7 +5359,13 @@ function assign(now){const g=G();if(!g||!g.ready)return;const quick=AS.dirty;if(
   AS.labelList.length=0;for(let j=0;j<a.length&&j<16;j++)AS.labelList.push(a[j].row);
   const np=LOW?1:2;const p=g.audible(L,{n:np+slackOf(np),stars:false,radio:false});holdSlots(AS.pulsar,p,np,cpAud);
   const nr=LOW?1:2;const rr=g.audible(L,{n:nr+slackOf(nr),stars:false,pulsars:false});holdSlots(AS.radio,rr,nr,cpAud);
-  const nc=LOW?6:8,key=ST.dm+':'+nc;if(key!==AS.chordKey){AS.chordKey=key;AS.chord=g.rotationChord(g.rotationChord.defaultRadii.slice(0,nc),{dm:ST.dm,octaves:61})}}
+  // the galaxies' tone voices: the loudest by apparent magnitude, the Milky Way (its voice is the chord) and the current chord owner excluded
+  const ng=NGAL(),ag=g.audibleGalaxies(L,{n:ng+slackOf(ng)+2,bright:STAR_BRIGHT,exclude:g.galaxy('mw')}).filter(e=>e.row.id!==AS.chordOwner);holdSlots(AS.gal,ag,ng,cpAud);
+  // the chord: who owns it
+  const sc=chordScores(L);let best=sc[0];for(const c of sc)if(c.score>best.score)best=c;const cur=sc.find(c=>c.id===AS.chordOwner)||sc[0];AS.chordScore=cur.score;
+  const want=best.id!==AS.chordOwner&&best.score>cur.score+.15&&best.score>.05?best.id:AS.chordOwner;
+  if(want!==AS.chordPending){AS.chordPending=want;AS.chordXf=now}
+  const nc=LOW?6:8,key=ST.dm+':'+nc+':'+AS.chordOwner;if(key!==AS.chordKey){AS.chordKey=key;const own=g.galaxy(AS.chordOwner);AS.chord=AS.chordOwner==='mw'||!own?g.rotationChord(g.rotationChord.defaultRadii.slice(0,nc),{dm:ST.dm,octaves:61}):g.galaxyChord(own,{n:nc,dm:ST.dm,octaves:61})}}
 const SWAP_OUT=.3;
 function swapping(sl,row,t){if(sl.row&&row!==sl.row){if(!sl.swT)sl.swT=t;if(t<sl.swT+SWAP_OUT){sl.hold=true;return true}}
   if(sl.row!==row){sl.rise=t;if(GA)GA.swaps++}sl.swT=0;return false}
@@ -4913,12 +5393,16 @@ function quakeBuild(row,Q){const I={oscs:[]},pan=mkPan(GA.starG),vg=mkGain(0,pan
   return {row,pan,vg,I,on:false,oct:Q.oct}}
 function quakeKill(q){try{q.vg.gain.setTargetAtTime(0,AC.currentTime,.3)}catch(e){}setTimeout(()=>{q.I.oscs.forEach(o=>{try{o.stop()}catch(e){}});try{q.pan.disconnect()}catch(e){}},1600)}
 const G0=.08, CAP=1.5;   // a full voice's gain, and the cap on the sum of the voice gains (in full voices)
-let flares=null;const seedT0=performance.now();const W=[];
+let flares=null;const seedT0=performance.now();const W=[],WG=[];
 function audio(){if(!AC||!ST.ready)return;audioInit();const t=AC.currentTime,g=G(),gf=ST.gf,r=ST.r,now=performance.now()/1000;
   // the solar wind
   const hz=sm(30,100,r)*(1-sm(119,127,r));tgt(GA.hiss.g.gain,.022*hz,hz>0?.4:.12);
-  if(gf<=0){if(GA.star.length||GA.chord.length||GA.pulsar.length){ensure(GA.star,'star',0);ensure(GA.pulsar,'pulse',0);ensure(GA.radio,'noise',0);ensure(GA.chord,'chord',0)}if(GA.quake){quakeKill(GA.quake);GA.quake=null}return}
-  assign(now);const N=budget();ensure(GA.star,'star',OPT.mode==='off'?0:N);ensure(GA.pulsar,'pulse',LOW?1:2);ensure(GA.radio,'noise',LOW?1:2);ensure(GA.chord,'chord',ST.gv>0?(LOW?6:8):0);
+  if(gf<=0){if(GA.star.length||GA.chord.length||GA.pulsar.length||GA.gal.length){ensure(GA.star,'star',0);ensure(GA.pulsar,'pulse',0);ensure(GA.radio,'noise',0);ensure(GA.chord,'chord',0);ensure(GA.gal,'star',0)}if(GA.quake){quakeKill(GA.quake);GA.quake=null}return}
+  assign(now);const N=budget();ensure(GA.star,'star',OPT.mode==='off'?0:N);ensure(GA.pulsar,'pulse',LOW?1:2);ensure(GA.radio,'noise',LOW?1:2);ensure(GA.gal,'star',OPT.mode==='off'?0:NGAL());
+  // the chord's owner changes in two steps: fade down, switch the frequencies and the directions, fade up
+  if(AS.chordPending!==AS.chordOwner&&now>AS.chordXf+.4){AS.chordOwner=AS.chordPending;AS.chordKey='';AS.chordIn=now;GA.chord.forEach(sl=>{sl.pannedK=false});AS.dirty=true;refreshHear()}
+  const chordXf=AS.chordPending!==AS.chordOwner?Math.max(0,1-(now-AS.chordXf)/.4):Math.min(1,(now-AS.chordIn)/.6),chordGain=(AS.chordOwner==='mw'?ST.gv:AS.chordScore)*chordXf;
+  ensure(GA.chord,'chord',chordGain>0||AS.chordPending!==AS.chordOwner?(LOW?6:8):0);
   const L=LPOS;
   // the starquake, while parked beside a sun-like star or giant with modes
   const parked=!ship.gap&&!ship.ap&&!ship.cruise&&!hold&&!keys.size,qs=ST.nearStar;
@@ -4928,6 +5412,7 @@ function audio(){if(!AC||!ST.ready)return;audioInit();const t=AC.currentTime,g=G
   if(GA.quake){const q=GA.quake;q.on=true;g.posAt(q.row,tYr(),TMPG);panTo(q,TMPG.x,TMPG.y,TMPG.z);tgt(q.vg.gain,.085*gf,1.2)}
   // stars: the weights first (loudness squared, the high-pitch tilt), then the cap on their sum
   let tot=0;for(let k=0;k<GA.star.length;k++){const e=AS.star[k];if(!e||!e.row){W[k]=0;continue}let w=e.loud*e.loud;const f0=g.starTone(e.row.T||5772);if(f0>800)w*=Math.sqrt(800/f0);W[k]=w;tot+=w}
+  for(let k=0;k<GA.gal.length;k++){const e=AS.gal[k];if(!e||!e.row){WG[k]=0;continue}const w=e.loud*e.loud*.9;WG[k]=w;tot+=w}
   const scale=Math.min(1,CAP/Math.max(tot,1e-6));
   for(let k=0;k<GA.star.length;k++){const sl=GA.star[k],e=AS.star[k],I=sl.I;
     if(!e||!e.row){sl.row=null;tgt(sl.vg.gain,0,.1);continue}
@@ -4943,6 +5428,14 @@ function audio(){if(!AC||!ST.ready)return;audioInit();const t=AC.currentTime,g=G
     const bright=clamp(.25+(row.T?Math.log10(row.T/3000)/1.2:0)*.5,0,1);tgt(I.g1.gain,1-bright*.5,.15);tgt(I.g2.gain,sl.P.g2*(.4+bright*1.2),.15);tgt(I.lp.frequency,clamp(f*2.6,500,sl.P.lp),.15);
     if(sl.lines!==row){sl.lines=row;const F=g.filters(row,{max:3});for(let j=0;j<I.pk.length;j++){const Ln=F[j];if(Ln){I.pk[j].frequency.setTargetAtTime(Ln.f*(f/F.f0),t,.05);I.pk[j].Q.setTargetAtTime(Math.min(8,Ln.q),t,.05);I.pk[j].gain.setTargetAtTime(Math.max(-8,Ln.gain),t,.05)}else I.pk[j].gain.setTargetAtTime(0,t,.05)}sl.f0=F.f0;sl.F=F}
     else if(sl.F&&I.pk.length){for(let j=0;j<I.pk.length&&sl.F[j];j++)tgt(I.pk[j].frequency,sl.F[j].f*(f/sl.f0),.1)}}
+  // the galaxies: a soft shimmering tone of each one's integrated starlight (the Ballesteros temperature of its colour, Wien −40 octaves), loud as it
+  // looks from the ship, from its true direction, Doppler-shifted by its real heliocentric radial velocity (×1/×100/×1000); under the same cap as the stars
+  for(let k=0;k<GA.gal.length;k++){const sl=GA.gal[k],e=AS.gal[k],I=sl.I;
+    if(!e||!e.row){sl.row=null;tgt(sl.vg.gain,0,.1);continue}
+    if(swapping(sl,e.row,t)){sl.hold=false;tgt(sl.vg.gain,0,.07);continue}
+    const row=e.row;panTo(sl,e.x,e.y,e.z);if(sl.mode!=='gal'){applyMode(sl,'gal');I.pk.forEach(f=>f.gain.setTargetAtTime(0,t,.05))}
+    const f=g.starTone(row.T||5000)*g.doppler(row.rv||0,ST.exag);sl.row=row;
+    tgt(sl.vg.gain,G0*WG[k]*scale*gf,t<sl.rise+.8?.4:.15);tgt(I.o1.frequency,f,.1);tgt(I.o2.frequency,f,.1);tgt(I.g1.gain,.85,.2);tgt(I.g2.gain,.04,.2);tgt(I.lp.frequency,clamp(f*2.2,400,1200),.2)}
   // pulsars, heard as they are
   for(let k=0;k<GA.pulsar.length;k++){const sl=GA.pulsar[k],e=AS.pulsar[k],I=sl.I;
     if(!e||!e.row){sl.row=null;tgt(sl.vg.gain,0,.1);continue}
@@ -4960,18 +5453,22 @@ function audio(){if(!AC||!ST.ready)return;audioInit();const t=AC.currentTime,g=G
     if(e.row.id==='sgra'){if(!flares)flares=g.sgrFlares(7,400);const days=((performance.now()-seedT0)/1000)/24;loud*=Math.min(3,g.sgrLevel(flares,days%380))*.6}
     sl.row=e.row;tgt(I.lp.frequency,clamp(6000*Math.pow(2,2.5*rn.alpha),120,16000),.2);tgt(sl.vg.gain,.05*loud*gf,.2)}
   // the rotation chord, above the disc: rings at R, R/2, R/3 … turning 1, 2, 3 … times as fast on a flat curve
-  const ch=AS.chord;for(let k=0;k<GA.chord.length;k++){const sl=GA.chord[k],I=sl.I;if(!ch||k>=ch.freqs.length){tgt(sl.vg.gain,0,.2);continue}
-    tgt(I.o1.frequency,ch.freqs[k],.6);tgt(I.o2.frequency,ch.freqs[k],.6);
-    // each ring from its own place in the plane: spread around the listener as the rings' directions
-    if(sl.k!==undefined&&!sl.pannedK){sl.pannedK=true;const az=(-1+2*k/Math.max(1,GA.chord.length-1))*70*Math.PI/180;const up=new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z),fw=new THREE.Vector3(ST.gcPos.x,ST.gcPos.y,ST.gcPos.z).normalize(),rt=new THREE.Vector3().crossVectors(fw,up).normalize();
-      const dir=fw.clone().multiplyScalar(Math.cos(az)).addScaledVector(rt,Math.sin(az)).addScaledVector(up,-.5).normalize();setPos(sl.pan,dir.x,dir.y,dir.z)}
-    tgt(sl.vg.gain,.085*Math.pow(.86,k)*ST.gv*gf,.5)}}
+  const ch=AS.chord,ownRow=AS.chordOwner!=='mw'?g.galaxy(AS.chordOwner):null,dop=ownRow?g.doppler(ownRow.rv||0,ST.exag):1;
+  for(let k=0;k<GA.chord.length;k++){const sl=GA.chord[k],I=sl.I;if(!ch||k>=ch.freqs.length){tgt(sl.vg.gain,0,.2);continue}
+    const fk=ch.freqs[k]*dop;tgt(I.o1.frequency,fk,chordXf<1?.05:.6);tgt(I.o2.frequency,fk,chordXf<1?.05:.6);
+    // each ring from its own place: for the Milky Way spread around the listener as the rings' directions; for another galaxy fanned ±25° about its true direction
+    if(sl.k!==undefined&&!sl.pannedK){sl.pannedK=true;const up=new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z);let dir;
+      if(ownRow&&GALPOS[ownRow.id]){const fw=GALPOS[ownRow.id].clone().sub(gcam.position).normalize(),rt=new THREE.Vector3().crossVectors(fw,up).normalize(),az=(-1+2*k/Math.max(1,GA.chord.length-1))*25*Math.PI/180;dir=fw.multiplyScalar(Math.cos(az)).addScaledVector(rt,Math.sin(az)).normalize()}
+      else{const az=(-1+2*k/Math.max(1,GA.chord.length-1))*70*Math.PI/180,fw=new THREE.Vector3(ST.gcPos.x,ST.gcPos.y,ST.gcPos.z).normalize(),rt=new THREE.Vector3().crossVectors(fw,up).normalize();dir=fw.clone().multiplyScalar(Math.cos(az)).addScaledVector(rt,Math.sin(az)).addScaledVector(up,-.5).normalize()}
+      setPos(sl.pan,dir.x,dir.y,dir.z)}
+    tgt(sl.vg.gain,.085*Math.pow(.86,k)*chordGain*gf,chordXf<1?.15:.5)}}
 
 /* ---------- the test window ---------- */
-const api={base,frame,render,audio,readout,labels,travel:travelG,caption,ST,AS,OPT,GA:()=>GA,TX,gscene,gcam,far:()=>ST.r>FAR_AU,card:()=>cardEl,nextStar,orbit:()=>ST.card&&startOrbit(ST.card),
+const api={base,frame,render,audio,readout,labels,travel:travelG,caption,ST,AS,OPT,GA:()=>GA,TX,TL,gscene,gcam,far:()=>ST.r>FAR_AU,card:()=>cardEl,nextStar,nextGalaxy,orbit:()=>ST.card&&startOrbit(ST.card),
+  search:(q,n)=>G().search(q,{n:n||9}),pick:(r,jump)=>pick(r,jump),searchFor,SR,galPos:id=>GALPOS[id],
   setOpt:(k,v)=>{OPT[k]=v;saveOpt();if(GA){tgt(GA.starG.gain,OPT.vol,.1);tgt(GA.chordG.gain,OPT.dmVol,.1)}refreshHear()},
-  warp:x=>{ST.warp=x},adapt:b=>{ST.adapt=b},jump:id=>{const gp=goalOf(id);if(!gp)return;ship.gap=null;ship.ap=null;ship.vel.set(0,0,0);ship.pos.copy(gp.goal);camera.position.copy(ship.pos);lookM.lookAt(ship.pos,gp.look,UP);camera.quaternion.setFromRotationMatrix(lookM)},
-  stats:()=>({churn:GA?GA.churn:0,swaps:GA?GA.swaps:0,quake:!!(GA&&GA.quake&&GA.quake.on),orbit:!!ST.orbit,card:!!(cardEl&&!cardEl.hidden),mode:OPT.mode,vol:OPT.vol,stars:GA?GA.star.filter(s=>s.row).length:0,pulsars:GA?GA.pulsar.filter(s=>s.row).length:0,radio:GA?GA.radio.filter(s=>s.row).length:0,chord:GA?GA.chord.length:0,gf:ST.gf,sf:ST.sf,gv:ST.gv,r:ST.r,dSunPc:ST.dSunPc,zPc:ST.zPc,ready:ST.ready,large:ST.large,caps:ST.caps.slice(),nearStar:ST.nearStar&&(ST.nearStar.n||ST.nearStar.id)}),
+  warp:x=>{ST.warp=x},adapt:b=>{ST.adapt=b},jump:id=>{const gp=goalOf(id);if(!gp)return;ship.gap=null;ship.ap=null;ship.drift=null;ship.vel.set(0,0,0);ST.orbit=null;ship.pos.copy(gp.goal);camera.position.copy(ship.pos);lookM.lookAt(ship.pos,gp.look,gp.up||UP);camera.quaternion.setFromRotationMatrix(lookM);AS.dirty=true},jumpTo,
+  stats:()=>({churn:GA?GA.churn:0,swaps:GA?GA.swaps:0,quake:!!(GA&&GA.quake&&GA.quake.on),orbit:!!ST.orbit,card:!!(cardEl&&!cardEl.hidden),mode:OPT.mode,vol:OPT.vol,stars:GA?GA.star.filter(s=>s.row).length:0,pulsars:GA?GA.pulsar.filter(s=>s.row).length:0,radio:GA?GA.radio.filter(s=>s.row).length:0,chord:GA?GA.chord.length:0,gal:GA?GA.gal.filter(s=>s.row).length:0,galVoices:AS.gal.filter(e=>e&&e.row).map(e=>e.row.id),chordOwner:AS.chordOwner,chordScore:AS.chordScore,galN:ST.galN,nearGal:ST.nearGal&&ST.nearGal.id,nearGalAU:ST.nearGalAU,gf:ST.gf,sf:ST.sf,gv:ST.gv,r:ST.r,dSunPc:ST.dSunPc,zPc:ST.zPc,ready:ST.ready,large:ST.large,caps:ST.caps.slice(),nearStar:ST.nearStar&&(ST.nearStar.n||ST.nearStar.id)}),
   ready:()=>loading};
 window.FLYG=api;return api;
 })();

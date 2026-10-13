@@ -3323,9 +3323,10 @@ window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,t
   };
 
   /* ───────── 1. data ───────── */
-  const D = { stars: null, pulsars: null, radio: null, frb: null, rotation: null, sunorbit: null, seismo: null };
-  const G = { version: '0.2.0', K, data: D, ready: false, large: false };
+  const D = { stars: null, pulsars: null, radio: null, frb: null, rotation: null, sunorbit: null, seismo: null, localgroup: null, names: null };
+  const G = { version: '0.3.0', K, data: D, ready: false, large: false };
   const FILES = ['stars', 'pulsars', 'radio', 'frb', 'rotation', 'sunorbit', 'seismo'];
+  const OPTIONAL = ['localgroup', 'names'];   // step 4b: the Local Group and the search names; a page without them still works
   let fetchFn = (u) => fetch(u).then(r => { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); });
   G.setFetch = (f) => { fetchFn = f; };  // tests supply a file-reading shim
   let baseUrl = '';
@@ -3335,8 +3336,8 @@ window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,t
   G.load = function (base) {
     if (G._p) return G._p;
     baseUrl = base == null ? './' : base;
-    G._p = Promise.all(FILES.map(f => fetchFn(baseUrl + 'galaxy/' + f + '.json'))).then(arr => {
-      FILES.forEach((f, i) => { D[f] = arr[i]; });
+    G._p = Promise.all(FILES.concat(OPTIONAL).map((f, i) => { const p = fetchFn(baseUrl + 'galaxy/' + f + '.json'); return i < FILES.length ? p : p.catch(() => null); })).then(arr => {
+      FILES.concat(OPTIONAL).forEach((f, i) => { D[f] = arr[i]; });
       build(); G.ready = true; return G;
     });
     return G._p;
@@ -3399,7 +3400,8 @@ window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,t
     np: 0, PX: null, PY: null, PZ: null, PM: null, prow: null,     // pulsars: pc and "radio magnitude" −2.5 log10(S1400 Jy) at the Sun
     nr: 0, RX: null, RY: null, RZ: null, RM: null, rrow: null,     // radio sources (with d; extragalactic ones are placed at their distance)
     rotR0: 0.5, rotDR: 0.5, rotV: null, rotVbar: null, rotVobs: null, rotN: 0,
-    orbT0: -300, orbDT: 1, orb: null, orbN: 0, arms: null };
+    orbT0: -300, orbDT: 1, orb: null, orbN: 0, arms: null,
+    ng: 0, GX: null, GY: null, GZ: null, GM: null, grow: [] };                   // the Local Group galaxies (pc, absolute V)
   function build() {
     const c = D.sunorbit.constants; K.R0 = c.R0_kpc.v; K.V0 = c.V0_kms.v; K.Z0 = c.z0_pc.v;
     // stars: index 0 is the Sun (not in stars.json), so a listener elsewhere can hear it
@@ -3431,8 +3433,13 @@ window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,t
     const ob = D.sunorbit.orbit.rows; T.orbN = ob.length; T.orbT0 = ob[0][0]; T.orbDT = ob[1][0] - ob[0][0]; T.orb = ob;
     // arms, with tan ψ precomputed
     T.arms = D.sunorbit.spiral.arms.map(a => Object.assign({}, a, { tlt: Math.tan(a.psi_lt * DEG), tgt: Math.tan(a.psi_gt * DEG), bk: a.beta_kink * DEG }));
+    // the Local Group (optional table): heliocentric galactic pc from l, b, d (kpc)
+    const LG = D.localgroup ? D.localgroup.galaxies : []; T.ng = LG.length; T.grow = LG;
+    T.GX = new Float64Array(T.ng); T.GY = new Float64Array(T.ng); T.GZ = new Float64Array(T.ng); T.GM = new Float64Array(T.ng);
+    LG.forEach((g, i) => { const L = g.l * DEG, B = g.b * DEG, d = g.d * 1000, cb = Math.cos(B); T.GX[i] = d * cb * Math.cos(L); T.GY[i] = d * cb * Math.sin(L); T.GZ[i] = d * Math.sin(B); T.GM[i] = g.M; g.__g = i; });
     bud.reset();
     G.filters.cache.clear();
+    srch.index = null;
   }
   /** "Radio magnitude": −2.5 log10(S / 1 Jy) at 1.4 GHz — Vela (1.05 Jy) ≈ 0, Cas A (2100 Jy) ≈ −8.3, the Crab pulsar (14 mJy) ≈ 4.6. */
   function radioMag(SJy) { return -2.5 * Math.log10(Math.max(SJy, 1e-9)); }
@@ -3819,9 +3826,126 @@ window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,t
     return out;
   };
   /** Find a star row by IAU name, Bayer/Flamsteed (`bf`), HIP or HYG id; or a pulsar by J/B name. */
-  G.find = function (q) { const s = String(q).toLowerCase(); for (let i = 1; i < T.n; i++) { const r = T.rows[i]; if ((r.n && r.n.toLowerCase() === s) || (r.bf && r.bf.toLowerCase() === s) || String(r.hip) === s || String(r.id) === s) return r; } for (let i = 0; i < T.np; i++) { const p = T.prow[i]; if (p.j.toLowerCase() === s || (p.b && p.b.toLowerCase() === s)) return p; } return null; };
+  G.find = function (q) { const s = String(q).toLowerCase(); for (let i = 1; i < T.n; i++) { const r = T.rows[i]; if ((r.n && r.n.toLowerCase() === s) || (r.bf && r.bf.toLowerCase() === s) || String(r.hip) === s || String(r.id) === s) return r; } for (let i = 0; i < T.np; i++) { const p = T.prow[i]; if (p.j.toLowerCase() === s || (p.b && p.b.toLowerCase() === s)) return p; } return G.galaxy(q); };
   G.tables = () => T;
   G.stars = () => T.rows; G.pulsars = () => T.prow; G.radio = () => T.rrow;
+
+
+  /* ───────── 4b. the Local Group (localgroup.json; step 4b of the extension) ───────── */
+  /** The galaxy rows (the Milky Way first, at Sgr A*), or [] when the table is not loaded. */
+  G.galaxies = () => T.grow;
+  /** A galaxy row by id (`m31`, `lmc`…), name or other name (case-insensitive), or null. */
+  G.galaxy = function (q) { const s = String(q).toLowerCase(); for (let i = 0; i < T.ng; i++) { const g = T.grow[i]; if (g.id === s || g.n.toLowerCase() === s || (g.alt && g.alt.some(a => a.toLowerCase() === s))) return g; } return null; };
+  /** Heliocentric galactic position (pc) of a galaxy row. */
+  G.galaxyPos = function (g, out) { out = out || {}; const i = g.__g; if (i != null && T.grow[i] === g) { out.x = T.GX[i]; out.y = T.GY[i]; out.z = T.GZ[i]; return out; } const L = g.l * DEG, B = g.b * DEG, d = g.d * 1000, cb = Math.cos(B); out.x = d * cb * Math.cos(L); out.y = d * cb * Math.sin(L); out.z = d * Math.sin(B); return out; };
+  /** Apparent V magnitude, loudness and distance of a galaxy from a listener L (pc): {mag, loud, d}. Same rule as the stars
+   *  (inverse square on the absolute magnitude). opts as loudness(). */
+  G.galaxyLoudness = function (g, L, out, opts) { out = out || {}; const p = G.galaxyPos(g, gTmp), d = Math.hypot(p.x - L.x, p.y - L.y, p.z - L.z); out.d = d; out.mag = G.apparentMag(g.M, d); out.loud = d < 1 ? 0 : G.loudness(out.mag, opts); return out; };
+  const gTmp = { x: 0, y: 0, z: 0 };
+  /** Unit vectors of a galaxy's frame in heliocentric galactic coordinates: u (the line of sight from the Sun), n (north on the
+   *  sky), e (east), a (the major axis on the sky at position angle pa, E of N), b (the sky direction 90° east of it), N (the
+   *  disc normal: u tilted by the inclination i about the major axis; APPROX: which side is nearer is not decided by i and
+   *  pa alone — the convention here is the sky's b side tilting away). For the Milky Way N is the galactic pole. */
+  G.galaxyFrame = function (g, out) {
+    out = out || {}; const i = (g.disc && g.disc.i != null ? g.disc.i : (g.ell != null ? Math.acos(Math.max(0, 1 - g.ell)) / DEG : 0)) * DEG, pa = (g.disc && g.disc.pa != null ? g.disc.pa : (g.pa || 0)) * DEG;
+    const r = g.ra * DEG, dc = g.dec * DEG, sr = Math.sin(r), cr = Math.cos(r), sd = Math.sin(dc), cd = Math.cos(dc);
+    const eq = { u: [cd * cr, cd * sr, sd], e: [-sr, cr, 0], n: [-sd * cr, -sd * sr, cd] }, m = EG, rot = v => ({ x: m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2], y: m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2], z: m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2] });
+    const cp = Math.cos(pa), sp = Math.sin(pa), a = [eq.n[0] * cp + eq.e[0] * sp, eq.n[1] * cp + eq.e[1] * sp, eq.n[2] * cp + eq.e[2] * sp], b = [-eq.n[0] * sp + eq.e[0] * cp, -eq.n[1] * sp + eq.e[1] * cp, -eq.n[2] * sp + eq.e[2] * cp];
+    const ci = Math.cos(i), si = Math.sin(i), N = [eq.u[0] * ci + b[0] * si, eq.u[1] * ci + b[1] * si, eq.u[2] * ci + b[2] * si];
+    out.u = rot(eq.u); out.n = rot(eq.n); out.e = rot(eq.e); out.a = rot(a); out.b = rot(b); out.N = g.id === 'mw' ? { x: 0, y: 0, z: 1 } : rot(N); out.i = i / DEG; out.pa = pa / DEG;
+    if (g.id === 'mw') { out.a = { x: 1, y: 0, z: 0 }; out.b = { x: 0, y: 1, z: 0 }; }
+    return out;
+  };
+  /** Circular speed (km/s) at radius R (kpc) in a galaxy with a `rot` table (M31, M33, LMC, SMC): the observed curve, or the
+   *  baryons-only curve when dm === false. Solid body inside the first point, Keplerian beyond the last (APPROX). The Milky
+   *  Way (`id: 'mw'`) uses V(). Returns NaN for a galaxy without a curve. */
+  G.galaxyV = function (g, R, dm) {
+    if (g.id === 'mw' || g.rot_ref === 'rotation.json') return G.V(R, dm === false ? 'baryons' : 'model');
+    const r = g.rot; if (!r) return NaN; const tab = dm === false ? r.vbar : r.v, R0 = r.R[0], dR = r.R[1] - r.R[0], n = r.R.length;
+    let u = (R - R0) / dR; if (u <= 0) return tab[0] * Math.max(R, 1e-3) / R0; if (u >= n - 1) return tab[n - 1] * Math.sqrt(r.R[n - 1] / R);
+    const i = Math.floor(u), f = u - i; return tab[i] + (tab[i + 1] - tab[i]) * f;
+  };
+  /** The rotation chord of a galaxy, as rotationChord() for the Milky Way: rings at R_max/n (n = 1…opts.n, default 8) with
+   *  R_max = its visible extent (disc.rmax), Ω = V/R, the same 61-octave transposition, so the galaxies can be compared:
+   *  M31 (flat ~250 km/s) ≈ 90 Hz on its outer ring, the Milky Way ≈ 110 Hz, M33 ≈ 100 Hz, the LMC ≈ 120 Hz. opts.dm === false:
+   *  baryons only. Returns {freqs, omegas, radii, periodsMyr, expected, octaves, galaxy}. */
+  G.galaxyChord = function (g, opts) {
+    const o = opts || {}, n = o.n || 8, Rm = o.rmax || (g.id === 'mw' ? G.rotationChord.defaultRadii[0] : 0) || (g.disc && g.disc.rmax) || (g.rot ? g.rot.R[g.rot.R.length - 1] / 1.2 : 10), radii = new Array(n);
+    for (let i = 0; i < n; i++) radii[i] = Rm / (i + 1);
+    const oct = o.octaves == null ? 61 : o.octaves, k = Math.pow(2, oct) * K.KMSKPC_RADS / TAU, out = o.out || { freqs: new Float64Array(n), omegas: new Float64Array(n), periodsMyr: new Float64Array(n), expected: new Int32Array(n) };
+    for (let i = 0; i < n; i++) { const w = G.galaxyV(g, radii[i], o.dm) / radii[i]; out.omegas[i] = w; out.freqs[i] = w * k; out.periodsMyr[i] = TAU / (w * K.KMSKPC_RADS) / 3.15576e13; out.expected[i] = i + 1; }
+    out.radii = radii; out.octaves = oct; out.galaxy = g.id; out.dm = o.dm !== false; return out;
+  };
+  /** The most audible galaxies for a listener L (pc): the N loudest by apparent magnitude (sorted, loudest first), each
+   *  {kind: 'galaxy', row, loud, mag, d, x, y, z}. opts: n (default 6), bright/limit (passed to loudness), exclude (a row to
+   *  skip, e.g. the one you stand inside). Allocation-free after the first call. */
+  const gPool = [], gOut = [];
+  G.audibleGalaxies = function (L, opts) {
+    const o = opts || {}, N = o.n || 6, lx = L.x, ly = L.y, lz = L.z, br = o.bright == null ? -1.5 : o.bright, lim = o.limit == null ? 6.5 : o.limit, inv = 1 / (lim - br); let m = 0;
+    for (let i = 0; i < T.ng; i++) { const g = T.grow[i]; if (g === o.exclude) continue; const dx = T.GX[i] - lx, dy = T.GY[i] - ly, dz = T.GZ[i] - lz, d2 = dx * dx + dy * dy + dz * dz; if (d2 < 1) continue;
+      const mag = T.GM[i] + 2.5 * Math.log10(d2 / 100); let x = (lim - mag) * inv; if (x <= 0) continue; if (x > 1) x = 1;
+      const e = gPool[m] || (gPool[m] = {}); e.kind = 'galaxy'; e.row = g; e.loud = x; e.mag = mag; e.x = T.GX[i]; e.y = T.GY[i]; e.z = T.GZ[i]; e.d = Math.sqrt(d2); m++; }
+    gOut.length = m; for (let j = 0; j < m; j++) gOut[j] = gPool[j]; gOut.sort((a, b) => b.loud - a.loud || a.mag - b.mag); gOut.length = Math.min(m, N); return gOut;
+  };
+
+  /* ───────── 4c. search (names.json + the catalogues) ───────── */
+  const srch = { index: null, greek: null, con: null };
+  const GREEK_FALLBACK = 'α alpha,β beta,γ gamma,δ delta,ε epsilon,ζ zeta,η eta,θ theta,ι iota,κ kappa,λ lambda,μ mu,ν nu,ξ xi,ο omicron,π pi,ρ rho,σ sigma,τ tau,υ upsilon,φ phi,χ chi,ψ psi,ω omega';
+  /** Fold a name for matching: compatibility + canonical decomposition, accents off, lower case, ł/đ/ø/ß/æ folded, Greek letters
+   *  and their Latin spellings written out as the full Latin name, superscripts and punctuation dropped, spaces collapsed. */
+  G.fold = function (s) {
+    let t = String(s == null ? '' : s).normalize('NFKC').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    t = t.replace(/ł/g, 'l').replace(/đ/g, 'd').replace(/ø/g, 'o').replace(/ß/g, 'ss').replace(/æ/g, 'ae').replace(/œ/g, 'oe').replace(/[’'`´]/g, '').replace(/[¹²³⁰-⁹]/g, '').replace(/[-_.,;:/()\[\]]+/g, ' ');
+    const gk = greekTable(); t = t.replace(/[α-ω]/g, c => ' ' + gk.sym[c] + ' ');
+    // Latin spellings of the letters (alf, bet, alpha…) as whole words, and a letter glued to a digit (alpha1)
+    t = t.replace(/\b([a-z]+)(\d)?\b/g, (m, w, dgt) => (gk.name[w] ? gk.name[w] : w));
+    return t.replace(/\s+/g, ' ').trim();
+  };
+  function greekTable() { if (srch.greek) return srch.greek; const sym = {}, name = {}; const rows = (D.names && D.names.greek) || GREEK_FALLBACK.split(',').map(x => { const p = x.split(' '); return { s: p[0], n: p.slice(1) }; });
+    rows.forEach(r => { sym[r.s] = r.n[0]; r.n.forEach(x => { name[x] = r.n[0]; }); }); srch.greek = { sym, name }; return srch.greek; }
+  function conTable() { if (srch.con) return srch.con; const m = {}; ((D.names && D.names.con) || []).forEach(c => { m[c.ab] = c; m[c.ab.toLowerCase()] = c; }); srch.con = m; return m; }
+  /** The constellation record (names.json) for an abbreviation such as `CMa`, or null. */
+  G.constellation = ab => conTable()[ab] || null;
+  // the search index: for every object a list of folded keys; built once, rebuilt when the large pack arrives
+  function buildIndex() {
+    const ix = [], con = conTable(), nm = D.names || {}, SN = nm.stars || {}, OB = nm.objects || {}, LANGS = nm.meta ? nm.meta.langs : [];
+    const push = (kind, row, keys, name, mag) => { const ks = []; keys.forEach(k => { if (k == null || k === '') return; const f = G.fold(k); if (f && ks.indexOf(f) < 0) ks.push(f); }); if (ks.length) ix.push({ kind, row, keys: ks, name, mag }); };
+    const conNames = ab => { const c = con[ab]; if (!c) return [ab]; const out = [ab, c.la, c.gen]; LANGS.forEach(l => out.push(c[l])); return out; };
+    // the famous-star names by IAU name and by Bayer id
+    const byN = {}, byBf = {}; Object.keys(SN).forEach(k => { const v = SN[k], arr = Object.keys(v).filter(x => x !== 'bf').map(x => v[x]); if (v.bf) byBf[v.bf] = arr; byN[k] = arr; });
+    for (let i = 1; i < T.n; i++) { const r = T.rows[i], keys = [r.n, r.bf]; const nm2 = (r.n && byN[r.n]) || (r.bf && byBf[r.bf]) || (r.bf && byN[r.bf]); if (nm2) keys.push.apply(keys, nm2);
+      if (r.bf) { const m = r.bf.match(/^(\S+)\s+(\w+)$/); if (m) conNames(m[2]).forEach(c => keys.push(m[1] + ' ' + c)); }
+      if (r.hip) keys.push('hip ' + r.hip, 'hip' + r.hip); if (r.hd) keys.push('hd ' + r.hd, 'hd' + r.hd); if (r.gl) { keys.push(r.gl, String(r.gl).replace(/^(gl|gj|nn|wo)\s*/i, 'gliese ')); }
+      if (r.gaia) keys.push('gaia ' + r.gaia, r.gaia, 'gaia dr3 ' + r.gaia);
+      push('star', r, keys, r.n || r.bf || (r.hip ? 'HIP ' + r.hip : r.gl || ('HYG ' + r.id)), r.mag); }
+    for (let i = 0; i < T.np; i++) { const p = T.prow[i], keys = [p.j, 'psr ' + p.j, p.b, p.b && 'psr ' + p.b, p.nm], o = OB[p.j]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('pulsar', p, keys, p.b || p.j, T.PM[i]); }
+    for (let i = 0; i < T.nr; i++) { const r = T.rrow[i], keys = [r.n].concat(r.alt || []), o = OB[r.id]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('radio', r, keys, r.n, T.RM[i]); }
+    for (let i = 0; i < T.ng; i++) { const g = T.grow[i], keys = [g.n, g.id].concat(g.alt || []), o = OB[g.id]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('galaxy', g, keys, g.n, g.mag); }
+    // the constellations themselves: choosing one lists its stars
+    Object.keys(con).forEach(ab => { if (ab !== con[ab].ab) return; const c = con[ab]; push('constellation', c, conNames(ab), c.la, -99); });
+    srch.index = ix; return ix;
+  }
+  /** Search the catalogues: stars (IAU names, Bayer/Flamsteed in any spelling — "alpha Cen", "α Cen", "Alpha Centauri", "61 Cyg",
+   *  HIP/HD/Gliese/Gaia numbers, the localized names of famous stars), pulsars, radio sources, the Local Group galaxies and the
+   *  constellations (in all twelve languages). Accent- and case-insensitive. Returns at most opts.n (default 12) of
+   *  {kind: 'star'|'pulsar'|'radio'|'galaxy'|'constellation', row, name, score}, best first (exact > prefix > word prefix >
+   *  substring, then brighter first). For a constellation, G.constellationStars(row) lists its stars. */
+  G.search = function (q, opts) {
+    const o = opts || {}, N = o.n || 12, f = G.fold(q); if (!f) return [];
+    const ix = srch.index || buildIndex(), out = [], words = f.split(' '), cjk = /[぀-ヿ㐀-鿿가-힯]/.test(f);
+    if (f.length < (cjk ? 1 : 2)) return [];
+    for (let i = 0; i < ix.length; i++) { const e = ix[i]; let best = 0;
+      for (let j = 0; j < e.keys.length && best < 4; j++) { const k = e.keys[j]; if (k === f) { best = 4; break; } if (k.startsWith(f)) { if (best < 3) best = 3; continue; }
+        if (words.length > 1) { const kw = k.split(' '); if (words.every(w => kw.some(x => x.startsWith(w)))) { if (best < 2) best = 2; continue; } }
+        if ((' ' + k).indexOf(' ' + f) >= 0) { if (best < 2) best = 2; continue; } if (f.length >= 3 && k.indexOf(f) >= 0 && best < 1) best = 1; }
+      if (best) out.push({ kind: e.kind, row: e.row, name: e.name, score: best, mag: e.mag }); }
+    out.sort((a, b) => b.score - a.score || (a.kind === 'constellation' ? -1 : b.kind === 'constellation' ? 1 : 0) || a.mag - b.mag); out.length = Math.min(out.length, N); return out;
+  };
+  /** The stars of a constellation (record or abbreviation), brightest first. */
+  G.constellationStars = function (c) { const ab = typeof c === 'string' ? c : c.ab, out = []; for (let i = 1; i < T.n; i++) { const r = T.rows[i]; if (r.con === ab) out.push(r); } out.sort((a, b) => a.mag - b.mag); return out; };
+  /** A localized display name for a catalogue object in language `lang`: names.json first, else the catalogue's own. */
+  G.nameOf = function (kind, row, lang) { const nm = D.names || {}; if (kind === 'star') { const v = (nm.stars || {})[row.n] || (row.bf && (nm.stars || {})[row.bf]); if (v && v[lang] && lang !== 'en') return v[lang]; return row.n || row.bf || (row.hip ? 'HIP ' + row.hip : row.gl || ('HYG ' + row.id)); }
+    if (kind === 'constellation') return row[lang] || row.la; const o = (nm.objects || {})[kind === 'pulsar' ? row.j : row.id]; if (o && o[lang]) return o[lang].split(',')[0].trim(); return kind === 'pulsar' ? (row.b || row.j) : row.n; };
 
   /* ───────── 5. gods ───────── */
   /** Who speaks for what. `choice` picks the settings option for the pulsars and the black hole: 'forge' (Hephaestus
