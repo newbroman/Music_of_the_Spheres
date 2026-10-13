@@ -236,23 +236,31 @@ function siteNav(btnClass){
   const nav=document.createElement('nav');nav.className='site';nav.setAttribute('aria-label',T.nav);
   const strip=document.createElement('div');strip.className='strip';
   PAGES.forEach(([k,f])=>{const a=document.createElement('a');a.href=pref+f;a.textContent=T[k];if(f===HERE){a.setAttribute('aria-current','page')}strip.appendChild(a)});
+  // the tour and the talk: the last two items of the strip, after a divider, marked as actions by their icons
+  strip.append(guideItem('tour',true),guideItem('talk',true));
   // the strip and the globe stay together on one line, whatever wraps around them
   const main=document.createElement('div');main.className='main';main.append(strip,langMenu(btnClass));nav.appendChild(main);
-  fade(strip);guideFit(nav,strip);
+  fade(strip);navFit(nav,strip);
   return nav;
 }
-// the tour and talk pills sit beside the strip only while the whole strip shows; otherwise they take a line of their own under it
-function guideFit(nav,strip){
+// on a desktop the whole strip shows: when it would clip, its items close up (tight), then the header stacks so the navigation
+// has a row of its own (navstack), and only then do the labels of the tour and the talk go, leaving their icons (icons);
+// the strip scrolls only when even that is too wide (phones always scroll it)
+function navFit(nav,strip){
   let busy=false;
-  const clipped=()=>strip.scrollWidth-strip.clientWidth>2||nav.scrollWidth-nav.clientWidth>2;
-  const fit=()=>{if(busy)return;busy=true;try{const g=nav.querySelector(':scope > .guide');nav.classList.remove('wrapg','tight');
-    if(!g||g.offsetParent===null)return;
-    if(clipped())nav.classList.add('wrapg');
-    // still too wide for its column: the links close up before the strip is allowed to scroll
-    if(clipped())nav.classList.add('tight')}finally{busy=false}};
-  addEventListener('resize',fit);if(window.ResizeObserver)new ResizeObserver(fit).observe(nav);
-  if(window.MutationObserver)new MutationObserver(fit).observe(nav,{childList:true});
+  // the flight HUD: the strip (top left) must not run under the buttons (top right); when it would, the whole top-left block drops under them
+  const tr=isFlight?document.querySelector('.hud.tr'):null;
+  const under=()=>{if(!tr)return false;const a=strip.getBoundingClientRect(),b=tr.getBoundingClientRect();return b.width>0&&a.right>b.left-8&&a.top<b.bottom&&a.bottom>b.top};
+  const clipped=()=>strip.scrollWidth-strip.clientWidth>2||under();
+  const fit=()=>{if(busy)return;busy=true;try{const top=nav.closest('header.top.shell'),tl=isFlight?nav.closest('.hud.tl'):null;nav.classList.remove('tight','icons');if(top)top.classList.remove('navstack');if(tl)tl.style.paddingTop='';
+    if(mqC.matches||strip.offsetParent===null)return;
+    if(clipped())nav.classList.add('tight');
+    if(top&&clipped())top.classList.add('navstack');
+    if(tl&&tr&&clipped()){const b=tr.getBoundingClientRect(),a=tl.getBoundingClientRect();tl.style.paddingTop=Math.max(0,Math.round(b.bottom-a.top+6))+'px'}
+    if(clipped())nav.classList.add('icons')}finally{busy=false}};
+  addEventListener('resize',fit);if(window.ResizeObserver)new ResizeObserver(fit).observe(nav.parentElement||nav);
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
+  (mqC.addEventListener?mqC.addEventListener('change',fit):mqC.addListener(fit));
   setTimeout(fit,0);setTimeout(fit,150);setTimeout(fit,800);
 }
 // a strip that scrolls sideways shows a fade at the edge that has more
@@ -274,19 +282,20 @@ function guideGo(k){
     if(k==='talk'&&window.MOTS&&MOTS.show&&MOTS.show.start){MOTS.show.start();return true}}catch(e){}
   return false;
 }
-function guideItem(k){
-  const a=document.createElement('a');a.href=pref+GUIDE[k];a.className='g-'+k;a.dataset.guide=k;a.title=T[k+'Tip'];
-  a.innerHTML='<span class="i" aria-hidden="true">'+(k==='tour'?'✦':'▶')+'</span><span class="l">'+T[k]+'</span><span class="s">'+T[k+'S']+'</span>';
+// in the strip (short word, the full wording in its title and aria-label) or in a menu (the full wording)
+function guideItem(k,short){
+  const a=document.createElement('a');a.href=pref+GUIDE[k];a.className='g-'+k+(short?' act':'');a.dataset.guide=k;a.title=T[k+'Tip'];
+  if(short)a.setAttribute('aria-label',T[k]);
+  a.innerHTML='<span class="i" aria-hidden="true">'+(k==='tour'?'✦':'▶')+'</span><span class="l">'+(short?T[k+'S']:T[k])+'</span>';
   a.onclick=e=>{if(e.metaKey||e.ctrlKey||e.shiftKey||e.button)return;if(guideGo(k)){e.preventDefault();const d=a.closest('details');if(d)d.open=false}};
   return a;
 }
-function guideRow(){const d=document.createElement('div');d.className='guide';d.id='guide';d.append(guideItem('tour'),guideItem('talk'));return d}
-/* ---- the "⋯" overflow menu for the compact header; away from the dial it also lists the tour and the talk ---- */
+/* ---- the "⋯" overflow menu for the compact header; it also lists the tour and the talk, which the scrolling strip may have out of view ---- */
 function moreMenu(btnClass){
   const d=document.createElement('details');d.id='moreMenu';d.className='mots-more';
   const s=document.createElement('summary');s.className=btnClass;s.innerHTML=DOTS;s.setAttribute('aria-label',T.more);s.title=T.more;
   const m=document.createElement('div');m.className='mmenu';m.setAttribute('role','menu');
-  if(!isDial)m.append(guideItem('tour'),guideItem('talk'));
+  m.append(guideItem('tour'),guideItem('talk'));
   d.append(s,m);popover(d,s,m);return d;
 }
 // put children in this order, touching the DOM only when the order differs (a move would wake the observer again)
@@ -302,8 +311,6 @@ function headerShell(){
   const btnClass=isDial?'fly3d':'';
   const nav=siteNav(btnClass);
   if(old)old.replaceWith(nav);else top.appendChild(nav);
-  // the tour and the talk: beside the site navigation (on a phone, the dial gives them a row of their own under Begin)
-  const guide=guideRow();nav.insertBefore(guide,nav.firstChild);
   if(!ctl){
     // no action buttons here: the "⋯" menu (the tour and the talk) sits at the end of the navigation row on a phone
     nav.appendChild(moreMenu(btnClass));
@@ -320,22 +327,22 @@ function headerShell(){
   if(ex)ex.querySelectorAll('.menu a[href]').forEach(a=>{if(/\/(flight|dance|help|synth|meditate)\.html(#.*)?$/.test(a.getAttribute('href')||''))a.remove()});
   const more=moreMenu(btnClass);top.appendChild(more);
   const mm=more.querySelector('.mmenu');
-  // which buttons go into "⋯" on a phone, in this order (the tour and the talk stay in view: they have their own row)
-  const ids=['recBtn','stageBtn','showBtn','scoreBtn'];
+  // which buttons go into "⋯" on a phone, in this order (the tour and the talk are already there, at the end)
+  const ids=['recBtn','stageBtn','scoreBtn'];
   const rank=x=>{const i=ids.indexOf(x.id);return i>=0?i:10};
   let busy=false;
   const layout=()=>{if(busy)return;busy=true;try{
+    // show.js adds its own "The talk" pill when it finds no guide: the strip's Talk item is that now
+    const sb=document.getElementById('showBtn');if(sb&&nav.querySelector('.g-talk'))sb.remove();
     if(mqC.matches){
       ids.forEach(id=>{const b=document.getElementById(id);if(b&&b.parentElement!==mm)mm.appendChild(b)});
-      // the Extras entries that are not pills already (the Tour) come along; the Extras button itself hides
-      if(ex)ex.querySelectorAll('.menu a').forEach(a=>{if(a.id!=='showLink'&&a.id!=='listenLink'){a.dataset.fromExtras='1';mm.appendChild(a)}});
+      // any Extras entry that is a page link comes along (the Tour, Show and Listen entries there are already in the strip or "⋯"); the Extras button itself hides
+      if(ex)ex.querySelectorAll('.menu a').forEach(a=>{if(!a.id&&(a.getAttribute('href')||'#')!=='#'){a.dataset.fromExtras='1';mm.appendChild(a)}});
       reorder(mm,[...mm.children].sort((a,b)=>rank(a)-rank(b)));
-      if(guide.parentElement!==top)top.appendChild(guide);
     }else{
-      [...mm.children].forEach(x=>{if(x.dataset.fromExtras){delete x.dataset.fromExtras;const menu=ex&&ex.querySelector('.menu');if(menu)menu.prepend(x);else x.remove()}else ctl.appendChild(x)});
+      [...mm.children].forEach(x=>{if(x.dataset.guide)return;if(x.dataset.fromExtras){delete x.dataset.fromExtras;const menu=ex&&ex.querySelector('.menu');if(menu)menu.prepend(x);else x.remove()}else ctl.appendChild(x)});
       // the order of the pills: Begin, Listen, Record, Stage, Show, Score, Extras
       if(ex&&ctl.lastElementChild!==ex)ctl.appendChild(ex);
-      if(guide.parentElement!==nav)nav.insertBefore(guide,nav.firstChild);
     }
   }finally{busy=false}};
   // on a phone the Listen pill keeps its word only when it fits beside Begin and "⋯" on one row
@@ -354,7 +361,6 @@ function hudShell(){
   // the old page links and language links
   tr.querySelectorAll('a').forEach(a=>a.remove());
   const nav=siteNav('btn');tl.insertBefore(nav,tl.firstChild);
-  nav.insertBefore(guideRow(),nav.firstChild);
   const more=moreMenu('btn');tr.appendChild(more);const mm=more.querySelector('.mmenu');
   const ids=['recBtn','stageBtn','scoreBtn'];let busy=false;
   const rank=x=>{const i=ids.indexOf(x.id);return i>=0?i:10};
@@ -370,14 +376,13 @@ function hudShell(){
 }
 const css=document.createElement('style');css.id='shellCss';
 css.textContent=`
-/* site navigation */
-/* when the tour and talk pills do not fit beside the strip (guideFit, below), they take a line of their own under it, right-aligned,
-   and the strip keeps its full width: it only scrolls when it is wider than the whole header column */
+/* site navigation: one strip of the pages, then the tour and the talk as its last two items, then the globe. On a desktop it never
+   scrolls: when it would clip, its items close up (tight), then the tour and the talk keep only their icons (icons, navFit below) */
 nav.site{display:flex;flex-wrap:nowrap;justify-content:flex-end;align-items:center;gap:.5rem;min-width:0;max-width:100%}
 nav.site > .main{display:flex;align-items:center;gap:.5rem;flex:0 1 auto;min-width:0;max-width:100%}
-nav.site.wrapg{flex-wrap:wrap}
-nav.site.wrapg > .guide{order:3;flex:1 1 100%;justify-content:flex-end}
 nav.site.tight .strip a{padding:0 .55rem;font-size:.8rem;letter-spacing:.01em}
+nav.site.tight .strip a.act{padding:0 .6rem}
+nav.site.icons .strip a.act .l{display:none}nav.site.icons .strip a.act{padding:0 .7rem}nav.site.icons .strip a.act .i{font-size:1.05em}
 nav.site .strip{max-width:100%}
 nav.site .strip{display:flex;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;border:1px solid var(--line-2,var(--line,#3a4068));border-radius:999px;background:rgba(255,255,255,.025);-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 nav.site .strip::-webkit-scrollbar{display:none}
@@ -386,6 +391,11 @@ nav.site .strip a:last-child{border-right:0}
 nav.site .strip a:hover{color:var(--bronze,#c9984f);background:rgba(201,152,79,.08)}
 nav.site .strip a[aria-current="page"]{color:#f3d9a4;background:rgba(201,152,79,.18);box-shadow:inset 0 0 0 1px var(--bronze,#c9984f)}
 nav.site .strip a:focus-visible{outline-offset:-3px}
+/* the tour and the talk: the same cells, in bronze with a small icon, behind a stronger divider */
+nav.site .strip a.act{gap:.4em;color:var(--bronze,#c9984f);background:rgba(201,152,79,.06)}
+nav.site .strip a.g-tour{border-left:1px solid var(--bronze-dim,var(--bronze,#c9984f));margin-left:-1px}
+nav.site .strip a.act:hover{color:#f3d9a4;background:rgba(201,152,79,.16)}
+nav.site .strip a.act .i{font-size:.9em;line-height:1}nav.site .strip a.g-talk .i{font-size:.72em}
 nav.site .strip.fade-r{mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
 nav.site .strip.fade-l{mask-image:linear-gradient(90deg,transparent,#000 28px);-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px)}
 nav.site .strip.fade-l.fade-r{mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
@@ -404,15 +414,8 @@ nav.site .strip.fade-l.fade-r{mask-image:linear-gradient(90deg,transparent,#000 
 .mots-more .mmenu > .rec.on{background:#5a2b2b!important}
 /* the Listen pill */
 #listenBtn{gap:.4em}#listenBtn .s{display:none}
-/* the guide: "Take the tour" and "The talk", two tinted pills beside the site navigation */
-.guide{display:flex;gap:.45rem;flex:none;align-items:center;min-width:0}
-nav.site > .guide{flex:none;margin-right:auto}
-.guide a{display:inline-flex;align-items:center;justify-content:center;gap:.45em;min-height:var(--tap,2.75rem);padding:0 .95rem;border-radius:999px;border:1px solid var(--bronze,#c9984f);background:rgba(201,152,79,.16);color:#f3d9a4;text-decoration:none;font-size:.85rem;letter-spacing:.03em;white-space:nowrap;font-family:var(--f-body),system-ui,sans-serif;cursor:pointer;box-shadow:0 0 0 0 rgba(201,152,79,0)}
-.guide a:hover{background:rgba(201,152,79,.3);color:#fbe7bd}
-.guide a:focus-visible{outline:2px solid #f3d9a4;outline-offset:2px}
-.guide a .i{font-size:.95em;line-height:1}.guide a.g-talk .i{font-size:.8em}
-.guide a .s{display:none}
-.mots-more .mmenu > a .s{display:none}.mots-more .mmenu > a .i{color:var(--bronze,#c9984f);width:1.1em;text-align:center}
+/* the tour and the talk in the "⋯" menu */
+.mots-more .mmenu > a .i{color:var(--bronze,#c9984f);width:1.1em;text-align:center}
 nav.site > .mots-more{display:none}
 /* no text under 12 px on a phone: the dial's reading tags */
 .info .reading h4,.info .voices2 h4,.info .reading .lay .tag,.info .voices2 h4 small,.info h4 small{font-size:max(12px,.74rem)}
@@ -433,6 +436,9 @@ header.top.shell > .mots-more{order:4}
   header.top.shell:not(.has-ctl) > nav.site{grid-row:1/3;align-self:center}
   header.top.shell > .ctl{grid-area:ctl;justify-self:end;justify-content:flex-end}
   header.top.shell > .mots-more{display:none}
+  /* a navigation too wide for its column (long words): the header stacks, the navigation on a row of its own (navFit) */
+  header.top.shell.navstack{display:flex;flex-direction:column;align-items:stretch;gap:.8rem}
+  header.top.shell.navstack > nav.site{align-self:stretch;justify-content:flex-end}
   header.top.shell .lede{font-size:.95rem;line-height:1.45;max-width:50ch}
   header.top.shell h1{font-size:clamp(2.1rem,2.6vw,3rem)}
 }
@@ -445,7 +451,7 @@ header.top.shell > .mots-more{order:4}
   header.top.shell > nav.site{order:2;flex:1 1 100%;flex-wrap:nowrap;justify-content:space-between}
   header.top.shell > nav.site > .main{flex:1 1 auto;justify-content:space-between}
   header.top.shell > nav.site .strip{flex:0 1 auto}
-  header.top.shell > nav.site .strip a{min-height:var(--tap,2.75rem);padding:0 .75rem;font-size:.84rem}
+  header.top.shell > nav.site .strip a{min-height:var(--tap,2.75rem);min-width:var(--tap,2.75rem);justify-content:center;padding:0 .75rem;font-size:.84rem}
   header.top.shell > nav.site .langmenu summary{min-height:var(--tap,2.75rem);padding:0 .7rem}
   header.top.shell > nav.site .langmenu .lc{display:none}header.top.shell > nav.site .langmenu summary svg{margin:0}
   header.top.shell > .ctl{order:3;flex:1 1 0;min-width:0;gap:.5rem}
@@ -455,11 +461,7 @@ header.top.shell > .mots-more{order:4}
   header.top.shell #listenBtn{padding:.6rem .95rem;font-size:.85rem}
   #listenBtn .l{display:none}#listenBtn .s{display:inline}
   header.top.shell.tight #listenBtn .s{display:none}header.top.shell.tight #listenBtn{padding:.6rem .8rem;font-size:1rem}
-  /* the dial: the tour and the talk as a row of their own under Begin; the other pages list them in "⋯" at the end of the navigation row */
-  header.top.shell > .guide{order:5;flex:1 1 100%;gap:.5rem}
-  header.top.shell > .guide a{flex:1 1 0;min-width:0;padding:0 .6rem}
-  header.top.shell > .guide a .l{overflow:hidden;text-overflow:ellipsis}
-  header.top.shell > nav.site > .guide{display:none}
+  /* the pages without action buttons: the "⋯" menu (the tour and the talk, for when the strip has scrolled them out of view) at the end of the navigation row */
   header.top.shell nav.site > .mots-more{display:inline-block;flex:none}
 }
 @media (max-height:520px) and (orientation:landscape){
@@ -473,23 +475,16 @@ header.top.shell > .mots-more{order:4}
   header.top.shell .begin{padding:.5rem .9rem;font-size:.74rem}
   header.top.shell #listenBtn .s{display:none}header.top.shell #listenBtn .l{display:none}
   header.top.shell #listenBtn{padding:.5rem .7rem;font-size:1rem}
-  /* the tour and the talk take a second row at the right, so the navigation strip keeps its room on the first */
-  header.top.shell > .guide{order:5;flex:1 1 100%;justify-content:flex-end}
-  header.top.shell > .guide a{flex:none;padding:0 .9rem}
 }
 /* the flight HUD */
 .hud.tl nav.site{margin-bottom:6px;max-width:calc(100vw - 28px);justify-content:flex-start}
-.hud.tl nav.site.wrapg > .guide{justify-content:flex-start}
 .hud.tl nav.site .strip{background:var(--glass,rgba(10,12,24,.78));border-color:var(--line,rgba(201,152,79,.4));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .hud.tl nav.site .strip a{min-height:2.4rem;padding:0 .7rem;font-size:.8rem;border-right-color:var(--line,rgba(201,152,79,.4))}
 .hud.tl nav.site .langmenu summary{min-height:2.4rem;padding:0 .6rem;background:var(--glass,rgba(10,12,24,.78));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-color:var(--line,rgba(201,152,79,.4));color:var(--vellum,#e9e1cc);font-size:.78rem}
-.hud.tl nav.site .guide a{min-height:2.4rem;padding:0 .75rem;font-size:.8rem;background:var(--glass,rgba(10,12,24,.78));border-color:var(--bronze,#c9984f);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-.hud.tl nav.site .guide a:hover{background:rgba(201,152,79,.3)}
 .hud.tr .mots-more{display:none}
 @media (pointer:coarse), (max-width:760px){
   .hud.tr .mots-more{display:inline-block}
-  .hud.tl nav.site .guide{display:none}
-  .hud.tl nav.site .strip a,.hud.tl nav.site .langmenu summary{min-height:var(--tap,2.75rem)}
+  .hud.tl nav.site .strip a,.hud.tl nav.site .langmenu summary{min-height:var(--tap,2.75rem);min-width:var(--tap,2.75rem);justify-content:center}
   .hud.tl nav.site .langmenu .lc{display:none}.hud.tl nav.site .langmenu summary svg{margin:0}
 }
 .hud .chips{scroll-snap-type:x proximity;scroll-padding:0 8px}.hud .chips .chip{scroll-snap-align:start}
@@ -908,9 +903,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   <div class="greek">ἡσυχία</div>
   <h2>冥想：太阳、行星、恒星</h2>
   <p>太阳像钟一样鸣响。表面之下的对流激起数以百万计的声波，困在太阳内部；与它的形状相合的那些叠加成驻波，即 <b>p 模</b>，每一个的周期都接近五分钟。日震学把它们测为太阳表面微小的多普勒移动，并由此绘出了太阳内部的图景。冥想页所演奏的频率，是 <b>BiSON</b>（伯明翰太阳振荡网络）测得的 l = 0 到 3 阶振动模；这一网络自 1976 年起一直在聆听太阳的鸣响。</p>
-  <p>它们在 3 mHz 处，远低于听觉范围，所以页面把它们加快：<b>深度</b>控制选择加快多少个八度，页面也会如实说明（“加快了 15 个八度”：2<sup>15</sup> = 32 768 倍，使五分钟振荡变为约 100 Hz）。其余一概不变：各模之间的比例、谐音之间 135 µHz 的间距，以及 l = 0 / l = 2 之间细小的分裂，都是太阳自己的。每个模都按真实振动模的方式演奏：一个被对流随机敲击的阻尼振子，所以它的响度在几秒间起伏，没有固定的规律；<b>温暖</b>加入谐音和神庙的回声。这是根据测得频率的合成，不是录音。</p>
+  <p>它们在 3 mHz 处，远低于听觉范围，所以页面把它们加快：<b>深度</b>控制选择加快多少个八度，页面也会如实说明（“加快了 15 个八度”：2<sup>15</sup> = 32 768 倍，使五分钟振荡变为约 100 Hz）。其余一概不变：各模之间的比例、谐音之间 135 µHz 的间距，以及 l = 0 / l = 2 之间细小的分裂，都是太阳自己的。每个模都按真实振动模的方式演奏：一个被对流随机敲击的阻尼振子，所以它的响度在几秒间起伏，没有固定的规律；<b>温暖</b>加入谐音；神庙的回声是一条短而暗的尾音（默认约三秒），有自己的<b>回声</b>设置。这是根据测得频率的合成，不是录音。</p>
   <p>太阳的嗡鸣之外还有三种<b>声景</b>，从计时器上方的选择器中选取；每一种都忠于自己的规则，并用一句话说明；任何一种也可以作为<b>叠加</b>层放在所选声景之下，各有自己的音量（设置中的“叠加”一组：例如太阳的嗡鸣在行星之下，恒星在其上）。<b>行星及其卫星</b>：每颗行星按今天绕太阳的角速度，依照表盘本身的规则（330 Hz × (ω/ω⊕)<sup>0.353</sup>）发声，并归入纯律（或依“律制”设置归入毕达哥拉斯律或十二平均律），因此和弦正是表盘会奏出的那个；每颗卫星是其行星上方的一个声音，以 1,760 Hz × 0.3 天 ÷ 其周期闪烁，折入上方的八度（真实的 1/P 比值，所以锁定在 1:2:4 共振中的木卫一、木卫二和木卫三唱出同一个缓缓拍动的音）。就像在表盘上单独聆听一颗行星时那样，你能听到卫星在绕行：每颗卫星的声音随着绕行扫过其行星的位置，在前方更响更亮，在后方更弱，音高随其视向速度摆动几音分，如同光那样；当两颗相邻卫星排成一线时（木卫一与木卫二每 3½ 天一次，此时木卫三总在同一位置，这是木星的拉普拉斯共振），会响起一声轻柔的铃音。真实的卫星要走上几天，因此“<b>绕行速度</b>”设置将绕行加速，默认 ×5,000（木卫一半分钟绕行一周，月球八分钟），页面会写明这个倍数。可以选择全部行星或<b>一颗行星及其卫星</b>（地球与月球、火星、木星、土星、天王星、海王星、冥王星与冥卫一），<b>卫星</b>的突出程度（从仅行星到仅卫星），<b>聆听位置</b>（太阳、地球或所选行星——后者把你置于中央，卫星绕你而行），以及<b>立体声宽度</b>。<b>最近与最亮的恒星</b>（亮于 1.6 等或距离在 12 光年以内的 51 颗恒星）缓缓浮现又隐去：每个音是恒星光的峰值降低 40 个八度（维恩定律，与银河引擎相同），其光谱线塑造音色，它在我们天空中的亮度决定响度，并从它在银河系中的方向发声。<b>和声银河</b>奏出银河系的旋转和弦：24、12、8……3 kpc 处的环以 Ω = V/R 旋转，因为旋转曲线是平的（暗物质），它们奏出谐波列，提高了 61 个八度。对这些声景，<b>深度</b>控制按八度移动音区。计时器、钟声、呼吸引导、暗屏和赫斯提亚在每一种声景下都可用。</p>
-  <p><b>冥想</b>可持续 5 到 60 分钟或不限时长，开始和结束时各有一声钟，也可以选择每 1 到 15 分钟一声（颂钵或小铃，各有自己的音量，或者不响）；声音在二十秒内渐入，在最后一分钟渐出。冥想进行中可以更改任何设置：打开途中的钟声会按冥想的时钟重新安排钟声，新的时长会移动结束点及其渐出，新的声景、叠加层、行星或背景都会柔和地过渡。下方可以铺一层可选的<b>背景</b>：太阳风（经过滤波、游移的噪声）或深空（低沉的持续音）。<b>呼吸引导</b>画出一个圆，吸气时变大，呼气时缩小，有 4 · 4、4 · 7 · 8、方形 4 · 4 · 4 · 4 或每分钟 5½ 次的缓慢节律可选，嗡鸣可以随之起伏。<b>调暗屏幕</b>把页面变为近乎全黑，让手机屏幕熄灭而声音继续；炉灶的守护者<b>赫斯提亚</b>会说一句简短的欢迎与结束语，也可以关掉。<b>预设</b>提供几种有名字的组合（清晨：太阳与地球；夜晚：繁星与月亮；木星的宫廷；整个天空；只有太阳），页面会记住你的设置。</p>
+  <p><b>冥想</b>可持续 5 到 60 分钟或不限时长，开始和结束时各有一声钟，也可以选择每 1 到 15 分钟一声（颂钵或小铃，各有自己的音量，或者不响）；声音在二十秒内渐入，在最后一分钟渐出。冥想进行中可以更改任何设置：打开途中的钟声会按冥想的时钟重新安排钟声，新的时长会移动结束点及其渐出，新的声景、叠加层、行星或背景都会柔和地过渡。下方可以铺一层可选的<b>背景</b>：太阳风（经过滤波、游移的噪声）或深空（低沉的持续音）。<b>呼吸引导</b>画出一个圆，吸气时变大，呼气时缩小，有 4 · 4、4 · 7 · 8、方形 4 · 4 · 4 · 4 或每分钟 5½ 次的缓慢节律可选，嗡鸣可以随之起伏。<b>调暗屏幕</b>把页面变为近乎全黑，让手机屏幕熄灭而声音继续；炉灶的守护者<b>赫斯提亚</b>会说一句简短的欢迎与结束语，也可以关掉。当你选择一颗行星或一种声景时，它的<b>神</b>会用一两句话介绍它一次（盖亚、阿瑞斯、宙斯、克洛诺斯、乌拉诺斯、波塞冬、哈迪斯；赫利俄斯介绍太阳的嗡鸣，阿斯特赖俄斯介绍恒星，赫拉介绍银河），在开始时赫斯提亚的欢迎之后，或在切换的淡变之后，说话时音乐会压低；“众神介绍每个系统”开关可以关掉它。<b>预设</b>提供几种有名字的组合（清晨：太阳与地球；夜晚：繁星与月亮；木星的宫廷；整个天空；只有太阳），页面会记住你的设置。</p>
   <p class="small">这是一项平静的聆听练习，不是医学治疗。如果你正在接受治疗，请遵从医生的建议。</p>
 </section>
 

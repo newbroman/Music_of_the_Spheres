@@ -236,23 +236,31 @@ function siteNav(btnClass){
   const nav=document.createElement('nav');nav.className='site';nav.setAttribute('aria-label',T.nav);
   const strip=document.createElement('div');strip.className='strip';
   PAGES.forEach(([k,f])=>{const a=document.createElement('a');a.href=pref+f;a.textContent=T[k];if(f===HERE){a.setAttribute('aria-current','page')}strip.appendChild(a)});
+  // the tour and the talk: the last two items of the strip, after a divider, marked as actions by their icons
+  strip.append(guideItem('tour',true),guideItem('talk',true));
   // the strip and the globe stay together on one line, whatever wraps around them
   const main=document.createElement('div');main.className='main';main.append(strip,langMenu(btnClass));nav.appendChild(main);
-  fade(strip);guideFit(nav,strip);
+  fade(strip);navFit(nav,strip);
   return nav;
 }
-// the tour and talk pills sit beside the strip only while the whole strip shows; otherwise they take a line of their own under it
-function guideFit(nav,strip){
+// on a desktop the whole strip shows: when it would clip, its items close up (tight), then the header stacks so the navigation
+// has a row of its own (navstack), and only then do the labels of the tour and the talk go, leaving their icons (icons);
+// the strip scrolls only when even that is too wide (phones always scroll it)
+function navFit(nav,strip){
   let busy=false;
-  const clipped=()=>strip.scrollWidth-strip.clientWidth>2||nav.scrollWidth-nav.clientWidth>2;
-  const fit=()=>{if(busy)return;busy=true;try{const g=nav.querySelector(':scope > .guide');nav.classList.remove('wrapg','tight');
-    if(!g||g.offsetParent===null)return;
-    if(clipped())nav.classList.add('wrapg');
-    // still too wide for its column: the links close up before the strip is allowed to scroll
-    if(clipped())nav.classList.add('tight')}finally{busy=false}};
-  addEventListener('resize',fit);if(window.ResizeObserver)new ResizeObserver(fit).observe(nav);
-  if(window.MutationObserver)new MutationObserver(fit).observe(nav,{childList:true});
+  // the flight HUD: the strip (top left) must not run under the buttons (top right); when it would, the whole top-left block drops under them
+  const tr=isFlight?document.querySelector('.hud.tr'):null;
+  const under=()=>{if(!tr)return false;const a=strip.getBoundingClientRect(),b=tr.getBoundingClientRect();return b.width>0&&a.right>b.left-8&&a.top<b.bottom&&a.bottom>b.top};
+  const clipped=()=>strip.scrollWidth-strip.clientWidth>2||under();
+  const fit=()=>{if(busy)return;busy=true;try{const top=nav.closest('header.top.shell'),tl=isFlight?nav.closest('.hud.tl'):null;nav.classList.remove('tight','icons');if(top)top.classList.remove('navstack');if(tl)tl.style.paddingTop='';
+    if(mqC.matches||strip.offsetParent===null)return;
+    if(clipped())nav.classList.add('tight');
+    if(top&&clipped())top.classList.add('navstack');
+    if(tl&&tr&&clipped()){const b=tr.getBoundingClientRect(),a=tl.getBoundingClientRect();tl.style.paddingTop=Math.max(0,Math.round(b.bottom-a.top+6))+'px'}
+    if(clipped())nav.classList.add('icons')}finally{busy=false}};
+  addEventListener('resize',fit);if(window.ResizeObserver)new ResizeObserver(fit).observe(nav.parentElement||nav);
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
+  (mqC.addEventListener?mqC.addEventListener('change',fit):mqC.addListener(fit));
   setTimeout(fit,0);setTimeout(fit,150);setTimeout(fit,800);
 }
 // a strip that scrolls sideways shows a fade at the edge that has more
@@ -274,19 +282,20 @@ function guideGo(k){
     if(k==='talk'&&window.MOTS&&MOTS.show&&MOTS.show.start){MOTS.show.start();return true}}catch(e){}
   return false;
 }
-function guideItem(k){
-  const a=document.createElement('a');a.href=pref+GUIDE[k];a.className='g-'+k;a.dataset.guide=k;a.title=T[k+'Tip'];
-  a.innerHTML='<span class="i" aria-hidden="true">'+(k==='tour'?'✦':'▶')+'</span><span class="l">'+T[k]+'</span><span class="s">'+T[k+'S']+'</span>';
+// in the strip (short word, the full wording in its title and aria-label) or in a menu (the full wording)
+function guideItem(k,short){
+  const a=document.createElement('a');a.href=pref+GUIDE[k];a.className='g-'+k+(short?' act':'');a.dataset.guide=k;a.title=T[k+'Tip'];
+  if(short)a.setAttribute('aria-label',T[k]);
+  a.innerHTML='<span class="i" aria-hidden="true">'+(k==='tour'?'✦':'▶')+'</span><span class="l">'+(short?T[k+'S']:T[k])+'</span>';
   a.onclick=e=>{if(e.metaKey||e.ctrlKey||e.shiftKey||e.button)return;if(guideGo(k)){e.preventDefault();const d=a.closest('details');if(d)d.open=false}};
   return a;
 }
-function guideRow(){const d=document.createElement('div');d.className='guide';d.id='guide';d.append(guideItem('tour'),guideItem('talk'));return d}
-/* ---- the "⋯" overflow menu for the compact header; away from the dial it also lists the tour and the talk ---- */
+/* ---- the "⋯" overflow menu for the compact header; it also lists the tour and the talk, which the scrolling strip may have out of view ---- */
 function moreMenu(btnClass){
   const d=document.createElement('details');d.id='moreMenu';d.className='mots-more';
   const s=document.createElement('summary');s.className=btnClass;s.innerHTML=DOTS;s.setAttribute('aria-label',T.more);s.title=T.more;
   const m=document.createElement('div');m.className='mmenu';m.setAttribute('role','menu');
-  if(!isDial)m.append(guideItem('tour'),guideItem('talk'));
+  m.append(guideItem('tour'),guideItem('talk'));
   d.append(s,m);popover(d,s,m);return d;
 }
 // put children in this order, touching the DOM only when the order differs (a move would wake the observer again)
@@ -302,8 +311,6 @@ function headerShell(){
   const btnClass=isDial?'fly3d':'';
   const nav=siteNav(btnClass);
   if(old)old.replaceWith(nav);else top.appendChild(nav);
-  // the tour and the talk: beside the site navigation (on a phone, the dial gives them a row of their own under Begin)
-  const guide=guideRow();nav.insertBefore(guide,nav.firstChild);
   if(!ctl){
     // no action buttons here: the "⋯" menu (the tour and the talk) sits at the end of the navigation row on a phone
     nav.appendChild(moreMenu(btnClass));
@@ -320,22 +327,22 @@ function headerShell(){
   if(ex)ex.querySelectorAll('.menu a[href]').forEach(a=>{if(/\/(flight|dance|help|synth|meditate)\.html(#.*)?$/.test(a.getAttribute('href')||''))a.remove()});
   const more=moreMenu(btnClass);top.appendChild(more);
   const mm=more.querySelector('.mmenu');
-  // which buttons go into "⋯" on a phone, in this order (the tour and the talk stay in view: they have their own row)
-  const ids=['recBtn','stageBtn','showBtn','scoreBtn'];
+  // which buttons go into "⋯" on a phone, in this order (the tour and the talk are already there, at the end)
+  const ids=['recBtn','stageBtn','scoreBtn'];
   const rank=x=>{const i=ids.indexOf(x.id);return i>=0?i:10};
   let busy=false;
   const layout=()=>{if(busy)return;busy=true;try{
+    // show.js adds its own "The talk" pill when it finds no guide: the strip's Talk item is that now
+    const sb=document.getElementById('showBtn');if(sb&&nav.querySelector('.g-talk'))sb.remove();
     if(mqC.matches){
       ids.forEach(id=>{const b=document.getElementById(id);if(b&&b.parentElement!==mm)mm.appendChild(b)});
-      // the Extras entries that are not pills already (the Tour) come along; the Extras button itself hides
-      if(ex)ex.querySelectorAll('.menu a').forEach(a=>{if(a.id!=='showLink'&&a.id!=='listenLink'){a.dataset.fromExtras='1';mm.appendChild(a)}});
+      // any Extras entry that is a page link comes along (the Tour, Show and Listen entries there are already in the strip or "⋯"); the Extras button itself hides
+      if(ex)ex.querySelectorAll('.menu a').forEach(a=>{if(!a.id&&(a.getAttribute('href')||'#')!=='#'){a.dataset.fromExtras='1';mm.appendChild(a)}});
       reorder(mm,[...mm.children].sort((a,b)=>rank(a)-rank(b)));
-      if(guide.parentElement!==top)top.appendChild(guide);
     }else{
-      [...mm.children].forEach(x=>{if(x.dataset.fromExtras){delete x.dataset.fromExtras;const menu=ex&&ex.querySelector('.menu');if(menu)menu.prepend(x);else x.remove()}else ctl.appendChild(x)});
+      [...mm.children].forEach(x=>{if(x.dataset.guide)return;if(x.dataset.fromExtras){delete x.dataset.fromExtras;const menu=ex&&ex.querySelector('.menu');if(menu)menu.prepend(x);else x.remove()}else ctl.appendChild(x)});
       // the order of the pills: Begin, Listen, Record, Stage, Show, Score, Extras
       if(ex&&ctl.lastElementChild!==ex)ctl.appendChild(ex);
-      if(guide.parentElement!==nav)nav.insertBefore(guide,nav.firstChild);
     }
   }finally{busy=false}};
   // on a phone the Listen pill keeps its word only when it fits beside Begin and "⋯" on one row
@@ -354,7 +361,6 @@ function hudShell(){
   // the old page links and language links
   tr.querySelectorAll('a').forEach(a=>a.remove());
   const nav=siteNav('btn');tl.insertBefore(nav,tl.firstChild);
-  nav.insertBefore(guideRow(),nav.firstChild);
   const more=moreMenu('btn');tr.appendChild(more);const mm=more.querySelector('.mmenu');
   const ids=['recBtn','stageBtn','scoreBtn'];let busy=false;
   const rank=x=>{const i=ids.indexOf(x.id);return i>=0?i:10};
@@ -370,14 +376,13 @@ function hudShell(){
 }
 const css=document.createElement('style');css.id='shellCss';
 css.textContent=`
-/* site navigation */
-/* when the tour and talk pills do not fit beside the strip (guideFit, below), they take a line of their own under it, right-aligned,
-   and the strip keeps its full width: it only scrolls when it is wider than the whole header column */
+/* site navigation: one strip of the pages, then the tour and the talk as its last two items, then the globe. On a desktop it never
+   scrolls: when it would clip, its items close up (tight), then the tour and the talk keep only their icons (icons, navFit below) */
 nav.site{display:flex;flex-wrap:nowrap;justify-content:flex-end;align-items:center;gap:.5rem;min-width:0;max-width:100%}
 nav.site > .main{display:flex;align-items:center;gap:.5rem;flex:0 1 auto;min-width:0;max-width:100%}
-nav.site.wrapg{flex-wrap:wrap}
-nav.site.wrapg > .guide{order:3;flex:1 1 100%;justify-content:flex-end}
 nav.site.tight .strip a{padding:0 .55rem;font-size:.8rem;letter-spacing:.01em}
+nav.site.tight .strip a.act{padding:0 .6rem}
+nav.site.icons .strip a.act .l{display:none}nav.site.icons .strip a.act{padding:0 .7rem}nav.site.icons .strip a.act .i{font-size:1.05em}
 nav.site .strip{max-width:100%}
 nav.site .strip{display:flex;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;border:1px solid var(--line-2,var(--line,#3a4068));border-radius:999px;background:rgba(255,255,255,.025);-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 nav.site .strip::-webkit-scrollbar{display:none}
@@ -386,6 +391,11 @@ nav.site .strip a:last-child{border-right:0}
 nav.site .strip a:hover{color:var(--bronze,#c9984f);background:rgba(201,152,79,.08)}
 nav.site .strip a[aria-current="page"]{color:#f3d9a4;background:rgba(201,152,79,.18);box-shadow:inset 0 0 0 1px var(--bronze,#c9984f)}
 nav.site .strip a:focus-visible{outline-offset:-3px}
+/* the tour and the talk: the same cells, in bronze with a small icon, behind a stronger divider */
+nav.site .strip a.act{gap:.4em;color:var(--bronze,#c9984f);background:rgba(201,152,79,.06)}
+nav.site .strip a.g-tour{border-left:1px solid var(--bronze-dim,var(--bronze,#c9984f));margin-left:-1px}
+nav.site .strip a.act:hover{color:#f3d9a4;background:rgba(201,152,79,.16)}
+nav.site .strip a.act .i{font-size:.9em;line-height:1}nav.site .strip a.g-talk .i{font-size:.72em}
 nav.site .strip.fade-r{mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
 nav.site .strip.fade-l{mask-image:linear-gradient(90deg,transparent,#000 28px);-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px)}
 nav.site .strip.fade-l.fade-r{mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
@@ -404,15 +414,8 @@ nav.site .strip.fade-l.fade-r{mask-image:linear-gradient(90deg,transparent,#000 
 .mots-more .mmenu > .rec.on{background:#5a2b2b!important}
 /* the Listen pill */
 #listenBtn{gap:.4em}#listenBtn .s{display:none}
-/* the guide: "Take the tour" and "The talk", two tinted pills beside the site navigation */
-.guide{display:flex;gap:.45rem;flex:none;align-items:center;min-width:0}
-nav.site > .guide{flex:none;margin-right:auto}
-.guide a{display:inline-flex;align-items:center;justify-content:center;gap:.45em;min-height:var(--tap,2.75rem);padding:0 .95rem;border-radius:999px;border:1px solid var(--bronze,#c9984f);background:rgba(201,152,79,.16);color:#f3d9a4;text-decoration:none;font-size:.85rem;letter-spacing:.03em;white-space:nowrap;font-family:var(--f-body),system-ui,sans-serif;cursor:pointer;box-shadow:0 0 0 0 rgba(201,152,79,0)}
-.guide a:hover{background:rgba(201,152,79,.3);color:#fbe7bd}
-.guide a:focus-visible{outline:2px solid #f3d9a4;outline-offset:2px}
-.guide a .i{font-size:.95em;line-height:1}.guide a.g-talk .i{font-size:.8em}
-.guide a .s{display:none}
-.mots-more .mmenu > a .s{display:none}.mots-more .mmenu > a .i{color:var(--bronze,#c9984f);width:1.1em;text-align:center}
+/* the tour and the talk in the "⋯" menu */
+.mots-more .mmenu > a .i{color:var(--bronze,#c9984f);width:1.1em;text-align:center}
 nav.site > .mots-more{display:none}
 /* no text under 12 px on a phone: the dial's reading tags */
 .info .reading h4,.info .voices2 h4,.info .reading .lay .tag,.info .voices2 h4 small,.info h4 small{font-size:max(12px,.74rem)}
@@ -433,6 +436,9 @@ header.top.shell > .mots-more{order:4}
   header.top.shell:not(.has-ctl) > nav.site{grid-row:1/3;align-self:center}
   header.top.shell > .ctl{grid-area:ctl;justify-self:end;justify-content:flex-end}
   header.top.shell > .mots-more{display:none}
+  /* a navigation too wide for its column (long words): the header stacks, the navigation on a row of its own (navFit) */
+  header.top.shell.navstack{display:flex;flex-direction:column;align-items:stretch;gap:.8rem}
+  header.top.shell.navstack > nav.site{align-self:stretch;justify-content:flex-end}
   header.top.shell .lede{font-size:.95rem;line-height:1.45;max-width:50ch}
   header.top.shell h1{font-size:clamp(2.1rem,2.6vw,3rem)}
 }
@@ -445,7 +451,7 @@ header.top.shell > .mots-more{order:4}
   header.top.shell > nav.site{order:2;flex:1 1 100%;flex-wrap:nowrap;justify-content:space-between}
   header.top.shell > nav.site > .main{flex:1 1 auto;justify-content:space-between}
   header.top.shell > nav.site .strip{flex:0 1 auto}
-  header.top.shell > nav.site .strip a{min-height:var(--tap,2.75rem);padding:0 .75rem;font-size:.84rem}
+  header.top.shell > nav.site .strip a{min-height:var(--tap,2.75rem);min-width:var(--tap,2.75rem);justify-content:center;padding:0 .75rem;font-size:.84rem}
   header.top.shell > nav.site .langmenu summary{min-height:var(--tap,2.75rem);padding:0 .7rem}
   header.top.shell > nav.site .langmenu .lc{display:none}header.top.shell > nav.site .langmenu summary svg{margin:0}
   header.top.shell > .ctl{order:3;flex:1 1 0;min-width:0;gap:.5rem}
@@ -455,11 +461,7 @@ header.top.shell > .mots-more{order:4}
   header.top.shell #listenBtn{padding:.6rem .95rem;font-size:.85rem}
   #listenBtn .l{display:none}#listenBtn .s{display:inline}
   header.top.shell.tight #listenBtn .s{display:none}header.top.shell.tight #listenBtn{padding:.6rem .8rem;font-size:1rem}
-  /* the dial: the tour and the talk as a row of their own under Begin; the other pages list them in "⋯" at the end of the navigation row */
-  header.top.shell > .guide{order:5;flex:1 1 100%;gap:.5rem}
-  header.top.shell > .guide a{flex:1 1 0;min-width:0;padding:0 .6rem}
-  header.top.shell > .guide a .l{overflow:hidden;text-overflow:ellipsis}
-  header.top.shell > nav.site > .guide{display:none}
+  /* the pages without action buttons: the "⋯" menu (the tour and the talk, for when the strip has scrolled them out of view) at the end of the navigation row */
   header.top.shell nav.site > .mots-more{display:inline-block;flex:none}
 }
 @media (max-height:520px) and (orientation:landscape){
@@ -473,23 +475,16 @@ header.top.shell > .mots-more{order:4}
   header.top.shell .begin{padding:.5rem .9rem;font-size:.74rem}
   header.top.shell #listenBtn .s{display:none}header.top.shell #listenBtn .l{display:none}
   header.top.shell #listenBtn{padding:.5rem .7rem;font-size:1rem}
-  /* the tour and the talk take a second row at the right, so the navigation strip keeps its room on the first */
-  header.top.shell > .guide{order:5;flex:1 1 100%;justify-content:flex-end}
-  header.top.shell > .guide a{flex:none;padding:0 .9rem}
 }
 /* the flight HUD */
 .hud.tl nav.site{margin-bottom:6px;max-width:calc(100vw - 28px);justify-content:flex-start}
-.hud.tl nav.site.wrapg > .guide{justify-content:flex-start}
 .hud.tl nav.site .strip{background:var(--glass,rgba(10,12,24,.78));border-color:var(--line,rgba(201,152,79,.4));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .hud.tl nav.site .strip a{min-height:2.4rem;padding:0 .7rem;font-size:.8rem;border-right-color:var(--line,rgba(201,152,79,.4))}
 .hud.tl nav.site .langmenu summary{min-height:2.4rem;padding:0 .6rem;background:var(--glass,rgba(10,12,24,.78));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-color:var(--line,rgba(201,152,79,.4));color:var(--vellum,#e9e1cc);font-size:.78rem}
-.hud.tl nav.site .guide a{min-height:2.4rem;padding:0 .75rem;font-size:.8rem;background:var(--glass,rgba(10,12,24,.78));border-color:var(--bronze,#c9984f);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-.hud.tl nav.site .guide a:hover{background:rgba(201,152,79,.3)}
 .hud.tr .mots-more{display:none}
 @media (pointer:coarse), (max-width:760px){
   .hud.tr .mots-more{display:inline-block}
-  .hud.tl nav.site .guide{display:none}
-  .hud.tl nav.site .strip a,.hud.tl nav.site .langmenu summary{min-height:var(--tap,2.75rem)}
+  .hud.tl nav.site .strip a,.hud.tl nav.site .langmenu summary{min-height:var(--tap,2.75rem);min-width:var(--tap,2.75rem);justify-content:center}
   .hud.tl nav.site .langmenu .lc{display:none}.hud.tl nav.site .langmenu summary svg{margin:0}
 }
 .hud .chips{scroll-snap-type:x proximity;scroll-padding:0 8px}.hud .chips .chip{scroll-snap-align:start}
@@ -906,9 +901,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   <div class="greek">ἡσυχία</div>
   <h2>Meditation: Sonne, Planeten, Sterne</h2>
   <p>Die Sonne klingt wie eine Glocke. Die Konvektion unter ihrer Oberfläche löst Millionen von Schallwellen aus, die in ihr gefangen bleiben; die zu ihrer Gestalt passen, bauen sich zu stehenden Wellen auf, den <b>p-Moden</b>, jede mit einer Periode nahe fünf Minuten. Die Helioseismologie misst sie als winzige Dopplerverschiebungen der Sonnenoberfläche und hat daraus das Innere der Sonne kartiert. Die Frequenzen, die die Meditationsseite spielt, sind die gemessenen Moden vom Grad l = 0 bis 3 von <b>BiSON</b>, dem Birmingham Solar-Oscillations Network, das seit 1976 dem Klingen der Sonne zuhört.</p>
-  <p>Bei 3 mHz liegen sie weit unter dem Hörbereich, darum beschleunigt die Seite sie: der Regler <b>Tiefe</b> wählt, um wie viele Oktaven, und die Seite sagt es („um 15 Oktaven beschleunigt“: 2<sup>15</sup> = 32 768-fach, was die Fünf-Minuten-Schwingung auf etwa 100 Hz bringt). Sonst wird nichts verändert: die Verhältnisse zwischen den Moden, der Abstand von 135 µHz zwischen den Obertönen und die kleinen Aufspaltungen l = 0 / l = 2 sind die der Sonne. Jede Mode wird so gespielt, wie sich die echten verhalten, als gedämpfter Oszillator, den die Konvektion zufällig anstößt, sodass ihre Lautstärke über Sekunden ohne festes Muster an- und abschwillt; <b>Wärme</b> fügt Obertöne und das Tempelecho hinzu. Es ist eine Synthese aus gemessenen Frequenzen, keine Aufnahme.</p>
+  <p>Bei 3 mHz liegen sie weit unter dem Hörbereich, darum beschleunigt die Seite sie: der Regler <b>Tiefe</b> wählt, um wie viele Oktaven, und die Seite sagt es („um 15 Oktaven beschleunigt“: 2<sup>15</sup> = 32 768-fach, was die Fünf-Minuten-Schwingung auf etwa 100 Hz bringt). Sonst wird nichts verändert: die Verhältnisse zwischen den Moden, der Abstand von 135 µHz zwischen den Obertönen und die kleinen Aufspaltungen l = 0 / l = 2 sind die der Sonne. Jede Mode wird so gespielt, wie sich die echten verhalten, als gedämpfter Oszillator, den die Konvektion zufällig anstößt, sodass ihre Lautstärke über Sekunden ohne festes Muster an- und abschwillt; <b>Wärme</b> fügt Obertöne hinzu; das Tempelecho, ein kurzer dunkler Nachhall (etwa drei Sekunden in der Voreinstellung), hat seine eigene Einstellung <b>Echo</b>. Es ist eine Synthese aus gemessenen Frequenzen, keine Aufnahme.</p>
   <p>Neben dem Summen der Sonne stehen drei weitere <b>Klanglandschaften</b>, gewählt im Auswahlfeld über dem Timer; jede folgt ehrlich ihrer Regel und sagt sie in einer Zeile; jede lässt sich auch als <b>Ebene</b> unter die gewählte mischen, auf eigenem Pegel (die Gruppe Ebenen in den Einstellungen: etwa das Summen der Sonne unter den Planeten, die Sterne darüber). <b>Die Planeten mit ihren Monden</b>: Jeder Planet singt aus seiner heutigen Winkelgeschwindigkeit um die Sonne nach der Regel der Scheibe (330 Hz × (ω/ω⊕)<sup>0,353</sup>), auf reine Stimmung gerückt (oder auf pythagoreische oder gleichstufige, nach der Einstellung <b>Stimmung</b>), sodass der Akkord derselbe ist, den die Scheibe spielen würde; jeder Mond ist eine Stimme über seinem Planeten bei 1 760 Hz × 0,3 d ÷ seine Umlaufzeit, in die Oktaven darüber gefaltet (echte 1/P-Verhältnisse, sodass Io, Europa und Ganymed in ihrer 1:2:4-Resonanz einen einzigen, langsam schwebenden Ton singen). Wie auf der Scheibe, wenn du einen Planeten allein hörst, hörst du die Monde kreisen: Der Klang jedes Mondes streicht beim Umlauf über den Ort seines Planeten, ist vorn lauter und heller und hinten leiser, und seine Tonhöhe schwankt um ein paar Cent mit seiner Geschwindigkeit in Blickrichtung, wie es das Licht tut; stehen zwei benachbarte Monde in einer Linie (Io und Europa alle 3½ Tage, Ganymed dann stets am selben Ort, nach Jupiters Laplace-Resonanz), erklingt ein leises Glöckchen. Echte Monde brauchen Tage, darum beschleunigt die Einstellung <b>Umlauftempo</b> das Kreisen, standardmäßig ×5 000 (Io braucht eine halbe Minute, der Mond acht), und die Seite nennt den Faktor. Wähle alle Planeten oder <b>einen mit seinen Monden</b> (Erde und Mond, Mars, Jupiter, Saturn, Uranus, Neptun, Pluto und Charon), wie stark die <b>Monde</b> hervortreten (von nur Planeten bis nur Monde), von wo du <b>hörst</b> (von der Sonne, von der Erde oder vom gewählten Planeten, was dich in die Mitte stellt, seine Monde um dich kreisend) und die <b>Stereobreite</b>. <b>Die nächsten und hellsten Sterne</b> (die 51 Sterne heller als 1,6 mag oder näher als 12 Lichtjahre) blenden langsam ein und aus: Jeder Ton ist das Maximum des Sternenlichts, um 40 Oktaven gesenkt (Wiensches Gesetz, wie im Galaxis-Modul), seine Spektrallinien formen die Klangfarbe, seine Helligkeit an unserem Himmel bestimmt die Lautstärke, und er klingt aus seiner Richtung in der Galaxis. <b>Die harmonische Galaxis</b> spielt den Rotationsakkord der Milchstraße: Ringe bei 24, 12, 8 … 3 kpc drehen sich mit Ω = V/R, und weil die Rotationskurve flach ist (Dunkle Materie), klingen sie als Obertonreihe, um 61 Oktaven angehoben. Für diese verschiebt der Regler <b>Tiefe</b> die Lage in Oktaven. Timer, Glocken, Atemführung, dunkler Bildschirm und Hestia funktionieren mit jeder Klanglandschaft.</p>
-  <p>Die <b>Sitzung</b> dauert 5 bis 60 Minuten oder bleibt offen, mit einer Glocke am Anfang und am Ende und, wenn du willst, alle 1 bis 15 Minuten (eine Klangschale oder ein kleines Glöckchen, mit eigener Lautstärke, oder keine); der Klang blendet über zwanzig Sekunden ein und über die letzte Minute aus. Jede Einstellung lässt sich während der Sitzung ändern: Wird die Zwischenglocke eingeschaltet, werden die Glocken von der Sitzungsuhr aus neu geplant, eine neue Dauer verschiebt das Ende und sein Ausblenden, und eine neue Klanglandschaft, Ebene, ein neuer Planet oder Hintergrund blendet sanft über. Darunter kann ein <b>Hintergrund</b> liegen: der Sonnenwind (gefiltertes, wanderndes Rauschen) oder der tiefe Raum (ein tiefer Bordun). Die <b>Atemführung</b> zeichnet einen Kreis, der beim Einatmen wächst und beim Ausatmen schrumpft, in den Mustern 4 · 4, 4 · 7 · 8, Box 4 · 4 · 4 · 4 oder langsam mit 5½ Atemzügen pro Minute, und das Summen kann ihm folgen. <b>Bildschirm abdunkeln</b> macht die Seite fast schwarz und lässt den Bildschirm des Telefons ausgehen, während der Klang weiterläuft; <b>Hestia</b>, die Hüterin des Herdes, spricht einen kurzen Willkommensgruß und ein Schlusswort und lässt sich abschalten. <b>Voreinstellungen</b> bieten einige benannte Mischungen (Morgen: Sonne und Erde; Nacht: die Sterne und der Mond; Jupiters Hof; Der ganze Himmel; Die Sonne allein), und die Seite merkt sich deine Einstellungen.</p>
+  <p>Die <b>Sitzung</b> dauert 5 bis 60 Minuten oder bleibt offen, mit einer Glocke am Anfang und am Ende und, wenn du willst, alle 1 bis 15 Minuten (eine Klangschale oder ein kleines Glöckchen, mit eigener Lautstärke, oder keine); der Klang blendet über zwanzig Sekunden ein und über die letzte Minute aus. Jede Einstellung lässt sich während der Sitzung ändern: Wird die Zwischenglocke eingeschaltet, werden die Glocken von der Sitzungsuhr aus neu geplant, eine neue Dauer verschiebt das Ende und sein Ausblenden, und eine neue Klanglandschaft, Ebene, ein neuer Planet oder Hintergrund blendet sanft über. Darunter kann ein <b>Hintergrund</b> liegen: der Sonnenwind (gefiltertes, wanderndes Rauschen) oder der tiefe Raum (ein tiefer Bordun). Die <b>Atemführung</b> zeichnet einen Kreis, der beim Einatmen wächst und beim Ausatmen schrumpft, in den Mustern 4 · 4, 4 · 7 · 8, Box 4 · 4 · 4 · 4 oder langsam mit 5½ Atemzügen pro Minute, und das Summen kann ihm folgen. <b>Bildschirm abdunkeln</b> macht die Seite fast schwarz und lässt den Bildschirm des Telefons ausgehen, während der Klang weiterläuft; <b>Hestia</b>, die Hüterin des Herdes, spricht einen kurzen Willkommensgruß und ein Schlusswort und lässt sich abschalten. Wählst du einen Planeten oder eine Klanglandschaft, stellt ihr <b>Gott</b> sie einmal in ein, zwei Sätzen vor (Gaia, Ares, Zeus, Kronos, Uranos, Poseidon, Hades; Helios für das Summen der Sonne, Astraios für die Sterne, Hera für die Milchstraße), nach Hestias Gruß zu Beginn oder nach der Überblendung bei einem Wechsel, die Musik unter der Stimme abgesenkt; der Schalter <em>Die Götter stellen jedes System vor</em> schaltet das ab. <b>Voreinstellungen</b> bieten einige benannte Mischungen (Morgen: Sonne und Erde; Nacht: die Sterne und der Mond; Jupiters Hof; Der ganze Himmel; Die Sonne allein), und die Seite merkt sich deine Einstellungen.</p>
   <p class="small">Eine ruhige Hörübung, keine medizinische Behandlung. Wer wegen einer Erkrankung behandelt wird, hält sich an den Rat seiner Ärztin oder seines Arztes.</p>
 </section>
 
