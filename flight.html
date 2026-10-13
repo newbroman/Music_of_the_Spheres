@@ -1142,9 +1142,24 @@ function siteNav(btnClass){
   const nav=document.createElement('nav');nav.className='site';nav.setAttribute('aria-label',T.nav);
   const strip=document.createElement('div');strip.className='strip';
   PAGES.forEach(([k,f])=>{const a=document.createElement('a');a.href=pref+f;a.textContent=T[k];if(f===HERE){a.setAttribute('aria-current','page')}strip.appendChild(a)});
-  nav.append(strip,langMenu(btnClass));
-  fade(strip);
+  // the strip and the globe stay together on one line, whatever wraps around them
+  const main=document.createElement('div');main.className='main';main.append(strip,langMenu(btnClass));nav.appendChild(main);
+  fade(strip);guideFit(nav,strip);
   return nav;
+}
+// the tour and talk pills sit beside the strip only while the whole strip shows; otherwise they take a line of their own under it
+function guideFit(nav,strip){
+  let busy=false;
+  const clipped=()=>strip.scrollWidth-strip.clientWidth>2||nav.scrollWidth-nav.clientWidth>2;
+  const fit=()=>{if(busy)return;busy=true;try{const g=nav.querySelector(':scope > .guide');nav.classList.remove('wrapg','tight');
+    if(!g||g.offsetParent===null)return;
+    if(clipped())nav.classList.add('wrapg');
+    // still too wide for its column: the links close up before the strip is allowed to scroll
+    if(clipped())nav.classList.add('tight')}finally{busy=false}};
+  addEventListener('resize',fit);if(window.ResizeObserver)new ResizeObserver(fit).observe(nav);
+  if(window.MutationObserver)new MutationObserver(fit).observe(nav,{childList:true});
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
+  setTimeout(fit,0);setTimeout(fit,150);setTimeout(fit,800);
 }
 // a strip that scrolls sideways shows a fade at the edge that has more
 function fade(el){
@@ -1262,7 +1277,14 @@ function hudShell(){
 const css=document.createElement('style');css.id='shellCss';
 css.textContent=`
 /* site navigation */
-nav.site{display:flex;align-items:center;gap:.5rem;min-width:0;max-width:100%}
+/* when the tour and talk pills do not fit beside the strip (guideFit, below), they take a line of their own under it, right-aligned,
+   and the strip keeps its full width: it only scrolls when it is wider than the whole header column */
+nav.site{display:flex;flex-wrap:nowrap;justify-content:flex-end;align-items:center;gap:.5rem;min-width:0;max-width:100%}
+nav.site > .main{display:flex;align-items:center;gap:.5rem;flex:0 1 auto;min-width:0;max-width:100%}
+nav.site.wrapg{flex-wrap:wrap}
+nav.site.wrapg > .guide{order:3;flex:1 1 100%;justify-content:flex-end}
+nav.site.tight .strip a{padding:0 .55rem;font-size:.8rem;letter-spacing:.01em}
+nav.site .strip{max-width:100%}
 nav.site .strip{display:flex;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;border:1px solid var(--line-2,var(--line,#3a4068));border-radius:999px;background:rgba(255,255,255,.025);-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 nav.site .strip::-webkit-scrollbar{display:none}
 nav.site .strip a{flex:none;scroll-snap-align:start;color:var(--vellum-dim,#aea791);text-decoration:none;padding:0 .85rem;min-height:var(--tap,2.75rem);display:inline-flex;align-items:center;font-size:.85rem;letter-spacing:.03em;white-space:nowrap;border-right:1px solid var(--line-2,var(--line,#3a4068));font-family:var(--f-body),system-ui,sans-serif}
@@ -1290,7 +1312,7 @@ nav.site .strip.fade-l.fade-r{mask-image:linear-gradient(90deg,transparent,#000 
 #listenBtn{gap:.4em}#listenBtn .s{display:none}
 /* the guide: "Take the tour" and "The talk", two tinted pills beside the site navigation */
 .guide{display:flex;gap:.45rem;flex:none;align-items:center;min-width:0}
-nav.site > .guide{margin-right:auto}
+nav.site > .guide{flex:none;margin-right:auto}
 .guide a{display:inline-flex;align-items:center;justify-content:center;gap:.45em;min-height:var(--tap,2.75rem);padding:0 .95rem;border-radius:999px;border:1px solid var(--bronze,#c9984f);background:rgba(201,152,79,.16);color:#f3d9a4;text-decoration:none;font-size:.85rem;letter-spacing:.03em;white-space:nowrap;font-family:var(--f-body),system-ui,sans-serif;cursor:pointer;box-shadow:0 0 0 0 rgba(201,152,79,0)}
 .guide a:hover{background:rgba(201,152,79,.3);color:#fbe7bd}
 .guide a:focus-visible{outline:2px solid #f3d9a4;outline-offset:2px}
@@ -1311,7 +1333,7 @@ header.top.shell > .ctl{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center
 header.top.shell > .mots-more{order:4}
 /* … two rows on a desktop: the title and lede on the left, the navigation above the buttons on the right … */
 @media (min-width:961px) and (min-height:521px){
-  header.top.shell{display:grid;grid-template-columns:fit-content(38rem) minmax(0,1fr);grid-template-areas:"ttl nav" "ttl ctl";column-gap:2rem;row-gap:.7rem;align-items:end;padding-bottom:.9rem}
+  header.top.shell{display:grid;grid-template-columns:fit-content(min(38rem,42%)) minmax(0,1fr);grid-template-areas:"ttl nav" "ttl ctl";column-gap:2rem;row-gap:.7rem;align-items:end;padding-bottom:.9rem}
   header.top.shell > .ttl{grid-area:ttl;display:block}
   header.top.shell > nav.site{grid-area:nav;justify-self:end}
   header.top.shell:not(.has-ctl) > nav.site{grid-row:1/3;align-self:center}
@@ -1326,7 +1348,8 @@ header.top.shell > .mots-more{order:4}
   header.top.shell > .ttl{order:1;flex:1 1 100%}
   header.top.shell .eyebrow,header.top.shell .lede{display:none}
   header.top.shell h1{font-size:1.5rem;line-height:1.12;letter-spacing:.01em}
-  header.top.shell > nav.site{order:2;flex:1 1 100%;justify-content:space-between}
+  header.top.shell > nav.site{order:2;flex:1 1 100%;flex-wrap:nowrap;justify-content:space-between}
+  header.top.shell > nav.site > .main{flex:1 1 auto;justify-content:space-between}
   header.top.shell > nav.site .strip{flex:0 1 auto}
   header.top.shell > nav.site .strip a{min-height:var(--tap,2.75rem);padding:0 .75rem;font-size:.84rem}
   header.top.shell > nav.site .langmenu summary{min-height:var(--tap,2.75rem);padding:0 .7rem}
@@ -1349,7 +1372,8 @@ header.top.shell > .mots-more{order:4}
   header.top.shell{flex-wrap:wrap;gap:.5rem .7rem;padding-bottom:.45rem}
   header.top.shell > .ttl{flex:0 1 auto;order:1}
   header.top.shell h1{font-size:1.25rem;white-space:nowrap}
-  header.top.shell > nav.site{flex:1 1 10rem;order:2;min-width:0;justify-content:flex-start}
+  header.top.shell > nav.site{flex:1 1 10rem;order:2;min-width:0;flex-wrap:nowrap;justify-content:flex-start}
+  header.top.shell > nav.site > .main{flex:0 1 auto;justify-content:flex-start}
   header.top.shell > .ctl{flex:0 0 auto;order:3;flex-wrap:nowrap}
   header.top.shell > .mots-more{order:4}
   header.top.shell .begin{padding:.5rem .9rem;font-size:.74rem}
@@ -1360,7 +1384,8 @@ header.top.shell > .mots-more{order:4}
   header.top.shell > .guide a{flex:none;padding:0 .9rem}
 }
 /* the flight HUD */
-.hud.tl nav.site{margin-bottom:6px;max-width:calc(100vw - 28px)}
+.hud.tl nav.site{margin-bottom:6px;max-width:calc(100vw - 28px);justify-content:flex-start}
+.hud.tl nav.site.wrapg > .guide{justify-content:flex-start}
 .hud.tl nav.site .strip{background:var(--glass,rgba(10,12,24,.78));border-color:var(--line,rgba(201,152,79,.4));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .hud.tl nav.site .strip a{min-height:2.4rem;padding:0 .7rem;font-size:.8rem;border-right-color:var(--line,rgba(201,152,79,.4))}
 .hud.tl nav.site .langmenu summary{min-height:2.4rem;padding:0 .6rem;background:var(--glass,rgba(10,12,24,.78));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-color:var(--line,rgba(201,152,79,.4));color:var(--vellum,#e9e1cc);font-size:.78rem}
@@ -4092,7 +4117,8 @@ function readout(ns){
     anc?`In orbit with <em>${anc.god}</em>`:`Nearest: <em>${near}</em>`;
   if(SYS.id)txt+=` · ${byId[SYS.id].moons.length} moon${byId[SYS.id].moons.length>1?'s':''} singing`;
   $('nearTxt').innerHTML=txt;renderCourse();
-  if(window.MOTS&&MOTS.light)MOTS.light.near(ship.anchor||(ns.who==='sun'?null:ns.who.split(':')[0]));
+  // the light line names the nearest planet; beyond the planets the galaxy module writes the interstellar line instead
+  if(window.MOTS&&MOTS.light)MOTS.light.near(window.FLYG&&FLYG.far&&FLYG.far()?null:ship.anchor||(ns.who==='sun'?null:ns.who.split(':')[0]));
   const v=(ship.speed||0)*AU_KM/MAG*(ship.anchor?1:MAG), c=299792.458;
   const sp=v>c?(v/c).toFixed(v/c<10?1:0)+'× light speed':Math.round(v).toLocaleString('en-GB')+' km/s';
   const dist=ship.pos.length();
@@ -4171,7 +4197,7 @@ en:{inter:'Interstellar',helio:'Heliopause',oort:'Oort cloud',acen:'Alpha Centau
   gc:'<b>Sagittarius A*</b>: the black hole at the centre of the Galaxy, four million suns, 26,000 light-years from home.',
   home:'<b>Home.</b> The planets sing again.'},
  hera:'I am Hera. The milky circle across your sky is my spilled milk: a hundred thousand million suns, turning once in two hundred and thirty million years.',
- sgra:'Sagittarius A*',crab:'Crab pulsar',helioLbl:'Heliopause',lightOf:'light'},
+ sgra:'Sagittarius A*',crab:'Crab pulsar',helioLbl:'Heliopause',lightOf:'light',away:'{d} away',chordOn:'The rotation chord · dark matter on: the harmonic series',chordOff:'The rotation chord · dark matter off: the chord sags'},
 pl:{inter:'Międzygwiezdne',helio:'Heliopauza',oort:'Obłok Oorta',acen:'Alfa Centauri',sirius:'Syriusz',vela:'Pulsar Vela',gc:'Centrum Galaktyki',above:'Nad Drogą Mleczną',home:'Dom',beyond:'Międzygwiezdne ▶',
  shipSpeed:'Prędkość statku',dop:'Wyolbrzymienie Dopplera',dm:'Ciemna materia (płaska krzywa rotacji gra szereg harmoniczny)',
  course:'Kurs na: {n}',arrived:'Dotarliśmy: {n}',toward:'Lot do: <em>{n}</em>',nearest:'Najbliższa gwiazda: <em>{n}</em>',sun:'Słońce',
@@ -4189,7 +4215,7 @@ pl:{inter:'Międzygwiezdne',helio:'Heliopauza',oort:'Obłok Oorta',acen:'Alfa Ce
   gc:'<b>Sagittarius A*</b>: czarna dziura w centrum Galaktyki, cztery miliony słońc, 26 000 lat świetlnych od domu.',
   home:'<b>Dom.</b> Planety znów śpiewają.'},
  hera:'Jestem Hera. Mleczny krąg na twoim niebie to moje rozlane mleko: sto tysięcy milionów słońc, obracających się raz na dwieście trzydzieści milionów lat.',
- sgra:'Sagittarius A*',crab:'Pulsar w Krabie',helioLbl:'Heliopauza',lightOf:'światło'},
+ sgra:'Sagittarius A*',crab:'Pulsar w Krabie',helioLbl:'Heliopauza',lightOf:'światło',away:'{d} stąd',chordOn:'Akord rotacji · ciemna materia włączona: szereg harmoniczny',chordOff:'Akord rotacji · ciemna materia wyłączona: akord opada'},
 cy:{inter:'Rhyngserol',helio:'Heliopaws',oort:'Cwmwl Oort',acen:'Alffa Centauri',sirius:'Sirius',vela:'Pwlsar Vela',gc:'Canol y Galaeth',above:'Uwchlaw’r Llwybr Llaethog',home:'Adref',beyond:'Rhyngserol ▶',
  shipSpeed:'Cyflymder y llong',dop:'Gorliwio Doppler',dm:'Mater tywyll (mae’r gromlin gylchdroi wastad yn chwarae’r gyfres harmonig)',
  course:'Gosod cwrs am {n}',arrived:'Wedi cyrraedd: {n}',toward:'Yn teithio i <em>{n}</em>',nearest:'Seren agosaf: <em>{n}</em>',sun:'yr Haul',
@@ -4207,7 +4233,7 @@ cy:{inter:'Rhyngserol',helio:'Heliopaws',oort:'Cwmwl Oort',acen:'Alffa Centauri'
   gc:'<b>Sagittarius A*</b>: y twll du yng nghanol y Galaeth, pedair miliwn o heuliau, 26,000 o flynyddoedd golau o adref.',
   home:'<b>Adref.</b> Mae’r planedau’n canu eto.'},
  hera:'Hera ydw i. Y cylch llaethog ar draws eich awyr yw fy llaeth a gollwyd: can mil o filiynau o heuliau, yn troi unwaith bob dau gant tri deg miliwn o flynyddoedd.',
- sgra:'Sagittarius A*',crab:'Pwlsar y Cranc',helioLbl:'Heliopaws',lightOf:'golau'},
+ sgra:'Sagittarius A*',crab:'Pwlsar y Cranc',helioLbl:'Heliopaws',lightOf:'golau',away:'{d} i ffwrdd',chordOn:'Cord y cylchdro · mater tywyll ymlaen: y gyfres harmonig',chordOff:'Cord y cylchdro · mater tywyll i ffwrdd: mae’r cord yn suddo'},
 de:{inter:'Interstellar',helio:'Heliopause',oort:'Oortsche Wolke',acen:'Alpha Centauri',sirius:'Sirius',vela:'Vela-Pulsar',gc:'Galaktisches Zentrum',above:'Über der Milchstraße',home:'Heimat',beyond:'Interstellar ▶',
  shipSpeed:'Schiffsgeschwindigkeit',dop:'Doppler-Übertreibung',dm:'Dunkle Materie (die flache Rotationskurve spielt die Obertonreihe)',
  course:'Kurs auf {n}',arrived:'Angekommen: {n}',toward:'Unterwegs nach <em>{n}</em>',nearest:'Nächster Stern: <em>{n}</em>',sun:'die Sonne',
@@ -4225,7 +4251,7 @@ de:{inter:'Interstellar',helio:'Heliopause',oort:'Oortsche Wolke',acen:'Alpha Ce
   gc:'<b>Sagittarius A*</b>: das Schwarze Loch im Zentrum der Galaxis, vier Millionen Sonnen, 26 000 Lichtjahre von zu Hause.',
   home:'<b>Zu Hause.</b> Die Planeten singen wieder.'},
  hera:'Ich bin Hera. Der milchige Kreis über deinem Himmel ist meine verschüttete Milch: hunderttausend Millionen Sonnen, die sich einmal in zweihundertdreißig Millionen Jahren drehen.',
- sgra:'Sagittarius A*',crab:'Krebs-Pulsar',helioLbl:'Heliopause',lightOf:'Licht'},
+ sgra:'Sagittarius A*',crab:'Krebs-Pulsar',helioLbl:'Heliopause',lightOf:'Licht',away:'{d} entfernt',chordOn:'Der Rotationsakkord · Dunkle Materie an: die Obertonreihe',chordOff:'Der Rotationsakkord · Dunkle Materie aus: der Akkord sackt ab'},
 es:{inter:'Interestelar',helio:'Heliopausa',oort:'Nube de Oort',acen:'Alfa Centauri',sirius:'Sirio',vela:'Púlsar de Vela',gc:'Centro galáctico',above:'Sobre la Vía Láctea',home:'Casa',beyond:'Interestelar ▶',
  shipSpeed:'Velocidad de la nave',dop:'Exageración Doppler',dm:'Materia oscura (la curva de rotación plana toca la serie armónica)',
  course:'Rumbo a {n}',arrived:'Llegada: {n}',toward:'Viajando a <em>{n}</em>',nearest:'Estrella más cercana: <em>{n}</em>',sun:'el Sol',
@@ -4243,7 +4269,7 @@ es:{inter:'Interestelar',helio:'Heliopausa',oort:'Nube de Oort',acen:'Alfa Centa
   gc:'<b>Sagitario A*</b>: el agujero negro del centro de la Galaxia, cuatro millones de soles, a 26 000 años luz de casa.',
   home:'<b>En casa.</b> Los planetas cantan de nuevo.'},
  hera:'Soy Hera. El círculo lechoso que cruza tu cielo es mi leche derramada: cien mil millones de soles, que giran una vez cada doscientos treinta millones de años.',
- sgra:'Sagitario A*',crab:'Púlsar del Cangrejo',helioLbl:'Heliopausa',lightOf:'luz'},
+ sgra:'Sagitario A*',crab:'Púlsar del Cangrejo',helioLbl:'Heliopausa',lightOf:'luz',away:'a {d}',chordOn:'El acorde de rotación · materia oscura activada: la serie armónica',chordOff:'El acorde de rotación · materia oscura desactivada: el acorde se hunde'},
 fr:{inter:'Interstellaire',helio:'Héliopause',oort:'Nuage de Oort',acen:'Alpha du Centaure',sirius:'Sirius',vela:'Pulsar des Voiles',gc:'Centre galactique',above:'Au-dessus de la Voie lactée',home:'Maison',beyond:'Interstellaire ▶',
  shipSpeed:'Vitesse du vaisseau',dop:'Exagération Doppler',dm:'Matière noire (la courbe de rotation plate joue la série harmonique)',
  course:'Cap sur {n}',arrived:'Arrivée : {n}',toward:'En route vers <em>{n}</em>',nearest:'Étoile la plus proche : <em>{n}</em>',sun:'le Soleil',
@@ -4261,7 +4287,7 @@ fr:{inter:'Interstellaire',helio:'Héliopause',oort:'Nuage de Oort',acen:'Alpha 
   gc:'<b>Sagittarius A*</b> : le trou noir au centre de la Galaxie, quatre millions de soleils, à 26 000 années-lumière de la maison.',
   home:'<b>La maison.</b> Les planètes chantent de nouveau.'},
  hera:'Je suis Héra. Le cercle laiteux qui traverse votre ciel est mon lait répandu : cent mille millions de soleils, qui tournent une fois en deux cent trente millions d’années.',
- sgra:'Sagittarius A*',crab:'Pulsar du Crabe',helioLbl:'Héliopause',lightOf:'lumière'},
+ sgra:'Sagittarius A*',crab:'Pulsar du Crabe',helioLbl:'Héliopause',lightOf:'lumière',away:'à {d}',chordOn:'L’accord de rotation · matière noire activée : la série harmonique',chordOff:'L’accord de rotation · matière noire désactivée : l’accord s’affaisse'},
 it:{inter:'Interstellare',helio:'Eliopausa',oort:'Nube di Oort',acen:'Alfa Centauri',sirius:'Sirio',vela:'Pulsar delle Vele',gc:'Centro galattico',above:'Sopra la Via Lattea',home:'Casa',beyond:'Interstellare ▶',
  shipSpeed:'Velocità della nave',dop:'Esagerazione Doppler',dm:'Materia oscura (la curva di rotazione piatta suona la serie armonica)',
  course:'Rotta verso {n}',arrived:'Arrivo: {n}',toward:'In viaggio verso <em>{n}</em>',nearest:'Stella più vicina: <em>{n}</em>',sun:'il Sole',
@@ -4279,7 +4305,7 @@ it:{inter:'Interstellare',helio:'Eliopausa',oort:'Nube di Oort',acen:'Alfa Centa
   gc:'<b>Sagittarius A*</b>: il buco nero al centro della Galassia, quattro milioni di soli, a 26 000 anni luce da casa.',
   home:'<b>Casa.</b> I pianeti cantano di nuovo.'},
  hera:'Sono Era. Il cerchio latteo che attraversa il tuo cielo è il mio latte versato: centomila milioni di soli, che girano una volta ogni duecentotrenta milioni di anni.',
- sgra:'Sagittarius A*',crab:'Pulsar del Granchio',helioLbl:'Eliopausa',lightOf:'luce'},
+ sgra:'Sagittarius A*',crab:'Pulsar del Granchio',helioLbl:'Eliopausa',lightOf:'luce',away:'a {d}',chordOn:'L’accordo di rotazione · materia oscura attiva: la serie armonica',chordOff:'L’accordo di rotazione · materia oscura spenta: l’accordo si affloscia'},
 zh:{inter:'星际',helio:'日球层顶',oort:'奥尔特云',acen:'半人马座α',sirius:'天狼星',vela:'船帆座脉冲星',gc:'银河系中心',above:'银河系上方',home:'回家',beyond:'星际 ▶',
  shipSpeed:'飞船速度',dop:'多普勒放大',dm:'暗物质（平坦的自转曲线奏出泛音列）',
  course:'设定航向：{n}',arrived:'到达：{n}',toward:'正飞往 <em>{n}</em>',nearest:'最近的恒星：<em>{n}</em>',sun:'太阳',
@@ -4297,7 +4323,7 @@ zh:{inter:'星际',helio:'日球层顶',oort:'奥尔特云',acen:'半人马座α
   gc:'<b>人马座A*</b>：银河系中心的黑洞，四百万个太阳的质量，距家26 000光年。',
   home:'<b>到家了。</b>行星再次歌唱。'},
  hera:'我是赫拉。横过你天空的乳白圆环，是我洒落的乳汁：一千亿颗太阳，每两亿三千万年转一圈。',
- sgra:'人马座A*',crab:'蟹状星云脉冲星',helioLbl:'日球层顶',lightOf:'光'},
+ sgra:'人马座A*',crab:'蟹状星云脉冲星',helioLbl:'日球层顶',lightOf:'光',away:'距离 {d}',chordOn:'自转和弦 · 暗物质开启：泛音列',chordOff:'自转和弦 · 暗物质关闭：和弦下沉'},
 ja:{inter:'恒星間',helio:'太陽圏界面',oort:'オールトの雲',acen:'アルファ・ケンタウリ',sirius:'シリウス',vela:'ほ座パルサー',gc:'銀河中心',above:'天の川の上空',home:'帰還',beyond:'恒星間 ▶',
  shipSpeed:'船の速さ',dop:'ドップラー誇張',dm:'暗黒物質（平坦な回転曲線が倍音列を奏でる）',
  course:'{n}へ針路を設定',arrived:'到着：{n}',toward:'<em>{n}</em>へ向かっています',nearest:'最も近い恒星：<em>{n}</em>',sun:'太陽',
@@ -4315,7 +4341,7 @@ ja:{inter:'恒星間',helio:'太陽圏界面',oort:'オールトの雲',acen:'�
   gc:'<b>いて座A*</b>：銀河中心のブラックホール、太陽400万個分、故郷から26,000光年。',
   home:'<b>故郷。</b>惑星たちが再び歌います。'},
  hera:'私はヘラ。あなたの空を横切る乳白の環は、私がこぼした乳です。千億の太陽が、二億三千万年に一度めぐります。',
- sgra:'いて座A*',crab:'かにパルサー',helioLbl:'太陽圏界面',lightOf:'光'},
+ sgra:'いて座A*',crab:'かにパルサー',helioLbl:'太陽圏界面',lightOf:'光',away:'{d} 先',chordOn:'回転の和音 · 暗黒物質オン：倍音列',chordOff:'回転の和音 · 暗黒物質オフ：和音が沈む'},
 vi:{inter:'Liên sao',helio:'Nhật quyển',oort:'Đám mây Oort',acen:'Alpha Centauri',sirius:'Sirius',vela:'Sao xung Vela',gc:'Tâm Ngân Hà',above:'Trên Ngân Hà',home:'Về nhà',beyond:'Liên sao ▶',
  shipSpeed:'Tốc độ tàu',dop:'Phóng đại Doppler',dm:'Vật chất tối (đường cong quay phẳng chơi chuỗi họa âm)',
  course:'Đặt hành trình tới {n}',arrived:'Đã tới: {n}',toward:'Đang bay tới <em>{n}</em>',nearest:'Ngôi sao gần nhất: <em>{n}</em>',sun:'Mặt Trời',
@@ -4333,7 +4359,7 @@ vi:{inter:'Liên sao',helio:'Nhật quyển',oort:'Đám mây Oort',acen:'Alpha 
   gc:'<b>Sagittarius A*</b>: hố đen ở tâm Ngân Hà, bốn triệu mặt trời, cách nhà 26 000 năm ánh sáng.',
   home:'<b>Về nhà.</b> Các hành tinh lại cất tiếng hát.'},
  hera:'Ta là Hera. Vòng tròn trắng sữa vắt ngang bầu trời của ngươi là dòng sữa ta làm đổ: một trăm nghìn triệu mặt trời, quay một vòng trong hai trăm ba mươi triệu năm.',
- sgra:'Sagittarius A*',crab:'Sao xung Con Cua',helioLbl:'Nhật quyển',lightOf:'ánh sáng'},
+ sgra:'Sagittarius A*',crab:'Sao xung Con Cua',helioLbl:'Nhật quyển',lightOf:'ánh sáng',away:'cách {d}',chordOn:'Hợp âm quay · vật chất tối bật: chuỗi họa âm',chordOff:'Hợp âm quay · vật chất tối tắt: hợp âm chùng xuống'},
 bg:{inter:'Междузвездно',helio:'Хелиопауза',oort:'Облак на Оорт',acen:'Алфа Кентавър',sirius:'Сириус',vela:'Пулсарът Вела',gc:'Център на Галактиката',above:'Над Млечния път',home:'У дома',beyond:'Междузвездно ▶',
  shipSpeed:'Скорост на кораба',dop:'Преувеличен Доплер',dm:'Тъмна материя (плоската крива на въртене свири хармоничния ред)',
  course:'Курс към {n}',arrived:'Пристигнахме: {n}',toward:'Пътуване към <em>{n}</em>',nearest:'Най-близка звезда: <em>{n}</em>',sun:'Слънцето',
@@ -4351,7 +4377,7 @@ bg:{inter:'Междузвездно',helio:'Хелиопауза',oort:'Обла
   gc:'<b>Стрелец A*</b>: черната дупка в центъра на Галактиката, четири милиона слънца, на 26 000 светлинни години от дома.',
   home:'<b>У дома.</b> Планетите отново пеят.'},
  hera:'Аз съм Хера. Млечният кръг през твоето небе е моето разлято мляко: сто хиляди милиона слънца, които се завъртат веднъж на двеста и тридесет милиона години.',
- sgra:'Стрелец A*',crab:'Пулсарът в Рака',helioLbl:'Хелиопауза',lightOf:'светлина'},
+ sgra:'Стрелец A*',crab:'Пулсарът в Рака',helioLbl:'Хелиопауза',lightOf:'светлина',away:'на {d}',chordOn:'Акордът на въртенето · тъмна материя включена: хармоничният ред',chordOff:'Акордът на въртенето · тъмна материя изключена: акордът провисва'},
 pt:{inter:'Interestelar',helio:'Heliopausa',oort:'Nuvem de Oort',acen:'Alfa Centauri',sirius:'Sirius',vela:'Pulsar de Vela',gc:'Centro galáctico',above:'Acima da Via Láctea',home:'Casa',beyond:'Interestelar ▶',
  shipSpeed:'Velocidade da nave',dop:'Exagero Doppler',dm:'Matéria escura (a curva de rotação plana toca a série harmônica)',
  course:'Rumo a {n}',arrived:'Chegada: {n}',toward:'Viajando para <em>{n}</em>',nearest:'Estrela mais próxima: <em>{n}</em>',sun:'o Sol',
@@ -4369,7 +4395,7 @@ pt:{inter:'Interestelar',helio:'Heliopausa',oort:'Nuvem de Oort',acen:'Alfa Cent
   gc:'<b>Sagitário A*</b>: o buraco negro no centro da Galáxia, quatro milhões de sóis, a 26 000 anos-luz de casa.',
   home:'<b>Em casa.</b> Os planetas cantam de novo.'},
  hera:'Eu sou Hera. O círculo leitoso que cruza o seu céu é o meu leite derramado: cem mil milhões de sóis, girando uma vez a cada duzentos e trinta milhões de anos.',
- sgra:'Sagitário A*',crab:'Pulsar do Caranguejo',helioLbl:'Heliopausa',lightOf:'luz'}
+ sgra:'Sagitário A*',crab:'Pulsar do Caranguejo',helioLbl:'Heliopausa',lightOf:'luz',away:'a {d}',chordOn:'O acorde de rotação · matéria escura ligada: a série harmônica',chordOff:'O acorde de rotação · matéria escura desligada: o acorde afunda'}
 };/*FLYG-TEXTS-END*/
 const deep=(a,b)=>{const o={};for(const k in a)o[k]=(b&&typeof a[k]==='object'&&typeof b[k]==='object')?deep(a[k],b[k]):(b&&b[k]!==undefined?b[k]:a[k]);return o};
 const TX=deep(TX_ALL.en,TX_ALL[LANG]||{});
@@ -4572,6 +4598,7 @@ function frame(dt,t,ns){const r=ship.pos.length();ST.r=r;
     const hp=sm(25,60,r)*(1-sm(300,900,r));HELIO.material.opacity=.75*hp;HELIO2.material.opacity=.05*hp*(r<120?1:0);HELIO.visible=hp>.01;HELIO2.visible=HELIO2.material.opacity>.002;
     thresholds(r)}
   applyFades();
+  {const z=$('zodTxt');if(z){const o=sf<.02?'0':sf.toFixed(2);if(z.style.opacity!==o){z.style.opacity=o;z.style.visibility=sf<.02?'hidden':''}}}
   if(ST.ready&&ST.gf>.5&&ST.adapt!==false){if(dt>.06)slowT+=dt;else slowT=Math.max(0,slowT-dt*.5);if(slowT>3&&mwScale>.26){slowT=0;mwScale*=.5;buildMilkyWay()}}
   // the planetary bus fades with the painted sky
   if(typeof solarBus!=='undefined'&&solarBus&&AC&&Math.abs(sf-(ST.sfSent||0))>.01){ST.sfSent=sf;tgt(solarBus.gain,sf,.25)}
@@ -4598,11 +4625,22 @@ function render(){const r=ST.r;camera.updateMatrixWorld();
 function fmtDist(rAU){if(rAU<9999)return fmtN(rAU,rAU<100?1:0)+' '+TX.au;const ly=rAU/AU_PC*PC_LY;if(ly<999)return fmtN(ly,ly<10?2:ly<100?1:0)+' '+TX.ly;const pc=rAU/AU_PC;if(pc<999)return fmtN(pc,0)+' '+TX.pc;return fmtN(pc/1000,pc<9999?2:1)+' '+TX.kpc}
 function fmtLight(rAU){const s=rAU*AU_LS;if(s<90)return uf(TX.lsec,{n:fmtN(s,0)});const m=s/60;if(m<90)return uf(TX.lmin,{n:fmtN(m,m<10?1:0)});const h=m/60;if(h<36)return uf(TX.lhr,{n:fmtN(h,h<10?1:0)});const d=h/24;if(d<300)return uf(TX.lday,{n:fmtN(d,d<10?1:0)});const y=d/365.25;if(y<1.05)return TX.lyr1;return uf(TX.lyr,{n:fmtN(y,y<10?1:0)})}
 function fmtSpeedG(vAU){const kms=vAU*AU_KM;if(kms<C_KMS*.95)return uf(TX.kms,{n:fmtN(kms,0)});const lys=vAU/AU_PC*PC_LY;if(lys<.5)return uf(TX.xc,{n:fmtN(kms/C_KMS,kms/C_KMS<10?1:0)});if(lys<500)return uf(TX.lys,{n:fmtN(lys,lys<10?1:0)});const pcs=vAU/AU_PC;if(pcs<500)return uf(TX.pcs,{n:fmtN(pcs,0)});return uf(TX.kpcs,{n:fmtN(pcs/1000,pcs<5000?2:0)})}
-function readout(ns){const r=ST.r;galChips();
+function readout(ns){const r=ST.r;galChips();interLine(r);
   if(r<=FAR_AU&&!ship.gap)return;
   const v=ship.speed||0;$('speedTxt').textContent=`${fmtSpeedG(v)} · ${uf(TX.fromSun,{d:fmtDist(r)})} · ${uf(TX.light,{t:fmtLight(r)})}`;
   if(ship.gap)$('nearTxt').innerHTML=uf(TX.toward,{n:ship.gap.name});
   else if(r>FAR_AU){const s=ST.nearStar;$('nearTxt').innerHTML=uf(TX.nearest,{n:s?(s.sun?TX.sun:(s.n||s.bf||s.gl||('HIP '+s.hip))):'—'})}}
+// the readout's second line (light.js's planet description while among the planets): out here, the nearest star's class, temperature and
+// distance from the ship, or, once the whole Galaxy is in view, the rotation chord and its dark-matter switch
+function interLine(r){const el=$('lightTxt');if(!el)return;let t='';
+  if(r>FAR_AU){const s=ST.nearStar;
+    if(ST.gv>=.5)t=ST.dm?TX.chordOn:TX.chordOff;
+    else if(s){const nm=s.sun?TX.sun:(s.n||s.bf||s.gl||('HIP '+s.hip)),sp=String(s.sp||'').replace(/\.\.\./,'').trim();
+      t=nm+' · '+(sp?sp+' · ':'')+fmtN(Math.round(s.T||0),0)+' K · '+uf(TX.away,{d:fmtDist(Math.max(0,ST.nearStarAU))})}}
+  if(t===(ST.interTxt||''))return;
+  // back among the planets, light.js has the line again: clear only what this module wrote
+  if(!t){if(ST.interWrote&&el.textContent===ST.interTxt)el.textContent='';ST.interWrote=false}else{el.textContent=t;ST.interWrote=true}
+  ST.interTxt=t}
 
 /* ---------- HUD: the destination chips, captions, the panel's interstellar section ---------- */
 let chipsEl=null,capEl=null,chipsKey='';
@@ -4735,7 +4773,7 @@ function audio(){if(!AC||!ST.ready)return;audioInit();const t=AC.currentTime,g=G
     tgt(sl.vg.gain,.085*Math.pow(.86,k)*ST.gv*gf,.5)}}
 
 /* ---------- the test window ---------- */
-const api={base,frame,render,audio,readout,labels,travel:travelG,caption,ST,AS,GA:()=>GA,TX,gscene,gcam,
+const api={base,frame,render,audio,readout,labels,travel:travelG,caption,ST,AS,GA:()=>GA,TX,gscene,gcam,far:()=>ST.r>FAR_AU,
   warp:x=>{ST.warp=x},adapt:b=>{ST.adapt=b},jump:id=>{const gp=goalOf(id);if(!gp)return;ship.gap=null;ship.ap=null;ship.vel.set(0,0,0);ship.pos.copy(gp.goal);camera.position.copy(ship.pos);lookM.lookAt(ship.pos,gp.look,UP);camera.quaternion.setFromRotationMatrix(lookM)},
   stats:()=>({churn:GA?GA.churn:0,swaps:GA?GA.swaps:0,stars:GA?GA.star.filter(s=>s.row).length:0,pulsars:GA?GA.pulsar.filter(s=>s.row).length:0,radio:GA?GA.radio.filter(s=>s.row).length:0,chord:GA?GA.chord.length:0,gf:ST.gf,sf:ST.sf,gv:ST.gv,r:ST.r,dSunPc:ST.dSunPc,zPc:ST.zPc,ready:ST.ready,large:ST.large,caps:ST.caps.slice(),nearStar:ST.nearStar&&(ST.nearStar.n||ST.nearStar.id)}),
   ready:()=>loading};

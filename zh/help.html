@@ -236,9 +236,24 @@ function siteNav(btnClass){
   const nav=document.createElement('nav');nav.className='site';nav.setAttribute('aria-label',T.nav);
   const strip=document.createElement('div');strip.className='strip';
   PAGES.forEach(([k,f])=>{const a=document.createElement('a');a.href=pref+f;a.textContent=T[k];if(f===HERE){a.setAttribute('aria-current','page')}strip.appendChild(a)});
-  nav.append(strip,langMenu(btnClass));
-  fade(strip);
+  // the strip and the globe stay together on one line, whatever wraps around them
+  const main=document.createElement('div');main.className='main';main.append(strip,langMenu(btnClass));nav.appendChild(main);
+  fade(strip);guideFit(nav,strip);
   return nav;
+}
+// the tour and talk pills sit beside the strip only while the whole strip shows; otherwise they take a line of their own under it
+function guideFit(nav,strip){
+  let busy=false;
+  const clipped=()=>strip.scrollWidth-strip.clientWidth>2||nav.scrollWidth-nav.clientWidth>2;
+  const fit=()=>{if(busy)return;busy=true;try{const g=nav.querySelector(':scope > .guide');nav.classList.remove('wrapg','tight');
+    if(!g||g.offsetParent===null)return;
+    if(clipped())nav.classList.add('wrapg');
+    // still too wide for its column: the links close up before the strip is allowed to scroll
+    if(clipped())nav.classList.add('tight')}finally{busy=false}};
+  addEventListener('resize',fit);if(window.ResizeObserver)new ResizeObserver(fit).observe(nav);
+  if(window.MutationObserver)new MutationObserver(fit).observe(nav,{childList:true});
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
+  setTimeout(fit,0);setTimeout(fit,150);setTimeout(fit,800);
 }
 // a strip that scrolls sideways shows a fade at the edge that has more
 function fade(el){
@@ -356,7 +371,14 @@ function hudShell(){
 const css=document.createElement('style');css.id='shellCss';
 css.textContent=`
 /* site navigation */
-nav.site{display:flex;align-items:center;gap:.5rem;min-width:0;max-width:100%}
+/* when the tour and talk pills do not fit beside the strip (guideFit, below), they take a line of their own under it, right-aligned,
+   and the strip keeps its full width: it only scrolls when it is wider than the whole header column */
+nav.site{display:flex;flex-wrap:nowrap;justify-content:flex-end;align-items:center;gap:.5rem;min-width:0;max-width:100%}
+nav.site > .main{display:flex;align-items:center;gap:.5rem;flex:0 1 auto;min-width:0;max-width:100%}
+nav.site.wrapg{flex-wrap:wrap}
+nav.site.wrapg > .guide{order:3;flex:1 1 100%;justify-content:flex-end}
+nav.site.tight .strip a{padding:0 .55rem;font-size:.8rem;letter-spacing:.01em}
+nav.site .strip{max-width:100%}
 nav.site .strip{display:flex;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;border:1px solid var(--line-2,var(--line,#3a4068));border-radius:999px;background:rgba(255,255,255,.025);-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 nav.site .strip::-webkit-scrollbar{display:none}
 nav.site .strip a{flex:none;scroll-snap-align:start;color:var(--vellum-dim,#aea791);text-decoration:none;padding:0 .85rem;min-height:var(--tap,2.75rem);display:inline-flex;align-items:center;font-size:.85rem;letter-spacing:.03em;white-space:nowrap;border-right:1px solid var(--line-2,var(--line,#3a4068));font-family:var(--f-body),system-ui,sans-serif}
@@ -384,7 +406,7 @@ nav.site .strip.fade-l.fade-r{mask-image:linear-gradient(90deg,transparent,#000 
 #listenBtn{gap:.4em}#listenBtn .s{display:none}
 /* the guide: "Take the tour" and "The talk", two tinted pills beside the site navigation */
 .guide{display:flex;gap:.45rem;flex:none;align-items:center;min-width:0}
-nav.site > .guide{margin-right:auto}
+nav.site > .guide{flex:none;margin-right:auto}
 .guide a{display:inline-flex;align-items:center;justify-content:center;gap:.45em;min-height:var(--tap,2.75rem);padding:0 .95rem;border-radius:999px;border:1px solid var(--bronze,#c9984f);background:rgba(201,152,79,.16);color:#f3d9a4;text-decoration:none;font-size:.85rem;letter-spacing:.03em;white-space:nowrap;font-family:var(--f-body),system-ui,sans-serif;cursor:pointer;box-shadow:0 0 0 0 rgba(201,152,79,0)}
 .guide a:hover{background:rgba(201,152,79,.3);color:#fbe7bd}
 .guide a:focus-visible{outline:2px solid #f3d9a4;outline-offset:2px}
@@ -405,7 +427,7 @@ header.top.shell > .ctl{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center
 header.top.shell > .mots-more{order:4}
 /* … two rows on a desktop: the title and lede on the left, the navigation above the buttons on the right … */
 @media (min-width:961px) and (min-height:521px){
-  header.top.shell{display:grid;grid-template-columns:fit-content(38rem) minmax(0,1fr);grid-template-areas:"ttl nav" "ttl ctl";column-gap:2rem;row-gap:.7rem;align-items:end;padding-bottom:.9rem}
+  header.top.shell{display:grid;grid-template-columns:fit-content(min(38rem,42%)) minmax(0,1fr);grid-template-areas:"ttl nav" "ttl ctl";column-gap:2rem;row-gap:.7rem;align-items:end;padding-bottom:.9rem}
   header.top.shell > .ttl{grid-area:ttl;display:block}
   header.top.shell > nav.site{grid-area:nav;justify-self:end}
   header.top.shell:not(.has-ctl) > nav.site{grid-row:1/3;align-self:center}
@@ -420,7 +442,8 @@ header.top.shell > .mots-more{order:4}
   header.top.shell > .ttl{order:1;flex:1 1 100%}
   header.top.shell .eyebrow,header.top.shell .lede{display:none}
   header.top.shell h1{font-size:1.5rem;line-height:1.12;letter-spacing:.01em}
-  header.top.shell > nav.site{order:2;flex:1 1 100%;justify-content:space-between}
+  header.top.shell > nav.site{order:2;flex:1 1 100%;flex-wrap:nowrap;justify-content:space-between}
+  header.top.shell > nav.site > .main{flex:1 1 auto;justify-content:space-between}
   header.top.shell > nav.site .strip{flex:0 1 auto}
   header.top.shell > nav.site .strip a{min-height:var(--tap,2.75rem);padding:0 .75rem;font-size:.84rem}
   header.top.shell > nav.site .langmenu summary{min-height:var(--tap,2.75rem);padding:0 .7rem}
@@ -443,7 +466,8 @@ header.top.shell > .mots-more{order:4}
   header.top.shell{flex-wrap:wrap;gap:.5rem .7rem;padding-bottom:.45rem}
   header.top.shell > .ttl{flex:0 1 auto;order:1}
   header.top.shell h1{font-size:1.25rem;white-space:nowrap}
-  header.top.shell > nav.site{flex:1 1 10rem;order:2;min-width:0;justify-content:flex-start}
+  header.top.shell > nav.site{flex:1 1 10rem;order:2;min-width:0;flex-wrap:nowrap;justify-content:flex-start}
+  header.top.shell > nav.site > .main{flex:0 1 auto;justify-content:flex-start}
   header.top.shell > .ctl{flex:0 0 auto;order:3;flex-wrap:nowrap}
   header.top.shell > .mots-more{order:4}
   header.top.shell .begin{padding:.5rem .9rem;font-size:.74rem}
@@ -454,7 +478,8 @@ header.top.shell > .mots-more{order:4}
   header.top.shell > .guide a{flex:none;padding:0 .9rem}
 }
 /* the flight HUD */
-.hud.tl nav.site{margin-bottom:6px;max-width:calc(100vw - 28px)}
+.hud.tl nav.site{margin-bottom:6px;max-width:calc(100vw - 28px);justify-content:flex-start}
+.hud.tl nav.site.wrapg > .guide{justify-content:flex-start}
 .hud.tl nav.site .strip{background:var(--glass,rgba(10,12,24,.78));border-color:var(--line,rgba(201,152,79,.4));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .hud.tl nav.site .strip a{min-height:2.4rem;padding:0 .7rem;font-size:.8rem;border-right-color:var(--line,rgba(201,152,79,.4))}
 .hud.tl nav.site .langmenu summary{min-height:2.4rem;padding:0 .6rem;background:var(--glass,rgba(10,12,24,.78));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-color:var(--line,rgba(201,152,79,.4));color:var(--vellum,#e9e1cc);font-size:.78rem}
@@ -574,7 +599,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <li><a href="#tuning">律制、调式与黄道</a></li>
     <li><a href="#voices">众神和他们的声音</a></li>
     <li><a href="#pages">四种聆听方式</a></li>
-    <li><a href="#meditate">冥想：太阳的嗡鸣</a></li>
+    <li><a href="#meditate">冥想：太阳、行星、恒星</a></li>
     <li><a href="#stage">登台演出：PA、MIDI与投影</a></li>
     <li><a href="#light">光与射电</a></li>
     <li><a href="#tips">提示与故障排除</a></li>
@@ -813,7 +838,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <div class="card"><h3>三维飞行</h3><p>驾驶飞船穿越太阳系，合唱环绕在你的驾驶舱四周。前往任意天体、巡航，或升到行星平面之上。在木星或土星的卫星之间，卫星会在你周围歌唱。</p><p id="interstellar-p">过了海王星，飞行仍在继续：穿过约120 AU处的日球层顶，太阳风的嘶声在此停止（旅行者1号于2012年穿越了它），穿过奥尔特云，直到真实位置上的最近恒星。每颗恒星都按四十个八度的规则发声，带着其光谱型的谱线，响度如同从你的飞船上看到的亮度，来自真实的方向，带有真实的多普勒频移（×1、×100或×1000）。脉冲星原样可闻，射电源化为有色噪声；在盘面之上，整个银河系在你脚下转动，其自转曲线奏出泛音列（暗物质开关可让和弦下沉）。底部的按钮（日球层顶、奥尔特云、半人马座α、天狼星、船帆座脉冲星、银河系中心、银河系上方、回家）带你前往；读数显示你与太阳的距离，以及太阳的光要多久才能追上你。</p><a href="https://newbroman.github.io/Music_of_the_Spheres/zh/flight.html">起飞 →</a></div>
     <div class="card"><h3>天球之舞</h3><p>太阳系演奏trance、house、jungle或techno，或维也纳华尔兹、慢华尔兹、探戈、桑巴、恰恰、摇摆、牛仔舞或方丹戈，或音乐会一排——从希尔德加德的拉丁语圣咏和巴赫到拉威尔、莫里康内和格拉斯，或灵魂、funk、disco、dub 与合成器浪潮，或调式爵士、前卫摇滚、Moondog、工业与氛围。太阳掌握节拍，宙斯负责低音，木星的卫星以真实的1 : 2 : 4共振奏出琶音，相位则触发渐强和高潮。</p><a href="https://newbroman.github.io/Music_of_the_Spheres/zh/dance.html">开始演出 →</a></div>
     <div class="card"><h3>合成器</h3><p>一台模块化合成器，振荡器就是行星，取自此刻真实的天空。选择由哪种量决定每个音、如何定律，用调制矩阵把天空接入声音，在步进音序器上敲出节奏，再保存或分享你的音色。</p><a href="https://newbroman.github.io/Music_of_the_Spheres/zh/synth.html">打开合成器 →</a></div>
-    <div class="card"><h3>冥想</h3><p>与太阳的嗡鸣同坐：它真实的五分钟振荡，由 BiSON 测得，加速到人耳可闻。带颂钵的冥想计时、可选的呼吸引导和夜间的暗屏。</p><a href="https://newbroman.github.io/Music_of_the_Spheres/zh/meditate.html">开始 →</a></div>
+    <div class="card"><h3>冥想</h3><p>与太阳的嗡鸣、行星及其卫星、最近的恒星或和声银河同坐，每一种声景都忠于它的规则。带颂钵的冥想计时、可选的呼吸引导和夜间的暗屏。</p><a href="https://newbroman.github.io/Music_of_the_Spheres/zh/meditate.html">开始 →</a></div>
   </div>
   <h3>使用二维星盘</h3>
   <ul>
@@ -881,7 +906,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
 <section id="meditate">
   <div class="greek">ἡσυχία</div>
-  <h2>冥想：太阳的嗡鸣</h2>
+  <h2>冥想：太阳、行星、恒星</h2>
   <p>太阳像钟一样鸣响。表面之下的对流激起数以百万计的声波，困在太阳内部；与它的形状相合的那些叠加成驻波，即 <b>p 模</b>，每一个的周期都接近五分钟。日震学把它们测为太阳表面微小的多普勒移动，并由此绘出了太阳内部的图景。冥想页所演奏的频率，是 <b>BiSON</b>（伯明翰太阳振荡网络）测得的 l = 0 到 3 阶振动模；这一网络自 1976 年起一直在聆听太阳的鸣响。</p>
   <p>它们在 3 mHz 处，远低于听觉范围，所以页面把它们加快：<b>深度</b>控制选择加快多少个八度，页面也会如实说明（“加快了 15 个八度”：2<sup>15</sup> = 32 768 倍，使五分钟振荡变为约 100 Hz）。其余一概不变：各模之间的比例、谐音之间 135 µHz 的间距，以及 l = 0 / l = 2 之间细小的分裂，都是太阳自己的。每个模都按真实振动模的方式演奏：一个被对流随机敲击的阻尼振子，所以它的响度在几秒间起伏，没有固定的规律；<b>温暖</b>加入谐音和神庙的回声。这是根据测得频率的合成，不是录音。</p>
   <p>太阳的嗡鸣之外还有三种<b>声景</b>，从计时器上方的选择器中选取；每一种都忠于自己的规则，并用一句话说明。<b>行星及其卫星</b>：每颗行星按今天绕太阳的角速度，依照表盘本身的规则（330 Hz × (ω/ω⊕)<sup>0.353</sup>）发声，并归入纯律，因此和弦正是表盘会奏出的那个；每颗卫星在其行星上方以 1,760 Hz × 0.3 天 ÷ 其周期闪烁，折入上方的八度（真实的 1/P 比值，所以锁定在 1:2:4 共振中的木卫一、木卫二和木卫三唱出同一个缓缓拍动的音），并以真实速度的一千倍绕行其行星，在立体声中掠过它。可以选一颗行星及其卫星，或全部一起。<b>最近与最亮的恒星</b>（亮于 1.6 等或距离在 12 光年以内的 51 颗恒星）缓缓浮现又隐去：每个音是恒星光的峰值降低 40 个八度（维恩定律，与银河引擎相同），其光谱线塑造音色，它在我们天空中的亮度决定响度，并从它在银河系中的方向发声。<b>和声银河</b>奏出银河系的旋转和弦：24、12、8……3 kpc 处的环以 Ω = V/R 旋转，因为旋转曲线是平的（暗物质），它们奏出谐波列，提高了 61 个八度。对这些声景，<b>深度</b>控制按八度移动音区。计时器、钟声、呼吸引导、暗屏和赫斯提亚在每一种声景下都可用。</p>

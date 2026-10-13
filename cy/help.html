@@ -236,9 +236,24 @@ function siteNav(btnClass){
   const nav=document.createElement('nav');nav.className='site';nav.setAttribute('aria-label',T.nav);
   const strip=document.createElement('div');strip.className='strip';
   PAGES.forEach(([k,f])=>{const a=document.createElement('a');a.href=pref+f;a.textContent=T[k];if(f===HERE){a.setAttribute('aria-current','page')}strip.appendChild(a)});
-  nav.append(strip,langMenu(btnClass));
-  fade(strip);
+  // the strip and the globe stay together on one line, whatever wraps around them
+  const main=document.createElement('div');main.className='main';main.append(strip,langMenu(btnClass));nav.appendChild(main);
+  fade(strip);guideFit(nav,strip);
   return nav;
+}
+// the tour and talk pills sit beside the strip only while the whole strip shows; otherwise they take a line of their own under it
+function guideFit(nav,strip){
+  let busy=false;
+  const clipped=()=>strip.scrollWidth-strip.clientWidth>2||nav.scrollWidth-nav.clientWidth>2;
+  const fit=()=>{if(busy)return;busy=true;try{const g=nav.querySelector(':scope > .guide');nav.classList.remove('wrapg','tight');
+    if(!g||g.offsetParent===null)return;
+    if(clipped())nav.classList.add('wrapg');
+    // still too wide for its column: the links close up before the strip is allowed to scroll
+    if(clipped())nav.classList.add('tight')}finally{busy=false}};
+  addEventListener('resize',fit);if(window.ResizeObserver)new ResizeObserver(fit).observe(nav);
+  if(window.MutationObserver)new MutationObserver(fit).observe(nav,{childList:true});
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
+  setTimeout(fit,0);setTimeout(fit,150);setTimeout(fit,800);
 }
 // a strip that scrolls sideways shows a fade at the edge that has more
 function fade(el){
@@ -356,7 +371,14 @@ function hudShell(){
 const css=document.createElement('style');css.id='shellCss';
 css.textContent=`
 /* site navigation */
-nav.site{display:flex;align-items:center;gap:.5rem;min-width:0;max-width:100%}
+/* when the tour and talk pills do not fit beside the strip (guideFit, below), they take a line of their own under it, right-aligned,
+   and the strip keeps its full width: it only scrolls when it is wider than the whole header column */
+nav.site{display:flex;flex-wrap:nowrap;justify-content:flex-end;align-items:center;gap:.5rem;min-width:0;max-width:100%}
+nav.site > .main{display:flex;align-items:center;gap:.5rem;flex:0 1 auto;min-width:0;max-width:100%}
+nav.site.wrapg{flex-wrap:wrap}
+nav.site.wrapg > .guide{order:3;flex:1 1 100%;justify-content:flex-end}
+nav.site.tight .strip a{padding:0 .55rem;font-size:.8rem;letter-spacing:.01em}
+nav.site .strip{max-width:100%}
 nav.site .strip{display:flex;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;border:1px solid var(--line-2,var(--line,#3a4068));border-radius:999px;background:rgba(255,255,255,.025);-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 nav.site .strip::-webkit-scrollbar{display:none}
 nav.site .strip a{flex:none;scroll-snap-align:start;color:var(--vellum-dim,#aea791);text-decoration:none;padding:0 .85rem;min-height:var(--tap,2.75rem);display:inline-flex;align-items:center;font-size:.85rem;letter-spacing:.03em;white-space:nowrap;border-right:1px solid var(--line-2,var(--line,#3a4068));font-family:var(--f-body),system-ui,sans-serif}
@@ -384,7 +406,7 @@ nav.site .strip.fade-l.fade-r{mask-image:linear-gradient(90deg,transparent,#000 
 #listenBtn{gap:.4em}#listenBtn .s{display:none}
 /* the guide: "Take the tour" and "The talk", two tinted pills beside the site navigation */
 .guide{display:flex;gap:.45rem;flex:none;align-items:center;min-width:0}
-nav.site > .guide{margin-right:auto}
+nav.site > .guide{flex:none;margin-right:auto}
 .guide a{display:inline-flex;align-items:center;justify-content:center;gap:.45em;min-height:var(--tap,2.75rem);padding:0 .95rem;border-radius:999px;border:1px solid var(--bronze,#c9984f);background:rgba(201,152,79,.16);color:#f3d9a4;text-decoration:none;font-size:.85rem;letter-spacing:.03em;white-space:nowrap;font-family:var(--f-body),system-ui,sans-serif;cursor:pointer;box-shadow:0 0 0 0 rgba(201,152,79,0)}
 .guide a:hover{background:rgba(201,152,79,.3);color:#fbe7bd}
 .guide a:focus-visible{outline:2px solid #f3d9a4;outline-offset:2px}
@@ -405,7 +427,7 @@ header.top.shell > .ctl{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center
 header.top.shell > .mots-more{order:4}
 /* … two rows on a desktop: the title and lede on the left, the navigation above the buttons on the right … */
 @media (min-width:961px) and (min-height:521px){
-  header.top.shell{display:grid;grid-template-columns:fit-content(38rem) minmax(0,1fr);grid-template-areas:"ttl nav" "ttl ctl";column-gap:2rem;row-gap:.7rem;align-items:end;padding-bottom:.9rem}
+  header.top.shell{display:grid;grid-template-columns:fit-content(min(38rem,42%)) minmax(0,1fr);grid-template-areas:"ttl nav" "ttl ctl";column-gap:2rem;row-gap:.7rem;align-items:end;padding-bottom:.9rem}
   header.top.shell > .ttl{grid-area:ttl;display:block}
   header.top.shell > nav.site{grid-area:nav;justify-self:end}
   header.top.shell:not(.has-ctl) > nav.site{grid-row:1/3;align-self:center}
@@ -420,7 +442,8 @@ header.top.shell > .mots-more{order:4}
   header.top.shell > .ttl{order:1;flex:1 1 100%}
   header.top.shell .eyebrow,header.top.shell .lede{display:none}
   header.top.shell h1{font-size:1.5rem;line-height:1.12;letter-spacing:.01em}
-  header.top.shell > nav.site{order:2;flex:1 1 100%;justify-content:space-between}
+  header.top.shell > nav.site{order:2;flex:1 1 100%;flex-wrap:nowrap;justify-content:space-between}
+  header.top.shell > nav.site > .main{flex:1 1 auto;justify-content:space-between}
   header.top.shell > nav.site .strip{flex:0 1 auto}
   header.top.shell > nav.site .strip a{min-height:var(--tap,2.75rem);padding:0 .75rem;font-size:.84rem}
   header.top.shell > nav.site .langmenu summary{min-height:var(--tap,2.75rem);padding:0 .7rem}
@@ -443,7 +466,8 @@ header.top.shell > .mots-more{order:4}
   header.top.shell{flex-wrap:wrap;gap:.5rem .7rem;padding-bottom:.45rem}
   header.top.shell > .ttl{flex:0 1 auto;order:1}
   header.top.shell h1{font-size:1.25rem;white-space:nowrap}
-  header.top.shell > nav.site{flex:1 1 10rem;order:2;min-width:0;justify-content:flex-start}
+  header.top.shell > nav.site{flex:1 1 10rem;order:2;min-width:0;flex-wrap:nowrap;justify-content:flex-start}
+  header.top.shell > nav.site > .main{flex:0 1 auto;justify-content:flex-start}
   header.top.shell > .ctl{flex:0 0 auto;order:3;flex-wrap:nowrap}
   header.top.shell > .mots-more{order:4}
   header.top.shell .begin{padding:.5rem .9rem;font-size:.74rem}
@@ -454,7 +478,8 @@ header.top.shell > .mots-more{order:4}
   header.top.shell > .guide a{flex:none;padding:0 .9rem}
 }
 /* the flight HUD */
-.hud.tl nav.site{margin-bottom:6px;max-width:calc(100vw - 28px)}
+.hud.tl nav.site{margin-bottom:6px;max-width:calc(100vw - 28px);justify-content:flex-start}
+.hud.tl nav.site.wrapg > .guide{justify-content:flex-start}
 .hud.tl nav.site .strip{background:var(--glass,rgba(10,12,24,.78));border-color:var(--line,rgba(201,152,79,.4));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .hud.tl nav.site .strip a{min-height:2.4rem;padding:0 .7rem;font-size:.8rem;border-right-color:var(--line,rgba(201,152,79,.4))}
 .hud.tl nav.site .langmenu summary{min-height:2.4rem;padding:0 .6rem;background:var(--glass,rgba(10,12,24,.78));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-color:var(--line,rgba(201,152,79,.4));color:var(--vellum,#e9e1cc);font-size:.78rem}
@@ -572,7 +597,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <li><a href="#tuning">Tiwnio, moddau a’r sidydd</a></li>
     <li><a href="#voices">Y duwiau a’u lleisiau</a></li>
     <li><a href="#pages">Y pedair ffordd o wrando</a></li>
-    <li><a href="#meditate">Myfyrio: hymian yr Haul</a></li>
+    <li><a href="#meditate">Myfyrio: yr Haul, y planedau, y sêr</a></li>
     <li><a href="#stage">Ar y llwyfan: PA, MIDI a thaflunydd</a></li>
     <li><a href="#light">Golau a radio</a></li>
     <li><a href="#tips">Awgrymiadau a datrys problemau</a></li>
@@ -811,7 +836,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <div class="card"><h3>Hedfan 3D</h3><p>Hedfanwch long drwy gysawd yr Haul gyda’r côr wedi’i osod o amgylch eich talwrn. Teithiwch i unrhyw gorff, mordeithiwch, neu codwch uwchlaw plân y planedau. Ymhlith lleuadau Iau neu Sadwrn, mae’r lleuadau’n canu o’ch cwmpas.</p><p id="interstellar-p">Y tu hwnt i Neifion mae’r daith yn parhau: drwy’r heliopaws tua 120 AU i ffwrdd, lle mae hisian gwynt yr Haul yn peidio (croesodd Voyager 1 ef yn 2012), drwy gwmwl Oort ac allan at y sêr agosaf yn eu gwir safleoedd, pob un yn seinio yn ôl rheol y deugain wythfed gyda llinellau ei dosbarth sbectrol, mor uchel ag y mae’n edrych o’ch llong, o’i gwir gyfeiriad, gyda’i gwir symudiad Doppler (×1, ×100 neu ×1000). Clywir pylsarau fel y maent, ffynonellau radio fel sŵn lliw, ac uwchlaw’r ddisg mae’r Llwybr Llaethog cyfan yn troi oddi tanoch tra bo’i gromlin gylchdroi yn chwarae’r gyfres harmonig (mae switsh Mater tywyll yn gadael i’r cord suddo). Mae’r sglodion ar y gwaelod (Heliopaws, Cwmwl Oort, Alffa Centauri, Sirius, Pwlsar Vela, Canol y Galaeth, Uwchlaw’r Llwybr Llaethog, Adref) yn eich hedfan yno; mae’r darlleniad yn dangos eich pellter o’r Haul a pha mor hir mae ei olau’n ei gymryd i’ch cyrraedd.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/cy/flight.html">Esgynnwch →</a></div>
     <div class="card"><h3>Dawns</h3><p>Mae cysawd yr Haul yn chwarae trance, house, jungle neu techno, neu walts Fiennaidd neu walts araf, tango, samba, cha-cha, swing, jive neu fandango, neu res y Cyngerdd, o siant Ladin Hildegard a Bach i Ravel, Morricone a Glass, neu soul, ffync, disgo, dub a synthwave, neu jazz moddol, roc blaengar, Moondog, cerddoriaeth ddiwydiannol ac ambient. Mae’r Haul yn cadw’r curiad, Zeus y bas, mae lleuadau Iau yn chwarae arpegios yn eu cyseiniant go iawn 1 : 2 : 4, ac mae’r agweddau’n sbarduno cronni a drops.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/cy/dance.html">Dechreuwch y set →</a></div>
     <div class="card"><h3>Y syntheseisydd</h3><p>Syntheseisydd modiwlar y mae ei osgiliaduron yn blanedau, yn fyw o awyr yr eiliad hon. Dewiswch pa faint sy’n gosod pob nodyn a sut mae’r nodau wedi’u tiwnio, gwifrwch yr awyr i’r sain gyda’r matrics modiwleiddio, tapiwch rythm ar y dilyniannwr camau, a chadwch neu rhannwch eich patshys.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/cy/synth.html">Agorwch y syntheseisydd →</a></div>
-    <div class="card"><h3>Myfyrio</h3><p>Eisteddwch gyda hymian yr Haul: ei osgiliadau pum munud go iawn, a fesurwyd gan BiSON, wedi’u cyflymu i’r clyw. Amserydd sesiwn gyda phowlen ganu, canllaw anadlu dewisol a sgrin dywyll ar gyfer y nos.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/cy/meditate.html">Dechrau →</a></div>
+    <div class="card"><h3>Myfyrio</h3><p>Eisteddwch gyda hymian yr Haul, y planedau a’u lleuadau, y sêr agosaf neu’r alaeth harmonig, pob un yn ffyddlon i’w rheol. Amserydd sesiwn gyda phowlen ganu, canllaw anadlu dewisol a sgrin dywyll ar gyfer y nos.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/cy/meditate.html">Dechrau →</a></div>
   </div>
   <h3>Defnyddio’r deial 2D</h3>
   <ul>
@@ -879,7 +904,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
 <section id="meditate">
   <div class="greek">ἡσυχία</div>
-  <h2>Myfyrio: hymian yr Haul</h2>
+  <h2>Myfyrio: yr Haul, y planedau, y sêr</h2>
   <p>Mae’r Haul yn canu fel cloch. Mae darfudiad o dan ei wyneb yn cychwyn miliynau o donnau sain sy’n gaeth y tu mewn iddo; mae’r rhai sy’n ffitio’i siâp yn cronni’n donnau unfan, y <b>moddau p</b>, pob un â chyfnod yn agos at bum munud. Mae helioseismoleg yn eu mesur fel symudiadau Doppler bychain ar wyneb yr Haul, ac oddi wrthynt wedi mapio’i du mewn. Yr amleddau y mae’r dudalen Myfyrio yn eu chwarae yw’r moddau a fesurwyd o radd l = 0 i 3 gan <b>BiSON</b>, y Birmingham Solar-Oscillations Network, sydd wedi gwrando ar yr Haul yn canu ers 1976.</p>
   <p>Ar 3 mHz maen nhw ymhell islaw’r clyw, felly mae’r dudalen yn eu cyflymu: mae’r rheolydd <b>dyfnder</b> yn dewis sawl wythfed, ac mae’r dudalen yn dweud hynny (“wedi’u cyflymu 15 wythfed”: 2<sup>15</sup> = 32 768 gwaith, sy’n dod â’r osgiliad pum munud i tua 100 Hz). Nid newidir dim arall: mae’r cymarebau rhwng y moddau, y bwlch 135 µHz rhwng y goruwchdonau a’r hollti bach l = 0 / l = 2 yn eiddo i’r Haul ei hun. Chwaraeir pob modd fel y mae’r rhai go iawn yn ymddwyn, osgiliadur â gwanychiad a giciwyd ar hap gan y darfudiad, felly mae’i uchder yn chwyddo ac yn pylu dros eiliadau heb batrwm pendant; mae <b>cynhesrwydd</b> yn ychwanegu goruwchdonau ac adlais y deml. Synthesis o amleddau a fesurwyd yw hyn, nid recordiad.</p>
   <p>Wrth ochr hymian yr Haul mae tair <b>seinwedd</b> arall, a ddewisir o’r dewisydd uwchben yr amserydd; mae pob un yn ffyddlon i’w rheol ac yn ei dweud mewn un llinell. <b>Y planedau a’u lleuadau</b>: mae pob planed yn canu o’i chyflymder onglog o amgylch yr Haul heddiw yn ôl rheol y deial ei hun (330 Hz × (ω/ω⊕)<sup>0.353</sup>), wedi’i chlecian i gyweiriad cyfiawn, felly’r cord yw’r un y byddai’r deial yn ei chwarae; mae pob lleuad yn pefrio uwchben ei phlaned ar 1,760 Hz × 0.3 d ÷ ei chyfnod, wedi’i phlygu i’r wythfedau uwchben (cymarebau 1/P gwir, felly mae Io, Ewropa a Ganymede, wedi’u cloi yn eu cyseiniant 1:2:4, yn canu un nodyn sy’n curo’n araf), ac yn cylchu ei phlaned fil o weithiau’n gyflymach nag y gwna mewn gwirionedd, gan symud ar draws y llwyfan stereo. Dewiswch un blaned a’i lleuadau, neu bob un gyda’i gilydd. <b>Y sêr agosaf a mwyaf llachar</b> (y 51 seren sy’n fwy llachar na maint 1.6 neu o fewn 12 blwyddyn golau) yn pylu i mewn ac allan yn araf: pob tôn yw brig golau’r seren wedi’i ostwng 40 wythfed (deddf Wien, fel yn injan yr Alaeth), ei llinellau sbectrol yn llunio’r sain, ei disgleirdeb yn ein hawyr yn pennu’r cryfder, a hithau’n seinio o’i chyfeiriad yn yr Alaeth. Mae <b>y galaeth harmonig</b> yn chwarae cord cylchdroi’r Llwybr Llaethog: cylchoedd ar 24, 12, 8 … 3 kpc yn troi ar Ω = V/R, a gan fod y gromlin gylchdroi yn wastad (mater tywyll) maent yn seinio’r gyfres harmonig, wedi’i chodi 61 wythfed. I’r rhain mae’r rheolydd <b>dyfnder</b> yn symud y cywair fesul wythfed. Mae’r amserydd, y clychau, y canllaw anadlu, y sgrin dywyll a Hestia yn gweithio gyda phob seinwedd.</p>

@@ -236,9 +236,24 @@ function siteNav(btnClass){
   const nav=document.createElement('nav');nav.className='site';nav.setAttribute('aria-label',T.nav);
   const strip=document.createElement('div');strip.className='strip';
   PAGES.forEach(([k,f])=>{const a=document.createElement('a');a.href=pref+f;a.textContent=T[k];if(f===HERE){a.setAttribute('aria-current','page')}strip.appendChild(a)});
-  nav.append(strip,langMenu(btnClass));
-  fade(strip);
+  // the strip and the globe stay together on one line, whatever wraps around them
+  const main=document.createElement('div');main.className='main';main.append(strip,langMenu(btnClass));nav.appendChild(main);
+  fade(strip);guideFit(nav,strip);
   return nav;
+}
+// the tour and talk pills sit beside the strip only while the whole strip shows; otherwise they take a line of their own under it
+function guideFit(nav,strip){
+  let busy=false;
+  const clipped=()=>strip.scrollWidth-strip.clientWidth>2||nav.scrollWidth-nav.clientWidth>2;
+  const fit=()=>{if(busy)return;busy=true;try{const g=nav.querySelector(':scope > .guide');nav.classList.remove('wrapg','tight');
+    if(!g||g.offsetParent===null)return;
+    if(clipped())nav.classList.add('wrapg');
+    // still too wide for its column: the links close up before the strip is allowed to scroll
+    if(clipped())nav.classList.add('tight')}finally{busy=false}};
+  addEventListener('resize',fit);if(window.ResizeObserver)new ResizeObserver(fit).observe(nav);
+  if(window.MutationObserver)new MutationObserver(fit).observe(nav,{childList:true});
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
+  setTimeout(fit,0);setTimeout(fit,150);setTimeout(fit,800);
 }
 // a strip that scrolls sideways shows a fade at the edge that has more
 function fade(el){
@@ -356,7 +371,14 @@ function hudShell(){
 const css=document.createElement('style');css.id='shellCss';
 css.textContent=`
 /* site navigation */
-nav.site{display:flex;align-items:center;gap:.5rem;min-width:0;max-width:100%}
+/* when the tour and talk pills do not fit beside the strip (guideFit, below), they take a line of their own under it, right-aligned,
+   and the strip keeps its full width: it only scrolls when it is wider than the whole header column */
+nav.site{display:flex;flex-wrap:nowrap;justify-content:flex-end;align-items:center;gap:.5rem;min-width:0;max-width:100%}
+nav.site > .main{display:flex;align-items:center;gap:.5rem;flex:0 1 auto;min-width:0;max-width:100%}
+nav.site.wrapg{flex-wrap:wrap}
+nav.site.wrapg > .guide{order:3;flex:1 1 100%;justify-content:flex-end}
+nav.site.tight .strip a{padding:0 .55rem;font-size:.8rem;letter-spacing:.01em}
+nav.site .strip{max-width:100%}
 nav.site .strip{display:flex;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;border:1px solid var(--line-2,var(--line,#3a4068));border-radius:999px;background:rgba(255,255,255,.025);-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 nav.site .strip::-webkit-scrollbar{display:none}
 nav.site .strip a{flex:none;scroll-snap-align:start;color:var(--vellum-dim,#aea791);text-decoration:none;padding:0 .85rem;min-height:var(--tap,2.75rem);display:inline-flex;align-items:center;font-size:.85rem;letter-spacing:.03em;white-space:nowrap;border-right:1px solid var(--line-2,var(--line,#3a4068));font-family:var(--f-body),system-ui,sans-serif}
@@ -384,7 +406,7 @@ nav.site .strip.fade-l.fade-r{mask-image:linear-gradient(90deg,transparent,#000 
 #listenBtn{gap:.4em}#listenBtn .s{display:none}
 /* the guide: "Take the tour" and "The talk", two tinted pills beside the site navigation */
 .guide{display:flex;gap:.45rem;flex:none;align-items:center;min-width:0}
-nav.site > .guide{margin-right:auto}
+nav.site > .guide{flex:none;margin-right:auto}
 .guide a{display:inline-flex;align-items:center;justify-content:center;gap:.45em;min-height:var(--tap,2.75rem);padding:0 .95rem;border-radius:999px;border:1px solid var(--bronze,#c9984f);background:rgba(201,152,79,.16);color:#f3d9a4;text-decoration:none;font-size:.85rem;letter-spacing:.03em;white-space:nowrap;font-family:var(--f-body),system-ui,sans-serif;cursor:pointer;box-shadow:0 0 0 0 rgba(201,152,79,0)}
 .guide a:hover{background:rgba(201,152,79,.3);color:#fbe7bd}
 .guide a:focus-visible{outline:2px solid #f3d9a4;outline-offset:2px}
@@ -405,7 +427,7 @@ header.top.shell > .ctl{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center
 header.top.shell > .mots-more{order:4}
 /* … two rows on a desktop: the title and lede on the left, the navigation above the buttons on the right … */
 @media (min-width:961px) and (min-height:521px){
-  header.top.shell{display:grid;grid-template-columns:fit-content(38rem) minmax(0,1fr);grid-template-areas:"ttl nav" "ttl ctl";column-gap:2rem;row-gap:.7rem;align-items:end;padding-bottom:.9rem}
+  header.top.shell{display:grid;grid-template-columns:fit-content(min(38rem,42%)) minmax(0,1fr);grid-template-areas:"ttl nav" "ttl ctl";column-gap:2rem;row-gap:.7rem;align-items:end;padding-bottom:.9rem}
   header.top.shell > .ttl{grid-area:ttl;display:block}
   header.top.shell > nav.site{grid-area:nav;justify-self:end}
   header.top.shell:not(.has-ctl) > nav.site{grid-row:1/3;align-self:center}
@@ -420,7 +442,8 @@ header.top.shell > .mots-more{order:4}
   header.top.shell > .ttl{order:1;flex:1 1 100%}
   header.top.shell .eyebrow,header.top.shell .lede{display:none}
   header.top.shell h1{font-size:1.5rem;line-height:1.12;letter-spacing:.01em}
-  header.top.shell > nav.site{order:2;flex:1 1 100%;justify-content:space-between}
+  header.top.shell > nav.site{order:2;flex:1 1 100%;flex-wrap:nowrap;justify-content:space-between}
+  header.top.shell > nav.site > .main{flex:1 1 auto;justify-content:space-between}
   header.top.shell > nav.site .strip{flex:0 1 auto}
   header.top.shell > nav.site .strip a{min-height:var(--tap,2.75rem);padding:0 .75rem;font-size:.84rem}
   header.top.shell > nav.site .langmenu summary{min-height:var(--tap,2.75rem);padding:0 .7rem}
@@ -443,7 +466,8 @@ header.top.shell > .mots-more{order:4}
   header.top.shell{flex-wrap:wrap;gap:.5rem .7rem;padding-bottom:.45rem}
   header.top.shell > .ttl{flex:0 1 auto;order:1}
   header.top.shell h1{font-size:1.25rem;white-space:nowrap}
-  header.top.shell > nav.site{flex:1 1 10rem;order:2;min-width:0;justify-content:flex-start}
+  header.top.shell > nav.site{flex:1 1 10rem;order:2;min-width:0;flex-wrap:nowrap;justify-content:flex-start}
+  header.top.shell > nav.site > .main{flex:0 1 auto;justify-content:flex-start}
   header.top.shell > .ctl{flex:0 0 auto;order:3;flex-wrap:nowrap}
   header.top.shell > .mots-more{order:4}
   header.top.shell .begin{padding:.5rem .9rem;font-size:.74rem}
@@ -454,7 +478,8 @@ header.top.shell > .mots-more{order:4}
   header.top.shell > .guide a{flex:none;padding:0 .9rem}
 }
 /* the flight HUD */
-.hud.tl nav.site{margin-bottom:6px;max-width:calc(100vw - 28px)}
+.hud.tl nav.site{margin-bottom:6px;max-width:calc(100vw - 28px);justify-content:flex-start}
+.hud.tl nav.site.wrapg > .guide{justify-content:flex-start}
 .hud.tl nav.site .strip{background:var(--glass,rgba(10,12,24,.78));border-color:var(--line,rgba(201,152,79,.4));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .hud.tl nav.site .strip a{min-height:2.4rem;padding:0 .7rem;font-size:.8rem;border-right-color:var(--line,rgba(201,152,79,.4))}
 .hud.tl nav.site .langmenu summary{min-height:2.4rem;padding:0 .6rem;background:var(--glass,rgba(10,12,24,.78));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-color:var(--line,rgba(201,152,79,.4));color:var(--vellum,#e9e1cc);font-size:.78rem}
@@ -572,7 +597,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <li><a href="#tuning">Strój, skale i zodiak</a></li>
     <li><a href="#voices">Bogowie i ich głosy</a></li>
     <li><a href="#pages">Cztery sposoby słuchania</a></li>
-    <li><a href="#meditate">Medytacja: szum Słońca</a></li>
+    <li><a href="#meditate">Medytacja: Słońce, planety, gwiazdy</a></li>
     <li><a href="#stage">Na scenie: nagłośnienie, MIDI i projektor</a></li>
     <li><a href="#light">Światło i radio</a></li>
     <li><a href="#tips">Wskazówki i rozwiązywanie problemów</a></li>
@@ -811,7 +836,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <div class="card"><h3>Lot 3D</h3><p>Leć statkiem przez Układ Słoneczny, a chór jest rozmieszczony wokół twojego kokpitu. Leć do dowolnego ciała, przed siebie albo wznieś się ponad płaszczyznę planet. Wśród księżyców Jowisza lub Saturna księżyce śpiewają wokół ciebie.</p><p id="interstellar-p">Za Neptunem lot trwa dalej: przez heliopauzę w odległości około 120 au, gdzie milknie szum wiatru słonecznego (Voyager 1 przekroczył ją w 2012 roku), przez Obłok Oorta aż do najbliższych gwiazd w ich prawdziwych położeniach. Każda brzmi według reguły czterdziestu oktaw, z liniami swojej klasy widmowej, tak głośno, jak jasno wygląda z twojego statku, ze swojego prawdziwego kierunku i ze swoim prawdziwym przesunięciem Dopplera (×1, ×100 lub ×1000). Pulsary słychać takimi, jakie są, radioźródła jako kolorowy szum, a nad dyskiem cała Droga Mleczna obraca się pod tobą, gdy jej krzywa rotacji gra szereg harmoniczny (przełącznik ciemnej materii pozwala akordowi opaść). Przyciski u dołu (Heliopauza, Obłok Oorta, Alfa Centauri, Syriusz, Pulsar Vela, Centrum Galaktyki, Nad Drogą Mleczną, Dom) zabierają cię tam; odczyt pokazuje odległość od Słońca i czas, jaki jego światło potrzebuje, by cię dogonić.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/pl/flight.html">Startuj →</a></div>
     <div class="card"><h3>Taniec</h3><p>Układ Słoneczny gra trance, house, jungle albo techno, a także walca wiedeńskiego lub angielskiego, tango, sambę, cha-chę, swing, jive’a albo fandango, a także rząd Koncert, od łacińskiego chorału Hildegardy i Bacha po Ravela, Morricone i Glassa, albo soul, funk, disco, dub i synthwave, albo jazz modalny, rock progresywny, Moondoga, industrial i ambient. Słońce trzyma rytm, Zeus to bas, księżyce Jowisza grają arpeggio w swoim prawdziwym rezonansie 1 : 2 : 4, a aspekty wywołują narastania i dropy.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/pl/dance.html">Zacznij set →</a></div>
     <div class="card"><h3>Syntezator</h3><p>Syntezator modularny, którego oscylatorami są planety, na żywo z nieba tej chwili. Wybierz, która wielkość wyznacza każdy dźwięk i jak dźwięki są strojone, wpleć niebo w brzmienie matrycą modulacji, wystukaj rytm na sekwencerze krokowym i zapisuj lub udostępniaj swoje patche.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/pl/synth.html">Otwórz syntezator →</a></div>
-    <div class="card"><h3>Medytacja</h3><p>Usiądź przy szumie Słońca: jego prawdziwe pięciominutowe oscylacje, zmierzone przez BiSON, przyspieszone do słyszalności. Minutnik sesji z misą dźwiękową, opcjonalny przewodnik oddechu i przyciemniony ekran na noc.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/pl/meditate.html">Zacznij →</a></div>
+    <div class="card"><h3>Medytacja</h3><p>Usiądź przy szumie Słońca, planetach z ich księżycami, najbliższych gwiazdach albo harmonicznej galaktyce, każdy pejzaż wierny swojej regule. Minutnik sesji z misą dźwiękową, opcjonalny przewodnik oddechu i przyciemniony ekran na noc.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/pl/meditate.html">Zacznij →</a></div>
   </div>
   <h3>Tarcza 2D</h3>
   <ul>
@@ -879,7 +904,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
 <section id="meditate">
   <div class="greek">ἡσυχία</div>
-  <h2>Medytacja: szum Słońca</h2>
+  <h2>Medytacja: Słońce, planety, gwiazdy</h2>
   <p>Słońce dźwięczy jak dzwon. Konwekcja pod jego powierzchnią wzbudza miliony fal dźwiękowych uwięzionych w jego wnętrzu; te, które pasują do jego kształtu, składają się w fale stojące, <b>mody p</b>, każdy o okresie bliskim pięciu minutom. Heliosejsmologia mierzy je jako drobne przesunięcia dopplerowskie powierzchni Słońca i na ich podstawie sporządziła mapę jego wnętrza. Częstotliwości, które gra strona Medytacja, to zmierzone mody stopnia l = 0 do 3 z <b>BiSON</b>, Birmingham Solar-Oscillations Network, sieci, która słucha dźwięczenia Słońca od 1976 roku.</p>
   <p>Przy 3 mHz leżą daleko poniżej słyszalności, więc strona je przyspiesza: suwak <b>głębi</b> wybiera, o ile oktaw, i strona o tym mówi („przyspieszone o 15 oktaw”: 2<sup>15</sup> = 32 768 razy, co sprowadza pięciominutową oscylację do około 100 Hz). Nic innego się nie zmienia: stosunki między modami, odstęp 135 µHz między kolejnymi alikwotami i małe rozszczepienia l = 0 / l = 2 są własnością Słońca. Każdy mod gra tak, jak zachowują się prawdziwe: tłumiony oscylator losowo pobudzany przez konwekcję, więc jego głośność narasta i opada w ciągu sekund bez stałego wzoru; <b>ciepło</b> dodaje alikwoty i echo świątyni. To synteza ze zmierzonych częstotliwości, nie nagranie.</p>
   <p>Obok szumu Słońca są trzy inne <b>pejzaże dźwiękowe</b>, wybierane z listy nad minutnikiem; każdy jest wierny swojej regule i wypowiada ją w jednym zdaniu. <b>Planety z księżycami</b>: każda planeta śpiewa ze swojej dzisiejszej prędkości kątowej wokół Słońca według reguły tarczy (330 Hz × (ω/ω⊕)<sup>0,353</sup>), dociągniętej do stroju naturalnego, więc akord jest tym, który zagrałaby tarcza; każdy księżyc migoce nad swoją planetą na 1 760 Hz × 0,3 d ÷ jego okres, złożonej do wyższych oktaw (prawdziwe stosunki 1/P, więc Io, Europa i Ganimedes, związane rezonansem 1:2:4, śpiewają jeden powoli pulsujący dźwięk), i okrąża planetę tysiąc razy szybciej niż naprawdę, przesuwając się w panoramie. Wybierz jedną planetę z jej księżycami albo wszystkie razem. <b>Najbliższe i najjaśniejsze gwiazdy</b> (51 gwiazd jaśniejszych niż 1,6 magnitudo lub bliższych niż 12 lat świetlnych) powoli pojawiają się i gasną: każdy ton to szczyt światła gwiazdy obniżony o 40 oktaw (prawo Wiena, jak w silniku Galaktyki), jej linie widmowe kształtują barwę, jasność na naszym niebie wyznacza głośność, a dźwięk dochodzi z jej kierunku w Galaktyce. <b>Harmoniczna galaktyka</b> gra akord rotacji Drogi Mlecznej: pierścienie na 24, 12, 8 … 3 kpc obracają się z Ω = V/R, a ponieważ krzywa rotacji jest płaska (ciemna materia), brzmią szeregiem harmonicznym, podniesionym o 61 oktaw. Dla nich suwak <b>głębi</b> przesuwa rejestr o oktawy. Minutnik, dzwonki, przewodnik oddechu, przyciemniony ekran i Hestia działają z każdym pejzażem.</p>
