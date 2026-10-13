@@ -2056,6 +2056,12 @@ const fmtN=(x,d=1)=>Number(x).toLocaleString(LOC,{maximumFractionDigits:d,minimu
 const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const PLANETS=BODIES.filter(b=>b.kind==='planet'), MINORS=BODIES.filter(b=>b.kind==='minor'), COMETS=BODIES.filter(b=>b.kind==='comet');
 const VOICED=PLANETS.concat(MINORS);
+/* ---------- GALAXY-HOOK: the Galactic Synthesiser (gsynth.js) swaps the sound sources while this page keeps its frame.
+   GM() is the galaxy module while Galaxy mode is active, else null, so every hook below is a no-op in Planets mode. ---------- */
+const GM=()=>window.GSYNTH&&window.GSYNTH.active?window.GSYNTH:null;
+const SEQ_ROWS=()=>{const g=GM();return g?g.seqRows():PLANETS};   // the sequencer's rows: planets, or the galaxy's strips
+const SRCS=()=>{const g=GM();return g?g.SRC:SRC};                 // the matrix's sources
+const MROWS=()=>{const g=GM();return g?g.meterRows():PLANETS};    // the bodies shown as dots on the source meters
 // masses (Earth = 1), densities (g/cm³) and known moon counts, for the pitch law and the matrix
 const PHYS={mercury:[.0553,5.43,0],venus:[.815,5.24,0],earth:[1,5.51,1],mars:[.107,3.93,2],jupiter:[317.8,1.33,95],saturn:[95.2,.69,146],uranus:[14.5,1.27,28],neptune:[17.1,1.64,16],
   pluto:[.0022,1.85,5],ceres:[1.6e-4,2.16,0],vesta:[4.3e-5,3.4,0],pallas:[3.4e-5,2.9,0],juno:[4.5e-6,3.3,0],hygiea:[1.5e-5,1.9,0],eros:[1.1e-9,2.7,0],eris:[.0028,2.4,1],haumea:[6.7e-4,1.9,2],makemake:[5.2e-4,1.7,1],sedna:[1.7e-4,2,0]};
@@ -2152,7 +2158,7 @@ function quant(f,id){
 }
 function chordFreqs(){const r=SYSR[Y.tun.sys]||SYSR.pyth,root=C_BASE*Math.pow(2,keyOct()+3)*r[MODESEMI[Y.tun.mode]||0];return CHORDS[Y.tun.chord].map(i=>root*r[i])}
 // the score (score.js): names and the key of the tuning
-MOTS.scoreInfo=()=>{const names={sun:'Apollo'};BODIES.forEach(b=>names[b.id]=b.god);const sh=((Math.round(keyOct()*12)%12)+12)%12,pc=((MODESEMI[Y.tun.mode]||0)+sh)%12;let f=(sh*7)%12;if(f>6)f-=12;
+MOTS.scoreInfo=()=>{/*GALAXY-HOOK*/{const g=GM();if(g)return g.scoreInfo()}const names={sun:'Apollo'};BODIES.forEach(b=>names[b.id]=b.god);const sh=((Math.round(keyOct()*12)%12)+12)%12,pc=((MODESEMI[Y.tun.mode]||0)+sh)%12;let f=(sh*7)%12;if(f>6)f-=12;
   const md=({C:'ionian',D:'dorian',E:'phrygian',F:'lydian',G:'mixolydian',A:'aeolian',B:'locrian'})[Y.tun.mode]||'none';
   return {names,key:{fifths:f,mode:Y.tun.chord==='minor'?'minor':Y.tun.chord==='major'?'major':md,pc,name:keyNm()},title:document.title}};
 function keyNm(){const r=SYSR[Y.tun.sys]||SYSR.pyth;return noteName(C_BASE*Math.pow(2,keyOct()+4)*r[MODESEMI[Y.tun.mode]||0]).replace(/-?\d.*$/,'')}
@@ -2185,7 +2191,7 @@ function audioDir(src){const dx=src.x-LPOS.x,dy=src.y-LPOS.y,dz=src.z-LPOS.z,d=M
 const ELEM=[1,-1,.33,-.33];
 let lfoNow=0;
 function lfoVal(k,b){const l=Y.lfo[k];const off=Y.stagger&&b?(b.kind==='planet'?PLANETS.indexOf(b):8+MINORS.indexOf(b))/8:0;return lfoAt(l,lfoNow+off/Math.max(l.rate,1e-3))}
-function lfoAt(l,t){const ph=(l.rate*t)%1;switch(l.shape){case 'tri':return 1-4*Math.abs(ph-.5);case 'square':return ph<.5?1:-1;case 'saw':return 1-2*ph;case 'rand':{const c=Math.floor(l.rate*t);const x=Math.sin(c*12.9898+78.233)*43758.5453;return 2*(x-Math.floor(x))-1}default:return Math.sin(TAU*ph)}}
+function lfoAt(l,t){const ph=(l.rate*t)%1;switch(l.shape){case 'tri':return 1-4*Math.abs(ph-.5);case 'square':return ph<.5?1:-1;case 'saw':return 1-2*ph;case 'rand':{const c=Math.floor(l.rate*t);const x=Math.sin(c*12.9898+78.233)*43758.5453;return 2*(x-Math.floor(x))-1}default:{/*GALAXY-HOOK*/const g=window.GSYNTH;if(g&&g.lfoShape&&g.lfoShape[l.shape])return g.lfoShape[l.shape](ph);return Math.sin(TAU*ph)}}}
 const SRC=[
  {id:'one',bi:false,f:()=>1},
  {id:'speed',bi:true,f:(b,p)=>clamp(Math.log2(p.om/OM_EARTH)/7.4)},
@@ -2214,6 +2220,7 @@ const curve=(v,c)=>c===2?Math.sign(v)*v*v:c===3?Math.round(v*2)/2:v;
 const ROUTES=()=>Object.entries(Y.mx).map(([k,r])=>{const [s,d]=k.split('>');return {s,d,a:r.a,c:r.c||1}}).filter(r=>r.a);
 // the matrix summed for one body: a value per destination, from every lit route
 function modsFor(b){
+  /*GALAXY-HOOK*/{const g=GM();if(g)return g.modsFor(b)}
   const p=P[b.id],m={},sv={};
   for(const r of ROUTES()){if(!(r.s in sv)){const src=SRC.find(x=>x.id===r.s);sv[r.s]=src?src.f(b,p):0}m[r.d]=(m[r.d]||0)+r.a*curve(sv[r.s],r.c)}
   return m;
@@ -2265,6 +2272,7 @@ function initAudio(){
   COMETS.forEach(b=>V[b.id]=makeSlot(b));
   sunV={pan:mkPanner(true)};sunV.vol=mkGain(0,sunV.pan);sunV.verb=mkGain(.5,verbIn);sunV.vol.connect(sunV.verb);
   setListener();audioOn=true;
+  /*GALAXY-HOOK*/{const g=GM();if(g)g.audioInit()}
 }
 function setVerb(){if(!AC)return;tgt(wet.gain,Y.verb*1.1,.1);tgt(dry.gain,1-Y.verb*.35,.1)}
 // a slot: the panner, level and sends that outlive the voice built into it
@@ -2346,7 +2354,7 @@ function walkStep(){
 }
 function walkStart(){if(WALK.id)return;if(!Y.playing)setPlaying(true);WALK.k=-1;$('walk').textContent='■ '+TX.walkStop;$('walk').setAttribute('aria-pressed','true');walkStep()}
 function walkStop(done){clearTimeout(WALK.t);WALK.id=null;WALK.k=-1;$('walk').textContent='▶ '+TX.walk;$('walk').setAttribute('aria-pressed','false');syncStrips();if(done)toast(TX.walkDone)}
-$('walk').onclick=()=>WALK.id?walkStop(false):walkStart();
+$('walk').onclick=()=>{if(GM())return GM().walk();WALK.id?walkStop(false):walkStart()};
 
 /* ---------- the modulation loop: 30 Hz, from a worker so it keeps time in a background tab ---------- */
 let LOOK=.18;
@@ -2361,6 +2369,7 @@ function tick(){
   if(S.playing)S.jd+=S.dir*S.speed*dt;
   computeSky();
   if(AC)lfoNow=AC.currentTime;
+  /*GALAXY-HOOK*/{const g=GM();if(g){g.tick(dt);if(!audioOn)return;const t=AC.currentTime;g.audioTick(t);seqTick(t);return}}
   // pitches under the law
   VOICED.forEach(b=>{const [f0,n,cl]=lawPitch(b,P[b.id]);const o=Y.osc[b.id];const f=quant(f0,b.id)*Math.pow(2,o?o.oct:0);NOTES[b.id]={f,n,cl,f0}});
   if(!audioOn)return;
@@ -2442,7 +2451,7 @@ function handleTrig(b,v,p,t,att,rel,f){
   const routes=ROUTES().filter(r=>r.d==='trig'&&r.a>0);
   v.trig=v.trig||{};
   for(const r of routes){
-    const steps=2+Math.round(r.a*14),src=SRC.find(x=>x.id===r.s);if(!src)continue;
+    const steps=2+Math.round(r.a*14),src=SRCS().find(x=>x.id===r.s);if(!src)continue;
     const st=v.trig[r.s]||(v.trig[r.s]={last:null,sched:0});
     if(r.s==='lfo1'||r.s==='lfo2'){
       // scan the next LOOK seconds in fine steps for a step change
@@ -2487,12 +2496,12 @@ function seqLoad(){try{const o=JSON.parse(LS.get(SKEY)||'null');if(!o)return;
   if(o.rows)PLANETS.forEach(b=>{const r=o.rows[b.id];if(!r)return;SEQ.rows[b.id].m=!!r.m;(r.s||[]).forEach((v,k)=>{if(k<SEQ_MAX)SEQ.rows[b.id].s[k]=v===2?2:v?1:0})})}catch(e){}}
 let seqSaveT=null;
 function seqSave(){clearTimeout(seqSaveT);seqSaveT=setTimeout(()=>LS.set(SKEY,JSON.stringify({on:SEQ.on,bpm:SEQ.bpm,steps:SEQ.steps,swing:SEQ.swing,gate:SEQ.gate,rows:SEQ.rows})),250)}
-const stepDur=()=>60/SEQ.bpm/(SEQ.steps/4);
+const stepDur=()=>{/*GALAXY-HOOK*/const g=GM();if(g&&g.stepDur){const d=g.stepDur();if(d)return d}return 60/SEQ.bpm/(SEQ.steps/4)};
 // the time of step k counted from the bar origin; swing delays every second step (even step counts only)
 function stepTime(k){const sd=stepDur();let t=SEQ.t0+k*sd;if(SEQ.swing>0&&SEQ.steps%2===0&&k%2===1)t+=SEQ.swing*sd*.5;return t}
 function seqRestart(t){SEQ.t0=t+.06;SEQ.next=0;SEQ.q.length=0;SEQ.cur=null;seqSilence(t)}
 // every planet's envelope (and its moons') to silence, cancelling anything scheduled
-function seqSilence(t){PLANETS.forEach(b=>{const v=V[b.id];if(!v)return;[v.part].concat(v.moons.map(x=>x&&x.part)).forEach(I=>{if(!I||!I.env)return;const g=I.env.gain;g.cancelScheduledValues(t);g.setTargetAtTime(0,t,.03)})})}
+function seqSilence(t){SEQ_ROWS().forEach(b=>{const v=V[b.id];if(!v)return;[v.part].concat(v.moons.map(x=>x&&x.part)).forEach(I=>{if(!I||!I.env)return;const g=I.env.gain;g.cancelScheduledValues(t);g.setTargetAtTime(0,t,.03)})})}
 function seqTick(t){
   if(!SEQ.on)return;
   if(!Y.playing||AC.state!=='running'){if(SEQ.play){SEQ.play=false;SEQ.q.length=0;SEQ.cur=null}return}
@@ -2511,11 +2520,11 @@ function seqTick(t){
 function seqPitch(v){const b=v.b,N=NOTES[b.id],m=modsFor(b);return (N?N.f:v.f||220)*Math.pow(2,m.pitch||0)}
 function seqStep(k,t,sd){
   const i=k%SEQ.steps;
-  const rows=PLANETS.filter(b=>{const r=SEQ.rows[b.id],v=V[b.id];return r.s[i]&&!r.m&&v.part&&v.part.env&&v.lvl>0});
+  const RW=SEQ_ROWS(),rows=RW.filter(b=>{const r=SEQ.rows[b.id],v=V[b.id];return r&&v&&r.s[i]&&!r.m&&v.part&&v.part.env&&v.lvl>0});
   // phones and Eco keep the strikes per step down
-  const cap=(LOWPOWER||QUAL()==='eco')?4:PLANETS.length;let hit=rows;
+  const cap=(LOWPOWER||QUAL()==='eco')?4:RW.length;let hit=rows;
   if(rows.length>cap){const off=i%rows.length;hit=rows.slice(off).concat(rows.slice(0,off)).slice(0,cap)}
-  const fs={};hit.forEach(b=>fs[b.id]=strike(V[b.id],t,SEQ.rows[b.id].s[i]===2,sd));
+  const fs={};/*GALAXY-HOOK*/const g=GM();hit.forEach(b=>fs[b.id]=g?g.strike(b.id,t,SEQ.rows[b.id].s[i]===2,sd):strike(V[b.id],t,SEQ.rows[b.id].s[i]===2,sd));
   SEQ.q.push({t,i,ids:hit.map(b=>b.id),fs,done:false,pitched:false});if(SEQ.q.length>96)SEQ.q.splice(0,SEQ.q.length-96);
 }
 // one strike at time t: the sky's note for the planet at this moment, set exactly at t, and an envelope with the chosen gate
@@ -2532,7 +2541,7 @@ function strike(v,t,acc,sd){
 }
 function seqSetOn(on){
   if(SEQ.on===on)return;SEQ.on=on;SEQ.play=false;SEQ.q.length=0;SEQ.cur=null;
-  if(AC){const t=AC.currentTime;PLANETS.forEach(b=>{const v=V[b.id];v.trig={};
+  if(AC){const t=AC.currentTime;SEQ_ROWS().forEach(b=>{const v=V[b.id];if(!v)return;v.trig={};
     [v.part].concat(v.moons.map(x=>x&&x.part)).forEach(I=>{if(!I||!I.env)return;const g=I.env.gain;g.cancelScheduledValues(t);
       // on: wait to be struck; off: back to the continuous voice (a string re-plucks itself)
       g.setTargetAtTime(on||I.type==='string'?0:1,t,.04);if(!on&&I.type==='string')I.pluckNext=t+.1})});
@@ -2544,7 +2553,7 @@ function seqSetBpm(v){v=clamp(Math.round(v),60,180);if(SEQ.play&&AC){const t=AC.
   if(window.MOTS&&MOTS.midi&&MOTS.midi.transport&&Y.playing&&SEQ.on)MOTS.midi.transport(true,SEQ.bpm);seqSave()}
 /* patterns */
 const euclid=(k,n)=>Array.from({length:n},(_,i)=>(i*k)%n<k?1:0);
-function seqClearRows(){PLANETS.forEach(b=>SEQ.rows[b.id].s.fill(0))}
+function seqClearRows(){SEQ_ROWS().forEach(b=>SEQ.rows[b.id].s.fill(0))}
 const SEQPAT={
   clear(){seqClearRows()},
   // a steady beat scaled to the bar: Zeus on the floor, Hermes on the off-beats, the others as a kit
@@ -2552,16 +2561,16 @@ const SEQPAT={
     [0,4,8,12].forEach(p=>at('jupiter',p,p===0?2:1));[0,8].forEach(p=>at('saturn',p));[4,12].forEach(p=>at('venus',p,2));[2,6,10,14].forEach(p=>at('mercury',p));
     [3,7,11,15].forEach(p=>at('mars',p));[6,14].forEach(p=>at('earth',p));at('uranus',0,2);at('neptune',8,2)},
   // the planets one after another, twice a bar
-  arp(){seqClearRows();const n=SEQ.steps;PLANETS.forEach((b,k)=>{const a=Math.round(k*n/16)%n;SEQ.rows[b.id].s[a]=k===0?2:1;SEQ.rows[b.id].s[(a+Math.round(n/2))%n]=1})},
+  arp(){seqClearRows();const n=SEQ.steps;SEQ_ROWS().forEach((b,k)=>{const a=Math.round(k*n/16)%n;SEQ.rows[b.id].s[a]=k===0?2:1;SEQ.rows[b.id].s[(a+Math.round(n/2))%n]=1})},
   // Euclidean rhythms: pulses per bar from the orbital period, Hermes the most, Poseidon one
-  euclid(){seqClearRows();const n=SEQ.steps,P=PLANETS.map(b=>Math.pow(b.el.a,1.5)),lo=Math.log(Math.min(...P)),hi=Math.log(Math.max(...P));
-    PLANETS.forEach((b,k)=>{const x=(hi-Math.log(P[k]))/(hi-lo),pulses=Math.max(1,Math.round(n/2*x));const e=euclid(pulses,n);const rot=k%n;
+  euclid(){seqClearRows();const n=SEQ.steps,RW=SEQ_ROWS(),P=RW.map(b=>Math.pow(b.el.a,1.5)),lo=Math.log(Math.min(...P)),hi=Math.log(Math.max(...P));
+    RW.forEach((b,k)=>{const x=(hi-Math.log(P[k]))/(hi-lo),pulses=Math.max(1,Math.round(n/2*x));const e=euclid(pulses,n);const rot=k%n;
       for(let i=0;i<n;i++)SEQ.rows[b.id].s[i]=e[(i+rot)%n]?(i%Math.max(1,Math.round(n/4))===0?2:1):0})},
   // written from the sky: each planet strikes where its longitude falls in the bar; an accent in aspect; the inner four again half a bar on
   sky(){seqClearRows();const n=SEQ.steps;PLANETS.forEach((b,k)=>{const lon=((((LON[b.id]||0)/DEG)%360)+360)%360,i=Math.floor(lon/360*n)%n;
     SEQ.rows[b.id].s[i]=(ASPV[b.id]||0)>.3?2:1;if(k<4)SEQ.rows[b.id].s[(i+Math.round(n/2))%n]=1})}
 };
-function seqApply(k){SEQPAT[k]();seqPaint();seqSave();toast(k==='clear'?TX.seq.cleared:k==='sky'?TX.seq.skyWrote:TX.seq[k])}
+function seqApply(k){/*GALAXY-HOOK*/const g=GM();if(g&&g.seqPat(k)){}else SEQPAT[k]();seqPaint();seqSave();toast(k==='clear'?TX.seq.cleared:k==='sky'?TX.seq.skyWrote:TX.seq[k])}
 /* the panel */
 function renderSeq(){
   const T=TX.seq,C=$('seqctl');C.innerHTML='';$('seqCard').classList.toggle('off',!SEQ.on);
@@ -2575,15 +2584,16 @@ function renderSeq(){
   const pats=document.createElement('div');pats.className='pats';pats.innerHTML=`<span class="lab">${esc(T.patterns)}</span>`;
   [['pulse',T.pulse,T.pulseTip],['arp',T.arp,T.arpTip],['euclid',T.euclid,T.euclidTip],['sky',T.sky,T.skyTip],['clear',T.clear,T.clearTip]].forEach(([k,lab,tip])=>{const b=document.createElement('button');b.className='pb'+(k==='sky'?' gold':'');b.type='button';b.textContent=lab;b.title=tip;b.onclick=()=>seqApply(k);pats.appendChild(b)});
   C.appendChild(pats);
+  /*GALAXY-HOOK*/{const g=GM();if(g)g.renderSeqExtra(C,bf)}
   renderSeqGrid();
 }
 const seqGrp=()=>SEQ.steps%4===0?SEQ.steps/4:SEQ.steps%3===0?SEQ.steps/3:4;
 function renderSeqGrid(){
-  const T=TX.seq,G=$('seqgrid'),n=SEQ.steps,grp=seqGrp();
-  G.style.gridTemplateColumns=`auto repeat(${n},minmax(2.6rem,1fr))`;G.style.gridTemplateRows=`auto repeat(${PLANETS.length},auto)`;
+  const T=TX.seq,G=$('seqgrid'),n=SEQ.steps,grp=seqGrp(),RW=SEQ_ROWS();
+  G.style.gridTemplateColumns=`auto repeat(${n},minmax(2.6rem,1fr))`;G.style.gridTemplateRows=`auto repeat(${RW.length},auto)`;
   let h='<div class="sh corner" role="presentation"></div>';
   for(let k=0;k<n;k++){const beat=k%grp===0;h+=`<div class="sh${beat?' beat':''}" data-k="${k}" role="columnheader">${beat?k/grp+1:'·'}</div>`}
-  PLANETS.forEach(b=>{const r=SEQ.rows[b.id];
+  RW.forEach(b=>{const r=SEQ.rows[b.id];
     h+=`<button type="button" class="srow" data-id="${b.id}" aria-pressed="${r.m}" title="${esc(T.muteRow)}" aria-label="${esc(T.muteRow)} · ${esc(b.god)}" role="rowheader"><span class="sw" style="background:${b.color};color:${b.color}"></span><b>${esc(b.god)}</b>${ICO.mute}</button>`;
     for(let k=0;k<n;k++){const v=r.s[k];h+=`<button type="button" class="sc${v?' on':''}${v===2?' acc':''}${r.m?' dim':''}${k%grp===0?' beat':''}${Math.floor(k/grp)%2?' alt':''}" data-id="${b.id}" data-k="${k}" aria-pressed="${!!v}" aria-label="${esc(T.stepLab.replace('{g}',b.god).replace('{k}',k+1))}" title="${esc(T.accentTip)}" style="--c1:${hexA(b.color,.55)};--c2:${b.color}"></button>`}});
   h+='<div class="ph" id="seqPh" aria-hidden="true"></div>';G.innerHTML=h;
@@ -2636,6 +2646,7 @@ const ZOD=SIGNS.map(s=>s[0]);
 let screen={};
 function draw(tm){
   if(!W)resize();if(!W)return;
+  /*GALAXY-HOOK*/{const gm=GM();if(gm)return gm.draw(tm,{g,W,H,DPR,CX,CY,RR,K,SK})}
   g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,W,H);
   DSTARS.forEach(s=>{g.fillStyle=`rgba(233,225,204,${.1+s.m*.3})`;g.fillRect(s.x*W,s.y*H,s.m>.92?1.6:1,s.m>.92?1.6:1)});
   const Rz=RR*1.07,sun=sunSign();
@@ -2683,7 +2694,7 @@ function draw(tm){
   if(SEQ.on&&Y.playing){const n=SEQ.steps,grp=seqGrp(),st=Math.min(9*SK,(W*.4)/n),x0=W-12-n*st,y=H-11*SK;
     for(let k=0;k<n;k++){const cur=k===SEQ.cur;g.fillStyle=cur?'#f3d9a4':k%grp===0?'rgba(212,166,87,.6)':'rgba(201,152,79,.3)';g.beginPath();g.arc(x0+(k+.5)*st,y,(cur?3.2:1.7)*SK,0,TAU);g.fill()}}
 }
-cv.addEventListener('click',e=>{const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let best=null,bd=22*SK;
+cv.addEventListener('click',e=>{const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let best=null,bd=22*SK;/*GALAXY-HOOK*/if(GM())return GM().skyClick(x,y);
   for(const b of PLANETS){const s=screen[b.id];if(!s)continue;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=b}}
   if(best)toggleSolo(best)});
 
@@ -2700,11 +2711,12 @@ function sel(id,opts,cur,onchange){const s=document.createElement('select');s.id
 const ICO={mute:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>',
   solo:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v-2a8 8 0 0 1 16 0v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="3" y="13" width="4.5" height="7" rx="1.5" fill="currentColor"/><rect x="16.5" y="13" width="4.5" height="7" rx="1.5" fill="currentColor"/></svg>'};
 // mute, solo and walk states painted onto the strips without rebuilding them
-function syncStrips(){const box=$('strips');if(!box)return;const anySolo=PLANETS.some(b=>Y.osc[b.id].solo);box.classList.toggle('hasSolo',anySolo&&!WALK.id);
+function syncStrips(){/*GALAXY-HOOK*/{const g=GM();if(g)return g.syncStrips()}const box=$('strips');if(!box)return;const anySolo=PLANETS.some(b=>Y.osc[b.id].solo);box.classList.toggle('hasSolo',anySolo&&!WALK.id);
   PLANETS.forEach(b=>{const o=Y.osc[b.id],d=box.querySelector(`.strip[data-id="${b.id}"]`);if(!d)return;d.classList.toggle('off',!o.on);d.classList.toggle('solo',o.solo&&!WALK.id);d.classList.toggle('walk',WALK.id===b.id);
     d.querySelector('.m').setAttribute('aria-pressed',String(!o.on));d.querySelector('.s').setAttribute('aria-pressed',String(o.solo))})}
-function toggleSolo(b){const o=Y.osc[b.id];o.solo=!o.solo;if(o.solo&&!o.on){o.on=true}syncStrips();dirty();const any=PLANETS.some(x=>Y.osc[x.id].solo);toast(any?TX.soloToast.replace('{g}',b.god):TX.soloOff)}
+function toggleSolo(b){/*GALAXY-HOOK*/{const g=GM();if(g)return g.toggleSolo(b)}const o=Y.osc[b.id];o.solo=!o.solo;if(o.solo&&!o.on){o.on=true}syncStrips();dirty();const any=PLANETS.some(x=>Y.osc[x.id].solo);toast(any?TX.soloToast.replace('{g}',b.god):TX.soloOff)}
 function renderStrips(){
+  /*GALAXY-HOOK*/{const g=GM();if(g)return g.renderStrips()}
   const box=$('strips');box.innerHTML='';
   PLANETS.forEach((b,k)=>{const o=Y.osc[b.id];const d=document.createElement('div');d.className='strip'+(o.on?'':' off');d.dataset.id=b.id;
     d.innerHTML=`<div class="nm"><span class="sw" id="sw_${b.id}" style="background:${b.color};color:${b.color}"></span><div style="min-width:0"><b>${esc(b.god)}</b><br><span>${esc(b.name)}</span></div></div>
@@ -2733,6 +2745,7 @@ function renderStrips(){
   syncStrips();
 }
 function renderLaw(){
+  /*GALAXY-HOOK*/{const g=GM();if(g)return g.renderLaw()}
   const box=$('law');box.innerHTML='';
   const s=sel('lawSrc',LAW_SRCS.map(k=>[k,TX.law[k]]),Y.law.src,v=>{Y.law.src=v;dirty();renderLaw()});
   box.appendChild(field(TX.lawSource,s));
@@ -2747,6 +2760,7 @@ function renderLaw(){
 }
 function spanTxt(){const s=spanOctaves();return fmtN(s,1)+' '+TX.octaves+(Y.law.k>=.98?' · '+TX.trueRatios:'')}
 function renderTun(){
+  /*GALAXY-HOOK*/{const g=GM();if(g)return g.renderTun()}
   const box=$('tun');box.innerHTML='';
   box.appendChild(field(TX.system,sel('sys',['pyth','just','tet','harm','free'].map(k=>[k,TX.systems[k]]),Y.tun.sys,v=>{Y.tun.sys=v;dirty();renderTun()})));
   if(Y.tun.sys!=='harm'&&Y.tun.sys!=='free')box.appendChild(field(TX.scale,sel('scale',['dia','pent','whole','chrom'].map(k=>[k,TX.scales[k]]),Y.tun.scale,v=>{Y.tun.scale=v;dirty()})));
@@ -2757,6 +2771,7 @@ function renderTun(){
   const vf=field(TX.reverb,vr,true);vf.querySelector('output').textContent=Math.round(Y.verb*100)+'%';box.appendChild(vf);
 }
 function renderSky(){
+  /*GALAXY-HOOK*/{const g=GM();if(g)return g.renderSky()}
   const box=$('skyctl');box.innerHTML='';
   const tb=document.createElement('button');tb.className='ib';tb.id='today';tb.type='button';tb.textContent=TX.today;tb.onclick=()=>{S.jd=jdNow()};box.appendChild(tb);
   const pp=document.createElement('button');pp.className='ib';pp.id='skyPlay';pp.type='button';pp.textContent=S.playing?'❚❚':'▶';pp.setAttribute('aria-label',TX.skyPlay);pp.title=TX.skyPlay;pp.onclick=()=>{S.playing=!S.playing;pp.textContent=S.playing?'❚❚':'▶'};box.appendChild(pp);
@@ -2772,7 +2787,7 @@ let edit=null;
 function renderMatrix(){
   const T=$('mx');
   T.innerHTML=`<thead><tr><th></th>${DST.map(d=>`<th scope="col" data-d="${d}" title="${esc(TX.dstTip[d])}"><span>${esc(TX.dst[d])}</span><i class="ico" aria-hidden="true">${DICON[d]}</i></th>`).join('')}</tr></thead>`+
-    `<tbody>${SRC.map(s=>`<tr data-s="${s.id}"><th scope="row" title="${esc(TX.srcTip[s.id])}"><span class="sn">${esc(TX.src[s.id])}</span><div class="mt" id="mt_${s.id}">${PLANETS.map(b=>`<i style="background:${b.color};left:50%"></i>`).join('')}</div></th>`+
+    `<tbody>${SRCS().map(s=>`<tr data-s="${s.id}"><th scope="row" title="${esc(TX.srcTip[s.id])}"><span class="sn">${esc(TX.src[s.id])}</span><div class="mt" id="mt_${s.id}">${MROWS().map(b=>`<i style="background:${b.color};left:50%"></i>`).join('')}</div></th>`+
     DST.map(d=>{const r=Y.mx[s.id+'>'+d];return `<td><button type="button" class="cell${r&&r.a?' on '+(r.a>0?'pos':'neg'):''}${r&&r.c===2?' c2':r&&r.c===3?' c3':''}" data-k="${s.id}>${d}" style="--a:${r?Math.abs(r.a):0}" data-v="${r&&r.a?Math.round(r.a*100):''}" aria-label="${esc(TX.src[s.id])} → ${esc(TX.dst[d])}${r&&r.a?' '+Math.round(r.a*100):''}"></button></td>`}).join('')+'</tr>').join('')}</tbody>`;
   T.querySelectorAll('.cell').forEach(c=>{c.onclick=()=>openEdit(c);c.onpointerenter=c.onfocus=()=>mxHl(c.dataset.k)});
   T.onpointerleave=()=>mxHl(null);
@@ -2812,7 +2827,7 @@ document.addEventListener('pointerdown',e=>{if(edit&&!edit.e.contains(e.target)&
 $('mxClear').onclick=()=>{Y.mx={};renderMatrix();dirty();toast(TX.cleared)};
 // tasteful randomness: three to five routes from a pool of musical pairings, modest amounts
 const TASTE=[['dlis','level'],['dlis','cut'],['rsun','pitch'],['rsun','vibD'],['lon','pan'],['height','cut'],['height','pan'],['spin','tremR'],['tilt','vowel'],['radius','det'],['mass','res'],['aspect','level'],['aspect','verb'],['retro','trig'],['retro','dly'],['lfo1','tremD'],['lfo1','vowel'],['lfo2','trig'],['lfo2','bright'],['clock','cut'],['elem','vowel'],['sign','pitch'],['ecc','vibD'],['moons','det'],['one','dly'],['sun','verb']];
-$('mxRand').onclick=()=>{Y.mx={};const n=3+Math.floor(Math.random()*3),pool=TASTE.slice();for(let k=0;k<n&&pool.length;k++){const [pair]=pool.splice(Math.floor(Math.random()*pool.length),1);const [s,d]=pair;const a=(d==='trig'||d==='dly'||d==='level'?.4:.25)+Math.random()*.45;Y.mx[s+'>'+d]={a:(Math.random()<.3&&d!=='trig'&&d!=='dly'?-a:a),c:Math.random()<.25?2:1}}
+$('mxRand').onclick=()=>{Y.mx={};const n=3+Math.floor(Math.random()*3),pool=(GM()?GM().taste():TASTE).slice();for(let k=0;k<n&&pool.length;k++){const [pair]=pool.splice(Math.floor(Math.random()*pool.length),1);const [s,d]=pair;const a=(d==='trig'||d==='dly'||d==='level'?.4:.25)+Math.random()*.45;Y.mx[s+'>'+d]={a:(Math.random()<.3&&d!=='trig'&&d!=='dly'?-a:a),c:Math.random()<.25?2:1}}
   renderMatrix();dirty();toast(TX.randomised)};
 // the quick route under each LFO, in the page's language, and a sensible depth for each destination
 const LFOU={en:{to:'Sends to',none:'nowhere (silent)',many:'several (see the matrix)',hint:'An LFO only changes the sound once it is routed: choose where it goes, or use its row in the matrix.'},
@@ -2835,7 +2850,7 @@ function renderLfo(){
   Y.lfo.forEach((l,k)=>{const r=range('lfoR'+k,0,100,1,Math.round((Math.log10(l.rate)+1.3)/2.3*100),v=>{l.rate=Math.pow(10,-1.3+v/100*2.3);dirty();r.parentNode.querySelector('output').textContent=fmtN(l.rate,2)+' Hz'});
     const g=document.createElement('div');g.className='lfobox';box.appendChild(g);
     const f=field(TX.lfo+' '+(k+1),r,true);f.querySelector('output').textContent=fmtN(l.rate,2)+' Hz';g.appendChild(f);
-    const s=sel('lfoS'+k,['sine','tri','square','saw','rand'].map(x=>[x,TX.shapes[x]]),l.shape,v=>{l.shape=v;dirty()});s.setAttribute('aria-label',TX.shape+' '+(k+1));g.appendChild(s);
+    const s=sel('lfoS'+k,['sine','tri','square','saw','rand'].map(x=>[x,TX.shapes[x]]).concat(GM()?GM().lfoShapes():[]),l.shape,v=>{l.shape=v;dirty()});s.setAttribute('aria-label',TX.shape+' '+(k+1));g.appendChild(s);
     // where this LFO goes: an LFO only sounds through the matrix, so each has a quick route of its own (the matrix shows and edits the same cells)
     const id='lfo'+(k+1),U=LFOU[(document.documentElement.lang||'en').slice(0,2)]||LFOU.en,cur=DST.filter(d=>{const r=Y.mx[id+'>'+d];return r&&r.a});
     const rt=sel('lfoD'+k,[['',U.none]].concat(DST.filter(d=>d!=='trig').map(d=>[d,TX.dst[d]])).concat(cur.length>1?[['*',U.many]]:[]),cur.length>1?'*':cur[0]||'',v=>{
@@ -2848,24 +2863,24 @@ function renderLfo(){
 /* patches */
 const PKEY='mots.synth.patches';
 const userPatches=()=>{try{return JSON.parse(LS.get(PKEY)||'{}')}catch(e){return {}}};
-function renderPatchList(){const s=$('patch');s.innerHTML='';
+function renderPatchList(){/*GALAXY-HOOK*/{const g=GM();if(g)return g.renderPatchList()}const s=$('patch');s.innerHTML='';
   const g1=document.createElement('optgroup');g1.label=TX.presetGroup;Object.keys(PRESETS).forEach(k=>{const o=document.createElement('option');o.value='p:'+k;o.textContent=TX.presets[k];g1.appendChild(o)});s.appendChild(g1);
   const up=userPatches(),names=Object.keys(up);if(names.length){const g2=document.createElement('optgroup');g2.label=TX.yourPatches;names.sort().forEach(n=>{const o=document.createElement('option');o.value='u:'+n;o.textContent=n;g2.appendChild(o)});s.appendChild(g2)}
   const o=document.createElement('option');o.value='x';o.textContent=TX.edited;o.hidden=true;s.appendChild(o);
   syncPatchSel();
 }
-function syncPatchSel(){const s=$('patch');const want=Y.user?'u:'+Y.user:Y.preset?'p:'+Y.preset:'x';s.querySelector('option[value="x"]').hidden=want!=='x';s.value=want;$('del').hidden=!Y.user;$('pname').value=Y.name||''}
-$('patch').onchange=e=>{const v=e.target.value;if(v.startsWith('p:'))applyPreset(v.slice(2));else if(v.startsWith('u:')){const p=userPatches()[v.slice(2)];if(p){const n=fromPatch(p);n.user=v.slice(2);setPatch(n)}}};
-$('save').onclick=()=>{const name=($('pname').value||'').trim()||TX.untitled;const up=userPatches();Y.name=name;up[name]=toPatch();LS.set(PKEY,JSON.stringify(up));Y.user=name;Y.preset=null;renderPatchList();toast(TX.saved.replace('{n}',name))};
-$('del').onclick=()=>{if(!Y.user)return;const up=userPatches();delete up[Y.user];LS.set(PKEY,JSON.stringify(up));Y.user=null;renderPatchList();toast(TX.deleted)};
-$('pname').oninput=()=>{Y.name=$('pname').value};
+function syncPatchSel(){/*GALAXY-HOOK*/{const g=GM();if(g)return g.syncPatchSel()}const s=$('patch');const want=Y.user?'u:'+Y.user:Y.preset?'p:'+Y.preset:'x';s.querySelector('option[value="x"]').hidden=want!=='x';s.value=want;$('del').hidden=!Y.user;$('pname').value=Y.name||''}
+$('patch').onchange=e=>{/*GALAXY-HOOK*/{const g=GM();if(g)return g.patchChange(e.target.value)}const v=e.target.value;if(v.startsWith('p:'))applyPreset(v.slice(2));else if(v.startsWith('u:')){const p=userPatches()[v.slice(2)];if(p){const n=fromPatch(p);n.user=v.slice(2);setPatch(n)}}};
+$('save').onclick=()=>{/*GALAXY-HOOK*/{const g=GM();if(g)return g.savePatch()}const name=($('pname').value||'').trim()||TX.untitled;const up=userPatches();Y.name=name;up[name]=toPatch();LS.set(PKEY,JSON.stringify(up));Y.user=name;Y.preset=null;renderPatchList();toast(TX.saved.replace('{n}',name))};
+$('del').onclick=()=>{/*GALAXY-HOOK*/{const g=GM();if(g)return g.delPatch()}if(!Y.user)return;const up=userPatches();delete up[Y.user];LS.set(PKEY,JSON.stringify(up));Y.user=null;renderPatchList();toast(TX.deleted)};
+$('pname').oninput=()=>{/*GALAXY-HOOK*/{const g=GM();if(g)return g.nameInput($('pname').value)}Y.name=$('pname').value};
 function toPatch(){const p={};PATCH_KEYS.forEach(k=>p[k]=Y[k]);p.speed=S.speed;return JSON.parse(JSON.stringify(p))}
 function fromPatch(p){const n=DEF();PATCH_KEYS.forEach(k=>{if(p[k]===undefined)return;if(typeof n[k]==='object'&&!Array.isArray(n[k])&&n[k]!==null&&k!=='mx'){Object.keys(n[k]).forEach(j=>{if(p[k][j]!==undefined)n[k][j]=typeof n[k][j]==='object'&&n[k][j]!==null?Object.assign(n[k][j],p[k][j]):p[k][j]})}else n[k]=p[k]});return n}
 function setPatch(n){Y=Object.assign(n,{vol:Y.vol,playing:Y.playing});S.speed=Y.speed||20;S.vp=Y.vp;if(AC)setVerb();Object.keys(QZ).forEach(k=>delete QZ[k]);Object.values(V).forEach(v=>v.trig={});renderAll();syncURL()}
 // edited by hand: no longer exactly a preset
 function dirty(){if(Y.preset||Y.user){Y.preset=null;Y.user=null;syncPatchSel()}syncURL()}
 let urlT=null;
-function syncURL(){clearTimeout(urlT);urlT=setTimeout(()=>{try{history.replaceState(null,'','?p='+encodePatch(toPatch()))}catch(e){}},400)}
+function syncURL(){clearTimeout(urlT);urlT=setTimeout(()=>{/*GALAXY-HOOK*/{const g=GM();if(g)return g.syncURL()}try{history.replaceState(null,'','?p='+encodePatch(toPatch()))}catch(e){}},400)}
 // a patch as a compact link: JSON, UTF-8, base64url
 const r3=x=>Math.round(x*1000)/1000;
 function toLink(p){return {v:1,n:p.name||'',l:[p.law.src,p.law.dir,r3(p.law.k),p.law.fold?1:0,Math.round(p.law.F)],t:[p.tun.sys,p.tun.scale,p.tun.mode,p.tun.zod?1:0,p.tun.key,p.tun.chord],
@@ -2879,12 +2894,13 @@ function fromLink(q){if(!q||q.v!==1)return fromPatch(q||{});const p=DEF();p.name
   p.mx={};(q.m||[]).forEach(([k,a,c])=>p.mx[k]={a,c});p.lfo=[{rate:q.f[0],shape:q.f[1]},{rate:q.f[2],shape:q.f[3]}];p.stagger=!!q.f[4];p.verb=q.r;p.vp=q.p;p.speed=q.s;p.orbits=!!q.b;return p}
 const encodePatch=p=>btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(toLink(p))))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const decodePatch=s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return fromLink(JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(s),c=>c.charCodeAt(0)))))};
-$('share').onclick=async()=>{const url=location.origin+location.pathname+'?p='+encodePatch(toPatch());let ok=false;try{await navigator.clipboard.writeText(url);ok=true}catch(e){}
+$('share').onclick=async()=>{const g=GM();const url=location.origin+location.pathname+(g?g.shareQuery():'?p='+encodePatch(toPatch()));let ok=false;try{await navigator.clipboard.writeText(url);ok=true}catch(e){}
   if(!ok){const ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();try{ok=document.execCommand('copy')}catch(e){}ta.remove()}
   toast(ok?TX.linkCopied:url,ok?2500:9000)};
 function renderAll(){renderStrips();renderLaw();renderTun();renderSky();renderMatrix();renderLfo();renderPatchList();renderSeq();$('speedTxt').textContent=''}
 /* readouts, a few times a second */
 function readouts(){
+  /*GALAXY-HOOK*/{const g=GM();if(g){g.readouts();syncBar();return}}
   $('dateTxt').textContent=dateStr(S.jd);$('speedTxt').textContent=S.playing?(S.dir<0?'◀ ':'')+fmtSpeed(S.speed):'❚❚';
   const sg=sunSign();$('keyTxt').textContent=`${TX.sunIn} ${SIGNS[sg][0]} (${SIGNS[sg][1]}) · ${TX.keyOf} ${keyNm()}`+(ASPN.length?' · '+ASPN.slice(0,2).map(a=>`${a.a.god} ${a.sym}︎ ${a.b.god}`).join(' · '):'');
   PLANETS.forEach(b=>{const N=NOTES[b.id],v=V[b.id],e=$('nt_'+b.id);if(!N||!e)return;const f=v&&v.part?v.f:N.f;
@@ -2892,13 +2908,13 @@ function readouts(){
     const m=$('lm_'+b.id);if(m)m.style.width=(v?Math.min(100,v.lvl*900):0)+'%';
     const sw=$('sw_'+b.id);if(sw)sw.style.boxShadow=v&&v.part?`0 0 ${4+Math.min(12,v.lvl*120)}px currentColor`:'none'});
   // the source meters: where each planet sits on each source, as a coloured dot
-  SRC.forEach(s=>{const m=$('mt_'+s.id);if(!m)return;const dots=m.children;PLANETS.forEach((b,k)=>{const p=P[b.id];if(!p)return;let v=s.f(b,p);if(!s.bi)v=v*2-1;dots[k].style.left=(50+clamp(v)*48)+'%'})});
+  SRCS().forEach(s=>{const m=$('mt_'+s.id);if(!m)return;const dots=m.children;MROWS().forEach((b,k)=>{const p=P[b.id];if(!p&&!GM())return;let v=s.f(b,p);if(!s.bi)v=v*2-1;dots[k].style.left=(50+clamp(v)*48)+'%'})});
   syncBar();
 }
 setInterval(readouts,200);
 /*DATESTR*/function dateStr(jd){const d=new Date((jd-2440587.5)*86400000);const M=['Ion','Chwef','Maw','Ebr','Mai','Meh','Gorff','Awst','Medi','Hyd','Tach','Rhag'];return `${d.getUTCDate()} ${M[d.getUTCMonth()]} ${d.getUTCFullYear()}`}/*DATESTR-END*/
 /* what the projector caption says */
-MOTS.nowPlaying=()=>{const e=document.querySelector('.eyebrow');const rs=ROUTES().slice(0,4).map(r=>TX.src[r.s]+' → '+TX.dst[r.d]).join(' · ');
+MOTS.nowPlaying=()=>{/*GALAXY-HOOK*/{const g=GM();if(g)return g.nowPlaying()}const e=document.querySelector('.eyebrow');const rs=ROUTES().slice(0,4).map(r=>TX.src[r.s]+' → '+TX.dst[r.d]).join(' · ');
   if(WALK.id){const b=byId[WALK.id];return {k:e?e.textContent:'',h:b.god+' · '+b.name,p:walkCaption(b).replace(/^[^·]*·[^·]*· /,''),d:$('dateTxt').textContent+' · '+(S.playing?fmtSpeed(S.speed):'❚❚')}}
   return {k:e?e.textContent:'',h:Y.name||TX.title,p:(rs||TX.noRoutes)+' — '+TX.keyOf+' '+keyNm(),d:$('dateTxt').textContent+' · '+(S.playing?fmtSpeed(S.speed):'❚❚')+(SEQ.on?' · ▦ '+TX.seq.caption+' '+SEQ.bpm+' '+TX.seq.bpmUnit:'')}};
 /* keys */
@@ -2911,13 +2927,13 @@ addEventListener('keydown',e=>{const tg=e.target;const typing=tg&&(tg.tagName===
   if(typing&&tg.type!=='range')return;if(e.ctrlKey||e.metaKey||e.altKey)return;
   if(e.key===' '&&(!tg||tg===document.body||tg===cv||tg.type==='range')){e.preventDefault();setPlaying(!Y.playing)}
   else if(e.key==='?'||(e.key==='/'&&e.shiftKey))showKeys();
-  else if(/^[1-8]$/.test(e.key)){const b=PLANETS[+e.key-1],o=Y.osc[b.id];o.on=!o.on;syncStrips();dirty();toast((o.on?'🔊 ':'🔇 ')+b.god)}
+  else if(/^[1-8]$/.test(e.key)){/*GALAXY-HOOK*/if(GM()){GM().key(+e.key);return}const b=PLANETS[+e.key-1],o=Y.osc[b.id];o.on=!o.on;syncStrips();dirty();toast((o.on?'🔊 ':'🔇 ')+b.god)}
   else if(e.key==='t'||e.key==='T'){S.playing=!S.playing;renderSky()}
   else if(e.key==='r'||e.key==='R')$('mxRand').click();
   else if(e.key==='g'||e.key==='G'){seqSetOn(!SEQ.on);toast((SEQ.on?'● ':'○ ')+TX.seq.on)}
   else if(e.key==='c'||e.key==='C')$('mxClear').click();
-  else if(e.key==='['||e.key===']'){const ks=Object.keys(PRESETS);let i=ks.indexOf(Y.preset);i=(i+(e.key===']'?1:-1)+ks.length)%ks.length;applyPreset(ks[i]);toast(TX.presets[ks[i]])}
-  else if(e.key==='l'||e.key==='L'){const ids=['sun'].concat(PLANETS.map(b=>b.id));Y.vp=ids[(ids.indexOf(Y.vp)+1)%ids.length];S.vp=Y.vp;renderSky();dirty();toast(TX.listenFrom+': '+(Y.vp==='sun'?TX.sun:byId[Y.vp].god))}
+  else if(e.key==='['||e.key===']'){/*GALAXY-HOOK*/if(GM()){GM().nextPreset(e.key===']'?1:-1);return}const ks=Object.keys(PRESETS);let i=ks.indexOf(Y.preset);i=(i+(e.key===']'?1:-1)+ks.length)%ks.length;applyPreset(ks[i]);toast(TX.presets[ks[i]])}
+  else if(e.key==='l'||e.key==='L'){if(GM())return;const ids=['sun'].concat(PLANETS.map(b=>b.id));Y.vp=ids[(ids.indexOf(Y.vp)+1)%ids.length];S.vp=Y.vp;renderSky();dirty();toast(TX.listenFrom+': '+(Y.vp==='sun'?TX.sun:byId[Y.vp].god))}
   else if(e.key==='-'||e.key==='+'||e.key==='='){S.speed=clamp(S.speed*(e.key==='-'?.5:2),spFrom(0),spFrom(1000));Y.speed=S.speed;renderSky()}
 });
 $('play').onclick=()=>setPlaying(!Y.playing);
@@ -3056,7 +3072,7 @@ function syncBar(){if(!SB)return;const on=Y.playing;SB.play.textContent=on?TX.pa
   const v=Math.round(Y.vol*100);if(+SB.vol.value!==v){SB.vol.value=v;SB.out.textContent=v+'%'}
   let np=null;try{np=MOTS.nowPlaying()}catch(e){}const nm=np?np.h:(Y.name||TX.title);
   // on a phone the bar is narrow: the key, the speed of time and the sequencer's tempo; wider, the date as well
-  const rd=TX.keyOf+' '+keyNm()+' · '+(matchMedia('(max-width:760px)').matches||!np?(S.playing?(S.dir<0?'◀ ':'')+fmtSpeed(S.speed):'❚❚')+(SEQ.on?' · ▦ '+SEQ.bpm+' '+TX.seq.bpmUnit:''):np.d);
+  const rd=GM()?GM().barText(np):TX.keyOf+' '+keyNm()+' · '+(matchMedia('(max-width:760px)').matches||!np?(S.playing?(S.dir<0?'◀ ':'')+fmtSpeed(S.speed):'❚❚')+(SEQ.on?' · ▦ '+SEQ.bpm+' '+TX.seq.bpmUnit:''):np.d);
   const t=nm+'\n'+rd;if(t===SB.txt)return;SB.txt=t;SB.nm.textContent=nm;SB.rd.textContent=rd}
 if(document.body)buildBar();else document.addEventListener('DOMContentLoaded',buildBar);
 /* start */
@@ -3066,8 +3082,1106 @@ computeSky();
 startClock();tick();
 if(LS.get('mots.synthTour')!=='1'&&!/[?&]notour\b/.test(location.search)&&!location.search.includes('p='))setTimeout(tourOpen,700);
 function frame(t){seqFrame();if(!(window.MOTS&&MOTS.skyHidden&&MOTS.skyHidden()))draw(t);requestAnimationFrame(frame)}requestAnimationFrame(frame);
-window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,toggleSolo,Y:()=>Y,S,V,P,NOTES,SRC,DST,PRESETS,applyPreset,setPlaying,toPatch,fromPatch,encodePatch,decodePatch,modsFor,tick,setPatch,ROUTES,SEQ,seqSetOn,seqSetBpm,seqApply,strike,stepTime};
+window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,toggleSolo,Y:()=>Y,S,V,P,NOTES,SRC,DST,PRESETS,applyPreset,setPlaying,toPatch,fromPatch,encodePatch,decodePatch,modsFor,tick,setPatch,ROUTES,SEQ,seqSetOn,seqSetBpm,seqApply,strike,stepTime,
+  /*GALAXY-HOOK: what gsynth.js builds on (the audio graph, the voice builder, the UI helpers and the page's texts)*/
+  get AC(){return AC},get bus(){return bus},get verbIn(){return verbIn},get noiseBus(){return noiseBus},get master(){return master},get audioOn(){return audioOn},get sunV(){return sunV},
+  mkGain,tgt,setPos,buildVoice,killPart,glottal,retrig,setVerb,formantsAt,lfoAt,quant,keyNm,keyOct,chordFreqs,noteName,C_BASE,SYSR,MODESEMI,fmtN,fmtSpeed,esc,toast,field,sel,range,seg,hexA,dirty,syncURL,syncPatchSel,
+  renderAll,renderMatrix,renderLfo,renderSeq,renderSeqGrid,renderPatchList,renderStrips,renderLaw,renderTun,renderSky,readouts,litRows,seqSave,seqRestart,seqSilence,stepDur,seqGrp,xsUpdate,syncBar,
+  TX,LFOU,LFOAMT,DICON,LOWPOWER,QUAL,LS,LOC,LANG,DEF,PATCH_KEYS,J2000,DEG,TAU,jdNow,SIGNS,sunSign,cv,ctx:()=>g,
+  get initAudio(){return initAudio},QZ,LASTV,ICO,curve,txt,resize};
 
+})();
+</script>
+<script>
+/* galaxy.js — the shared galactic engine of Music of the Spheres (step 2 of the Galaxy extension).
+   Plain browser JS, no imports; defines window.GALAXY and nothing else. No Web Audio here: every sound rule is a pure
+   function returning numbers, so the Galactic Synthesiser, interstellar Flight, the Galaxy page and the dial layer share
+   one set of physics and one set of stated mappings.
+
+   Units, throughout, unless a function says otherwise:
+     angles in degrees at the API (ra, dec, l, b, facing), radians internally;  distances in parsecs (pc) for stars and
+     listeners, kiloparsecs (kpc) for the Galaxy's rotation and arms;  velocities in km/s;  time offsets in years (yr) for
+     stars, million years (Myr) for the Sun's orbit;  frequencies in Hz;  gains in dB;  loudness 0..1.
+   Frames:
+     heliocentric galactic xyz (pc): x toward the Galactic centre (l = 0), y toward l = 90°, z toward the north
+       Galactic pole. This is the frame listeners and sources use ("L" below).
+     galactocentric "Reid" frame (kpc): R and azimuth β measured from the centre, β = 0 toward the Sun and increasing in
+       the direction of rotation (clockwise seen from the NGP), as in Reid et al. 2019 and sunorbit.json.
+     Web Audio frame (as the planetary pages use it): ax = dx, ay = dz (up), az = -dy; the listener faces along
+       (cos φ, 0, -sin φ) for a facing angle φ in the plane, so the right ear points 90° clockwise of the facing.
+   Approximations are marked "APPROX" where they are made. */
+(function () {
+  'use strict';
+  const DEG = Math.PI / 180, TAU = 2 * Math.PI;
+  const K = {
+    C_KMS: 299792.458,               // speed of light, km/s
+    PC_KM: 3.0856775814913673e13,    // one parsec in km
+    PC_LY: 3.2615637769,             // light-years per parsec
+    AU_PC: 4.84813681e-6,            // parsecs per astronomical unit
+    KMS_PCYR: 1.0227121650537077e-6, // 1 km/s expressed in pc/yr
+    KMSKPC_RADS: 3.2407792896664e-17,// 1 km/s/kpc expressed in rad/s
+    WIEN_M_K: 2.897771955e-3,        // Wien's displacement constant, m·K
+    OCT_LIGHT: 40,                   // the forty-octave rule of the Light layer
+    HI_MHZ: 1420.405751768,          // the 21-cm line
+    OCT_HI: 21,                      // 1420.405 MHz / 2^21 = 677.3 Hz
+    DM_CONST: 4.148808e3,            // dispersion: Δt(s) = 4148.808 · DM · (f_MHz^-2 − fref_MHz^-2)
+    OBLIQ: 23.439279444,             // J2000 mean obliquity, deg
+    R0: 8.21, V0: 233.1, Z0: 20.8,   // defaults, replaced from sunorbit.json at load (kpc, km/s, pc)
+    SUN: { T: 5772, M: 4.83, L: 1 }
+  };
+
+  /* ───────── 1. data ───────── */
+  const D = { stars: null, pulsars: null, radio: null, frb: null, rotation: null, sunorbit: null, seismo: null };
+  const G = { version: '0.2.0', K, data: D, ready: false, large: false };
+  const FILES = ['stars', 'pulsars', 'radio', 'frb', 'rotation', 'sunorbit', 'seismo'];
+  let fetchFn = (u) => fetch(u).then(r => { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); });
+  G.setFetch = (f) => { fetchFn = f; };  // tests supply a file-reading shim
+  let baseUrl = '';
+
+  /** Load the bundled JSON from `<base>galaxy/*.json` (base defaults to the page's directory, e.g. './').
+   *  Resolves to GALAXY itself once the tables are built. Safe to call twice (returns the same promise). */
+  G.load = function (base) {
+    if (G._p) return G._p;
+    baseUrl = base == null ? './' : base;
+    G._p = Promise.all(FILES.map(f => fetchFn(baseUrl + 'galaxy/' + f + '.json'))).then(arr => {
+      FILES.forEach((f, i) => { D[f] = arr[i]; });
+      build(); G.ready = true; return G;
+    });
+    return G._p;
+  };
+  /** Optional large Gaia star pack `galaxy/stars_large.json` ({meta, stars:[...]} in the stars.json row format).
+   *  Rows whose `id` or `hip` is already present are skipped; tables are rebuilt. Resolves to the number added. */
+  G.loadLarge = function (base) {
+    return fetchFn((base == null ? baseUrl : base) + 'galaxy/stars_large.json').then(j => {
+      const have = new Set(), haveHip = new Set();
+      D.stars.stars.forEach(s => { have.add(s.id); if (s.hip) haveHip.add(s.hip); });
+      let n = 0;
+      (j.stars || []).forEach(s => { if (have.has(s.id) || (s.hip && haveHip.has(s.hip))) return; have.add(s.id); D.stars.stars.push(s); n++; });
+      G.large = true; build(); return n;
+    });
+  };
+
+  /* ───────── 2. coordinates ───────── */
+  // IAU 1958 pole at J2000 (Reid & Brunthaler 2004): αp = 192.85948°, δp = 27.12825°, l of the north celestial pole = 122.93192°.
+  // Rotation matrix equatorial → galactic (rows = the galactic x, y, z axes in equatorial coordinates), the standard
+  // J2000 matrix (Hipparcos vol. 1 §1.5.3) that follows from those three angles; build_stars.py used the same pole.
+  const EG = [[-0.0548755604162154, -0.8734370902348850, -0.4838350155487132],
+              [+0.4941094278755837, -0.4448296299600112, +0.7469822444972189],
+              [-0.8676661490190047, -0.1980763734312015, +0.4559837761750669]];
+  G.GAL_POLE = { ra: 192.85948, dec: 27.12825, lNCP: 122.93192 };
+  const vTmp = [0, 0, 0];
+  /** Equatorial (deg) → galactic (deg). Returns {l (0..360), b}. `out` optional for allocation-free use. */
+  G.eqToGal = function (ra, dec, out) {
+    const r = ra * DEG, d = dec * DEG, cd = Math.cos(d);
+    const x = cd * Math.cos(r), y = cd * Math.sin(r), z = Math.sin(d), m = EG;
+    const gx = m[0][0] * x + m[0][1] * y + m[0][2] * z, gy = m[1][0] * x + m[1][1] * y + m[1][2] * z, gz = m[2][0] * x + m[2][1] * y + m[2][2] * z;
+    out = out || {}; let l = Math.atan2(gy, gx) / DEG; if (l < 0) l += 360;
+    out.l = l; out.b = Math.asin(Math.max(-1, Math.min(1, gz))) / DEG; return out;
+  };
+  /** Galactic (deg) → equatorial (deg). Returns {ra (0..360), dec}. */
+  G.galToEq = function (l, b, out) {
+    const L = l * DEG, B = b * DEG, cb = Math.cos(B), x = cb * Math.cos(L), y = cb * Math.sin(L), z = Math.sin(B), m = EG;
+    const ex = m[0][0] * x + m[1][0] * y + m[2][0] * z, ey = m[0][1] * x + m[1][1] * y + m[2][1] * z, ez = m[0][2] * x + m[1][2] * y + m[2][2] * z;
+    out = out || {}; let ra = Math.atan2(ey, ex) / DEG; if (ra < 0) ra += 360;
+    out.ra = ra; out.dec = Math.asin(Math.max(-1, Math.min(1, ez))) / DEG; return out;
+  };
+  /** Unit vector of galactic (l, b) in the heliocentric galactic frame. */
+  G.dirGal = function (l, b, out) { const L = l * DEG, B = b * DEG, c = Math.cos(B); out = out || {}; out.x = c * Math.cos(L); out.y = c * Math.sin(L); out.z = Math.sin(B); return out; };
+  /** (l, b) in degrees of a vector; also returns d (its length). */
+  G.lbOf = function (x, y, z, out) { out = out || {}; const d = Math.hypot(x, y, z); let l = Math.atan2(y, x) / DEG; if (l < 0) l += 360; out.l = l; out.b = d ? Math.asin(z / d) / DEG : 0; out.d = d; return out; };
+  // galactic xyz ↔ J2000 ecliptic xyz (for interstellar Flight, which continues the planetary pages' ecliptic frame: x to the vernal point, z to the north ecliptic pole)
+  const CE = Math.cos(K.OBLIQ * DEG), SE = Math.sin(K.OBLIQ * DEG);
+  /** Heliocentric galactic vector → J2000 ecliptic vector (same units). */
+  G.galToEcl = function (v, out) {
+    const m = EG, x = m[0][0] * v.x + m[1][0] * v.y + m[2][0] * v.z, y = m[0][1] * v.x + m[1][1] * v.y + m[2][1] * v.z, z = m[0][2] * v.x + m[1][2] * v.y + m[2][2] * v.z; // equatorial
+    out = out || {}; out.x = x; out.y = CE * y + SE * z; out.z = -SE * y + CE * z; return out;
+  };
+  /** J2000 ecliptic vector → heliocentric galactic vector. */
+  G.eclToGal = function (v, out) {
+    const x = v.x, y = CE * v.y - SE * v.z, z = SE * v.y + CE * v.z, m = EG; // equatorial
+    out = out || {}; out.x = m[0][0] * x + m[0][1] * y + m[0][2] * z; out.y = m[1][0] * x + m[1][1] * y + m[1][2] * z; out.z = m[2][0] * x + m[2][1] * y + m[2][2] * z; return out;
+  };
+
+  /* precomputed tables (built at load; typed arrays so the hot paths allocate nothing) */
+  const T = { n: 0, X: null, Y: null, Z: null, VX: null, VY: null, VZ: null, M: null, rows: null,  // stars (incl. the Sun at index 0)
+    np: 0, PX: null, PY: null, PZ: null, PM: null, prow: null,     // pulsars: pc and "radio magnitude" −2.5 log10(S1400 Jy) at the Sun
+    nr: 0, RX: null, RY: null, RZ: null, RM: null, rrow: null,     // radio sources (with d; extragalactic ones are placed at their distance)
+    rotR0: 0.5, rotDR: 0.5, rotV: null, rotVbar: null, rotVobs: null, rotN: 0,
+    orbT0: -300, orbDT: 1, orb: null, orbN: 0, arms: null };
+  function build() {
+    const c = D.sunorbit.constants; K.R0 = c.R0_kpc.v; K.V0 = c.V0_kms.v; K.Z0 = c.z0_pc.v;
+    // stars: index 0 is the Sun (not in stars.json), so a listener elsewhere can hear it
+    const S = D.stars.stars, n = S.length + 1; T.n = n; T.rows = new Array(n);
+    T.X = new Float64Array(n); T.Y = new Float64Array(n); T.Z = new Float64Array(n); T.VX = new Float64Array(n); T.VY = new Float64Array(n); T.VZ = new Float64Array(n); T.M = new Float64Array(n);
+    T.rows[0] = G.SUN_ROW = { id: 0, n: 'Sun', sp: 'G2V', lc: 'V', T: K.SUN.T, L: 1, R: 1, mass: 1, lg: 4.438, M: K.SUN.M, mag: -26.74, d: 0, ra: 0, dec: 0, l: 0, b: 0, pmra: 0, pmdec: 0, rv: 0, sun: true };
+    T.M[0] = K.SUN.M;
+    const v = vTmp;
+    for (let i = 0; i < S.length; i++) {
+      const s = S[i], k = i + 1; T.rows[k] = s;
+      const lb = ('l' in s) ? s : G.eqToGal(s.ra, s.dec, { });
+      const L = lb.l * DEG, B = lb.b * DEG, cb = Math.cos(B), d = s.d;
+      T.X[k] = d * cb * Math.cos(L); T.Y[k] = d * cb * Math.sin(L); T.Z[k] = d * Math.sin(B);
+      T.M[k] = ('M' in s) ? s.M : s.mag - 5 * Math.log10(Math.max(d, 1e-6) / 10);
+      velocity(s, v); T.VX[k] = v[0]; T.VY[k] = v[1]; T.VZ[k] = v[2];
+    }
+    // pulsars
+    const P = D.pulsars.pulsars; T.np = P.length; T.prow = P;
+    T.PX = new Float64Array(T.np); T.PY = new Float64Array(T.np); T.PZ = new Float64Array(T.np); T.PM = new Float64Array(T.np);
+    P.forEach((p, i) => { const L = p.gl * DEG, B = p.gb * DEG, d = (p.d || 1) * 1000, cb = Math.cos(B); T.PX[i] = d * cb * Math.cos(L); T.PY[i] = d * cb * Math.sin(L); T.PZ[i] = d * Math.sin(B); T.PM[i] = radioMag(p.S1400 != null ? p.S1400 / 1000 : (p.S400 != null ? p.S400 / 1000 * 0.2 : 1e-3)); });
+    // radio sources (skipping the Sun and Jupiter, which the planetary pages already play)
+    const R = D.radio.sources.filter(r => !r.in_app); T.nr = R.length; T.rrow = R;
+    T.RX = new Float64Array(T.nr); T.RY = new Float64Array(T.nr); T.RZ = new Float64Array(T.nr); T.RM = new Float64Array(T.nr);
+    R.forEach((r, i) => { const lb = G.eqToGal(r.ra, r.dec, {}); r.gl = lb.l; r.gb = lb.b; const d = (r.d_kpc != null ? r.d_kpc * 1000 : r.d_Mpc * 1e6), L = lb.l * DEG, B = lb.b * DEG, cb = Math.cos(B); T.RX[i] = d * cb * Math.cos(L); T.RY[i] = d * cb * Math.sin(L); T.RZ[i] = d * Math.sin(B); T.RM[i] = radioMag(r.S1400); });
+    // rotation curve on its uniform grid
+    const m = D.rotation.model, o = D.rotation.combined; T.rotN = m.length; T.rotR0 = m[0].R; T.rotDR = m[1].R - m[0].R;
+    T.rotV = Float64Array.from(m, r => r.v); T.rotVbar = Float64Array.from(m, r => r.vbar); T.rotVobs = Float64Array.from(m, (r, i) => (o[i] ? o[i].v : r.v));
+    // the Sun's orbit, uniform in t
+    const ob = D.sunorbit.orbit.rows; T.orbN = ob.length; T.orbT0 = ob[0][0]; T.orbDT = ob[1][0] - ob[0][0]; T.orb = ob;
+    // arms, with tan ψ precomputed
+    T.arms = D.sunorbit.spiral.arms.map(a => Object.assign({}, a, { tlt: Math.tan(a.psi_lt * DEG), tgt: Math.tan(a.psi_gt * DEG), bk: a.beta_kink * DEG }));
+    bud.reset();
+    G.filters.cache.clear();
+  }
+  /** "Radio magnitude": −2.5 log10(S / 1 Jy) at 1.4 GHz — Vela (1.05 Jy) ≈ 0, Cas A (2100 Jy) ≈ −8.3, the Crab pulsar (14 mJy) ≈ 4.6. */
+  function radioMag(SJy) { return -2.5 * Math.log10(Math.max(SJy, 1e-9)); }
+  G.radioMag = radioMag;
+  /** Space velocity of a star in pc/yr, in the galactic frame (proper motion + radial velocity). APPROX: needs d; stars without rv get 0. */
+  function velocity(s, out) {
+    const d = s.d || 0, rv = s.rv || 0;
+    // tangential velocity in the equatorial tangent frame (km/s): 4.74047 km/s per (″/yr · pc)
+    const ve = 4.74047e-3 * (s.pmra || 0) * d, vn = 4.74047e-3 * (s.pmdec || 0) * d;
+    const r = s.ra * DEG, dc = s.dec * DEG, sr = Math.sin(r), cr = Math.cos(r), sd = Math.sin(dc), cd = Math.cos(dc);
+    // equatorial unit vectors: radial, east, north
+    const ux = cd * cr, uy = cd * sr, uz = sd, ex = -sr, ey = cr, nx = -sd * cr, ny = -sd * sr, nz = cd;
+    const vx = rv * ux + ve * ex + vn * nx, vy = rv * uy + ve * ey + vn * ny, vz = rv * uz + vn * nz; // km/s equatorial
+    const m = EG, k = K.KMS_PCYR;
+    out[0] = k * (m[0][0] * vx + m[0][1] * vy + m[0][2] * vz); out[1] = k * (m[1][0] * vx + m[1][1] * vy + m[1][2] * vz); out[2] = k * (m[2][0] * vx + m[2][1] * vy + m[2][2] * vz);
+    return out;
+  }
+  /** Heliocentric galactic position (pc) of a catalogue star (any row with ra, dec, d; or a precomputed one). */
+  G.posHelio = function (s, out) {
+    out = out || {}; const k = idx(s);
+    if (k >= 0) { out.x = T.X[k]; out.y = T.Y[k]; out.z = T.Z[k]; return out; }
+    const lb = G.eqToGal(s.ra, s.dec, {}), L = lb.l * DEG, B = lb.b * DEG, cb = Math.cos(B), d = s.d || 0;
+    out.x = d * cb * Math.cos(L); out.y = d * cb * Math.sin(L); out.z = d * Math.sin(B); return out;
+  };
+  function idx(s) { if (s === T.rows[0]) return 0; if (s.__k != null && T.rows[s.__k] === s) return s.__k; const k = T.rows.indexOf(s); if (k >= 0) s.__k = k; return k; }
+  /** Position (pc) of a star at a time offset tYr (years from J2000). APPROX: straight-line motion at constant velocity
+   *  (proper motion + radial velocity), good to ~1 % of the displacement over ±1 Myr; perspective acceleration and the
+   *  Galactic potential are ignored. */
+  G.posAt = function (s, tYr, out) {
+    out = out || {}; const k = idx(s);
+    if (k >= 0) { out.x = T.X[k] + T.VX[k] * tYr; out.y = T.Y[k] + T.VY[k] * tYr; out.z = T.Z[k] + T.VZ[k] * tYr; return out; }
+    G.posHelio(s, out); velocity(s, vTmp); out.x += vTmp[0] * tYr; out.y += vTmp[1] * tYr; out.z += vTmp[2] * tYr; return out;
+  };
+  /** Space velocity {vx, vy, vz} of a star in km/s (galactic frame). */
+  G.velocity = function (s, out) { out = out || {}; const k = idx(s), q = 1 / K.KMS_PCYR; if (k >= 0) { out.vx = T.VX[k] * q; out.vy = T.VY[k] * q; out.vz = T.VZ[k] * q; } else { velocity(s, vTmp); out.vx = vTmp[0] * q; out.vy = vTmp[1] * q; out.vz = vTmp[2] * q; } return out; };
+  /** Galactocentric cylindrical coordinates of a heliocentric galactic point (pc): {R (kpc), beta (deg, Reid frame),
+   *  z (pc above the mid-plane, including the Sun's z0)}. */
+  G.toGC = function (p, out) { out = out || {}; const xg = K.R0 - p.x / 1000, yg = p.y / 1000; out.R = Math.hypot(xg, yg); let b = Math.atan2(yg, xg) / DEG; if (b <= -180) b += 360; out.beta = b; out.z = p.z + K.Z0; out.xg = xg; out.yg = yg; return out; };
+  /** Inverse of toGC: {R (kpc), beta (deg), z (pc)} → heliocentric galactic pc. */
+  G.fromGC = function (g, out) { out = out || {}; const b = g.beta * DEG; out.x = (K.R0 - g.R * Math.cos(b)) * 1000; out.y = g.R * Math.sin(b) * 1000; out.z = (g.z || 0) - K.Z0; return out; };
+
+  /* the Sun's orbit and the arms */
+  /** The Sun's galactic state at time tMyr (−300…+300, clamped): {t, R (kpc), phi (deg travelled since today), z (pc),
+   *  vR, vz (km/s), omega (deg/Myr), orbitPhase (0..1 of a 230.6-Myr circuit), vertPhase (0..1, 0 = crossing the plane
+   *  upward), clamped}. Linear interpolation between the 1-Myr rows. */
+  G.sunAt = function (tMyr, out) {
+    out = out || {}; const o = T.orb, N = T.orbN; let u = (tMyr - T.orbT0) / T.orbDT, cl = false;
+    if (u < 0) { u = 0; cl = true; } if (u > N - 1) { u = N - 1; cl = true; }
+    const i = Math.min(N - 2, Math.floor(u)), f = u - i, a = o[i], b = o[i + 1];
+    out.t = tMyr; out.R = a[1] + (b[1] - a[1]) * f; out.phi = a[2] + (b[2] - a[2]) * f; out.z = a[3] + (b[3] - a[3]) * f; out.vR = a[4] + (b[4] - a[4]) * f; out.vz = a[5] + (b[5] - a[5]) * f;
+    out.omega = (b[2] - a[2]) / T.orbDT; out.clamped = cl;
+    out.orbitPhase = ((out.phi / 360) % 1 + 1) % 1;
+    // APPROX: the vertical motion as a harmonic oscillator z = A sin θ, vz = A ν cos θ (ν = 78.6 km/s/kpc → 0.080 rad/Myr)
+    const vo = D.sunorbit.constants.vertical_oscillation, amp = vo.amplitude_pc, nu = vo.nu0_kms_kpc * K.KMSKPC_RADS * 3.15576e13, vzPcMyr = out.vz * 1.0227121650537077;
+    out.vertPhase = ((Math.atan2(out.z / amp, vzPcMyr / (amp * nu)) / TAU) % 1 + 1) % 1;
+    return out;
+  };
+  /** Radius (kpc) of arm `a` (an entry of GALAXY.arms()) at azimuth beta (deg, Reid frame). Extrapolates beyond
+   *  beta_range (APPROX: the arms were traced over ~100° only; elsewhere they are log-spiral extrapolations). */
+  G.armRadius = function (a, beta) { const b = beta * DEG, t = b < a.bk ? a.tlt : a.tgt; return a.R_kink * Math.exp(-(b - a.bk) * t); };
+  G.arms = () => T.arms;
+  /** Nearest arm to a galactocentric point: {arm (id), dist (kpc, signed: + outside the arm), width (kpc), inRange}.
+   *  Tries the three windings β, β±360° (the 3-kpc arm is excluded unless opts.all). */
+  G.nearestArm = function (R, beta, out, all) {
+    out = out || {}; let best = 1e9, bid = null, bw = 0, inr = false;
+    for (let i = 0; i < T.arms.length; i++) {
+      const a = T.arms[i]; if (!all && a.id === '3kpc') continue;
+      for (let w = -1; w <= 1; w++) {
+        const bb = beta + 360 * w; if (bb < a.beta_range[0] - 200 || bb > a.beta_range[1] + 200) continue;
+        const ra = G.armRadius(a, bb), d = (R - ra) * Math.cos(Math.atan(bb * DEG < a.bk ? a.tlt : a.tgt));  // APPROX: perpendicular distance ≈ ΔR cos ψ
+        if (Math.abs(d) < Math.abs(best)) { best = d; bid = a.id; bw = a.width; inr = bb >= a.beta_range[0] && bb <= a.beta_range[1]; }
+      }
+    }
+    out.arm = bid; out.dist = best; out.width = bw; out.inRange = inr; return out;
+  };
+  /** The Sun's arm crossings for a pattern speed Ωp (km/s/kpc; nearest of the tabulated 20, 25, 28.2, 30):
+   *  [{arm, t (Myr), extrap}], past negative. Illustrative only (see README). */
+  G.crossings = function (omegaP) { const tab = D.sunorbit.crossings.reid2019, keys = Object.keys(tab); let k = keys[0]; keys.forEach(x => { if (Math.abs(+x - omegaP) < Math.abs(+k - omegaP)) k = x; }); return tab[k]; };
+
+  /* rotation curve */
+  function interp(arr, R) { let u = (R - T.rotR0) / T.rotDR; if (u <= 0) return arr[0] * Math.max(R, 1e-3) / T.rotR0; /* APPROX: solid-body inside 0.5 kpc */ if (u >= T.rotN - 1) return arr[T.rotN - 1] * Math.sqrt(((T.rotN - 1) * T.rotDR + T.rotR0) / R); /* APPROX: Keplerian beyond 25 kpc */ const i = Math.floor(u), f = u - i; return arr[i] + (arr[i + 1] - arr[i]) * f; }
+  /** Circular speed (km/s) at radius R (kpc). curve: 'model' (McMillan 2017 total, default), 'baryons' (no dark
+   *  matter), 'obs' (Eilers 2019 + Sofue 2020), 'flat' (V0 everywhere). `dm === false` means 'baryons'. */
+  G.V = function (R, curve) { if (curve === false || curve === 'baryons') return interp(T.rotVbar, R); if (curve === 'obs') return interp(T.rotVobs, R); if (curve === 'flat') return K.V0; return interp(T.rotV, R); };
+  /** Angular speed Ω = V/R in km/s/kpc (multiply by K.KMSKPC_RADS for rad/s). */
+  G.Omega = function (R, curve) { return G.V(R, curve) / Math.max(R, 1e-3); };
+  /** Orbital period at R in Myr. */
+  G.periodMyr = function (R, curve) { return TAU / (G.Omega(R, curve) * K.KMSKPC_RADS) / 3.15576e13; };
+
+  /* ───────── 3. sound rules ───────── */
+  /** Star tone (Hz): Wien peak of a black body at T (K), lowered forty octaves. 5772 K → 502 nm → 543 Hz. */
+  G.starTone = function (T_K) { const lam = K.WIEN_M_K / Math.max(T_K, 300); return K.C_KMS * 1e3 / lam / Math.pow(2, K.OCT_LIGHT); };
+  /** The pitch of a wavelength (nm) under the forty-octave rule, folded into the octave [f0/√2, f0·√2) about f0. */
+  G.foldLine = function (nm, f0) { let f = K.C_KMS * 1e12 / nm / Math.pow(2, K.OCT_LIGHT); const lo = f0 / Math.SQRT2; while (f < lo) f *= 2; while (f >= lo * 2) f /= 2; return f; };
+  // spectral lines (nm) and their strength (0..1) by spectral class; negative gain = absorption. TiO bands are broad (low Q).
+  const LINES = [
+    { n: 'He II 468.6', nm: 468.6, q: 30, w: { O: 1 } },
+    { n: 'He I 447.1', nm: 447.1, q: 30, w: { O: .6, B: .8 } }, { n: 'He I 587.6', nm: 587.6, q: 30, w: { O: .5, B: .7 } },
+    { n: 'Hα', nm: 656.28, q: 25, w: { O: .3, B: .6, A: 1, F: .7, G: .35, K: .15 } }, { n: 'Hβ', nm: 486.13, q: 25, w: { O: .3, B: .6, A: 1, F: .7, G: .3, K: .1 } },
+    { n: 'Hγ', nm: 434.05, q: 25, w: { B: .5, A: .9, F: .6, G: .25 } }, { n: 'Hδ', nm: 410.17, q: 25, w: { B: .4, A: .8, F: .5, G: .2 } },
+    { n: 'Ca II K 393.4', nm: 393.37, q: 20, w: { A: .3, F: .8, G: 1, K: 1, M: .5 } }, { n: 'Ca II H 396.8', nm: 396.85, q: 20, w: { A: .3, F: .7, G: .9, K: .9, M: .4 } },
+    { n: 'G band CH 430.5', nm: 430.5, q: 12, w: { F: .3, G: .7, K: .7 } }, { n: 'Fe I 438.4', nm: 438.36, q: 30, w: { F: .3, G: .5, K: .5 } },
+    { n: 'Mg b 517.5', nm: 517.5, q: 15, w: { F: .3, G: .7, K: .8, M: .4 } }, { n: 'Fe I 527.0', nm: 527.04, q: 30, w: { G: .4, K: .5 } },
+    { n: 'Na D 589.3', nm: 589.3, q: 20, w: { F: .2, G: .6, K: .9, M: 1 } }, { n: 'Ca I 422.7', nm: 422.67, q: 25, w: { G: .3, K: .7, M: .9 } },
+    { n: 'CN 388.3', nm: 388.3, q: 10, w: { G: .2, K: .4 } },
+    { n: 'TiO 476', nm: 476.1, q: 6, w: { M: .6 } }, { n: 'TiO 495', nm: 495.4, q: 6, w: { M: .7 } }, { n: 'TiO 517', nm: 516.7, q: 6, w: { M: .8 } },
+    { n: 'TiO 545', nm: 544.8, q: 6, w: { M: .8 } }, { n: 'TiO 562', nm: 561.5, q: 6, w: { M: .9 } }, { n: 'TiO 586', nm: 585.9, q: 6, w: { M: .8 } },
+    { n: 'TiO 616', nm: 615.9, q: 6, w: { M: 1 } }, { n: 'TiO 665', nm: 665.1, q: 6, w: { M: .9 } }, { n: 'TiO 705', nm: 705.5, q: 6, w: { M: 1 } }, { n: 'TiO 759', nm: 758.9, q: 6, w: { M: .9 } },
+    { n: 'C₂ Swan 516.5', nm: 516.5, q: 8, w: { C: 1 } }, { n: 'C₂ Swan 473.7', nm: 473.7, q: 8, w: { C: .8 } }
+  ];
+  /** Parse a spectral type string → {cls ('O'…'M', 'C' carbon/S, 'WD'), sub (0..9.9 or null), lc}. */
+  G.parseSp = function (sp) {
+    const s = (sp || '').trim(); let cls = null, sub = null;
+    if (/^D[ABCOQZ]?/.test(s) || /^WD/.test(s)) cls = 'WD';
+    else { const m = s.match(/^(?:sd|esd|d|g|c|k)?([OBAFGKMLTYSCNR])\s?(\d(?:\.\d)?)?/); if (m) { cls = m[1]; sub = m[2] != null ? +m[2] : null; if (cls === 'N' || cls === 'R') cls = 'C'; if (cls === 'S') cls = 'M'; if (cls === 'L' || cls === 'T' || cls === 'Y') cls = 'M'; } }
+    const lc = /^(sd|esd)|VI\b/.test(s) ? 'VI' : /III/.test(s) ? 'III' : /II/.test(s) ? 'II' : /IV/.test(s) ? 'IV' : /V/.test(s) ? 'V' : /I[ab]*\b/.test(s) ? 'I' : (cls === 'WD' ? 'WD' : null);
+    return { cls, sub, lc };
+  };
+  /** Timbre filters for a star: the strongest absorption lines of its spectral class folded into the octave about its tone.
+   *  Returns up to opts.max (default 8) of {f (Hz), gain (dB, negative), q, line}, strongest first. Cached per star row.
+   *  Depth: −3 dB × strength × (1 + opts.depth) (default depth 1 → up to −6 dB); the sum is intended for peaking filters. */
+  G.filters = function (star, opts) {
+    const c = G.filters.cache; let r = c.get(star); if (r) return r;
+    const o = opts || {}, p = G.parseSp(star.sp), cls = p.cls || (star.T > 30000 ? 'O' : star.T > 10000 ? 'B' : star.T > 7500 ? 'A' : star.T > 6000 ? 'F' : star.T > 5200 ? 'G' : star.T > 3700 ? 'K' : 'M');
+    const f0 = G.starTone(star.T || 5772), depth = -3 * (1 + (o.depth == null ? 1 : o.depth));
+    // within a class the lines shift with subtype: Balmer strongest at A0 fading to F; molecular bands strengthen toward M9 (APPROX: linear ramps)
+    const sub = p.sub == null ? 5 : p.sub, ramp = cls === 'M' ? 0.5 + sub / 18 : cls === 'A' ? 1.1 - sub / 20 : 1;
+    r = [];
+    for (let i = 0; i < LINES.length; i++) { const L = LINES[i], w = L.w[cls]; if (!w) continue; r.push({ f: G.foldLine(L.nm, f0), gain: depth * w * ramp, q: L.q, line: L.n }); }
+    r.sort((a, b) => a.gain - b.gain); r.length = Math.min(r.length, o.max || 8); r.f0 = f0; r.cls = cls;
+    c.set(star, r); return r;
+  };
+  G.filters.cache = new Map();
+
+  /** Apparent V magnitude of a star of absolute magnitude M at distance dPc (inverse square: 5 log10(d/10 pc)). */
+  G.apparentMag = function (M, dPc) { return M + 5 * Math.log10(Math.max(dPc, 1e-6) / 10); };
+  /** Loudness 0..1 from an apparent magnitude: 1 at m ≤ opts.bright (default −1.5, Sirius), 0 at m ≥ opts.limit
+   *  (default 6.5, the naked-eye limit), linear in magnitude between — i.e. ~4 dB per magnitude, a clamped
+   *  inverse-square law. opts.gamma (default 1) bends the curve. */
+  G.loudness = function (m, opts) { const b = opts && opts.bright != null ? opts.bright : -1.5, l = opts && opts.limit != null ? opts.limit : 6.5; let x = (l - m) / (l - b); x = x < 0 ? 0 : x > 1 ? 1 : x; const g = opts && opts.gamma; return g && g !== 1 ? Math.pow(x, g) : x; };
+  /** Star loudness and distance from a listener L {x,y,z} (pc): {mag, loud, d}. The star's own position is `pos` (pc). */
+  G.starLoudness = function (star, pos, L, out, opts) { out = out || {}; const d = Math.hypot(pos.x - L.x, pos.y - L.y, pos.z - L.z); const M = ('M' in star) ? star.M : K.SUN.M; out.d = d; out.mag = G.apparentMag(M, d); out.loud = d < 1e-4 ? 0 : G.loudness(out.mag, opts); return out; };
+
+  /** Direction of a source from a listener. src, L: heliocentric galactic pc; facing: the listener's facing in the
+   *  galactic plane, degrees (0 = toward the Galactic centre, 90 = toward l = 90°; same sense as the planetary pages'
+   *  facing angle). Returns {az (deg, 0 ahead, + to the right), el (deg), pan (−1..1 = sin az · cos el), d (pc),
+   *  ax, ay, az3 (unit vector in the Web Audio frame for a PannerNode, after the listener is turned to face +x: use
+   *  setListener(facing) as the planetary pages do), self (true if coincident)}. */
+  G.direction = function (src, L, facing, out) {
+    out = out || {}; const dx = src.x - L.x, dy = src.y - L.y, dz = src.z - L.z, d = Math.hypot(dx, dy, dz); out.d = d;
+    if (d < 1e-9) { out.az = 0; out.el = 90; out.pan = 0; out.ax = 0; out.ay = 1; out.az3 = 0; out.self = true; return out; }
+    out.self = false; const f = (facing || 0) * DEG, cf = Math.cos(f), sf = Math.sin(f);
+    const fx = (dx * cf + dy * sf) / d, rt = (dx * sf - dy * cf) / d, up = dz / d;            // ahead, right, up
+    out.az = Math.atan2(rt, fx) / DEG; out.el = Math.asin(Math.max(-1, Math.min(1, up))) / DEG; out.pan = rt;
+    out.ax = dx / d; out.ay = dz / d; out.az3 = -dy / d; return out;
+  };
+  /** The planetary pages' facing rule in this frame: angle (deg) from L toward target (both pc), plus a turn (deg). */
+  G.facingToward = function (L, target, turn) { return Math.atan2(target.y - L.y, target.x - L.x) / DEG + (turn || 0); };
+
+  /** Doppler factor for a radial velocity rv (km/s, + receding), exaggerated ×exag (1, 100, 1000…): multiply a
+   *  frequency by it. Relativistic form, |β| clamped to 0.95. The Sun's own motion is not removed (heliocentric rv). */
+  G.doppler = function (rv, exag) { let b = (rv || 0) * (exag || 1) / K.C_KMS; b = b > .95 ? .95 : b < -.95 ? -.95 : b; return Math.sqrt((1 - b) / (1 + b)); };
+  /** Line-of-sight velocity (km/s, + receding) of a star as seen from a listener moving with the Sun at position L. */
+  G.radialVelocity = function (star, pos, L, out) { const v = G.velocity(star, out || {}); const dx = pos.x - L.x, dy = pos.y - L.y, dz = pos.z - L.z, d = Math.hypot(dx, dy, dz) || 1; return (v.vx * dx + v.vy * dy + v.vz * dz) / d; };
+
+  /** Light-curve shape: brightness 0..1 (1 = maximum light) at phase 0..1 for a GCVS type. Phase 0 is the epoch
+   *  of maximum (or primary minimum for eclipsing types). mmd = GCVS M−m (rise time, or eclipse duration D for
+   *  eclipsing stars) as % of the period. Shapes (APPROX, idealised):
+   *   Cepheids (DCEP, DCEPS, CEP, CW/W Vir) and RR Lyrae ab (RR, RRAB): a saw — fast rise over mmd %, slow decline with a slight bump;
+   *   RRC, DSCT, BCEP, ACV, ELL, GCAS, SR/L: sinusoid;  Mira (M): sinusoid with a sharper maximum;
+   *   EA (Algol): flat with a V-shaped primary eclipse of width D and a shallow secondary;  EB: eclipses on a sinusoid;  EW: cos 2φ. */
+  G.lightCurve = function (type, phase, mmd) {
+    const t = (type || '').toUpperCase(), ph = phase - Math.floor(phase);
+    if (/^(DCEP|CEP|CW|RRAB|RR(?!C))/.test(t)) { const m = Math.min(.5, Math.max(.05, (mmd || (t[0] === 'R' ? 15 : 25)) / 100)); if (ph > 1 - m) return (ph - (1 - m)) / m; const x = ph / (1 - m); return 1 - Math.pow(x, .8) + .08 * Math.sin(TAU * x) * x; }
+    if (/^EA/.test(t)) { const D = Math.min(.4, Math.max(.03, (mmd || 12) / 100)), half = D / 2; let dp = Math.min(ph, 1 - ph); if (dp < half) return 1 - (1 - dp / half); const ds = Math.abs(ph - .5); if (ds < half) return 1 - .15 * (1 - ds / half); return 1; }
+    if (/^EB/.test(t)) { const D = Math.min(.4, Math.max(.05, (mmd || 15) / 100)), half = D / 2; let v = .85 + .15 * Math.cos(2 * TAU * ph); const dp = Math.min(ph, 1 - ph); if (dp < half) v *= dp / half; return v; }
+    if (/^EW/.test(t)) return .55 + .45 * Math.cos(2 * TAU * ph);
+    if (/^M(\b|$)/.test(t)) { const c = Math.cos(TAU * ph); return .5 + .5 * Math.sign(c) * Math.pow(Math.abs(c), .7); }
+    return .5 + .5 * Math.cos(TAU * ph);
+  };
+  /** Variable-star brightness 0..1 at Julian Date jd (shape of its type; 1 for constant stars). */
+  G.varBright = function (star, jd) { const v = star.var; if (!v || !v.P) return 1; const ep = (v.ep != null ? v.ep + 2400000 : 2451545); return G.lightCurve(v.t, (jd - ep) / v.P, v.mmd); };
+  /** Apparent magnitude of a variable at jd, between its GCVS max and min (uses the catalogue mag if no range). */
+  G.varMag = function (star, jd) { const v = star.var; if (!v || !v.P || v.mx == null || v.mn == null) return star.mag; return v.mn - (v.mn - v.mx) * G.varBright(star, jd); };
+
+  /** How a pulsar is heard: {f (Hz = its spin frequency), mode: 'tone' (f ≥ 20 Hz, heard directly as a buzz or
+   *  tone), 'beat' (2–20 Hz) or 'click' (< 2 Hz), period (s), msp}. Nothing is transposed: pulsars are audible as they are. */
+  G.pulsarSound = function (p, out) { out = out || {}; const f = p.F0 || 1 / p.P0; out.f = f; out.period = 1 / f; out.mode = f >= 20 ? 'tone' : f >= 2 ? 'beat' : 'click'; out.msp = f > 33; return out; };
+  /** Dispersion delay (s) of frequency fMHz relative to fRefMHz (∞ if omitted) for dispersion measure DM (pc cm⁻³). */
+  G.dispersionDelay = function (DM, fMHz, fRefMHz) { return K.DM_CONST * DM * (1 / (fMHz * fMHz) - (fRefMHz ? 1 / (fRefMHz * fRefMHz) : 0)); };
+  /** The dispersion "whistle" of one pulse: the real sweep across a radio band [hiMHz → loMHz] (default 800 → 400 MHz,
+   *  CHIME's band) lasts dur seconds; it is mapped onto an audio glide from fTop to fBottom (default 2 kHz → 200 Hz,
+   *  a 1:10 range like the band's 1:4 in frequency squared… stated as a mapping). Returns {dur (s, × opts.stretch),
+   *  points: [{t, f}] with n points following the real Δt ∝ f⁻² law}. Crab (DM 56.8): 1.10 s; Vela: 1.32 s. */
+  G.dispersionSweep = function (DM, opts) {
+    const o = opts || {}, hi = o.hiMHz || 800, lo = o.loMHz || 400, fT = o.fTop || 2000, fB = o.fBottom || 200, n = o.n || 16, st = o.stretch || 1;
+    const dur = G.dispersionDelay(DM, lo, hi) * st, pts = o.points || new Array(n);
+    for (let i = 0; i < n; i++) { const u = i / (n - 1), fm = hi * Math.pow(lo / hi, u); pts[i] = { t: G.dispersionDelay(DM, fm, hi) * st, f: fT * Math.pow(fB / fT, u) }; }
+    return { dur, points: pts, DM };
+  };
+
+  /** The rotation chord. radii: array of R (kpc); default rings R_max/n, n = 1…8 with R_max = 24 kpc, so a flat
+   *  curve gives the harmonic series on the outermost ring. opts.curve as in V(); opts.dm === false → baryons only.
+   *  opts.octaves: the stated transposition (default 61 octaves: Ω(24 kpc) = 9.2 km/s/kpc → 4.7×10⁻¹⁷ Hz → ~110 Hz).
+   *  Returns {freqs (Hz), omegas (km/s/kpc), radii, octaves, periodsMyr}. */
+  G.rotationChord = function (radii, opts) {
+    const o = opts || {}, curve = o.dm === false ? 'baryons' : (o.curve || 'model'), oct = o.octaves == null ? 61 : o.octaves, k = Math.pow(2, oct) * K.KMSKPC_RADS / TAU;
+    const R = radii || G.rotationChord.defaultRadii, n = R.length, out = o.out || { freqs: new Float64Array(n), omegas: new Float64Array(n), periodsMyr: new Float64Array(n) };
+    for (let i = 0; i < n; i++) { const w = G.Omega(R[i], curve); out.omegas[i] = w; out.freqs[i] = w * k; out.periodsMyr[i] = TAU / (w * K.KMSKPC_RADS) / 3.15576e13; }
+    out.radii = R; out.octaves = oct; out.curve = curve;
+    // the harmonic each ring *should* play on a flat curve: R_max / R (rounded when within 2 %)
+    if (!out.expected || out.expected.length !== n) out.expected = new Int32Array(n); let Rm = 0; for (let i = 0; i < n; i++) if (R[i] > Rm) Rm = R[i];
+    for (let i = 0; i < n; i++) { const q = Rm / R[i], h = Math.round(q); out.expected[i] = Math.abs(q - h) < .02 * q ? h : 0; }
+    return out;
+  };
+  G.rotationChord.defaultRadii = [24, 12, 8, 6, 4.8, 4, 24 / 7, 3];
+  /** Harmonic snap: how far a set of frequencies is from the harmonic series on its lowest member (or opts.f1).
+   *  opts.expected (e.g. a chord's .expected): the harmonic each voice should be, else the nearest integer multiple.
+   *  Returns {harmonics, cents (signed deviation of each), maxCents, rmsCents, snapped (Hz)}. */
+  G.harmonicSnap = function (freqs, opts) {
+    const n = freqs.length; let f1 = opts && opts.f1; if (!f1) { f1 = Infinity; for (let i = 0; i < n; i++) if (freqs[i] < f1) f1 = freqs[i]; }
+    const ex = opts && opts.expected, out = (opts && opts.out) || { harmonics: new Int32Array(n), cents: new Float64Array(n), snapped: new Float64Array(n) }; let mx = 0, ss = 0;
+    for (let i = 0; i < n; i++) { const r = freqs[i] / f1, h = (ex && ex[i]) || Math.max(1, Math.round(r)), c = 1200 * Math.log2(r / h); out.harmonics[i] = h; out.cents[i] = c; out.snapped[i] = h * f1; const a = Math.abs(c); if (a > mx) mx = a; ss += c * c; }
+    out.maxCents = mx; out.rmsCents = Math.sqrt(ss / n); out.f1 = f1; return out;
+  };
+
+  /** 21-cm line-of-sight profile at galactic longitude l (deg) in the plane: samples along the line of sight,
+   *  [{v (km/s, + receding), weight, arm (id or null), R (kpc), d (kpc)}], step opts.step kpc (0.25) out to opts.dmax
+   *  (30 kpc). v = (Ω(R) − Ω0) R0 sin l with the rotation curve opts.curve. Weight = HI surface density
+   *  (McMillan 2017 HI disc, Σ ∝ exp(−Rm/R − R/Rd), Rm = 4, Rd = 7 kpc) × path length × (1 + A·gauss(arm distance/width))
+   *  with A = opts.armBoost (2.5) — the arms as density ridges (APPROX; the real gas has non-circular motions and the
+   *  far side is as bright as the near). Also returns .terminal (km/s, the tangent-point velocity, |l| < 90° only).
+   *  The returned array is reused between calls unless opts.copy. */
+  const hiBuf = [];
+  G.hiProfile = function (l, opts) {
+    const o = opts || {}, step = o.step || .25, dmax = o.dmax || 30, A = o.armBoost == null ? 2.5 : o.armBoost, curve = o.curve || 'model';
+    const L = l * DEG, sl = Math.sin(L), cl = Math.cos(L), R0 = K.R0, W0 = G.Omega(R0, curve), out = o.copy ? [] : hiBuf;
+    const na = G.hiProfile._na || (G.hiProfile._na = {}), pool = G.hiProfile._pool || (G.hiProfile._pool = []);
+    let i = 0;
+    for (let d = step / 2; d < dmax; d += step) {
+      const R = Math.sqrt(R0 * R0 + d * d - 2 * R0 * d * cl); if (R < .3) continue;
+      const v = (G.Omega(R, curve) - W0) * R0 * sl;
+      const sig = Math.exp(-4 / R - R / 7);                                      // HI surface density, relative
+      const beta = Math.atan2(d * sl, R0 - d * cl) / DEG; G.nearestArm(R, beta, na);
+      const g = Math.exp(-.5 * (na.dist / (na.width || .3)) * (na.dist / (na.width || .3)));
+      const w = sig * step * (1 + A * g) * (R > 20 ? Math.exp(-(R - 20) / 2) : 1);  // the disc truncates beyond ~20 kpc
+      const e = o.copy ? {} : (pool[i] || (pool[i] = {})); e.v = v; e.weight = w; e.arm = g > .3 ? na.arm : null; e.R = R; e.d = d; e.beta = beta; out[i++] = e;
+    }
+    out.length = i;
+    out.terminal = Math.abs(sl) < 1 && cl > 0 ? (G.Omega(R0 * Math.abs(sl), curve) - W0) * R0 * sl : null;
+    return out;
+  };
+  /** Cluster the profile into one component per arm (+ 'disc'): [{arm, v (weighted mean), weight, vmin, vmax}], sorted by v. */
+  G.hiClusters = function (profile) {
+    const m = new Map();
+    for (let i = 0; i < profile.length; i++) { const e = profile[i], k = (e.arm || 'disc') + (e.d > K.R0 ? ':far' : ':near'); let c = m.get(k); if (!c) m.set(k, c = { arm: e.arm || 'disc', far: e.d > K.R0, v: 0, weight: 0, vmin: 1e9, vmax: -1e9 }); c.v += e.v * e.weight; c.weight += e.weight; if (e.v < c.vmin) c.vmin = e.v; if (e.v > c.vmax) c.vmax = e.v; }
+    const out = []; m.forEach(c => { if (c.weight > 0) { c.v /= c.weight; out.push(c); } }); out.sort((a, b) => a.v - b.v); return out;
+  };
+  /** The pitch (Hz) of 21-cm gas at line-of-sight velocity v (km/s, + receding): 1420.405 MHz lowered 21 octaves
+   *  (677.3 Hz), Doppler-shifted with the velocity exaggerated ×exag (default 1000: 100 km/s → −33 %). */
+  G.hiPitch = function (v, exag) { return K.HI_MHZ * 1e6 / Math.pow(2, K.OCT_HI) * G.doppler(v, exag == null ? 1000 : exag); };
+
+  /** Radio source as noise: {alpha, dBPerOct (spectral slope of the power spectrum = 10·α·log10 2 ≈ 3.01 α),
+   *  colour ('white' |α| < .15, 'pink' to −.5… named loosely), S (Jy at 1.4 GHz in year `year`, with fading),
+   *  mag (radio magnitude), loud (0..1 on the radio scale: 1 at −8 (Cas A), 0 at +5)}. */
+  G.radioNoise = function (src, year, out) {
+    out = out || {}; const a = src.alpha == null ? -.7 : src.alpha; let S = src.S1400 || 0;
+    if (src.fade && year != null) S *= Math.pow(1 - src.fade.pct_per_yr / 100, year - (src.fade.epoch0 || src.S1400_epoch || 1980));
+    out.alpha = a; out.dBPerOct = 10 * a * Math.log10(2); out.colour = a > -.15 && a < .15 ? 'white' : a >= .15 ? 'blue' : a > -.6 ? 'pinkish' : a > -1.2 ? 'pink' : 'brown';
+    out.S = S; out.mag = radioMag(S); out.loud = G.loudness(out.mag, { bright: -8, limit: 5 }); return out;
+  };
+
+  /** Seeded PRNG (mulberry32): returns a function giving uniform [0,1). */
+  G.rng = function (seed) { let a = (seed >>> 0) || 1; return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
+  /** Sgr A* flares over spanDays, from the statistics in radio.json (var): near-infrared flares (Poisson, 4/day,
+   *  1–2 h, amplitude 10–100× quiescent, log-uniform), X-ray flares (1.1/day, 1–100×), sub-mm wobbles (30–120 min,
+   *  ±20 %) and a slow radio wander (10–30 % over 1–30 d). Returns sorted [{t (days), dur (days), amp (× quiescent),
+   *  band}]. Use sgrLevel() to read the combined level at a time. */
+  G.sgrFlares = function (seed, spanDays, opts) {
+    const s = T.rrow.find(r => r.id === 'sgra') || {}, V = (s.var) || {}, r = G.rng(seed || 1), out = [], o = opts || {};
+    const nirRate = o.nirPerDay || V.nir_flares_per_day || 4, xRate = o.xrayPerDay || V.xray_flares_per_day || 1.1;
+    const poisson = (rate, band, durLo, durHi, ampLo, ampHi) => { let t = -Math.log(1 - r()) / rate; while (t < spanDays) { out.push({ t, dur: (durLo + (durHi - durLo) * r()) / 24, amp: Math.exp(Math.log(ampLo) + (Math.log(ampHi) - Math.log(ampLo)) * r()), band }); t += -Math.log(1 - r()) / rate; } };
+    poisson(nirRate, 'nir', 1, 2, 10, 100); poisson(xRate, 'xray', .5, 1.5, 1, 100);
+    const sm = V.submm_timescale_min || { lo: 30, hi: 120 }; let t = 0; while (t < spanDays) { const d = (sm.lo + (sm.hi - sm.lo) * r()) / 1440; out.push({ t, dur: d, amp: .8 + .4 * r(), band: 'submm' }); t += d; }
+    const rp = V.radio_pct || { lo: 10, hi: 30, timescale_d: { lo: 1, hi: 30 } }; t = 0; while (t < spanDays) { const d = rp.timescale_d.lo + (rp.timescale_d.hi - rp.timescale_d.lo) * r(); out.push({ t, dur: d, amp: 1 + (rp.lo + (rp.hi - rp.lo) * r()) / 100 * (r() < .5 ? -1 : 1), band: 'radio' }); t += d; }
+    out.sort((a, b) => a.t - b.t); return out;
+  };
+  /** Combined Sgr A* level (× quiescent) at time t (days) from a flare list: radio and sub-mm multiply; the loudest
+   *  NIR/X-ray flare adds a triangular (rise ¼, fall ¾) pulse scaled by opts.flareGain (default .05: a 100× flare → +5). */
+  G.sgrLevel = function (flares, t, opts) {
+    let lv = 1, add = 0; const g = opts && opts.flareGain != null ? opts.flareGain : .05;
+    for (let i = 0; i < flares.length; i++) { const f = flares[i]; if (f.t > t) break; const u = (t - f.t) / f.dur; if (u > 1) continue; if (f.band === 'radio' || f.band === 'submm') lv *= f.amp; else { const sh = u < .25 ? u / .25 : 1 - (u - .25) / .75; add = Math.max(add, (f.amp - 1) * sh * g); } }
+    return lv + add;
+  };
+  /** FRB events over spanDays from frb.json: periodic repeaters burst only in their active window (FRB 20180916B:
+   *  16.35-d cycle, 5-d window; FRB 20121102A: 157 d, 56 % duty), at opts.repeatRate bursts per active day (1);
+   *  other repeaters at opts.repeatRate/4 per day; one-off bursts arrive as a Poisson stream at opts.oneOffPerDay
+   *  (0.3), each drawn from the non-repeaters. Returns sorted [{t (days), frb (row), DM, width_ms, fluence, sweep}]
+   *  where sweep is the dispersionSweep duration (s) across 400–800 MHz. */
+  G.frbEvents = function (seed, spanDays, opts) {
+    const o = opts || {}, r = G.rng(seed || 7), rows = D.frb.frbs, out = [], rr = o.repeatRate == null ? 1 : o.repeatRate, oo = o.oneOffPerDay == null ? .3 : o.oneOffPerDay;
+    const once = rows.filter(f => !f.repeater && !f.rp), reps = rows.filter(f => f.repeater || f.rp);
+    const push = (t, f) => out.push({ t, frb: f, DM: f.DM, width_ms: f.width_ms || 2, fluence: f.fluence || 1, sweep: G.dispersionDelay(f.DM, 400, 800) });
+    reps.forEach(f => {
+      const P = f.period_d, win = f.active_window_d || (P ? .56 * P : 0), rate = P ? rr : rr / 4, ph0 = r();
+      let t = -Math.log(1 - r()) / rate;
+      while (t < spanDays) { if (!P || ((t / P + ph0) % 1) * P < win) push(t, f); t += -Math.log(1 - r()) / rate; }
+    });
+    let t = -Math.log(1 - r()) / oo; while (t < spanDays && once.length) { push(t, once[Math.floor(r() * once.length)]); t += -Math.log(1 - r()) / oo; }
+    out.sort((a, b) => a.t - b.t); return out;
+  };
+
+  /** The Sun's p-modes (BiSON, seismo.json) sped up into hearing: {octaves, modes: [{f (Hz), w (relative power), n, l, nu (µHz)}]}.
+   *  Default transposition 17 octaves (×131 072): νmax 3090 µHz → 405 Hz, Δν 135 µHz → 17.7 Hz; the 5.4-minute
+   *  oscillation becomes 2.5 ms. opts.minW drops the faintest modes (default 1e-3 of the strongest). */
+  G.sunModes = function (opts) {
+    const o = opts || {}, oct = o.octaves == null ? 17 : o.octaves, k = 1e-6 * Math.pow(2, oct), S = D.seismo.sun, mw = o.minW == null ? 1e-3 : o.minW;
+    let wmax = 0; S.modes.forEach(m => { if (m.w > wmax) wmax = m.w; });
+    const modes = []; S.modes.forEach(m => { if (m.w >= mw * wmax) modes.push({ f: m.nu * k, w: m.w / wmax, n: m.n, l: m.l, nu: m.nu }); });
+    return { octaves: oct, modes, numax: S.numax * k, dnu: S.dnu * k };
+  };
+  /** Modes of a star from νmax and Δν (µHz) by the asymptotic relation ν(n,l) = Δν (n + l/2 + ε) − l(l+1) D0, with the
+   *  Sun's ε = 1.525 and D0 = δν02/6 scaled with Δν (APPROX; real giants show mixed modes). The envelope is Gaussian,
+   *  FWHM 0.66 νmax^0.88, with visibilities 1 : 1.5 : 0.5 : 0.05 for l = 0…3. Transposition: opts.octaves, or the integer
+   *  octave count that brings νmax nearest opts.target Hz (default 400) — so a red giant with νmax 30 µHz is raised
+   *  ~24 octaves while the Sun needs 17. Returns {octaves, modes:[{f, w, n, l, nu}], numax (Hz), dnu (Hz)}. Pass a
+   *  seismo.json star row or any {numax, dnu}. */
+  G.starModes = function (st, opts) {
+    const o = opts || {}, numax = st.numax, dnu = st.dnu, S = D.seismo.sun, eps = S.eps || 1.525, D0 = (S.d02 || 9.04) / (S.dnu || 135.1) * dnu / 6;
+    const oct = o.octaves != null ? o.octaves : Math.round(Math.log2((o.target || 400) / (numax * 1e-6))), k = 1e-6 * Math.pow(2, oct);
+    const fw = .66 * Math.pow(numax, .88), sg = fw / 2.3548, n0 = Math.round(numax / dnu - eps), span = o.nRange || Math.max(3, Math.ceil(1.5 * fw / dnu)), vis = [1, 1.5, .5, .05], lmax = o.lmax == null ? 2 : o.lmax, modes = [];
+    for (let n = Math.max(1, n0 - span); n <= n0 + span; n++) for (let l = 0; l <= lmax; l++) { const nu = dnu * (n + l / 2 + eps) - l * (l + 1) * D0, w = vis[l] * Math.exp(-.5 * ((nu - numax) / sg) * ((nu - numax) / sg)); if (w > 1e-3) modes.push({ f: nu * k, w, n, l, nu }); }
+    return { octaves: oct, modes, numax: numax * k, dnu: dnu * k };
+  };
+  /** The seismo.json row for a stars.json row (by id), or null. */
+  G.seismoOf = function (star) { if (!G.seismoOf._m) { G.seismoOf._m = new Map(); D.seismo.stars.forEach(s => G.seismoOf._m.set(s.id, s)); } return G.seismoOf._m.get(star.id) || null; };
+
+  /* ───────── 4. voice budget ───────── */
+  const bud = { score: null, ix: null, pool: [], out: [], reset() { bud.score = new Float64Array(T.n + T.np + T.nr); bud.ix = new Int32Array(T.n + T.np + T.nr); } };
+  function cmpScore(a, b) { return bud.score[b] - bud.score[a]; }
+  /** Default budget from the app's quality setting if present (eco 16, standard 32, high 64), else by touch points. */
+  G.defaultBudget = function () { try { const q = window.MOTS && MOTS.quality && MOTS.quality(); if (q === 'eco') return 16; if (q === 'high') return 64; if (q) return 32; } catch (e) { } try { return (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 700) ? 20 : 48; } catch (e) { return 32; } };
+  /** The N most audible sources for a listener L {x,y,z} (pc, heliocentric galactic), sorted loudest first.
+   *  opts: n (default defaultBudget()), tYr (star positions at this time offset; 0), stars/pulsars/radio (booleans,
+   *  default true), starGain/pulsarGain/radioGain (multiply loudness; default 1, .7, .5), limit/bright (passed to
+   *  loudness for stars), jd (apply variable-star light curves if given), facing (deg; fills az/el/pan).
+   *  Returns a reused array (copy it if you keep it) of {kind: 'star'|'pulsar'|'radio', row, i, loud, mag, d (pc),
+   *  x, y, z (pc, heliocentric), az, el, pan}. No allocation after the first call for a given n. */
+  G.audible = function (L, opts) {
+    const o = opts || {}, N = o.n || G.defaultBudget(), t = o.tYr || 0, sc = bud.score, ix = bud.ix, lx = L ? L.x : 0, ly = L ? L.y : 0, lz = L ? L.z : 0;
+    const gs = o.starGain == null ? 1 : o.starGain, gp = o.pulsarGain == null ? .7 : o.pulsarGain, gr = o.radioGain == null ? .5 : o.radioGain;
+    const br = o.bright == null ? -1.5 : o.bright, lim = o.limit == null ? 6.5 : o.limit, inv = 1 / (lim - br); let m = 0;
+    if (o.stars !== false) for (let i = 0; i < T.n; i++) {
+      const dx = T.X[i] + T.VX[i] * t - lx, dy = T.Y[i] + T.VY[i] * t - ly, dz = T.Z[i] + T.VZ[i] * t - lz, d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 < 1e-8) { continue; }                                     // where you stand
+      let mag = T.M[i] + 2.5 * Math.log10(d2 / 100);                   // 5 log10(d/10)
+      if (o.jd != null && T.rows[i].var) mag += G.varMag(T.rows[i], o.jd) - T.rows[i].mag;
+      let x = (lim - mag) * inv; if (x <= 0) continue; if (x > 1) x = 1; sc[i] = x * gs; ix[m++] = i;
+    }
+    if (o.pulsars !== false) for (let i = 0; i < T.np; i++) {
+      const dx = T.PX[i] - lx, dy = T.PY[i] - ly, dz = T.PZ[i] - lz, d2 = dx * dx + dy * dy + dz * dz, d0 = (T.prow[i].d || 1) * 1000;
+      if (d2 < 1e-8) continue; const mag = T.PM[i] + 2.5 * Math.log10(d2 / (d0 * d0));
+      let x = (5 - mag) / 13; if (x <= 0) continue; if (x > 1) x = 1; sc[T.n + i] = x * gp; ix[m++] = T.n + i;   // radio scale: 1 at −8, 0 at +5
+    }
+    if (o.radio !== false) for (let i = 0; i < T.nr; i++) {
+      const dx = T.RX[i] - lx, dy = T.RY[i] - ly, dz = T.RZ[i] - lz, d2 = dx * dx + dy * dy + dz * dz, r = T.rrow[i], d0 = r.d_kpc != null ? r.d_kpc * 1000 : r.d_Mpc * 1e6;
+      if (d2 < 1e-8) continue; const mag = T.RM[i] + 2.5 * Math.log10(d2 / (d0 * d0));
+      let x = (5 - mag) / 13; if (x <= 0) continue; if (x > 1) x = 1; sc[T.n + T.np + i] = x * gr; ix[m++] = T.n + T.np + i;
+    }
+    // partial selection: sort the candidate indices by score (m ≤ ~1,200: a plain sort is well under a millisecond)
+    const cand = ix.subarray(0, m); cand.sort(cmpScore);
+    const n = Math.min(N, m), out = bud.out; out.length = n;
+    for (let j = 0; j < n; j++) {
+      const i = cand[j], e = bud.pool[j] || (bud.pool[j] = {}); out[j] = e; e.i = i; e.loud = sc[i];
+      if (i < T.n) { e.kind = 'star'; e.row = T.rows[i]; e.x = T.X[i] + T.VX[i] * t; e.y = T.Y[i] + T.VY[i] * t; e.z = T.Z[i] + T.VZ[i] * t; e.mag = T.M[i] + 5 * Math.log10(Math.hypot(e.x - lx, e.y - ly, e.z - lz) / 10); }
+      else if (i < T.n + T.np) { const k = i - T.n; e.kind = 'pulsar'; e.row = T.prow[k]; e.x = T.PX[k]; e.y = T.PY[k]; e.z = T.PZ[k]; e.mag = T.PM[k] + 5 * Math.log10(Math.hypot(e.x - lx, e.y - ly, e.z - lz) / ((e.row.d || 1) * 1000)); }
+      else { const k = i - T.n - T.np; e.kind = 'radio'; e.row = T.rrow[k]; e.x = T.RX[k]; e.y = T.RY[k]; e.z = T.RZ[k]; e.mag = T.RM[k] + 5 * Math.log10(Math.hypot(e.x - lx, e.y - ly, e.z - lz) / (e.row.d_kpc != null ? e.row.d_kpc * 1000 : e.row.d_Mpc * 1e6)); }
+      const dx = e.x - lx, dy = e.y - ly, dz = e.z - lz; e.d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (o.facing != null) { const f = o.facing * DEG, cf = Math.cos(f), sf = Math.sin(f), fx = (dx * cf + dy * sf) / e.d, rt = (dx * sf - dy * cf) / e.d; e.az = Math.atan2(rt, fx) / DEG; e.el = Math.asin(dz / e.d) / DEG; e.pan = rt; }
+    }
+    return out;
+  };
+  /** Find a star row by IAU name, Bayer/Flamsteed (`bf`), HIP or HYG id; or a pulsar by J/B name. */
+  G.find = function (q) { const s = String(q).toLowerCase(); for (let i = 1; i < T.n; i++) { const r = T.rows[i]; if ((r.n && r.n.toLowerCase() === s) || (r.bf && r.bf.toLowerCase() === s) || String(r.hip) === s || String(r.id) === s) return r; } for (let i = 0; i < T.np; i++) { const p = T.prow[i]; if (p.j.toLowerCase() === s || (p.b && p.b.toLowerCase() === s)) return p; } return null; };
+  G.tables = () => T;
+  G.stars = () => T.rows; G.pulsars = () => T.prow; G.radio = () => T.rrow;
+
+  /* ───────── 5. gods ───────── */
+  /** Who speaks for what. `choice` picks the settings option for the pulsars and the black hole: 'forge' (Hephaestus
+   *  and Nyx) or 'chaos' (the Cyclopes and Chaos). Keys are stable ids for the twelve-language text to attach to;
+   *  `name` is the English display name. Entries marked suggested:true are proposals, not decisions. */
+  const GODS = {
+    milkyWay: { key: 'hera', name: 'Hera', why: 'galaxias kyklos, the milky circle of her spilled milk' },
+    hydrogen: { key: 'hera', name: 'Hera', why: 'the milk itself: the gas of the arms', suggested: true },
+    pulsars: { forge: { key: 'hephaestus', name: 'Hephaestus', why: 'the forge: hammer-blows that keep time' }, chaos: { key: 'cyclopes', name: 'the Cyclopes', why: 'the one-eyed smiths, each pulse a stroke' } },
+    blackHole: { forge: { key: 'nyx', name: 'Nyx', why: 'Night, from whom nothing returns' }, chaos: { key: 'chaos', name: 'Chaos', why: 'the void before the gods' } },
+    stars: { key: 'astraeus', name: 'Astraeus', why: 'father of the stars and the winds', suggested: true },
+    variables: { key: 'hecate', name: 'Hecate', why: 'the waxing and waning torch', suggested: true },
+    radio: { key: 'iris', name: 'Iris', why: 'messenger across the dark; the FRBs are her flashes', suggested: true },
+    starquakes: { key: 'poseidon', name: 'Poseidon', why: 'the earth-shaker, here the star-shaker', suggested: true },
+    sunOrbit: { key: 'helios', name: 'Helios', why: 'the Sun on its galactic year', suggested: true }
+  };
+  G.GODS = GODS;
+  /** The speaker for a topic ('milkyWay', 'pulsars', 'blackHole', 'stars', …) under a settings choice ('forge' | 'chaos'). */
+  G.speaker = function (topic, choice) { const g = GODS[topic]; if (!g) return null; return g.key ? g : (g[choice || 'forge'] || g.forge); };
+
+  if (typeof window !== 'undefined') window.GALAXY = G; else if (typeof globalThis !== 'undefined') globalThis.GALAXY = G;
+})();
+</script>
+<script>
+/* ================= THE GALACTIC SYNTHESISER (gsynth.js): the Planets | Galaxy switch of the Synth page =================
+   Step 3 of the Galaxy extension. Runs after synth.js (which exposes what it needs on window.SYNTH) and the galactic engine
+   galaxy.js (window.GALAXY). In Galaxy mode the strips are populations of the Milky Way (nearby stars, the brightest stars,
+   pulsars, hydrogen rings, spiral arms, radio sources, starquakes), each with a stated tuning law; the matrix, LFOs,
+   sequencer, patches, Stage, Record and Score of the page are reused through the GALAXY-HOOKs in synth.js. Everything here
+   is prefixed or private; the only global is window.GSYNTH. The 30 Hz tick allocates nothing (typed and pooled objects). */
+(function(){
+'use strict';
+const SY=window.SYNTH;if(!SY)return;
+const $=id=>document.getElementById(id);
+const LANG=SY.LANG,LOW=SY.LOWPOWER,TX=SY.TX,esc=SY.esc,fmtN=SY.fmtN,clamp=(v,lo=-1,hi=1)=>Math.max(lo,Math.min(hi,v));
+const DEG=Math.PI/180,TAU=2*Math.PI;
+/*GT_ALL*/const GT_ALL={"en": {"planets": "Planets", "galaxy": "Galaxy", "modeTip": "Which instrument: the solar system’s planets, or the stars, pulsars and gas of the Milky Way.", "loading": "Loading the Galaxy…", "loadFail": "The Galaxy’s data could not be loaded.", "strips": {"near": "Nearby stars", "bright": "Brightest stars", "pulsars": "Pulsars", "rings": "Hydrogen rings", "arms": "Spiral arms", "radio": "Radio sources", "quakes": "Starquakes"}, "stripTip": {"near": "Every star within about fifteen light-years of where you listen, nearest loudest: red dwarfs mostly, sounding low and dark.", "bright": "The stars that look brightest from where you listen, each at its own colour-pitch.", "pulsars": "Spinning neutron stars, heard as they are: a buzz, a beat or a click at the true spin rate.", "rings": "Rings of the Galaxy’s disc at R, R/2, R/3…: with dark matter they turn 1, 2, 3… times as fast, so they play the harmonic series.", "arms": "The 21-cm line of hydrogen along your line of sight: one pitch per spiral arm, Doppler-shifted by the gas’s motion.", "radio": "Synchrotron sources as coloured noise: Cassiopeia A, Cygnus A, the Crab, M87, Centaurus A, and Sgr A*, which flickers.", "quakes": "The Sun’s five-minute oscillations and a red giant’s, sped up into hearing: the most literal music of the spheres."}, "gods": {"hera": "Hera", "astraeus": "Astraeus", "hecate": "Hecate", "hephaestus": "Hephaestus", "cyclopes": "The Cyclopes", "nyx": "Nyx", "chaos": "Chaos", "iris": "Iris", "poseidon": "Poseidon", "helios": "Helios"}, "voicesN": "Voices", "spread": "Pan spread", "spreadTip": "1: each source from its true direction. 0: everything straight ahead.", "voice": {"star": "Star (spectral lines)", "pulse": "Pulse train", "noise": "Coloured noise", "mode": "Pure modes"}, "law": "Tuning law", "laws": {"wien": "Wien, 40 octaves down", "snap": "Wien, snapped to harmonics", "pulsar": "As heard (true spin)", "rot": "Rotation curve (harmonic series)", "hi": "21-cm velocity clusters", "noise": "Spectral index → colour", "modes": "Oscillation modes, sped up"}, "lawTip": {"wien": "The peak of each star’s light (Wien’s law from its temperature), lowered forty octaves: the Sun near 540 Hz, hot blue stars higher, red dwarfs lower.", "snap": "The same, then snapped to the nearest harmonic of the home note: the sky in just intonation.", "pulsar": "Nothing transposed: a millisecond pulsar is a tone, the Crab a 30 Hz buzz, Vela an 11 Hz flutter, B1919+21 a click every 1.3 s.", "rot": "Each ring’s angular speed Ω = V/R, raised by the octaves shown. On a flat rotation curve the rings play 1 : 2 : 3 …", "hi": "1420.405 MHz lowered 21 octaves is 677 Hz; each cluster of gas is shifted by its velocity along the line of sight, exaggerated as shown.", "noise": "The power-law radio spectrum becomes the tilt of a noise: a steep (negative) index is darker.", "modes": "The star’s real oscillation frequencies, raised by whole octaves until its loudest mode is near 400 Hz."}, "dm": "Dark matter", "dmOn": "With dark matter the rings play the harmonic series.", "dmOff": "Without it, the outer rings slow by Kepler’s law and the chord sags, inharmonic.", "exag": "Velocity exaggeration", "exagTip": "Doppler shifts are real but tiny (v/c ≈ 10⁻⁴): they are multiplied by this so you can hear them. ×1 is honest.", "rotOct": "Rotation: octaves raised", "snapNote": "Snap to harmonics of", "listenFrom": "Listen from", "where": {"sun": "The Sun", "acen": "α Centauri", "sirius": "Sirius", "vega": "Vega", "betelgeuse": "Betelgeuse", "sgra": "Near Sgr A* (the Galactic centre)"}, "facing": "Facing (galactic longitude)", "toward": {"0": "the Galactic centre", "90": "the direction of rotation (Cygnus)", "180": "the anticentre (Auriga)", "270": "against the rotation (Vela)"}, "timeSpeed": "Speed of time", "now": "Now", "timeUnits": {"d": " days / s", "y": " years / s", "ky": " kyr / s", "My": " Myr / s"}, "timeOff": "{n} yr", "src": {"gT": "Temperature", "gL": "Luminosity", "gD": "Distance", "gRV": "Radial velocity", "gPM": "Proper motion", "gl": "Galactic longitude", "gb": "Galactic latitude", "gZ": "Height above the disc", "gVar": "Variable-star phase", "gSpin": "Pulsar spin phase", "gOrb": "Sun’s orbit phase", "gVert": "Vertical oscillation phase"}, "srcTip": {"gT": "The source’s temperature on a log scale: −1 at 3 000 K (red), +1 at 30 000 K (blue).", "gL": "Its luminosity on a log scale: −1 at a thousandth of the Sun’s, +1 at a hundred thousand Suns.", "gD": "Its distance from you on a log scale: −1 at one parsec, +1 at ten kiloparsecs.", "gRV": "Its velocity along your line of sight: −1 approaching at 100 km/s, +1 receding.", "gPM": "How fast it moves across the sky: 0 for distant stars, 1 for Barnard’s Star (10″ a year).", "gl": "The sine of its galactic longitude: +1 toward the rotation, −1 against it.", "gb": "Its galactic latitude: −1 at the south pole, +1 at the north, 0 in the plane.", "gZ": "Its height above the Galaxy’s mid-plane: ±100 pc gives ±1.", "gVar": "The brightness of a variable star on its real light curve (0 at minimum, 1 at maximum), sped up by the time control; 1 for steady stars.", "gSpin": "The spin of a pulsar, divided down below 4 Hz, as a saw from 0 to 1; 0 for other sources.", "gOrb": "Where the Sun is on its 230-million-year orbit of the Galaxy, 0 to 1, at the time shown.", "gVert": "The Sun’s bob through the disc, up and down every 60–70 million years, 0 to 1."}, "clock": "Clock", "clockBpm": "Tempo", "clockPulsar": "Pulsar clock", "divider": "Divider", "clockLabel": "{p} spins {f} times a second ÷ {d} = one step every {s} s", "shapes": {"dcep": "δ Cephei (light curve)", "algol": "Algol (eclipses)", "mira": "Mira (light curve)", "rrlyr": "RR Lyrae (light curve)"}, "presets": {"harmonic": "The harmonic galaxy", "nodm": "Without dark matter", "pclock": "Pulsar clock", "hisweep": "Hydrogen sweep", "giants": "Red giants ringing", "neighbours": "Neighbours"}, "giant": "Red giant", "largeBtn": "Larger star catalogue (Gaia, ~2 MB)", "largeTip": "Downloads 26 877 more stars from Gaia DR3 once, verifies them and keeps them offline. Not in the initial install.", "largeLoading": "Downloading the larger catalogue…", "largeDone": "{n} stars added (Gaia DR3)", "largeFail": "The download failed or did not verify.", "largeOn": "Larger catalogue in use ({n} stars)", "speakers": "Pulsars and the black hole speak as", "forge": "Hephaestus & Nyx", "chaos": "the Cyclopes & Chaos", "credits": "Data: HYG v4.4 (David Nash, CC BY-SA 4.0) · Gaia DR3 (ESA/DPAC) · ATNF Pulsar Catalogue · CHIME/FRB · Eilers et al. 2019 & Sofue 2020 · Reid et al. 2019 · McMillan 2017 · BiSON. The star list is shared under CC BY-SA 4.0.", "hera": "I am Hera. Spilled from my breast, my milk became the Galaxy, the milky circle. Here are its stars, its spinning dead suns and its hydrogen, each singing as it truly is.", "skyAlt": "The Milky Way seen from above, around the listener: the spiral arms, the Sun, the facing direction, and the sources now heard as dots coloured by temperature.", "listeningFrom": "listening from {w}", "facingL": "facing l = {l}°", "dmShort": {"on": "dark matter on", "off": "no dark matter"}, "steadyKey": "home note", "edited": "(edited)", "walkOff": "Hear them one by one works in Planets mode.", "how": ["The Galaxy", "In <b>Galaxy</b> mode the strips are populations: the stars near you, the brightest stars, pulsars, rings of the Galaxy’s disc, the hydrogen of the spiral arms, the radio sources and starquakes. Every mapping is stated on the strip: Wien’s law lowered forty octaves, pulsars heard at their true spin, the rotation curve as a harmonic series (switch the dark matter off and hear the chord sag), the 21-cm line Doppler-shifted. Listen from the Sun or another star, face any galactic longitude, and run time at millennia per second so the stars drift and the Sun circles the Galaxy. Any pulsar can be the sequencer’s clock."], "keys": "1–7: mute a strip", "rings": "ring", "cluster": "arm", "near": "near", "far": "far", "modesOf": "modes of"}, "cy": {"planets": "Planedau", "galaxy": "Galaeth", "modeTip": "Pa offeryn: planedau cysawd yr haul, ynteu sêr, pylsarau a nwy’r Llwybr Llaethog.", "loading": "Yn llwytho’r Alaeth…", "loadFail": "Methwyd llwytho data’r Alaeth.", "strips": {"near": "Sêr cyfagos", "bright": "Y sêr disgleiriaf", "pulsars": "Pylsarau", "rings": "Cylchoedd hydrogen", "arms": "Breichiau troellog", "radio": "Ffynonellau radio", "quakes": "Serenddaeargrynfeydd"}, "stripTip": {"near": "Pob seren o fewn tua phymtheg blwyddyn golau i’r man gwrando, yr agosaf uchaf: corachod coch gan mwyaf, yn swnio’n isel ac yn dywyll.", "bright": "Y sêr sy’n edrych ddisgleiriaf o’r man gwrando, pob un ar draw ei lliw ei hun.", "pulsars": "Sêr niwtron yn troelli, i’w clywed fel y maent: su, curiad neu glic ar y gwir gyflymder troelli.", "rings": "Cylchoedd disg yr Alaeth ar R, R/2, R/3…: gyda mater tywyll maent yn troi 1, 2, 3… gwaith cyn gyflymed, felly maent yn canu’r gyfres harmonig.", "arms": "Llinell 21 cm hydrogen ar hyd eich llinell olwg: un traw i bob braich droellog, wedi’i symud gan fudiant y nwy (Doppler).", "radio": "Ffynonellau syncrotron fel sŵn lliw: Cassiopeia A, Cygnus A, y Cranc, M87, Centaurus A, a Sgr A*, sy’n fflachio.", "quakes": "Osgiliadau pum munud yr Haul a rhai cawr coch, wedi’u cyflymu i’r clyw: y gerddoriaeth fwyaf llythrennol o’r sfferau."}, "gods": {"hera": "Hera", "astraeus": "Astraeus", "hecate": "Hecate", "hephaestus": "Heffaestus", "cyclopes": "Y Cyclopes", "nyx": "Nyx", "chaos": "Chaos", "iris": "Iris", "poseidon": "Poseidon", "helios": "Helios"}, "voicesN": "Lleisiau", "spread": "Lledaeniad pan", "spreadTip": "1: pob ffynhonnell o’i gwir gyfeiriad. 0: popeth yn syth o’ch blaen.", "voice": {"star": "Seren (llinellau sbectrol)", "pulse": "Trên pylsau", "noise": "Sŵn lliw", "mode": "Moddau pur"}, "law": "Rheol tiwnio", "laws": {"wien": "Wien, 40 wythfed i lawr", "snap": "Wien, at harmonigau", "pulsar": "Fel y’i clywir (gwir droelli)", "rot": "Cromlin cylchdroi (cyfres harmonig)", "hi": "Clystyrau cyflymder 21 cm", "noise": "Mynegai sbectrol → lliw", "modes": "Moddau osgiliad, wedi’u cyflymu"}, "lawTip": {"wien": "Brig golau pob seren (rheol Wien o’i thymheredd), wedi’i ostwng ddeugain wythfed: yr Haul ger 540 Hz, sêr glas poeth yn uwch, corachod coch yn is.", "snap": "Yr un peth, yna wedi’i glicio at harmonig agosaf y nodyn cartref: yr awyr mewn cyweiriad cyfiawn.", "pulsar": "Dim wedi’i drawsnodi: mae pylsar milieiliad yn dôn, y Cranc yn su 30 Hz, Vela yn grynu 11 Hz, B1919+21 yn glic bob 1.3 s.", "rot": "Cyflymder onglog pob cylch Ω = V/R, wedi’i godi’r nifer o wythfedau a ddangosir. Ar gromlin cylchdroi wastad mae’r cylchoedd yn canu 1 : 2 : 3 …", "hi": "1420.405 MHz wedi’i ostwng 21 wythfed yw 677 Hz; symudir pob clwstwr o nwy gan ei gyflymder ar hyd y llinell olwg, wedi’i orliwio fel y dangosir.", "noise": "Daw’r sbectrwm radio pŵer-ddeddf yn ogwydd sŵn: mae mynegai serth (negyddol) yn dywyllach.", "modes": "Gwir amleddau osgiliad y seren, wedi’u codi wythfedau cyfan nes bod ei modd uchaf ger 400 Hz."}, "dm": "Mater tywyll", "dmOn": "Gyda mater tywyll mae’r cylchoedd yn canu’r gyfres harmonig.", "dmOff": "Hebddo, mae’r cylchoedd allanol yn arafu yn ôl deddf Kepler ac mae’r cord yn suddo, yn anharmonig.", "exag": "Gorliwio cyflymder", "exagTip": "Mae symudiadau Doppler yn real ond yn fach iawn (v/c ≈ 10⁻⁴): fe’u lluosir â hyn er mwyn i chi eu clywed. Mae ×1 yn onest.", "rotOct": "Cylchdroi: wythfedau i fyny", "snapNote": "Clicio at harmonigau", "listenFrom": "Gwrando o", "where": {"sun": "Yr Haul", "acen": "α Centauri", "sirius": "Sirius", "vega": "Vega", "betelgeuse": "Betelgeuse", "sgra": "Ger Sgr A* (canol yr Alaeth)"}, "facing": "Wynebu (hydred galaethol)", "toward": {"0": "canol yr Alaeth", "90": "cyfeiriad y cylchdroi (Cygnus)", "180": "y gwrthganol (Auriga)", "270": "yn erbyn y cylchdroi (Vela)"}, "timeSpeed": "Cyflymder amser", "now": "Nawr", "timeUnits": {"d": " diwrnod / s", "y": " blynedd / s", "ky": " mil o flynyddoedd / s", "My": " miliwn o flynyddoedd / s"}, "timeOff": "{n} bl.", "src": {"gT": "Tymheredd", "gL": "Goleuedd", "gD": "Pellter", "gRV": "Cyflymder rheiddiol", "gPM": "Mudiant priod", "gl": "Hydred galaethol", "gb": "Lledred galaethol", "gZ": "Uchder uwchlaw’r ddisg", "gVar": "Gwedd seren amrywiol", "gSpin": "Gwedd troelli pylsar", "gOrb": "Gwedd orbit yr Haul", "gVert": "Gwedd osgiliad fertigol"}, "srcTip": {"gT": "Tymheredd y ffynhonnell ar raddfa log: −1 ar 3 000 K (coch), +1 ar 30 000 K (glas).", "gL": "Ei goleuedd ar raddfa log: −1 ar filfed o un yr Haul, +1 ar gan mil o Heuliau.", "gD": "Ei phellter oddi wrthych ar raddfa log: −1 ar un parsec, +1 ar ddeg cilo-parsec.", "gRV": "Ei chyflymder ar hyd eich llinell olwg: −1 yn nesáu ar 100 km/s, +1 yn pellhau.", "gPM": "Pa mor gyflym mae’n symud ar draws yr awyr: 0 i sêr pell, 1 i Seren Barnard (10″ y flwyddyn).", "gl": "Sin ei hydred galaethol: +1 tuag at y cylchdroi, −1 yn ei erbyn.", "gb": "Ei lledred galaethol: −1 ar begwn y de, +1 ar begwn y gogledd, 0 yn y plân.", "gZ": "Ei huchder uwchlaw plân canol yr Alaeth: mae ±100 pc yn rhoi ±1.", "gVar": "Disgleirdeb seren amrywiol ar ei gwir gromlin golau (0 ar y lleiaf, 1 ar y mwyaf), wedi’i gyflymu gan reolydd amser; 1 i sêr sefydlog.", "gSpin": "Troelli pylsar, wedi’i rannu i lawr o dan 4 Hz, fel llif o 0 i 1; 0 i ffynonellau eraill.", "gOrb": "Ble mae’r Haul ar ei orbit 230 miliwn o flynyddoedd o amgylch yr Alaeth, 0 i 1, ar yr amser a ddangosir.", "gVert": "Siglo’r Haul drwy’r ddisg, i fyny ac i lawr bob 60–70 miliwn o flynyddoedd, 0 i 1."}, "clock": "Cloc", "clockBpm": "Tempo", "clockPulsar": "Cloc pylsar", "divider": "Rhannydd", "clockLabel": "{p} yn troelli {f} gwaith yr eiliad ÷ {d} = un cam bob {s} s", "shapes": {"dcep": "δ Cephei (cromlin golau)", "algol": "Algol (eclipsau)", "mira": "Mira (cromlin golau)", "rrlyr": "RR Lyrae (cromlin golau)"}, "presets": {"harmonic": "Yr alaeth harmonig", "nodm": "Heb fater tywyll", "pclock": "Cloc pylsar", "hisweep": "Ysgubiad hydrogen", "giants": "Cewri coch yn canu", "neighbours": "Cymdogion"}, "giant": "Cawr coch", "largeBtn": "Catalog sêr mwy (Gaia, ~2 MB)", "largeTip": "Yn lawrlwytho 26 877 o sêr ychwanegol o Gaia DR3 unwaith, yn eu gwirio ac yn eu cadw all-lein. Nid yw yn y gosodiad cyntaf.", "largeLoading": "Yn lawrlwytho’r catalog mwy…", "largeDone": "{n} o sêr wedi’u hychwanegu (Gaia DR3)", "largeFail": "Methodd y lawrlwytho neu ni chafodd ei wirio.", "largeOn": "Catalog mwy ar waith ({n} o sêr)", "speakers": "Y pylsarau a’r twll du yn siarad fel", "forge": "Heffaestus a Nyx", "chaos": "y Cyclopes a Chaos", "credits": "Data: HYG v4.4 (David Nash, CC BY-SA 4.0) · Gaia DR3 (ESA/DPAC) · Catalog Pylsarau ATNF · CHIME/FRB · Eilers et al. 2019 a Sofue 2020 · Reid et al. 2019 · McMillan 2017 · BiSON. Rhennir y rhestr sêr dan CC BY-SA 4.0.", "hera": "Hera ydw i. Daeth fy llaeth, a dywalltwyd o’m bron, yn Alaeth, y cylch llaethog. Dyma ei sêr, ei heuliau marw yn troelli a’i hydrogen, pob un yn canu fel y mae mewn gwirionedd.", "skyAlt": "Y Llwybr Llaethog o’r uchod, o amgylch y gwrandäwr: y breichiau troellog, yr Haul, y cyfeiriad wynebu, a’r ffynonellau a glywir nawr fel dotiau wedi’u lliwio yn ôl tymheredd.", "listeningFrom": "yn gwrando o {w}", "facingL": "yn wynebu l = {l}°", "dmShort": {"on": "mater tywyll ymlaen", "off": "dim mater tywyll"}, "steadyKey": "nodyn cartref", "edited": "(wedi’i olygu)", "walkOff": "Mae „Clywed fesul un” yn gweithio yn y modd Planedau.", "how": ["Yr Alaeth", "Yn y modd <b>Galaeth</b> poblogaethau yw’r stribedi: y sêr yn eich ymyl, y sêr disgleiriaf, pylsarau, cylchoedd disg yr Alaeth, hydrogen y breichiau troellog, y ffynonellau radio a serenddaeargrynfeydd. Nodir pob mapio ar y stribed: rheol Wien wedi’i gostwng ddeugain wythfed, pylsarau ar eu gwir droelli, y gromlin cylchdroi fel cyfres harmonig (diffoddwch y mater tywyll a chlywch y cord yn suddo), y llinell 21 cm wedi’i symud gan Doppler. Gwrandewch o’r Haul neu seren arall, wynebwch unrhyw hydred galaethol, a rhedwch amser ar filoedd o flynyddoedd yr eiliad fel bo’r sêr yn drifftio a’r Haul yn cylchu’r Alaeth. Gall unrhyw bylsar fod yn gloc y dilyniannwr."], "keys": "1–7: tawelu stribed", "rings": "cylch", "cluster": "braich", "near": "agos", "far": "pell", "modesOf": "moddau"}};/*GT_ALL-END*/
+// a language's dictionary over the English one, so a missing key still shows something
+const deep=(a,b)=>{const o={};for(const k in a)o[k]=(b&&typeof a[k]==='object'&&!Array.isArray(a[k])&&typeof b[k]==='object')?deep(a[k],b[k]):(b&&b[k]!==undefined?b[k]:a[k]);return o};
+const GT=deep(GT_ALL.en,GT_ALL[LANG]||{});
+const uf=(t,o)=>String(t).replace(/\{(\w+)\}/g,(m,k)=>o[k]!==undefined?o[k]:m);
+const LS=SY.LS;
+const G=()=>window.GALAXY;
+const BASE=LANG==='en'||!/\/(pl|cy|de|es|fr|it|zh|ja|vi|bg|pt)\/[^/]*$/.test(location.pathname)?'./':'../';
+
+/* ---------- the strips: populations of the Galaxy ---------- */
+const STRIPS=[
+ {id:'near',god:'astraeus',color:'#e9c46a',laws:['wien','snap'],voices:['star','pure','vowel','choir','string'],n:6,max:16},
+ {id:'bright',god:'astraeus',color:'#f1e3bf',laws:['wien','snap'],voices:['star','pure','vowel','choir','string'],n:8,max:16},
+ {id:'pulsars',god:'pulsars',color:'#9fd3ff',laws:['pulsar'],voices:['pulse'],n:4,max:8},
+ {id:'rings',god:'hera',color:'#c9984f',laws:['rot','snap'],voices:['pure','choir','vowel'],n:8,max:8},
+ {id:'arms',god:'hera',color:'#8fd0c9',laws:['hi'],voices:['pure','vowel','choir'],n:4,max:8},
+ {id:'radio',god:'iris',color:'#d46e4f',laws:['noise'],voices:['noise'],n:3,max:6},
+ {id:'quakes',god:'poseidon',color:'#b9a3ff',laws:['modes'],voices:['mode'],n:8,max:16}
+];
+const SID=Object.fromEntries(STRIPS.map(s=>[s.id,s]));
+const PULSAR_CLOCKS=['J0534+2200','J0835-4510','J1921+2153','J0437-4715','J0332+5434','J1939+2134','J0953+0755'];
+const GIANTS=['Arcturus','Aldebaran','Pollux','Capella','Hamal','Alphard','Kochab','Mirach','Algieba','Menkent'];
+const WHERE=['sun','acen','sirius','vega','betelgeuse','sgra'],WHERE_ROW={acen:'Rigil Kentaurus',sirius:'Sirius',vega:'Vega',betelgeuse:'Betelgeuse'};
+
+/* ---------- state ---------- */
+const GDEF=()=>({name:'',
+  st:Object.fromEntries(STRIPS.map(s=>[s.id,{on:s.id==='near'||s.id==='bright'||s.id==='rings',solo:false,n:s.n,oct:0,law:s.laws[0],lvl:.75,spread:1,voice:s.voices[0]}])),
+  law:{dm:true,exag:1000,rotOct:61},giant:'Arcturus',
+  lis:{where:'sun',facing:0},speed:.01,
+  mx:{},lfo:[{rate:.25,shape:'sine'},{rate:2,shape:'tri'}],stagger:true,verb:.45,clock:null});
+const GS={active:false,loaded:false,loading:null,Y:GDEF(),t:0,L:{x:0,y:0,z:0},facing:0,preset:null,user:null,gods:LS.get('mots.galaxyGods')||'forge',saveY:null,spoke:false,large:0};
+const GPATCH_KEYS=['name','st','law','giant','lis','speed','mx','lfo','stagger','verb','clock'];
+
+/* ---------- presets ---------- */
+const R=(s,d,a,c)=>[s,d,a,c||1];
+const GPRESETS={
+ harmonic:{st:{rings:{on:true,n:8},bright:{on:true,n:6,lvl:.7},near:{on:false},pulsars:{on:false}},law:{dm:true},mx:[R('gD','level',.3),R('gOrb','cut',.3)],verb:.5},
+ nodm:{st:{rings:{on:true,n:8},bright:{on:false},near:{on:false}},law:{dm:false},mx:[R('gVert','vibD',.3)],verb:.5},
+ pclock:{st:{pulsars:{on:true,n:4,lvl:1},bright:{on:true,n:6,lvl:1,voice:'string'},near:{on:false},rings:{on:false}},clock:{p:'J0534+2200',div:16},mx:[R('gSpin','tremD',.4),R('gD','level',.3)],verb:.3},
+ hisweep:{st:{arms:{on:true,n:6,lvl:.55},rings:{on:false},near:{on:false},bright:{on:false}},law:{exag:1000},lis:{facing:30},speed:1,mx:[R('gl','pan',.5),R('lfo1','level',.2)],lfo:[{rate:.05,shape:'sine'},{rate:2,shape:'tri'}],verb:.6},
+ giants:{st:{quakes:{on:true,n:12,lvl:.5},near:{on:false},bright:{on:false},rings:{on:false}},giant:'Arcturus',mx:[R('lfo1','tremD',.35),R('gT','cut',.4)],lfo:[{rate:.3,shape:'mira'},{rate:2,shape:'tri'}],verb:.6},
+ neighbours:{st:{near:{on:true,n:10,lvl:1,voice:'star'},bright:{on:false},rings:{on:false}},law:{exag:1},speed:1000,mx:[R('gD','level',.5),R('gRV','pitch',.1),R('gPM','det',.3),R('gVar','tremD',.4)],verb:.4}
+};
+function applyPreset(k){const p=GPRESETS[k];if(!p)return;const n=GDEF();
+  if(p.st)for(const id in p.st)Object.assign(n.st[id],p.st[id]);Object.assign(n.law,p.law||{});Object.assign(n.lis,p.lis||{});
+  if(p.giant)n.giant=p.giant;if(p.speed)n.speed=p.speed;if(p.lfo)n.lfo=p.lfo;if(p.verb!==undefined)n.verb=p.verb;if(p.clock)n.clock=p.clock;
+  (p.mx||[]).forEach(([s,d,a,c])=>n.mx[s+'>'+d]={a,c});n.name=GT.presets[k];setPatch(n);GS.preset=k;GS.user=null;syncPatchSel()}
+
+/* ---------- modulation sources (galactic) ---------- */
+const SPIN_DIV=p=>{let f=p.F0||1/p.P0,d=1;while(f/d>4)d*=2;return d};
+const srcOf=x=>x&&x.rep?x.rep:x;   // a strip stands for its loudest voice
+const GSRC=[
+ {id:'one',bi:false,f:()=>1},
+ {id:'gT',bi:true,f:x=>{const v=srcOf(x);if(!v||!v.row||v.row.T==null)return 0;return clamp((Math.log10(v.row.T)-3.477)/.5-1)}},
+ {id:'gL',bi:true,f:x=>{const v=srcOf(x);if(!v||!v.row||v.row.L==null)return 0;return clamp((Math.log10(v.row.L)+3)/4-1)}},
+ {id:'gD',bi:true,f:x=>{const v=srcOf(x);if(!v||!v.d)return 0;return clamp(Math.log10(Math.max(v.d,.01))/2-1)}},
+ {id:'gRV',bi:true,f:x=>{const v=srcOf(x);return v&&v.rv!=null?clamp(v.rv/100):0}},
+ {id:'gPM',bi:false,f:x=>{const v=srcOf(x);if(!v||!v.row||v.row.pmra==null)return 0;const pm=Math.hypot(v.row.pmra,v.row.pmdec||0);return clamp(Math.log10(Math.max(pm,1))/4,0,1)}},
+ {id:'gl',bi:true,f:x=>{const v=srcOf(x);return v?Math.sin((v.l||0)*DEG):0}},
+ {id:'gb',bi:true,f:x=>{const v=srcOf(x);return v?clamp((v.b||0)/90):0}},
+ {id:'gZ',bi:true,f:x=>{const v=srcOf(x);return v?clamp((v.z||0)/100):0}},
+ {id:'gVar',bi:false,f:x=>{const v=srcOf(x);return v?(v.vb==null?1:v.vb):1}},
+ {id:'gSpin',bi:false,f:x=>{const v=srcOf(x);if(!v||v.kind!=='pulsar'||!v.row)return 0;const f=(v.row.F0||1/v.row.P0)/SPIN_DIV(v.row);const t=SY.AC?SY.AC.currentTime:performance.now()/1000;return (t*f)%1}},
+ {id:'gOrb',bi:false,f:()=>SUN.orbitPhase||0},
+ {id:'gVert',bi:false,f:()=>SUN.vertPhase||0},
+ {id:'lfo1',bi:true,f:x=>lfoVal(0,x)},
+ {id:'lfo2',bi:true,f:x=>lfoVal(1,x)}
+];
+let SUN={orbitPhase:0,vertPhase:0,z:0};
+function lfoVal(k,x){const Y=SY.Y(),l=Y.lfo[k];const v=srcOf(x);const off=Y.stagger&&v?((v.strip?STRIPS.indexOf(v.strip):0)+(v.k||0)*.35)/8:0;return SY.lfoAt(l,(SY.AC?SY.AC.currentTime:0)+off/Math.max(l.rate,1e-3))}
+// the matrix summed for one voice (or a strip): a value per destination
+const ROUTES=()=>Object.entries(SY.Y().mx).map(([k,r])=>{const [s,d]=k.split('>');return {s,d,a:r.a,c:r.c||1}}).filter(r=>r.a);
+// the lit routes, read once per audio tick (the matrix edits Y.mx in place), so the per-voice loop allocates nothing
+let RT=[];
+const curve=(v,c)=>c===2?Math.sign(v)*v*v:c===3?Math.round(v*2)/2:v;
+const MODS={},MODS2={},SV={};
+function modsFor(x,out){const M=out||MODS;for(const k in M)M[k]=0;for(const k in SV)SV[k]=undefined;
+  for(let i=0;i<RT.length;i++){const r=RT[i];if(SV[r.s]===undefined){SV[r.s]=r.src?r.src.f(x):0}M[r.d]=(M[r.d]||0)+r.a*curve(SV[r.s],r.c)}return M}
+// light-curve LFO shapes (GALAXY.lightCurve gives 0..1 brightness; the LFO wants −1..1)
+const lfoShape={dcep:ph=>G().lightCurve('DCEP',ph,30)*2-1,algol:ph=>G().lightCurve('EA',ph,14)*2-1,mira:ph=>G().lightCurve('M',ph)*2-1,rrlyr:ph=>G().lightCurve('RRAB',ph,15)*2-1};
+// the texts of the galactic sources, added to the page's dictionaries so the matrix renders them unchanged
+for(const k in GT.src){TX.src[k]=GT.src[k];TX.srcTip[k]=GT.srcTip[k]}
+for(const k in GT.shapes)TX.shapes[k]=GT.shapes[k];
+
+/* ---------- the listener, time and the sky's derived quantities ---------- */
+const TMP={p:{x:0,y:0,z:0},d:{},gc:{},v:{}};
+function listenerPos(){const w=GS.Y.lis.where,g=G();if(w==='sun'||!g){GS.L.x=0;GS.L.y=0;GS.L.z=0;return}
+  if(w==='sgra'){const K=g.K;GS.L.x=K.R0*1000-30;GS.L.y=0;GS.L.z=-K.Z0;return}
+  const row=g.find(WHERE_ROW[w]);if(!row){GS.L.x=GS.L.y=GS.L.z=0;return}g.posAt(row,GS.t,GS.L)}
+const jdNow=()=>Date.now()/86400000+2440587.5;
+let JD=0;
+function tick(dt){const S=SY.S;if(S.playing)GS.t+=S.dir*GS.Y.speed*dt;listenerPos();GS.facing=GS.Y.lis.facing;JD=jdNow()+GS.t*365.25;
+  const g=G();if(g&&g.ready){g.sunAt(GS.t/1e6,SUN)}}
+
+/* ---------- audio: strips and voices ---------- */
+let AU=null;   // {strips:{id:{env,trem,tl,td,vol,verb,dly,dlyIn,dlyFb,vib,vd,slots:[],built,...}}}
+const budget=()=>{const b=G()?G().defaultBudget():32;return LOW?Math.min(b,20):b};
+function mkPanner(to){const AC=SY.AC,p=AC.createPanner();p.panningModel='equalpower';p.distanceModel='linear';p.refDistance=1;p.maxDistance=10000;p.rolloffFactor=0;p.coneInnerAngle=360;p.coneOuterAngle=360;p.connect(to);if(window.MOTS&&MOTS.surround)MOTS.surround.add(p);return p}
+function audioInit(){if(AU||!SY.AC)return;const AC=SY.AC,mk=SY.mkGain;AU={strips:{},pulseWaves:new Map()};
+  STRIPS.forEach(sd=>{const s={id:sd.id,def:sd,slots:[],built:null,rep:null,nOn:0};
+    // strip chain: voices → (their own panners) → env → trem → vol → bus, with echo and delay sends, like a planet's slot
+    s.env=mk(SY.SEQ.on?0:1);s.trem=mk(1,null);s.env.connect(s.trem);s.vol=mk(0);s.trem.connect(s.vol);s.vol.connect(SY.bus);
+    s.verb=mk(.4);s.vol.connect(s.verb);s.verb.connect(SY.verbIn);
+    s.dly=AC.createDelay(2);s.dly.delayTime.value=.35;s.dlyIn=mk(0);s.dlyIn.connect(s.dly);s.dlyFb=mk(.38);s.dly.connect(s.dlyFb);s.dlyFb.connect(s.dly);
+    const dlp=AC.createBiquadFilter();dlp.type='lowpass';dlp.frequency.value=3200;s.dly.connect(dlp);dlp.connect(SY.bus);dlp.connect(mk(.3,SY.verbIn));s.vol.connect(s.dlyIn);
+    s.tl=AC.createOscillator();s.tl.type='sine';s.tl.frequency.value=.3;s.td=mk(0);s.tl.connect(s.td);s.td.connect(s.trem.gain);s.tl.start();
+    s.vib=AC.createOscillator();s.vib.frequency.value=5;s.vd=mk(0);s.vib.connect(s.vd);s.vib.start();
+    // the slot the page's sequencer sees (strike() works on part.env)
+    s.V={b:{id:'g:'+sd.id,kind:'gstrip',god:stripGod(sd),color:sd.color,el:{a:1+STRIPS.indexOf(sd)*2}},part:{env:s.env,srcs:[]},moons:[],f:0,lvl:0,att:.02,rel:.8,trig:{},rate:.3,flash:0,vol:s.vol,pan:null};
+    SY.V['g:'+sd.id]=s.V;AU.strips[sd.id]=s});
+}
+function stripGod(sd){const g=sd.god==='pulsars'?(GS.gods==='chaos'?'cyclopes':'hephaestus'):sd.god;return GT.gods[g]||g}
+// a pulse train with the pulsar's real duty cycle (W50/P), as a periodic wave (zero-mean; the gate adds the mean back)
+function pulseWave(duty){const d=Math.round(clamp(duty,.02,.5)*50)/50;let w=AU.pulseWaves.get(d);if(w)return w;const N=64,re=new Float32Array(N),im=new Float32Array(N);for(let n=1;n<N;n++)re[n]=2*Math.sin(n*Math.PI*d)/(n*Math.PI);w=SY.AC.createPeriodicWave(re,im,{disableNormalization:true});AU.pulseWaves.set(d,w);return w}
+// one slot: a panner into the strip, a gain, and a voice of the strip's kind
+function buildSlot(s,kind){const AC=SY.AC,mk=SY.mkGain,sl={kind,on:false,row:null,f:220,loud:0,d:0,l:0,b:0,z:0,rv:null,vb:null,k:s.slots.length,strip:s,pan:null,vg:null,I:null,label:'',dir:{},w:1,fade:0};
+  sl.pan=mkPanner(s.env);sl.vg=mk(0,sl.pan);
+  if(kind==='star'){const I={};I.o1=AC.createOscillator();I.o1.type='sine';I.o2=AC.createOscillator();I.o2.type='sawtooth';I.g1=mk(.9);I.g2=mk(.2);I.o1.connect(I.g1);I.o2.connect(I.g2);
+    I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.Q.value=.7;I.lp.frequency.value=2400;I.g1.connect(I.lp);I.g2.connect(I.lp);
+    // the star's spectral lines, folded into its octave: three peaking filters (absorption, so negative gain)
+    I.pk=[0,1,2].map(()=>{const f=AC.createBiquadFilter();f.type='peaking';f.gain.value=0;f.Q.value=20;f.frequency.value=440;return f});
+    I.lp.connect(I.pk[0]);I.pk[0].connect(I.pk[1]);I.pk[1].connect(I.pk[2]);I.pk[2].connect(sl.vg);
+    s.vd.connect(I.o1.detune);s.vd.connect(I.o2.detune);I.o1.start();I.o2.start();I.srcs=[I.o1,I.o2];sl.I=I}
+  else if(kind==='pulse'){const I={};I.o=AC.createOscillator();I.o.setPeriodicWave(pulseWave(.1));I.car=AC.createOscillator();I.car.type='sine';I.car.frequency.value=220;
+    I.gate=mk(0);I.dc=AC.createConstantSource();I.dc.offset.value=.1;I.dc.connect(I.gate.gain);I.og=mk(1);I.o.connect(I.og);I.og.connect(I.gate.gain);
+    I.car.connect(I.gate);I.direct=mk(0);I.o.connect(I.direct);  // tone mode: the pulse train itself; beat/click mode: the carrier gated by it
+    I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.frequency.value=3000;I.lp.Q.value=.5;I.gate.connect(I.lp);I.direct.connect(I.lp);I.lp.connect(sl.vg);
+    I.o.start();I.car.start();I.dc.start();I.srcs=[I.o,I.car,I.dc];sl.I=I}
+  else if(kind==='noise'){const I={};I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.Q.value=.4;I.lp.frequency.value=1800;I.hp=AC.createBiquadFilter();I.hp.type='highpass';I.hp.frequency.value=60;
+    I.fin=mk(.5);SY.noiseBus.connect(I.fin);I.fin.connect(I.hp);I.hp.connect(I.lp);I.lp.connect(sl.vg);I.taps=[[SY.noiseBus,I.fin]];I.srcs=[];sl.I=I}
+  else if(kind==='mode'){const I={};I.o1=AC.createOscillator();I.o1.type='sine';I.o1.connect(sl.vg);I.o1.start();I.srcs=[I.o1];sl.I=I}
+  else{ // the page's own voices (pure, vowel, choir, string) built by synth.js around a fake body
+    const fb={id:'g:'+s.id+':'+sl.k,kind:'gvoice',vowel:['a','o','e','u','ah'][sl.k%5],rot:3.9*(1+sl.k*.37),R:6371,moons:[]};
+    const vlike={f:220,vol:sl.vg,rate:.25+sl.k*.07};sl.I=SY.buildVoice(fb,vlike,kind);sl.I.type=kind;sl.vlike=vlike;
+    [sl.I.o1,sl.I.o2,sl.I.o3].forEach(o=>{if(o)s.vd.connect(o.detune)})}
+  s.slots.push(sl);return sl}
+function killSlot(sl){const I=sl.I;if(!I)return;try{sl.vg.gain.setTargetAtTime(0,SY.AC.currentTime,.05)}catch(e){}
+  setTimeout(()=>{(I.srcs||[]).forEach(o=>{try{o.stop()}catch(e){}});(I.taps||[]).forEach(([b,n])=>{try{b.disconnect(n)}catch(e){}});try{sl.pan.disconnect();if(window.MOTS&&MOTS.surround&&MOTS.surround.remove)MOTS.surround.remove(sl.pan)}catch(e){}},400)}
+function rebuildStrip(s,kind){s.slots.forEach(killSlot);s.slots=[];s.built=kind}
+function killAll(){if(!AU)return;for(const id in AU.strips){const s=AU.strips[id];s.slots.forEach(killSlot);s.slots=[];s.built=null;s.nOn=0;SY.tgt(s.vol.gain,0,.1)}}
+
+/* ---------- which sources each strip plays: refreshed a few times a second, not every tick ---------- */
+const AS={t:0,near:[],bright:[],pulsars:[],radio:[],ringChord:null,hi:[],modes:[],dirty:true,facing:null,where:null,dm:null,giant:null,exag:null};
+const nearIdx=new Int32Array(16),nearD=new Float64Array(16);
+function assign(now){const g=G();if(!g||!g.ready)return;const Y=GS.Y,st=Y.st;
+  const quick=AS.dirty||AS.facing!==GS.facing||AS.dm!==Y.law.dm||AS.giant!==Y.giant||AS.where!==Y.lis.where||AS.exag!==Y.law.exag;
+  if(!quick&&now-AS.t<.5)return;AS.t=now;AS.dirty=false;AS.facing=GS.facing;AS.dm=Y.law.dm;AS.giant=Y.giant;AS.where=Y.lis.where;AS.exag=Y.law.exag;
+  const L=GS.L,T=g.tables(),B=budget();
+  // the voice budget shared out among the strips that are on, in proportion to what they ask for
+  const on=STRIPS.filter(s=>st[s.id].on&&(!anySolo()||st[s.id].solo));let ask=0;on.forEach(s=>ask+=st[s.id].n);const scale=ask>B?B/ask:1;
+  on.forEach(s=>{AS[s.id+'N']=Math.max(1,Math.round(st[s.id].n*scale))});STRIPS.forEach(s=>{if(!on.includes(s))AS[s.id+'N']=0});
+  // nearby: the N nearest stars (index 0 is the Sun, kept unless you stand on it)
+  if(AS.nearN){const n=AS.nearN,t=GS.t;let m=0;for(let i=0;i<T.n;i++){const dx=T.X[i]+T.VX[i]*t-L.x,dy=T.Y[i]+T.VY[i]*t-L.y,dz=T.Z[i]+T.VZ[i]*t-L.z,d2=dx*dx+dy*dy+dz*dz;if(d2<1e-6)continue;
+      if(m<n){let j=m++;while(j>0&&nearD[j-1]>d2){nearD[j]=nearD[j-1];nearIdx[j]=nearIdx[j-1];j--}nearD[j]=d2;nearIdx[j]=i}
+      else if(d2<nearD[n-1]){let j=n-1;while(j>0&&nearD[j-1]>d2){nearD[j]=nearD[j-1];nearIdx[j]=nearIdx[j-1];j--}nearD[j]=d2;nearIdx[j]=i}}
+    AS.near.length=m;for(let j=0;j<m;j++)AS.near[j]=nearIdx[j]}
+  if(AS.brightN){const a=g.audible(L,{n:AS.brightN,tYr:GS.t,stars:true,pulsars:false,radio:false,jd:JD});AS.bright.length=a.length;for(let j=0;j<a.length;j++){const e=a[j],o=AS.bright[j]||(AS.bright[j]={});o.i=e.i;o.loud=e.loud;o.mag=e.mag;o.row=e.row;o.x=e.x;o.y=e.y;o.z=e.z}}
+  if(AS.pulsarsN){const a=g.audible(L,{n:AS.pulsarsN,stars:false,radio:false});AS.pulsars.length=a.length;for(let j=0;j<a.length;j++){const e=a[j],o=AS.pulsars[j]||(AS.pulsars[j]={});o.row=e.row;o.loud=e.loud;o.x=e.x;o.y=e.y;o.z=e.z}}
+  if(AS.radioN){const a=g.audible(L,{n:AS.radioN,stars:false,pulsars:false});AS.radio.length=a.length;for(let j=0;j<a.length;j++){const e=a[j],o=AS.radio[j]||(AS.radio[j]={});o.row=e.row;o.loud=e.loud;o.x=e.x;o.y=e.y;o.z=e.z}}
+  if(AS.ringsN){const n=Math.min(8,AS.ringsN);AS.ringChord=g.rotationChord(g.rotationChord.defaultRadii.slice(0,n),{dm:Y.law.dm,octaves:Y.law.rotOct,out:AS.ringChord&&AS.ringChord.freqs.length===n?AS.ringChord:undefined})}
+  if(AS.armsN){const prof=g.hiProfile(GS.facing,{curve:Y.law.dm?'model':'baryons'}),cl=g.hiClusters(prof);cl.sort((a,b)=>b.weight-a.weight);AS.hi=cl.slice(0,AS.armsN);AS.hiMax=AS.hi.length?AS.hi[0].weight:1;AS.hi.sort((a,b)=>a.v-b.v);AS.hiTerminal=prof.terminal}
+  if(AS.quakesN){const n=AS.quakesN,sun=g.sunModes({minW:.02}),gr=g.find(Y.giant),se=gr&&g.seismoOf(gr),gm=se?g.starModes(se):null;
+    const a=sun.modes.slice().sort((p,q)=>q.w-p.w).slice(0,Math.ceil(n/2)).map(m=>({f:m.f,w:m.w,row:g.SUN_ROW,who:'sun',label:'☉ n='+m.n+' l='+m.l}));
+    const b=gm?gm.modes.slice().sort((p,q)=>q.w-p.w).slice(0,Math.floor(n/2)).map(m=>({f:m.f,w:m.w,row:gr,who:'giant',label:(gr.n||gr.bf)+' n='+m.n+' l='+m.l})):[];
+    AS.modes=a.concat(b);AS.modesOct={sun:sun.octaves,giant:gm?gm.octaves:0}}
+}
+const anySolo=()=>STRIPS.some(s=>GS.Y.st[s.id].solo);
+// each voice kind's level, measured so that a strip of six voices alone gives an output RMS near 0.08–0.1 like the planets
+const KGAIN={star:1,pure:1.7,vowel:2.4,choir:2.4,string:4.5,pulse:4,noise:.55,mode:.35};
+
+/* ---------- the audio tick (30 Hz) ---------- */
+const DIR={},POS={x:0,y:0,z:0},GC={},AHEAD={x:0,y:0,z:0};
+let flares=null,hiLast=null;
+const seedT0=performance.now();
+function panDir(sl,spread,panMod){ // the Web Audio direction of a source: its real direction scaled toward straight ahead by (1−spread), turned by the pan route
+  const d=sl.dir;let az=d.az*spread+(panMod||0)*120,el=d.el*spread;const a=az*DEG,e=el*DEG,f=GS.facing*DEG;
+  const fx=Math.cos(a)*Math.cos(e),rt=Math.sin(a)*Math.cos(e),up=Math.sin(e);   // ahead, right, up in the listener's frame
+  const x=fx*Math.cos(f)+rt*Math.sin(f),y=fx*Math.sin(f)-rt*Math.cos(f);          // back to heliocentric galactic
+  SY.setPos(sl.pan,x,up,-y)}
+function spreadDir(sl,k,n,spread){const az=n>1?(-1+2*k/(n-1))*70*spread:0;sl.dir.az=az;sl.dir.el=0;panDir(sl,1,0)}
+function audioTick(t){const g=G();if(!g||!g.ready||!AU)return;const Y=GS.Y,st=Y.st,playing=SY.Y().playing,tgt=SY.tgt,q=SY.QUAL();
+  RT=ROUTES();RT.forEach(r=>{r.src=GSRC.find(q=>q.id===r.s)});assign(t);const solo=anySolo();
+  let totalOn=0;STRIPS.forEach(sd=>{const n=AS[sd.id+'N']||0;if(st[sd.id].on)totalOn+=n});const mixK=1/Math.sqrt(Math.max(4,totalOn));
+  for(const sd of STRIPS){const s=AU.strips[sd.id],c=st[sd.id],want=playing&&c.on&&(!solo||c.solo)&&c.lvl>0,n=want?(AS[sd.id+'N']||0):0;
+    const kind=c.voice;if(s.built!==kind&&(n>0||s.slots.length))rebuildStrip(s,kind);
+    while(s.slots.length<n&&s.slots.length<sd.max)buildSlot(s,kind);
+    // strip-level: the matrix on the strip's loudest voice
+    const m=modsFor(s.V,MODS2);
+    s.V.lvl=want?.085*c.lvl:0;s.V.att=.02*Math.pow(2,4*(m.att||0));s.V.rel=.8*Math.pow(2,2*(m.rel||0));
+    tgt(s.vol.gain,want?c.lvl*clamp(1+(m.level||0),0,2):0,.12);
+    tgt(s.verb.gain,clamp(SY.Y().verb+(m.verb||0),0,1.2),.2);tgt(s.dlyIn.gain,clamp(m.dly||0,0,1)*.9,.15);tgt(s.dly.delayTime,clamp(.35*Math.pow(2,(m.dlyT||0)*1.5),.03,1.9),.3);
+    tgt(s.vd.gain,Math.max(0,(kind==='star'||kind==='mode'?2:0)+50*(m.vibD||0)),.2);tgt(s.vib.frequency,clamp(5*Math.pow(2,m.vibR||0),.3,14),.2);
+    const td=clamp((kind==='pulse'||kind==='noise'?0:.08)+.8*(m.tremD||0),0,.95);tgt(s.td.gain,td/2,.2);tgt(s.trem.gain,1-td/2,.2);tgt(s.tl.frequency,clamp(.3*Math.pow(2,2*(m.tremR||0)),.05,14),.2);
+    if(want&&!SY.SEQ.on)handleTrig(s,t,m);
+    let best=null;s.nOn=0;
+    for(let k=0;k<s.slots.length;k++){const sl=s.slots[k],on=k<n;sl.on=on;
+      if(!on){tgt(sl.vg.gain,0,.08);continue}
+      fillSlot(sd,s,sl,k,n,g);if(!sl.row&&sd.id!=='rings'&&sd.id!=='arms'){tgt(sl.vg.gain,0,.08);continue}
+      s.nOn++;const mv=modsFor(sl);
+      let f=sl.f*Math.pow(2,c.oct+(mv.pitch||0));
+      const gain=.085*mixK*2.6*(KGAIN[kind]||1)*sl.loud*clamp(1+(mv.level||0),0,2);
+      tgt(sl.vg.gain,gain,.1);
+      if(sd.id==='rings'||sd.id==='arms'||sd.id==='quakes')spreadDir(sl,k,n,c.spread);else panDir(sl,c.spread,mv.pan||0);
+      setVoice(sl,f,mv,kind,sd,t);
+      if(!best||sl.loud>best.loud)best=sl}
+    s.rep=best;s.V.rep=best;s.V.f=best?best.f*Math.pow(2,c.oct):0;s.V.rate=.3;
+    if(window.MOTS&&MOTS.midi&&MOTS.midi.on&&best)MOTS.midi.hold('g:'+sd.id,s.V.f,Math.min(1,s.V.lvl*9*best.loud))}
+}
+// what one slot plays: the row, pitch under the strip's law, loudness and direction from the listener
+function fillSlot(sd,s,sl,k,n,g){const Y=GS.Y,c=Y.st[sd.id],L=GS.L,exag=Y.law.exag;sl.rv=null;sl.vb=null;sl.z=0;
+  if(sd.id==='near'||sd.id==='bright'){let row,x,y,z,loud;
+    if(sd.id==='near'){const i=AS.near[k];if(i==null){sl.row=null;return}const T=g.tables();row=T.rows[i];x=T.X[i]+T.VX[i]*GS.t;y=T.Y[i]+T.VY[i]*GS.t;z=T.Z[i]+T.VZ[i]*GS.t}
+    else{const e=AS.bright[k];if(!e){sl.row=null;return}row=e.row;x=e.x;y=e.y;z=e.z}
+    POS.x=x;POS.y=y;POS.z=z;g.direction(POS,L,GS.facing,sl.dir);sl.d=sl.dir.d;
+    if(sd.id==='near'){const dly=sl.d*g.K.PC_LY;sl.loud=clamp(.4+.7*(1-dly/16),.1,1)*(row.sun?.9:1)}else sl.loud=Math.max(.15,AS.bright[k].loud);
+    const T=row.T||5772;let f=g.starTone(T);
+    sl.rv=g.radialVelocity(row,POS,L,TMP.v);f*=g.doppler(sl.rv,exag);
+    if(c.law==='snap')f=snapHarm(f);
+    if(row.var&&row.var.P){sl.vb=g.varBright(row,JD);sl.loud*=.35+.65*sl.vb}
+    sl.f=f;g.lbOf(x-L.x,y-L.y,z-L.z,TMP.d);sl.l=TMP.d.l;sl.b=TMP.d.b;POS.x=x;POS.y=y;POS.z=z;g.toGC(POS,GC);sl.z=GC.z;
+    if(sl.row!==row){sl.row=row;sl.label=row.n||row.bf||('HIP '+row.hip)||String(row.id);sl.lines=null}}
+  else if(sd.id==='pulsars'){const e=AS.pulsars[k];if(!e){sl.row=null;return}POS.x=e.x;POS.y=e.y;POS.z=e.z;g.direction(POS,L,GS.facing,sl.dir);sl.d=sl.dir.d;sl.loud=Math.max(.25,e.loud);
+    const ps=g.pulsarSound(e.row,TMP.v);sl.f=ps.f;sl.mode=ps.mode;sl.l=e.row.gl;sl.b=e.row.gb;sl.row=e.row;sl.label=e.row.b||e.row.j}
+  else if(sd.id==='radio'){const e=AS.radio[k];if(!e){sl.row=null;return}POS.x=e.x;POS.y=e.y;POS.z=e.z;g.direction(POS,L,GS.facing,sl.dir);sl.d=sl.dir.d;
+    const rn=g.radioNoise(e.row,2026,TMP.v);sl.alpha=rn.alpha;let loud=Math.max(.2,rn.loud);
+    if(e.row.id==='sgra'){if(!flares)flares=g.sgrFlares(7,400);const days=((performance.now()-seedT0)/1000)/24;loud*=Math.min(3,g.sgrLevel(flares,days%380))*.6}
+    sl.loud=loud;sl.f=440;sl.l=e.row.gl;sl.b=e.row.gb;sl.row=e.row;sl.label=e.row.n}
+  else if(sd.id==='rings'){const ch=AS.ringChord;if(!ch||k>=ch.freqs.length){sl.row=null;sl.loud=0;return}sl.f=ch.freqs[k];sl.row=null;sl.d=ch.radii[k]*1000;sl.loud=.5*Math.pow(.85,k);sl.label=GT.rings+' '+fmtN(ch.radii[k],1)+' kpc';sl.l=0;sl.b=0;sl.ring=ch.radii[k]}
+  else if(sd.id==='arms'){const cl=AS.hi[k];if(!cl){sl.row=null;sl.loud=0;return}sl.f=g.hiPitch(cl.v,exag);sl.row=null;sl.rv=cl.v;sl.loud=clamp(.35+.65*Math.sqrt(cl.weight/(AS.hiMax||1)),.2,1);
+    sl.label=(cl.arm==='disc'?'HI':cl.arm)+' · '+(cl.far?GT.far:GT.near)+' · '+fmtN(cl.v,0)+' km/s';sl.l=GS.facing;sl.b=0;sl.d=0}
+  else if(sd.id==='quakes'){const m=AS.modes[k];if(!m){sl.row=null;sl.loud=0;return}sl.f=m.f;sl.row=m.row;sl.loud=.3+.7*Math.min(1,m.w);sl.label=m.label;sl.d=m.who==='sun'?0:(m.row.d||0);sl.l=m.row.l||0;sl.b=m.row.b||0}
+}
+// just intonation snap: the nearest harmonic of the home note two octaves below the register
+function snapHarm(f){const root=SY.C_BASE*Math.pow(2,SY.keyOct()+2)*SY.SYSR.just[SY.MODESEMI[SY.Y().tun.mode]||0];const n=Math.max(1,Math.round(f/root));return n*root}
+// set the voice's parameters for this tick
+function setVoice(sl,f,mv,kind,sd,t){const tgt=SY.tgt,I=sl.I,AC=SY.AC;if(!I)return;
+  if(kind==='star'){tgt(I.o1.frequency,f,.08);tgt(I.o2.frequency,f,.08);
+    const bright=clamp(.25+(sl.row&&sl.row.T?Math.log10(sl.row.T/3000)/1.2:0)*.5+(mv.bright||0),0,1);tgt(I.g1.gain,1-bright*.6,.15);tgt(I.g2.gain,.08+bright*.5,.15);
+    tgt(I.lp.frequency,clamp(2400*Math.pow(2,3*(mv.cut||0)),120,16000),.15);tgt(I.lp.Q,clamp(.7+8*(mv.res||0),.2,14),.15);tgt(I.o2.detune,Math.max(0,4+30*(mv.det||0)),.1);
+    if(sl.row&&sl.lines!==sl.row){sl.lines=sl.row;const F=G().filters(sl.row,{max:3});for(let j=0;j<3;j++){const L=F[j];if(L){I.pk[j].frequency.setTargetAtTime(L.f*(f/F.f0),t,.05);I.pk[j].Q.value=L.q;I.pk[j].gain.setTargetAtTime(L.gain*1.5,t,.05)}else I.pk[j].gain.setTargetAtTime(0,t,.05)}sl.f0=F.f0}
+    else if(sl.lines&&sl.f0){const F=G().filters(sl.row,{max:3});for(let j=0;j<3&&F[j];j++)tgt(I.pk[j].frequency,F[j].f*(f/F.f0),.08)}}
+  else if(kind==='pulse'){const f0=sl.f,tone=f0>=20;const P=sl.row;if(sl.pw!==P){sl.pw=P;I.o.setPeriodicWave(pulseWave(P.W50&&P.P0?P.W50/1000/P.P0:.08))}
+    tgt(I.o.frequency,tone?f:f0,.05);tgt(I.car.frequency,clamp(220*f/f0,30,4000),.08);
+    const duty=P.W50&&P.P0?clamp(P.W50/1000/P.P0,.02,.5):.08;tgt(I.dc.offset,tone?0:duty,.05);tgt(I.og.gain,tone?0:1,.05);tgt(I.direct.gain,tone?.8:0,.05);
+    tgt(I.lp.frequency,clamp(3000*Math.pow(2,3*(mv.cut||0)),120,16000),.15);tgt(I.lp.Q,clamp(.5+8*(mv.res||0),.2,14),.15)}
+  else if(kind==='noise'){const a=sl.alpha==null?-.7:sl.alpha;tgt(I.lp.frequency,clamp(6000*Math.pow(2,2.5*a+3*(mv.cut||0)),120,16000),.2);tgt(I.lp.Q,clamp(.4+8*(mv.res||0),.2,14),.15)}
+  else if(kind==='mode'){tgt(I.o1.frequency,f,.05)}
+  else{ // the page's voices
+    [I.o1,I.o2,I.o3].forEach((o,k)=>{if(o)tgt(o.frequency,f*(k===2?I.o3k:1),.07)});tgt(I.vd.gain,Math.max(0,(I.vibDepth0||0)+50*(mv.vibD||0)),.2);
+    tgt(I.lp.frequency,clamp(I.br*Math.pow(2,3*(mv.cut||0)),120,16000),.15);tgt(I.lp.Q,clamp(.6+8*(mv.res||0),.2,14),.15);
+    if(I.hasForm&&SY.formantsAt){const F=SY.formantsAt(I.vow0+2.5*(mv.vowel||0));F.forEach(([fr,gg],k)=>{tgt(I.bps[k].frequency,fr,.12);tgt(I.bgs[k].gain,gg*2.2,.12)})}
+    const bright=clamp((I.type==='pure'?.2:.55)+(mv.bright||0),0,1);tgt(I.g1.gain,1-bright*.7,.15);tgt(I.g2.gain,.15+bright*.9,.15);
+    const det=Math.max(0,I.det0+30*(mv.det||0));tgt(I.o2.detune,det,.1);if(I.o3&&I.type!=='string')tgt(I.o3.detune,-det,.1);
+    if(I.type==='string'){const per=1/clamp(.8*Math.pow(2,2*(mv.tremR||0))*(1+.13*sl.k),.15,3);if(I.pluckNext<t-.5)I.pluckNext=t+.05;while(I.pluckNext<t+.2){const g=I.env.gain,q=I.pluckNext;g.cancelScheduledValues(q);g.setTargetAtTime(0,q,.004);g.setTargetAtTime(1,q+.014,.01);g.setTargetAtTime(0,q+.06,per*.4);I.pluckNext+=per}}}
+}
+// retriggers of a strip from a stepping source (as synth.js's handleTrig, on the strip's envelope)
+function handleTrig(s,t,m){const v=s.V;
+  for(const r of RT){if(r.d!=='trig'||!(r.a>0))continue;const steps=2+Math.round(r.a*14),src=r.src;if(!src)continue;const st=v.trig[r.s]||(v.trig[r.s]={last:null,sched:0});
+    if(r.s==='lfo1'||r.s==='lfo2'){const Y=SY.Y(),l=Y.lfo[r.s==='lfo1'?0:1],off=Y.stagger?STRIPS.indexOf(s.def)/8/Math.max(l.rate,1e-3):0;
+      const from=Math.max(st.sched,t),to=t+.18,dq=Math.min(.01,1/(l.rate*steps*8));let prev=st.last;
+      for(let q=from;q<to;q+=dq){const val=SY.lfoAt(l,q+off),stp=Math.floor((val+1)/2*steps*.999);if(prev!==null&&stp!==prev)SY.retrig(v,q,v.att,v.rel,v.f);prev=stp}st.last=prev;st.sched=to}
+    else{const val=src.f(v),stp=src.bi?Math.floor((val+1)/2*steps*.999):Math.floor(val*steps*.999);if(st.last!==null&&stp!==st.last&&t>st.sched){SY.retrig(v,t+.02,v.att,v.rel,v.f);st.sched=t+.08}st.last=stp}}}
+// the sequencer strikes a strip: its envelope, as synth.js's strike() does for a planet
+function strike(id,t,acc,sd){const s=AU&&AU.strips[id.slice(2)];if(!s)return 0;const v=s.V,g=s.env.gain,f=v.f||220;
+  const vel=acc?1:.7,att=Math.max(.003,Math.min(v.att||.02,sd*.4)),Gt=SY.SEQ.gate,gate=Gt==='short'?sd*.22:Gt==='long'?sd*.98:sd*.55,tau=Math.max(.02,(v.rel||.8)/6*(Gt==='short'?.3:Gt==='long'?1:.6));
+  g.cancelScheduledValues(t-.006);g.setTargetAtTime(0,t-.006,.0015);g.setValueAtTime(0,t);g.linearRampToValueAtTime(vel,t+att);g.setTargetAtTime(0,t+Math.max(att+.005,gate),tau);
+  v.flash=1;if(window.MOTS&&MOTS.midi&&MOTS.midi.on)MOTS.midi.hit('g:'+s.id,t,f,Math.min(1,v.lvl*2*(acc?1.4:1)),gate);return f}
+// the pulsar clock: one step every (divider / spin frequency) seconds
+function stepDur(){const c=GS.Y.clock;if(!c||!c.p||!G()||!G().ready)return 0;const p=G().find(c.p);if(!p)return 0;const f=p.F0||1/p.P0;return (c.div||1)/f}
+
+/* ---------- the sequencer's rows and patterns ---------- */
+const ROWS=STRIPS.map(sd=>({id:'g:'+sd.id,god:'',color:sd.color,el:{a:1+STRIPS.indexOf(sd)*2},sd}));
+function seqRows(){ROWS.forEach(r=>{r.god=GT.strips[r.sd.id]});const SEQ=SY.SEQ;ROWS.forEach(r=>{if(!SEQ.rows[r.id])SEQ.rows[r.id]={m:false,s:new Array(32).fill(0)}});return ROWS}
+const GSKEY='mots.gsynth.seq';
+function seqLoadG(){try{const o=JSON.parse(LS.get(GSKEY)||'null');if(!o)return;seqRows();ROWS.forEach(r=>{const q=o[r.id];if(!q)return;SY.SEQ.rows[r.id].m=!!q.m;(q.s||[]).forEach((v,k)=>{if(k<32)SY.SEQ.rows[r.id].s[k]=v===2?2:v?1:0})})}catch(e){}}
+let seqSaveT=null;function seqSaveG(){clearTimeout(seqSaveT);seqSaveT=setTimeout(()=>{const o={};ROWS.forEach(r=>{if(SY.SEQ.rows[r.id])o[r.id]=SY.SEQ.rows[r.id]});LS.set(GSKEY,JSON.stringify(o))},300)}
+function seqPat(k){const SEQ=SY.SEQ,n=SEQ.steps,rows=seqRows(),at=(id,pos,a)=>{SEQ.rows['g:'+id].s[Math.round(pos*n/16)%n]=a||1};
+  if(k==='pulse'){rows.forEach(r=>SEQ.rows[r.id].s.fill(0));[0,4,8,12].forEach(p=>at('rings',p,p===0?2:1));[2,6,10,14].forEach(p=>at('pulsars',p));[4,12].forEach(p=>at('bright',p,2));[3,7,11,15].forEach(p=>at('near',p));[0,8].forEach(p=>at('arms',p));at('quakes',6);at('radio',14);seqSaveG();return true}
+  if(k==='sky'){rows.forEach(r=>SEQ.rows[r.id].s.fill(0));rows.forEach((r,j)=>{const s=AU&&AU.strips[r.sd.id],rep=s&&s.rep;const l=rep?((rep.l||0)+360)%360:j*51;const i=Math.floor(l/360*n)%n;SEQ.rows[r.id].s[i]=rep&&rep.loud>.6?2:1;if(j<3)SEQ.rows[r.id].s[(i+Math.round(n/2))%n]=1});seqSaveG();return true}
+  return false}
+
+/* ---------- UI ---------- */
+const ICO=SY.ICO;
+function renderStrips(){const box=$('strips');box.innerHTML='';const Y=GS.Y;
+  STRIPS.forEach((sd,k)=>{const o=Y.st[sd.id],d=document.createElement('div');d.className='strip gstrip'+(o.on?'':' off');d.dataset.id='g:'+sd.id;
+    d.innerHTML=`<div class="nm"><span class="sw" id="gsw_${sd.id}" style="background:${sd.color};color:${sd.color}"></span><div style="min-width:0"><b>${esc(stripGod(sd))}</b><br><span>${esc(GT.strips[sd.id])}</span></div></div>
+      <div class="ms"><button class="mb m" type="button" aria-pressed="${!o.on}" aria-label="${esc(TX.muteTip)} · ${esc(GT.strips[sd.id])}" title="${esc(TX.muteTip)} (${k+1})">${ICO.mute}<span class="lb">${esc(TX.muteBtn)}</span></button><button class="mb s" type="button" aria-pressed="${o.solo}" aria-label="${esc(TX.soloTip)} · ${esc(GT.strips[sd.id])}" title="${esc(TX.soloTip)}">${ICO.solo}<span class="lb">${esc(TX.soloBtn)}</span></button></div>
+      <div class="lvl"><input type="range" min="0" max="100" value="${Math.round(o.lvl*100)}" aria-label="${esc(TX.level)} · ${esc(GT.strips[sd.id])}"><div class="meter"><i id="glm_${sd.id}"></i></div></div>
+      <div class="voice"></div><div class="oct"></div><div class="note" id="gnt_${sd.id}">—</div>
+      <div class="gx"><label class="gf"><span>${esc(GT.voicesN)}</span><input type="range" min="1" max="${sd.max}" value="${o.n}" aria-label="${esc(GT.voicesN)} · ${esc(GT.strips[sd.id])}"><output>${o.n}</output></label>
+      <label class="gf glawf"><span>${esc(GT.law)}</span></label><label class="gf"><span>${esc(GT.spread)}</span><input type="range" min="0" max="100" value="${Math.round(o.spread*100)}" aria-label="${esc(GT.spread)} · ${esc(GT.strips[sd.id])}" title="${esc(GT.spreadTip)}"></label></div>
+      <p class="hint ghint"><span class="gtip">${esc(GT.stripTip[sd.id])}<br></span><b class="glaw">${esc(GT.lawTip[o.law])}</b></p>`;
+    d.title='';d.querySelector('.m').onclick=()=>{o.on=!o.on;syncStrips();dirty()};d.querySelector('.s').onclick=()=>toggleSolo({id:sd.id});
+    d.querySelector('.lvl input').oninput=e=>{o.lvl=e.target.value/100;dirty()};
+    const vs=SY.sel('gvo_'+sd.id,sd.voices.map(v=>[v,GT.voice[v]||TX.voices[v]]),o.voice,v=>{o.voice=v;dirty()});vs.setAttribute('aria-label',TX.voice+' · '+GT.strips[sd.id]);d.querySelector('.voice').appendChild(vs);
+    const os=SY.sel('goc_'+sd.id,[-3,-2,-1,0,1,2,3].map(v=>[v,(v>0?'+':'')+v+' '+TX.oct]),o.oct,v=>{o.oct=+v;dirty()});os.setAttribute('aria-label',TX.octave+' · '+GT.strips[sd.id]);os.style.minWidth='4.6rem';d.querySelector('.oct').appendChild(os);
+    const gf=d.querySelectorAll('.gf');gf[0].querySelector('input').oninput=e=>{o.n=+e.target.value;gf[0].querySelector('output').textContent=o.n;AS.dirty=true;dirty()};
+    const ls=SY.sel('glaw_'+sd.id,sd.laws.map(l=>[l,GT.laws[l]]),o.law,v=>{o.law=v;d.querySelector('.glaw').textContent=GT.lawTip[v];AS.dirty=true;dirty()});ls.setAttribute('aria-label',GT.law+' · '+GT.strips[sd.id]);gf[1].appendChild(ls);if(sd.laws.length<2)ls.disabled=true;
+    gf[2].querySelector('input').oninput=e=>{o.spread=e.target.value/100;dirty()};
+    if(sd.id==='quakes'){const gs=SY.sel('ggiant',GIANTS.map(n=>[n,n]),Y.giant,v=>{Y.giant=v;AS.dirty=true;dirty()});gs.setAttribute('aria-label',GT.giant);const l=document.createElement('label');l.className='gf';l.innerHTML=`<span>${esc(GT.giant)}</span>`;l.appendChild(gs);d.querySelector('.gx').appendChild(l)}
+    box.appendChild(d)});
+  const gb=$('groups');gb.innerHTML='';
+  // the speakers' setting, the larger catalogue, and the credits
+  const sp=document.createElement('div');sp.className='strip grp gset';sp.innerHTML=`<div class="nm"><span class="sw" style="background:#efe6cf;color:#efe6cf;opacity:.6"></span><div><b>${esc(GT.speakers)}</b></div></div><div class="x"></div>`;
+  sp.querySelector('.x').appendChild(SY.seg('ggods',[['forge',GT.forge],['chaos',GT.chaos]],GS.gods,v=>{GS.gods=v;LS.set('mots.galaxyGods',v);renderStrips();SY.renderSeqGrid()},GT.speakers));gb.appendChild(sp);
+  const lg=document.createElement('div');lg.className='strip grp gset';lg.innerHTML=`<div class="nm"><span class="sw" style="background:#9fd3ff;color:#9fd3ff;opacity:.6"></span><div><b id="glargeTxt">${esc(GS.large?uf(GT.largeOn,{n:fmtN(G().stars().length-1,0)}):GT.largeTip)}</b></div></div><div class="x"><button class="pb" id="glarge" type="button" title="${esc(GT.largeTip)}">${esc(GT.largeBtn)}</button></div>`;
+  gb.appendChild(lg);const lb=lg.querySelector('#glarge');if(GS.large)lb.hidden=true;lb.onclick=()=>loadLarge();
+  const cr=document.createElement('p');cr.className='small gcred';cr.textContent=GT.credits;gb.appendChild(cr);
+  syncStrips()}
+function syncStrips(){const box=$('strips');if(!box)return;const Y=GS.Y,solo=anySolo();box.classList.toggle('hasSolo',solo);
+  STRIPS.forEach(sd=>{const o=Y.st[sd.id],d=box.querySelector(`.strip[data-id="g:${sd.id}"]`);if(!d)return;d.classList.toggle('off',!o.on);d.classList.toggle('solo',o.solo);d.querySelector('.m').setAttribute('aria-pressed',String(!o.on));d.querySelector('.s').setAttribute('aria-pressed',String(o.solo))})}
+function toggleSolo(b){const id=String(b.id).replace(/^g:/,''),o=GS.Y.st[id];if(!o)return;o.solo=!o.solo;if(o.solo&&!o.on)o.on=true;syncStrips();dirty();SY.toast(anySolo()?TX.soloToast.replace('{g}',GT.strips[id]):TX.soloOff)}
+function key(n){const sd=STRIPS[n-1];if(!sd)return;const o=GS.Y.st[sd.id];o.on=!o.on;syncStrips();dirty();SY.toast((o.on?'🔊 ':'🔇 ')+GT.strips[sd.id])}
+function renderLaw(){const box=$('law');box.innerHTML='';const Y=GS.Y;
+  // the dark-matter switch, prominent, with its one-line explanation
+  const dm=document.createElement('div');dm.className='gdm';dm.innerHTML=`<span class="lab">${esc(GT.dm)}</span>`;
+  dm.appendChild(SY.seg('gdmSeg',[[1,'● '+GT.dm,GT.dmOn],[0,TX.chords.off,GT.dmOff]],Y.law.dm?1:0,v=>{Y.law.dm=!!v;dm.querySelector('.hint').textContent=Y.law.dm?GT.dmOn:GT.dmOff;dm.classList.toggle('dmoff',!Y.law.dm);AS.dirty=true;dirty()},GT.dm));
+  const h=document.createElement('p');h.className='hint';h.textContent=Y.law.dm?GT.dmOn:GT.dmOff;dm.appendChild(h);dm.classList.toggle('dmoff',!Y.law.dm);box.appendChild(dm);
+  const ex=SY.range('gexag',0,3,.01,Math.log10(Y.law.exag),v=>{Y.law.exag=Math.round(Math.pow(10,v));ex.parentNode.querySelector('output').textContent='×'+fmtN(Y.law.exag,0);AS.dirty=true;dirty()});
+  const ef=SY.field(GT.exag,ex,true);ef.title=GT.exagTip;ef.querySelector('output').textContent='×'+fmtN(Y.law.exag,0);box.appendChild(ef);
+  const eh=document.createElement('p');eh.className='hint';eh.textContent=GT.exagTip;box.appendChild(eh);
+  const ro=SY.range('grotOct',55,66,1,Y.law.rotOct,v=>{Y.law.rotOct=v;ro.parentNode.querySelector('output').textContent=v;AS.dirty=true;dirty()});
+  const rf=SY.field(GT.rotOct,ro,true);rf.querySelector('output').textContent=Y.law.rotOct;box.appendChild(rf);
+  const rh=document.createElement('p');rh.className='hint';rh.textContent=GT.lawTip.rot;box.appendChild(rh)}
+function renderTun(){const box=$('tun');box.innerHTML='';const Y=SY.Y();
+  box.appendChild(SY.field(GT.snapNote+' · '+TX.mode,SY.sel('mode',TX.modes.map((lab,k)=>[['E','D','C','B','A','G','F'][k],lab]),Y.tun.mode,v=>{Y.tun.mode=v;dirty()})));
+  const zod=document.createElement('label');zod.className='chk';zod.innerHTML=`<input type="checkbox" id="zod" ${Y.tun.zod?'checked':''}> ${esc(TX.zodKey)}`;zod.querySelector('input').onchange=e=>{Y.tun.zod=e.target.checked;dirty();renderTun()};box.appendChild(zod);
+  if(!Y.tun.zod)box.appendChild(SY.field(TX.key,SY.sel('key',['C','C♯','D','E♭','E','F','F♯','G','G♯','A','B♭','B'].map((n,k)=>[k,n]),Y.tun.key,v=>{Y.tun.key=+v;dirty()})));
+  const h=document.createElement('p');h.className='hint';h.textContent=GT.lawTip.snap;box.appendChild(h);
+  const vr=SY.range('verb',0,100,1,Math.round(Y.verb*100),v=>{Y.verb=v/100;SY.setVerb();dirty();vr.parentNode.querySelector('output').textContent=v+'%'});
+  const vf=SY.field(TX.reverb,vr,true);vf.querySelector('output').textContent=Math.round(Y.verb*100)+'%';box.appendChild(vf)}
+const spFrom=v=>Math.pow(10,-3+v/1000*10),spTo=d=>Math.round((Math.log10(d)+3)/10*1000);
+function fmtTime(y){const U=GT.timeUnits;if(y<1)return fmtN(y*365.25,y*365.25<10?1:0)+U.d;if(y<1000)return fmtN(y,y<10?1:0)+U.y;if(y<1e6)return fmtN(y/1000,y<1e4?1:0)+U.ky;return fmtN(y/1e6,y<1e7?1:0)+U.My}
+function renderSky(){const box=$('skyctl');box.innerHTML='';const Y=GS.Y,S=SY.S;
+  const tb=document.createElement('button');tb.className='ib';tb.id='today';tb.type='button';tb.textContent=GT.now;tb.onclick=()=>{GS.t=0;AS.dirty=true};box.appendChild(tb);
+  const pp=document.createElement('button');pp.className='ib';pp.id='skyPlay';pp.type='button';pp.textContent=S.playing?'❚❚':'▶';pp.setAttribute('aria-label',TX.skyPlay);pp.title=TX.skyPlay;pp.onclick=()=>{S.playing=!S.playing;pp.textContent=S.playing?'❚❚':'▶'};box.appendChild(pp);
+  const rv=document.createElement('button');rv.className='ib';rv.id='rev';rv.type='button';rv.textContent=S.dir>0?'◀':'▶';rv.setAttribute('aria-label',TX.backward);rv.title=TX.backward;rv.onclick=()=>{S.dir*=-1;rv.textContent=S.dir>0?'◀':'▶'};box.appendChild(rv);
+  const sp=SY.range('gspeed',0,1000,1,spTo(Y.speed),v=>{Y.speed=spFrom(v);sp.parentNode.querySelector('output').textContent=fmtTime(Y.speed);dirty()});
+  const sf=SY.field(GT.timeSpeed,sp,true);sf.querySelector('output').textContent=fmtTime(Y.speed);box.appendChild(sf);
+  const wh=SY.sel('gwhere',WHERE.map(w=>[w,GT.where[w]]),Y.lis.where,v=>{Y.lis.where=v;AS.dirty=true;dirty()});box.appendChild(SY.field(GT.listenFrom,wh));
+  const fc=SY.range('gfacing',0,359,1,Math.round(Y.lis.facing),v=>{Y.lis.facing=v;fc.parentNode.querySelector('output').textContent=facingTxt(v);dirty()});
+  const ff=SY.field(GT.facing,fc,true);ff.querySelector('output').textContent=facingTxt(Y.lis.facing);ff.classList.add('gfacing');box.appendChild(ff)}
+function facingTxt(l){const k=[0,90,180,270].find(x=>Math.abs(((l-x+540)%360)-180)<8);return 'l = '+Math.round(l)+'°'+(k!=null?' · '+GT.toward[k]:'')}
+// the pulsar clock, in the sequencer panel
+function renderSeqExtra(C,bpmField){const Y=GS.Y,g=G();const c=Y.clock;
+  const wrap=document.createElement('div');wrap.className='field gclock';wrap.innerHTML=`<span class="lab">${esc(GT.clock)}</span>`;
+  const opts=[['',GT.clockBpm]].concat((g&&g.ready?PULSAR_CLOCKS.map(j=>{const p=g.find(j);return p?[j,(p.b||p.j)+' · '+fmtN(p.F0||1/p.P0,p.F0>10?0:2)+' Hz']:null}).filter(Boolean):[]));
+  const s=SY.sel('gclockP',opts,c?c.p:'',v=>{Y.clock=v?{p:v,div:(Y.clock&&Y.clock.div)||defaultDiv(v)}:null;if(SY.AC&&SY.SEQ.play)SY.seqRestart(SY.AC.currentTime);dirty();SY.renderSeq()});s.setAttribute('aria-label',GT.clock);wrap.appendChild(s);
+  C.appendChild(wrap);
+  if(c&&c.p){const dv=SY.sel('gclockDiv',[1,2,4,8,16,32,64,128,256].map(d=>[d,'÷ '+d]),c.div,v=>{c.div=+v;if(SY.AC&&SY.SEQ.play)SY.seqRestart(SY.AC.currentTime);dirty();SY.renderSeq()});
+    const df=SY.field(GT.divider,dv);C.appendChild(df);const p=g.find(c.p),f=p?(p.F0||1/p.P0):1;
+    const lab=document.createElement('p');lab.className='hint gclockLab';lab.textContent=uf(GT.clockLabel,{p:p?(p.b||p.j):c.p,f:fmtN(f,f>10?1:3),d:c.div,s:fmtN(c.div/f,3)});C.appendChild(lab);
+    if(bpmField)bpmField.hidden=true}}
+function defaultDiv(j){const f=G().find(j);const F=f?(f.F0||1/f.P0):1;let d=1;while(F/d>2.5)d*=2;return d}
+function lfoShapes(){return Object.keys(lfoShape).map(k=>[k,GT.shapes[k]])}
+function taste(){return [['gD','level'],['gT','cut'],['gT','bright'],['gL','level'],['gRV','pitch'],['gPM','det'],['gl','pan'],['gb','cut'],['gZ','pan'],['gVar','tremD'],['gVar','level'],['gSpin','tremD'],['gSpin','trig'],['gOrb','cut'],['gVert','vibD'],['lfo1','tremD'],['lfo1','level'],['lfo2','trig'],['lfo2','bright'],['one','dly'],['one','verb']]}
+function meterRows(){return STRIPS.map(sd=>{const s=AU&&AU.strips[sd.id];const r=s?s.V:ROWS[STRIPS.indexOf(sd)];r.rep=s?s.rep:null;r.color=sd.color;return r})}
+
+/* ---------- patches ---------- */
+const GPKEY='mots.gsynth.patches';
+const userPatches=()=>{try{return JSON.parse(LS.get(GPKEY)||'{}')}catch(e){return {}}};
+function toPatch(){const Y=SY.Y(),p={};GPATCH_KEYS.forEach(k=>p[k]=GS.Y[k]);p.mx=Y.mx;p.lfo=Y.lfo;p.stagger=Y.stagger;p.verb=Y.verb;p.mode=Y.tun.mode;p.zod=Y.tun.zod;p.key=Y.tun.key;return JSON.parse(JSON.stringify(p))}
+function fromPatch(p){const n=GDEF();GPATCH_KEYS.forEach(k=>{if(p[k]===undefined)return;if(k==='st'){for(const id in n.st)if(p.st[id])Object.assign(n.st[id],p.st[id])}else if(k==='law'||k==='lis')Object.assign(n[k],p[k]);else n[k]=p[k]});n.mode=p.mode;n.zod=p.zod;n.key=p.key;return n}
+function setPatch(n){GS.Y=n;const Y=SY.Y();Y.mx=n.mx||{};Y.lfo=n.lfo||GDEF().lfo;Y.stagger=n.stagger!==false;Y.verb=n.verb==null?.45:n.verb;if(n.mode)Y.tun.mode=n.mode;if(n.zod!==undefined)Y.tun.zod=!!n.zod;if(n.key!=null)Y.tun.key=n.key;Y.name=n.name;
+  GS.preset=null;GS.user=null;if(SY.AC)SY.setVerb();Object.values(SY.V).forEach(v=>v.trig={});AS.dirty=true;if(GS.active){SY.renderAll();syncURL()}}
+function renderPatchList(){const s=$('patch');s.innerHTML='';const g1=document.createElement('optgroup');g1.label=TX.presetGroup;Object.keys(GPRESETS).forEach(k=>{const o=document.createElement('option');o.value='p:'+k;o.textContent=GT.presets[k];g1.appendChild(o)});s.appendChild(g1);
+  const up=userPatches(),names=Object.keys(up);if(names.length){const g2=document.createElement('optgroup');g2.label=TX.yourPatches;names.sort().forEach(n=>{const o=document.createElement('option');o.value='u:'+n;o.textContent=n;g2.appendChild(o)});s.appendChild(g2)}
+  const o=document.createElement('option');o.value='x';o.textContent=TX.edited;o.hidden=true;s.appendChild(o);syncPatchSel()}
+function syncPatchSel(){const s=$('patch');const want=GS.user?'u:'+GS.user:GS.preset?'p:'+GS.preset:'x';const x=s.querySelector('option[value="x"]');if(x)x.hidden=want!=='x';s.value=want;$('del').hidden=!GS.user;$('pname').value=GS.Y.name||''}
+function patchChange(v){if(v.startsWith('p:'))applyPreset(v.slice(2));else if(v.startsWith('u:')){const p=userPatches()[v.slice(2)];if(p){setPatch(fromPatch(p));GS.user=v.slice(2);syncPatchSel()}}}
+function savePatch(){const name=($('pname').value||'').trim()||TX.untitled;const up=userPatches();GS.Y.name=name;up[name]=toPatch();LS.set(GPKEY,JSON.stringify(up));GS.user=name;GS.preset=null;renderPatchList();SY.toast(TX.saved.replace('{n}',name))}
+function delPatch(){if(!GS.user)return;const up=userPatches();delete up[GS.user];LS.set(GPKEY,JSON.stringify(up));GS.user=null;renderPatchList();SY.toast(TX.deleted)}
+function nameInput(v){GS.Y.name=v}
+function dirty(){if(GS.preset||GS.user){GS.preset=null;GS.user=null;syncPatchSel()}syncURL()}
+const enc=p=>btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(p)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const dec=s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(s),c=>c.charCodeAt(0))))};
+const shareQuery=()=>'?g='+enc(toPatch())+'#galaxy';
+let urlT=null;function syncURL(){clearTimeout(urlT);urlT=setTimeout(()=>{try{history.replaceState(null,'',shareQuery())}catch(e){}},400)}
+function nextPreset(d){const ks=Object.keys(GPRESETS);let i=ks.indexOf(GS.preset);i=(i+d+ks.length)%ks.length;applyPreset(ks[i]);SY.toast(GT.presets[ks[i]])}
+
+/* ---------- the larger catalogue: fetched once, verified, kept in Cache Storage ---------- */
+async function sha256hex(buf){const h=await crypto.subtle.digest('SHA-256',buf);return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('')}
+let largeP=null;
+function loadLarge(silent){if(GS.large||largeP)return largeP;const g=G();if(!g||!g.ready)return null;const url=new URL(BASE+'galaxy/stars_large.json',location.href).href,murl=new URL(BASE+'galaxy/stars_large.meta.json',location.href).href;
+  if(!silent)SY.toast(GT.largeLoading,6000);const btn=$('glarge');if(btn)btn.disabled=true;
+  largeP=(async()=>{let cache=null;try{cache=await caches.open('galaxy-large')}catch(e){}
+    let res=cache&&await cache.match(url);let fresh=false;if(!res){res=await fetch(url);fresh=true;if(!res.ok)throw new Error('http '+res.status)}
+    const buf=await res.arrayBuffer();let meta=null;try{const mr=(cache&&await cache.match(murl))||await fetch(murl);meta=await mr.clone().json();if(cache&&mr.ok)await cache.put(murl,mr.clone())}catch(e){}
+    if(meta&&meta.sha256){const hex=await sha256hex(buf);if(hex!==meta.sha256){if(cache)await cache.delete(url);throw new Error('sha256 mismatch')}}
+    if(fresh&&cache)try{await cache.put(url,new Response(buf.slice(0),{headers:{'content-type':'application/json'}}))}catch(e){}
+    const json=JSON.parse(new TextDecoder().decode(buf));
+    g.setFetch(u=>Promise.resolve(json));let n=0;try{n=await g.loadLarge(BASE)}finally{g.setFetch(u=>fetch(u).then(r=>{if(!r.ok)throw new Error(u+' '+r.status);return r.json()}))}
+    GS.large=n;LS.set('mots.galaxyLarge','1');AS.dirty=true;if(!silent)SY.toast(uf(GT.largeDone,{n:fmtN(n,0)}),4000);if(GS.active)renderStrips();return n})().catch(e=>{largeP=null;const b=$('glarge');if(b)b.disabled=false;if(!silent)SY.toast(GT.largeFail,4000);console.warn('gsynth large catalogue:',e&&e.message||e);return 0});
+  return largeP}
+
+/* ---------- the sky: the Milky Way around the listener, on a log-radial map ---------- */
+let ARMS=null,RINGS=null;
+function prepSky(){const g=G();if(!g||!g.ready||ARMS)return;ARMS=g.arms().filter(a=>a.id!=='3kpc').map(a=>{const pts=[];const b0=a.beta_range[0]-40,b1=a.beta_range[1]+40;for(let b=b0;b<=b1;b+=3){const R=g.armRadius(a,b);if(R<1||R>22)continue;pts.push(g.fromGC({R,beta:b,z:0},{}))}return {id:a.id,pts}});
+  RINGS=g.rotationChord.defaultRadii.map(R=>{const pts=[];for(let b=0;b<360;b+=6)pts.push(g.fromGC({R,beta:b,z:0},{}));return {R,pts}})}
+const D0=1,DMAX=25000,SCALE_RINGS=[[10,'10 ly'],[100,'100 ly'],[1000,'1 kly'],[10000,'10 kly']];
+function proj(p,E,out){const dx=p.x-GS.L.x,dy=p.y-GS.L.y,d=Math.hypot(dx,dy);const r=d<1e-6?0:E.RR*.97*Math.log(1+d/D0)/Math.log(1+DMAX/D0);const f=GS.facing*DEG,fx=(dx*Math.cos(f)+dy*Math.sin(f))/(d||1),rt=(dx*Math.sin(f)-dy*Math.cos(f))/(d||1);out.x=E.CX+r*rt;out.y=E.CY-r*fx;return out}
+const SP={x:0,y:0},SP2={x:0,y:0};
+function tempColor(T){T=T||5772;const t=Math.max(2500,Math.min(30000,T));if(t<3700)return '#ff9a5c';if(t<5200)return '#ffcf8a';if(t<6000)return '#fff1d0';if(t<7500)return '#f8f7ff';if(t<10000)return '#cad8ff';return '#9fb6ff'}
+let BGS=null;
+function draw(tm,E){const g=G(),c=E.g;c.setTransform(E.DPR,0,0,E.DPR,0,0);c.clearRect(0,0,E.W,E.H);
+  if(!BGS){let sd=11;const r=()=>{sd=(sd*16807)%2147483647;return (sd-1)/2147483646};BGS=Array.from({length:300},()=>({x:r(),y:r(),m:r()}))}
+  BGS.forEach(s=>{c.fillStyle=`rgba(233,225,204,${.08+s.m*.25})`;c.fillRect(s.x*E.W,s.y*E.H,s.m>.92?1.6:1,s.m>.92?1.6:1)});
+  if(!g||!g.ready){c.fillStyle='rgba(233,225,204,.7)';c.font=`${14*E.K}px "GFS Didot",Georgia,serif`;c.textAlign='center';c.fillText(GT.loading,E.CX,E.CY);return}
+  prepSky();const RR=E.RR*.97,K=E.K,SK=E.SK;
+  // scale rings: 10 ly, 100 ly, 1 kly, 10 kly
+  c.strokeStyle='rgba(201,152,79,.22)';c.lineWidth=1;c.fillStyle='rgba(212,166,87,.7)';c.font=`${Math.max(10,11*K)}px "IBM Plex Mono",monospace`;c.textAlign='left';c.textBaseline='bottom';
+  SCALE_RINGS.forEach(([ly,lab])=>{const d=ly/g.K.PC_LY,r=RR*Math.log(1+d/D0)/Math.log(1+DMAX/D0);c.beginPath();c.arc(E.CX,E.CY,r,0,TAU);c.stroke();c.fillText(lab,E.CX+r*.72+4,E.CY-r*.7)});
+  // the disc's arms and (when they play) the rings of the rotation chord
+  c.lineWidth=1.3;ARMS.forEach(a=>{c.strokeStyle='rgba(143,208,201,.35)';c.beginPath();a.pts.forEach((p,k)=>{proj(p,E,SP);k?c.lineTo(SP.x,SP.y):c.moveTo(SP.x,SP.y)});c.stroke()});
+  const ringsOn=GS.Y.st.rings.on&&AS.ringsN;if(ringsOn){RINGS.slice(0,AS.ringsN).forEach((r,k)=>{c.strokeStyle=`rgba(201,152,79,${GS.Y.law.dm?.45:.25})`;c.setLineDash(GS.Y.law.dm?[]:[3,5]);c.beginPath();r.pts.forEach((p,j)=>{proj(p,E,SP);j?c.lineTo(SP.x,SP.y):c.moveTo(SP.x,SP.y)});c.closePath();c.stroke()});c.setLineDash([])}
+  // the Galactic centre and the Sun
+  const gc={x:g.K.R0*1000,y:0,z:0};proj(gc,E,SP);c.fillStyle='rgba(233,225,204,.9)';c.beginPath();c.arc(SP.x,SP.y,3*SK,0,TAU);c.fill();c.font=`${12*K}px "GFS Didot",Georgia,serif`;c.textBaseline='middle';c.textAlign='left';c.fillStyle='rgba(233,225,204,.8)';SY.txt('Sgr A*',SP.x+6*SK,SP.y);
+  if(GS.Y.lis.where!=='sun'){proj({x:0,y:0},E,SP);const sg=c.createRadialGradient(SP.x,SP.y,0,SP.x,SP.y,10*SK);sg.addColorStop(0,'rgba(255,236,190,1)');sg.addColorStop(1,'rgba(201,152,79,0)');c.fillStyle=sg;c.beginPath();c.arc(SP.x,SP.y,10*SK,0,TAU);c.fill();c.fillStyle='rgba(243,217,164,.9)';SY.txt('☉ '+GT.where.sun,SP.x+8*SK,SP.y)}
+  // the sources now heard: dots coloured by temperature, sized by loudness; pulsars as light-blue rings, radio as ember squares
+  let labels=0;const maxLab=LOW?5:10;
+  if(AU)for(const sd of STRIPS){const s=AU.strips[sd.id];if(!s||!s.nOn)continue;
+    for(const sl of s.slots){if(!sl.on||(!sl.row&&sd.id!=='arms'))continue;
+      if(sd.id==='rings'||sd.id==='quakes')continue;
+      let px,py;if(sd.id==='arms'){const r=RR*Math.log(1+Math.max(1,sl.d*1000||2000)/D0)/Math.log(1+DMAX/D0);px=E.CX;py=E.CY-r}
+      else{const az=sl.dir.az*DEG,r=RR*Math.log(1+sl.d/D0)/Math.log(1+DMAX/D0);px=E.CX+r*Math.sin(az);py=E.CY-r*Math.cos(az)}
+      const rad=(2+5*sl.loud)*SK;
+      if(sd.id==='pulsars'){c.strokeStyle='#9fd3ff';c.lineWidth=1.5;const ph=sl.row?((tm/1000)*(sl.row.F0||1/sl.row.P0)/SPIN_DIV(sl.row))%1:0;c.globalAlpha=.5+.5*(1-ph);c.beginPath();c.arc(px,py,rad+2,0,TAU);c.stroke();c.globalAlpha=1}
+      else if(sd.id==='radio'){c.fillStyle='rgba(212,110,79,.85)';c.fillRect(px-rad,py-rad,rad*2,rad*2)}
+      else if(sd.id==='arms'){c.fillStyle='rgba(143,208,201,.8)';c.beginPath();c.arc(px,py,rad,0,TAU);c.fill()}
+      else{c.fillStyle=tempColor(sl.row.T);c.beginPath();c.arc(px,py,rad,0,TAU);c.fill()}
+      if(labels<maxLab&&sl.label&&sl.loud>.3&&sd.id!=='arms'){labels++;c.font=`${11*K}px "GFS Didot",Georgia,serif`;c.fillStyle='rgba(233,225,204,.85)';c.textAlign='left';SY.txt(sl.label,px+rad+4,py)}}}
+  // the listener, facing up
+  const q=SK;c.strokeStyle='#62a597';c.fillStyle='#62a597';c.lineWidth=1.5*q;c.beginPath();c.arc(E.CX,E.CY,15*q,0,TAU);c.globalAlpha=.6;c.stroke();c.globalAlpha=1;
+  c.beginPath();c.moveTo(E.CX,E.CY-15*q);c.lineTo(E.CX,E.CY-42*q);c.stroke();c.beginPath();c.moveTo(E.CX,E.CY-42*q);c.lineTo(E.CX-4*q,E.CY-35*q);c.lineTo(E.CX+4*q,E.CY-35*q);c.closePath();c.fill();
+  // the sequencer's steps, bottom right
+  const SEQ=SY.SEQ;if(SEQ.on&&SY.Y().playing){const n=SEQ.steps,grp=SY.seqGrp(),st=Math.min(9*SK,(E.W*.4)/n),x0=E.W-12-n*st,y=E.H-11*SK;for(let k=0;k<n;k++){const cur=k===SEQ.cur;c.fillStyle=cur?'#f3d9a4':k%grp===0?'rgba(212,166,87,.6)':'rgba(201,152,79,.3)';c.beginPath();c.arc(x0+(k+.5)*st,y,(cur?3.2:1.7)*SK,0,TAU);c.fill()}}}
+function skyClick(x,y){ // a click turns the listener toward that direction
+  const cv=SY.cv,r=cv.getBoundingClientRect(),cx=r.width/2,cy=r.height/2,dx=x-cx,dy=cy-y;if(Math.hypot(dx,dy)<10)return;const az=Math.atan2(dx,dy)/DEG;GS.Y.lis.facing=((GS.facing+az)%360+360)%360;const f=$('gfacing');if(f){f.value=Math.round(GS.Y.lis.facing);f.parentNode.querySelector('output').textContent=facingTxt(GS.Y.lis.facing)}dirty()}
+
+/* ---------- readouts, the bar, the caption, the score ---------- */
+function readouts(){const g=G();$('dateTxt').textContent=Math.abs(GS.t)<1?GT.now:(GS.t>0?'+':'−')+uf(GT.timeOff,{n:fmtN(Math.abs(GS.t)>=1e6?Math.round(Math.abs(GS.t)/1e5)*1e5:Math.round(Math.abs(GS.t)),0)});
+  $('speedTxt').textContent=SY.S.playing?(SY.S.dir<0?'◀ ':'')+fmtTime(GS.Y.speed):'❚❚';
+  $('keyTxt').textContent=uf(GT.listeningFrom,{w:GT.where[GS.Y.lis.where]})+' · '+uf(GT.facingL,{l:Math.round(GS.facing)})+' · '+(GS.Y.law.dm?GT.dmShort.on:GT.dmShort.off)+(GS.Y.law.exag>1?' · ×'+fmtN(GS.Y.law.exag,0):'');
+  STRIPS.forEach(sd=>{const s=AU&&AU.strips[sd.id],e=$('gnt_'+sd.id);if(!e)return;const rep=s&&s.rep;
+    if(rep&&s.nOn){const f=rep.f*Math.pow(2,GS.Y.st[sd.id].oct);e.innerHTML=(sd.id==='pulsars'&&f<20?fmtN(f,f<2?2:1)+' Hz':esc(SY.noteName(f)).replace(/ ([+−]\d+¢)$/,'<small> $1</small>'))+`<small> ×${s.nOn}</small>`;e.title=rep.label||''}else e.textContent='—';
+    const mt=$('glm_'+sd.id);if(mt)mt.style.width=(s&&s.nOn?Math.min(100,s.V.lvl*s.vol.gain.value*900):0)+'%';const sw=$('gsw_'+sd.id);if(sw)sw.style.boxShadow=s&&s.nOn&&SY.Y().playing?`0 0 ${4+Math.min(12,s.V.lvl*120)}px currentColor`:'none'});
+  // the source meters: where each strip's loudest voice sits on each source
+  const rows=meterRows();GSRC.forEach(src=>{const m=$('mt_'+src.id);if(!m)return;const dots=m.children;rows.forEach((r,k)=>{if(!dots[k])return;let v=src.f(r);if(!src.bi)v=v*2-1;dots[k].style.left=(50+clamp(v)*48)+'%'})})}
+function barText(np){return uf(GT.facingL,{l:Math.round(GS.facing)})+' · '+(SY.S.playing?(SY.S.dir<0?'◀ ':'')+fmtTime(GS.Y.speed):'❚❚')+(SY.SEQ.on?' · ▦ '+(GS.Y.clock?GT.clockPulsar:SY.SEQ.bpm+' '+TX.seq.bpmUnit):'')}
+function nowPlaying(){const e=document.querySelector('.eyebrow');const rs=ROUTES().slice(0,4).map(r=>TX.src[r.s]+' → '+TX.dst[r.d]).join(' · ');
+  return {k:e?e.textContent:'',h:GS.Y.name||GT.galaxy,p:(rs||TX.noRoutes)+' — '+uf(GT.listeningFrom,{w:GT.where[GS.Y.lis.where]}),d:$('dateTxt').textContent+' · '+(SY.S.playing?fmtTime(GS.Y.speed):'❚❚')+(SY.SEQ.on?' · ▦ '+(GS.Y.clock?GT.clockPulsar:SY.SEQ.bpm+' '+TX.seq.bpmUnit):'')}}
+function scoreInfo(){const names={};STRIPS.forEach(sd=>names['g:'+sd.id]=stripGod(sd)+' · '+GT.strips[sd.id]);const Y=SY.Y();return {names,key:{fifths:0,mode:'none',pc:0,name:GT.steadyKey},title:document.title+' · '+GT.galaxy}}
+
+/* ---------- Hera speaks (the device's voice for now; recorded voices come in step 7) ---------- */
+function speakHera(){if(GS.spoke||!window.speechSynthesis)return;GS.spoke=true;try{const u=new SpeechSynthesisUtterance(GT.hera);u.lang=SY.LOC;u.rate=.95;u.pitch=.9;const vs=speechSynthesis.getVoices().filter(v=>v.lang&&v.lang.toLowerCase().startsWith(SY.LOC.slice(0,2).toLowerCase()));const f=vs.find(v=>/female|woman|zira|samantha|anna|hazel/i.test(v.name))||vs[0];if(f)u.voice=f;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}}
+
+/* ---------- the mode switch ---------- */
+// the Pitch law and Oscillators headings and the strip hint read for the galaxy while it is on (runtime only; the markup is untouched)
+const TITLES={};
+function retitle(on){const h=$('law')&&$('law').closest('.card').querySelector('h2'),hint=$('stripHint');
+  if(h){const n=h.firstChild;if(TITLES.law==null)TITLES.law=n.textContent;n.textContent=on?GT.law+' ':TITLES.law}
+  if(hint){if(TITLES.hint==null)TITLES.hint=hint.textContent;hint.textContent=on?GT.keys:TITLES.hint}}
+function ensureLoaded(){if(GS.loaded)return Promise.resolve();if(GS.loading)return GS.loading;const g=G();if(!g)return Promise.reject(new Error('no GALAXY'));
+  GS.loading=g.load(BASE).then(()=>{GS.loaded=true;if(LS.get('mots.galaxyLarge')==='1')loadLarge(true)}).catch(e=>{GS.loading=null;throw e});return GS.loading}
+let SW=null;
+function buildSwitch(){const deck=document.querySelector('.deck');if(!deck||SW)return;SW=SY.seg('gmode',[['planets',GT.planets,GT.modeTip],['galaxy',GT.galaxy,GT.modeTip]],GS.active?'galaxy':'planets',v=>{if(v==='galaxy')activate(true);else deactivate()},GT.modeTip);SW.id='gmode';SW.classList.add('gmode');deck.insertBefore(SW,deck.firstChild)}
+function syncSwitch(){if(!SW)return;[...SW.children].forEach((b,k)=>b.setAttribute('aria-pressed',String((k===1)===GS.active)))}
+function activate(byUser,patch){if(GS.active)return;
+  document.documentElement.classList.add('gloading');SY.toast(GT.loading,3000);
+  return ensureLoaded().then(()=>{document.documentElement.classList.remove('gloading');
+    const Y=SY.Y();GS.saveY={mx:Y.mx,lfo:Y.lfo,stagger:Y.stagger,verb:Y.verb,mode:Y.tun.mode,zod:Y.tun.zod,key:Y.tun.key,name:Y.name,preset:Y.preset,user:Y.user};
+    GS.active=true;window.GSYNTH.active=true;LS.set('mots.synthMode','galaxy');document.documentElement.classList.add('galaxy');
+    // the planets fall silent (their loop no longer runs); the galaxy's slots are built on the same graph
+    if(SY.AC){const t=SY.AC.currentTime;Object.keys(SY.V).forEach(id=>{if(id.startsWith('g:'))return;const v=SY.V[id];if(v.part){SY.killPart(v.part);v.part=null;v.mode=null}(v.moons||[]).forEach((m,k)=>{if(m){SY.killPart(m.part);try{m.vol.disconnect()}catch(e){}v.moons[k]=null}});if(v.vol)SY.tgt(v.vol.gain,0,.05)});
+      if(SY.sunV&&SY.sunV.part){SY.killPart(SY.sunV.part);SY.sunV.part=null;SY.tgt(SY.sunV.vol.gain,0,.05)}audioInit()}
+    seqLoadG();seqRows();
+    if(patch)setPatch(patch);else if(!GS.Y.name)applyPreset('harmonic');else setPatch(GS.Y);
+    $('walk').hidden=true;retitle(true);SY.renderAll();syncSwitch();syncURL();SY.syncBar();if(SY.AC&&SY.SEQ.on)SY.seqRestart(SY.AC.currentTime);
+    if(byUser)speakHera()}).catch(e=>{document.documentElement.classList.remove('gloading');SY.toast(GT.loadFail,4000);syncSwitch();console.warn('gsynth:',e)})}
+function deactivate(){if(!GS.active)return;GS.active=false;window.GSYNTH.active=false;LS.set('mots.synthMode','planets');document.documentElement.classList.remove('galaxy');
+  killAll();const Y=SY.Y(),s=GS.saveY;if(s){Y.mx=s.mx;Y.lfo=s.lfo;Y.stagger=s.stagger;Y.verb=s.verb;Y.tun.mode=s.mode;Y.tun.zod=s.zod;Y.tun.key=s.key;Y.name=s.name;Y.preset=s.preset;Y.user=s.user}
+  if(SY.AC)SY.setVerb();$('walk').hidden=false;retitle(false);SY.renderAll();syncSwitch();SY.syncURL();SY.syncBar();if(SY.AC&&SY.SEQ.on)SY.seqRestart(SY.AC.currentTime);try{speechSynthesis.cancel()}catch(e){}}
+
+/* ---------- styles for the galaxy's own controls (the body markup is untouched) ---------- */
+const css=document.createElement('style');css.textContent=`
+.gmode{flex:none;order:-1}.gmode button{min-width:6.5em;font-family:var(--f-display);font-size:1rem;padding:.45rem .9rem}
+.gmode button[aria-pressed="true"]{background:linear-gradient(180deg,rgba(215,167,93,.35),rgba(168,122,55,.35));color:#f3d9a4}
+.gstrip{grid-template-areas:"nm ms lvl voice oct note" "gx gx gx gx gx gx" "hint hint hint hint hint hint";min-width:0}
+.gstrip .voice select{min-width:7rem}.gstrip .nm{grid-area:nm}.gstrip .ms{grid-area:ms}.gstrip .lvl{grid-area:lvl}.gstrip .voice{grid-area:voice}.gstrip .oct{grid-area:oct}.gstrip .note{grid-area:note}.gstrip .gx{grid-area:gx}.gstrip .ghint{grid-area:hint}
+.gstrip .gx{display:flex;flex-wrap:wrap;gap:.2rem .9rem;align-items:center;min-width:0}.gstrip .ghint{min-width:0}.gfacing output{white-space:normal;text-align:right}
+.gf{display:flex;align-items:center;gap:.4rem;font-size:.74rem;color:var(--vellum-dim);text-transform:uppercase;letter-spacing:.06em;min-height:var(--tap);flex:1 1 8rem;min-width:0;max-width:19rem}.gf>span{white-space:nowrap}.gf.glawf{flex:2 1 14rem;max-width:26rem}
+.gf input[type=range]{flex:1;min-width:4rem;max-width:9rem;height:var(--tap)}.gf output{font-family:var(--f-mono);text-transform:none;letter-spacing:0;color:var(--vellum);min-width:2ch;text-align:right}
+.gf select{flex:1;min-width:0;min-height:2.2rem;padding:.2rem .4rem;font-size:.86rem;text-transform:none;letter-spacing:0}
+.ghint{margin:0 0 .3rem;font-size:.8rem}.ghint b{color:#f3d9a4;font-weight:400}
+.gstrip.off .gx,.gstrip.off .ghint{opacity:.45}
+.gdm{display:flex;flex-direction:column;gap:.3rem;padding:.6rem .7rem;border:1px solid var(--bronze);border-radius:10px;background:rgba(201,152,79,.08);box-shadow:0 0 18px rgba(212,166,87,.15)}
+.gdm .seg{align-self:flex-start}.gdm .seg button{min-width:5em;font-weight:700;letter-spacing:.08em}.gdm.dmoff{border-color:var(--verdigris);background:rgba(98,165,151,.08);box-shadow:none}
+.gdm.dmoff .seg button[aria-pressed="true"]{background:rgba(98,165,151,.25);color:#cfeee6}.gdm .hint{margin:0;color:var(--vellum)}
+.gset{grid-template-columns:minmax(0,1.3fr) minmax(0,2fr)!important;grid-template-areas:"nm x"!important}.gset .nm{grid-area:nm}.gset .x{grid-area:x}.gset .x{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;min-width:0}.gset .x .seg{flex:1 1 auto}
+#glargeTxt{white-space:normal;font-size:.8rem;line-height:1.35}
+.gcred{font-size:.76rem;line-height:1.4;padding:.3rem .35rem}
+.gclock{flex:1 1 11rem;max-width:18rem}.gclockLab{width:100%;margin:0}
+html.gloading .gmode{opacity:.6}
+@media (pointer:coarse){.gf select{min-height:var(--tap)}}
+@media (max-width:520px){.ghint .gtip{display:none}.gstrip{grid-template-columns:minmax(0,1fr) auto minmax(4.6rem,auto);grid-template-areas:"nm ms note" "lvl lvl lvl" "voice voice oct" "gx gx gx" "hint hint hint"}.gf{flex-basis:100%}.gset{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"nm" "x"!important}}
+@media (min-width:521px) and (max-width:1250px){.gstrip{grid-template-columns:minmax(0,1fr) auto minmax(5rem,1.2fr) auto;grid-template-areas:"nm ms lvl note" "voice voice voice oct" "gx gx gx gx" "hint hint hint hint"}}
+`;document.head.appendChild(css);
+
+/* ---------- start ---------- */
+window.GSYNTH={active:false,GS,STRIPS,GPRESETS,GT,SRC:GSRC,lfoShape,lfoShapes,modsFor,tick,audioTick,audioInit,strike,stepDur,seqRows,seqPat,renderSeqExtra,renderStrips,syncStrips,toggleSolo,key,renderLaw,renderTun,renderSky,
+  meterRows,taste,renderPatchList,syncPatchSel,patchChange,savePatch,delPatch,nameInput,syncURL,shareQuery,readouts,barText,nowPlaying,scoreInfo,draw,skyClick,walk:()=>SY.toast(GT.walkOff),nextPreset,
+  activate,deactivate,applyPreset,setPatch,toPatch,fromPatch,loadLarge,AS,AU:()=>AU,budget,assign,enc,dec};
+buildSwitch();
+{const gr=$('seqgrid');if(gr){gr.addEventListener('click',()=>{if(GS.active)seqSaveG()});gr.addEventListener('pointerup',()=>{if(GS.active)setTimeout(seqSaveG,500)})}}
+// the galaxy's help paragraph
+try{const hb=$('howBody');if(hb&&GT.how){const d=document.createElement('div');d.innerHTML=`<h3>${esc(GT.how[0])}</h3><p>${GT.how[1]}</p>`;hb.appendChild(d)}}catch(e){}
+{const m=location.search.match(/[?&]g=([^&]+)/);let patch=null;if(m){try{patch=fromPatch(dec(m[1]))}catch(e){}}
+  if(patch||location.hash==='#galaxy'||LS.get('mots.synthMode')==='galaxy')activate(false,patch)}
+addEventListener('hashchange',()=>{if(location.hash==='#galaxy'&&!GS.active)activate(false);else if(location.hash!=='#galaxy'&&GS.active&&!location.search.includes('g='))deactivate()});
 })();
 </script>
 </body>
