@@ -124,6 +124,16 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
 .check input{accent-color:var(--bronze);width:1.1rem;height:1.1rem;flex:none}
 .note{font-size:.8rem;color:var(--vellum-dim);margin:0}
 @media (prefers-reduced-motion:reduce){.toast{transition:none}}
+/* interstellar flight: the caption at each threshold and the destination chips (fly_galaxy.js) */
+.gcap{background:var(--glass);border:1px solid var(--line);border-left:3px solid var(--bronze);border-radius:10px;padding:.45rem .9rem;max-width:min(44rem,100%);font-size:.88rem;line-height:1.45;color:var(--vellum);text-align:left;opacity:0;transition:opacity .7s;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);pointer-events:none}
+.gcap.on{opacity:1;pointer-events:auto}
+.gcap:empty{display:none}
+.gcap b{font-family:var(--f-display);font-weight:400;color:var(--bronze);font-size:1.05em}
+.gchips .chip{color:var(--vellum)}
+.lbl.star{font-family:var(--f-body);color:var(--vellum-dim)}
+@media (max-width:620px){.gcap{font-size:.78rem;padding:.35rem .7rem;line-height:1.35}}
+@media (max-height:520px){.gcap{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + var(--tap) + 52px);transform:translateX(-50%);width:max-content;max-width:min(60vw,36rem);font-size:.76rem;padding:.3rem .7rem}}
+@media (prefers-reduced-motion:reduce){.gcap{transition:none}}
 .rec{background:transparent;cursor:pointer;font:inherit}
 .rec.on{background:#5a2b2b;color:#f2c7c7;border-color:#8a4444}
 </style>
@@ -1988,6 +1998,567 @@ MOTS.score.start=start;MOTS.score.stop=stop;MOTS.score.xml=musicXML;MOTS.score.m
 })();
 </script>
 <script>
+/* galaxy.js — the shared galactic engine of Music of the Spheres (step 2 of the Galaxy extension).
+   Plain browser JS, no imports; defines window.GALAXY and nothing else. No Web Audio here: every sound rule is a pure
+   function returning numbers, so the Galactic Synthesiser, interstellar Flight, the Galaxy page and the dial layer share
+   one set of physics and one set of stated mappings.
+
+   Units, throughout, unless a function says otherwise:
+     angles in degrees at the API (ra, dec, l, b, facing), radians internally;  distances in parsecs (pc) for stars and
+     listeners, kiloparsecs (kpc) for the Galaxy's rotation and arms;  velocities in km/s;  time offsets in years (yr) for
+     stars, million years (Myr) for the Sun's orbit;  frequencies in Hz;  gains in dB;  loudness 0..1.
+   Frames:
+     heliocentric galactic xyz (pc): x toward the Galactic centre (l = 0), y toward l = 90°, z toward the north
+       Galactic pole. This is the frame listeners and sources use ("L" below).
+     galactocentric "Reid" frame (kpc): R and azimuth β measured from the centre, β = 0 toward the Sun and increasing in
+       the direction of rotation (clockwise seen from the NGP), as in Reid et al. 2019 and sunorbit.json.
+     Web Audio frame (as the planetary pages use it): ax = dx, ay = dz (up), az = -dy; the listener faces along
+       (cos φ, 0, -sin φ) for a facing angle φ in the plane, so the right ear points 90° clockwise of the facing.
+   Approximations are marked "APPROX" where they are made. */
+(function () {
+  'use strict';
+  const DEG = Math.PI / 180, TAU = 2 * Math.PI;
+  const K = {
+    C_KMS: 299792.458,               // speed of light, km/s
+    PC_KM: 3.0856775814913673e13,    // one parsec in km
+    PC_LY: 3.2615637769,             // light-years per parsec
+    AU_PC: 4.84813681e-6,            // parsecs per astronomical unit
+    KMS_PCYR: 1.0227121650537077e-6, // 1 km/s expressed in pc/yr
+    KMSKPC_RADS: 3.2407792896664e-17,// 1 km/s/kpc expressed in rad/s
+    WIEN_M_K: 2.897771955e-3,        // Wien's displacement constant, m·K
+    OCT_LIGHT: 40,                   // the forty-octave rule of the Light layer
+    HI_MHZ: 1420.405751768,          // the 21-cm line
+    OCT_HI: 21,                      // 1420.405 MHz / 2^21 = 677.3 Hz
+    DM_CONST: 4.148808e3,            // dispersion: Δt(s) = 4148.808 · DM · (f_MHz^-2 − fref_MHz^-2)
+    OBLIQ: 23.439279444,             // J2000 mean obliquity, deg
+    R0: 8.21, V0: 233.1, Z0: 20.8,   // defaults, replaced from sunorbit.json at load (kpc, km/s, pc)
+    SUN: { T: 5772, M: 4.83, L: 1 }
+  };
+
+  /* ───────── 1. data ───────── */
+  const D = { stars: null, pulsars: null, radio: null, frb: null, rotation: null, sunorbit: null, seismo: null };
+  const G = { version: '0.2.0', K, data: D, ready: false, large: false };
+  const FILES = ['stars', 'pulsars', 'radio', 'frb', 'rotation', 'sunorbit', 'seismo'];
+  let fetchFn = (u) => fetch(u).then(r => { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); });
+  G.setFetch = (f) => { fetchFn = f; };  // tests supply a file-reading shim
+  let baseUrl = '';
+
+  /** Load the bundled JSON from `<base>galaxy/*.json` (base defaults to the page's directory, e.g. './').
+   *  Resolves to GALAXY itself once the tables are built. Safe to call twice (returns the same promise). */
+  G.load = function (base) {
+    if (G._p) return G._p;
+    baseUrl = base == null ? './' : base;
+    G._p = Promise.all(FILES.map(f => fetchFn(baseUrl + 'galaxy/' + f + '.json'))).then(arr => {
+      FILES.forEach((f, i) => { D[f] = arr[i]; });
+      build(); G.ready = true; return G;
+    });
+    return G._p;
+  };
+  /** Optional large Gaia star pack `galaxy/stars_large.json` ({meta, stars:[...]} in the stars.json row format).
+   *  Rows whose `id` or `hip` is already present are skipped; tables are rebuilt. Resolves to the number added. */
+  G.loadLarge = function (base) {
+    return fetchFn((base == null ? baseUrl : base) + 'galaxy/stars_large.json').then(j => {
+      const have = new Set(), haveHip = new Set();
+      D.stars.stars.forEach(s => { have.add(s.id); if (s.hip) haveHip.add(s.hip); });
+      let n = 0;
+      (j.stars || []).forEach(s => { if (have.has(s.id) || (s.hip && haveHip.has(s.hip))) return; have.add(s.id); D.stars.stars.push(s); n++; });
+      G.large = true; build(); return n;
+    });
+  };
+
+  /* ───────── 2. coordinates ───────── */
+  // IAU 1958 pole at J2000 (Reid & Brunthaler 2004): αp = 192.85948°, δp = 27.12825°, l of the north celestial pole = 122.93192°.
+  // Rotation matrix equatorial → galactic (rows = the galactic x, y, z axes in equatorial coordinates), the standard
+  // J2000 matrix (Hipparcos vol. 1 §1.5.3) that follows from those three angles; build_stars.py used the same pole.
+  const EG = [[-0.0548755604162154, -0.8734370902348850, -0.4838350155487132],
+              [+0.4941094278755837, -0.4448296299600112, +0.7469822444972189],
+              [-0.8676661490190047, -0.1980763734312015, +0.4559837761750669]];
+  G.GAL_POLE = { ra: 192.85948, dec: 27.12825, lNCP: 122.93192 };
+  const vTmp = [0, 0, 0];
+  /** Equatorial (deg) → galactic (deg). Returns {l (0..360), b}. `out` optional for allocation-free use. */
+  G.eqToGal = function (ra, dec, out) {
+    const r = ra * DEG, d = dec * DEG, cd = Math.cos(d);
+    const x = cd * Math.cos(r), y = cd * Math.sin(r), z = Math.sin(d), m = EG;
+    const gx = m[0][0] * x + m[0][1] * y + m[0][2] * z, gy = m[1][0] * x + m[1][1] * y + m[1][2] * z, gz = m[2][0] * x + m[2][1] * y + m[2][2] * z;
+    out = out || {}; let l = Math.atan2(gy, gx) / DEG; if (l < 0) l += 360;
+    out.l = l; out.b = Math.asin(Math.max(-1, Math.min(1, gz))) / DEG; return out;
+  };
+  /** Galactic (deg) → equatorial (deg). Returns {ra (0..360), dec}. */
+  G.galToEq = function (l, b, out) {
+    const L = l * DEG, B = b * DEG, cb = Math.cos(B), x = cb * Math.cos(L), y = cb * Math.sin(L), z = Math.sin(B), m = EG;
+    const ex = m[0][0] * x + m[1][0] * y + m[2][0] * z, ey = m[0][1] * x + m[1][1] * y + m[2][1] * z, ez = m[0][2] * x + m[1][2] * y + m[2][2] * z;
+    out = out || {}; let ra = Math.atan2(ey, ex) / DEG; if (ra < 0) ra += 360;
+    out.ra = ra; out.dec = Math.asin(Math.max(-1, Math.min(1, ez))) / DEG; return out;
+  };
+  /** Unit vector of galactic (l, b) in the heliocentric galactic frame. */
+  G.dirGal = function (l, b, out) { const L = l * DEG, B = b * DEG, c = Math.cos(B); out = out || {}; out.x = c * Math.cos(L); out.y = c * Math.sin(L); out.z = Math.sin(B); return out; };
+  /** (l, b) in degrees of a vector; also returns d (its length). */
+  G.lbOf = function (x, y, z, out) { out = out || {}; const d = Math.hypot(x, y, z); let l = Math.atan2(y, x) / DEG; if (l < 0) l += 360; out.l = l; out.b = d ? Math.asin(z / d) / DEG : 0; out.d = d; return out; };
+  // galactic xyz ↔ J2000 ecliptic xyz (for interstellar Flight, which continues the planetary pages' ecliptic frame: x to the vernal point, z to the north ecliptic pole)
+  const CE = Math.cos(K.OBLIQ * DEG), SE = Math.sin(K.OBLIQ * DEG);
+  /** Heliocentric galactic vector → J2000 ecliptic vector (same units). */
+  G.galToEcl = function (v, out) {
+    const m = EG, x = m[0][0] * v.x + m[1][0] * v.y + m[2][0] * v.z, y = m[0][1] * v.x + m[1][1] * v.y + m[2][1] * v.z, z = m[0][2] * v.x + m[1][2] * v.y + m[2][2] * v.z; // equatorial
+    out = out || {}; out.x = x; out.y = CE * y + SE * z; out.z = -SE * y + CE * z; return out;
+  };
+  /** J2000 ecliptic vector → heliocentric galactic vector. */
+  G.eclToGal = function (v, out) {
+    const x = v.x, y = CE * v.y - SE * v.z, z = SE * v.y + CE * v.z, m = EG; // equatorial
+    out = out || {}; out.x = m[0][0] * x + m[0][1] * y + m[0][2] * z; out.y = m[1][0] * x + m[1][1] * y + m[1][2] * z; out.z = m[2][0] * x + m[2][1] * y + m[2][2] * z; return out;
+  };
+
+  /* precomputed tables (built at load; typed arrays so the hot paths allocate nothing) */
+  const T = { n: 0, X: null, Y: null, Z: null, VX: null, VY: null, VZ: null, M: null, rows: null,  // stars (incl. the Sun at index 0)
+    np: 0, PX: null, PY: null, PZ: null, PM: null, prow: null,     // pulsars: pc and "radio magnitude" −2.5 log10(S1400 Jy) at the Sun
+    nr: 0, RX: null, RY: null, RZ: null, RM: null, rrow: null,     // radio sources (with d; extragalactic ones are placed at their distance)
+    rotR0: 0.5, rotDR: 0.5, rotV: null, rotVbar: null, rotVobs: null, rotN: 0,
+    orbT0: -300, orbDT: 1, orb: null, orbN: 0, arms: null };
+  function build() {
+    const c = D.sunorbit.constants; K.R0 = c.R0_kpc.v; K.V0 = c.V0_kms.v; K.Z0 = c.z0_pc.v;
+    // stars: index 0 is the Sun (not in stars.json), so a listener elsewhere can hear it
+    const S = D.stars.stars, n = S.length + 1; T.n = n; T.rows = new Array(n);
+    T.X = new Float64Array(n); T.Y = new Float64Array(n); T.Z = new Float64Array(n); T.VX = new Float64Array(n); T.VY = new Float64Array(n); T.VZ = new Float64Array(n); T.M = new Float64Array(n);
+    T.rows[0] = G.SUN_ROW = { id: 0, n: 'Sun', sp: 'G2V', lc: 'V', T: K.SUN.T, L: 1, R: 1, mass: 1, lg: 4.438, M: K.SUN.M, mag: -26.74, d: 0, ra: 0, dec: 0, l: 0, b: 0, pmra: 0, pmdec: 0, rv: 0, sun: true };
+    T.M[0] = K.SUN.M;
+    const v = vTmp;
+    for (let i = 0; i < S.length; i++) {
+      const s = S[i], k = i + 1; T.rows[k] = s;
+      const lb = ('l' in s) ? s : G.eqToGal(s.ra, s.dec, { });
+      const L = lb.l * DEG, B = lb.b * DEG, cb = Math.cos(B), d = s.d;
+      T.X[k] = d * cb * Math.cos(L); T.Y[k] = d * cb * Math.sin(L); T.Z[k] = d * Math.sin(B);
+      T.M[k] = ('M' in s) ? s.M : s.mag - 5 * Math.log10(Math.max(d, 1e-6) / 10);
+      velocity(s, v); T.VX[k] = v[0]; T.VY[k] = v[1]; T.VZ[k] = v[2];
+    }
+    // pulsars
+    const P = D.pulsars.pulsars; T.np = P.length; T.prow = P;
+    T.PX = new Float64Array(T.np); T.PY = new Float64Array(T.np); T.PZ = new Float64Array(T.np); T.PM = new Float64Array(T.np);
+    P.forEach((p, i) => { const L = p.gl * DEG, B = p.gb * DEG, d = (p.d || 1) * 1000, cb = Math.cos(B); T.PX[i] = d * cb * Math.cos(L); T.PY[i] = d * cb * Math.sin(L); T.PZ[i] = d * Math.sin(B); T.PM[i] = radioMag(p.S1400 != null ? p.S1400 / 1000 : (p.S400 != null ? p.S400 / 1000 * 0.2 : 1e-3)); });
+    // radio sources (skipping the Sun and Jupiter, which the planetary pages already play)
+    const R = D.radio.sources.filter(r => !r.in_app); T.nr = R.length; T.rrow = R;
+    T.RX = new Float64Array(T.nr); T.RY = new Float64Array(T.nr); T.RZ = new Float64Array(T.nr); T.RM = new Float64Array(T.nr);
+    R.forEach((r, i) => { const lb = G.eqToGal(r.ra, r.dec, {}); r.gl = lb.l; r.gb = lb.b; const d = (r.d_kpc != null ? r.d_kpc * 1000 : r.d_Mpc * 1e6), L = lb.l * DEG, B = lb.b * DEG, cb = Math.cos(B); T.RX[i] = d * cb * Math.cos(L); T.RY[i] = d * cb * Math.sin(L); T.RZ[i] = d * Math.sin(B); T.RM[i] = radioMag(r.S1400); });
+    // rotation curve on its uniform grid
+    const m = D.rotation.model, o = D.rotation.combined; T.rotN = m.length; T.rotR0 = m[0].R; T.rotDR = m[1].R - m[0].R;
+    T.rotV = Float64Array.from(m, r => r.v); T.rotVbar = Float64Array.from(m, r => r.vbar); T.rotVobs = Float64Array.from(m, (r, i) => (o[i] ? o[i].v : r.v));
+    // the Sun's orbit, uniform in t
+    const ob = D.sunorbit.orbit.rows; T.orbN = ob.length; T.orbT0 = ob[0][0]; T.orbDT = ob[1][0] - ob[0][0]; T.orb = ob;
+    // arms, with tan ψ precomputed
+    T.arms = D.sunorbit.spiral.arms.map(a => Object.assign({}, a, { tlt: Math.tan(a.psi_lt * DEG), tgt: Math.tan(a.psi_gt * DEG), bk: a.beta_kink * DEG }));
+    bud.reset();
+    G.filters.cache.clear();
+  }
+  /** "Radio magnitude": −2.5 log10(S / 1 Jy) at 1.4 GHz — Vela (1.05 Jy) ≈ 0, Cas A (2100 Jy) ≈ −8.3, the Crab pulsar (14 mJy) ≈ 4.6. */
+  function radioMag(SJy) { return -2.5 * Math.log10(Math.max(SJy, 1e-9)); }
+  G.radioMag = radioMag;
+  /** Space velocity of a star in pc/yr, in the galactic frame (proper motion + radial velocity). APPROX: needs d; stars without rv get 0. */
+  function velocity(s, out) {
+    const d = s.d || 0, rv = s.rv || 0;
+    // tangential velocity in the equatorial tangent frame (km/s): 4.74047 km/s per (″/yr · pc)
+    const ve = 4.74047e-3 * (s.pmra || 0) * d, vn = 4.74047e-3 * (s.pmdec || 0) * d;
+    const r = s.ra * DEG, dc = s.dec * DEG, sr = Math.sin(r), cr = Math.cos(r), sd = Math.sin(dc), cd = Math.cos(dc);
+    // equatorial unit vectors: radial, east, north
+    const ux = cd * cr, uy = cd * sr, uz = sd, ex = -sr, ey = cr, nx = -sd * cr, ny = -sd * sr, nz = cd;
+    const vx = rv * ux + ve * ex + vn * nx, vy = rv * uy + ve * ey + vn * ny, vz = rv * uz + vn * nz; // km/s equatorial
+    const m = EG, k = K.KMS_PCYR;
+    out[0] = k * (m[0][0] * vx + m[0][1] * vy + m[0][2] * vz); out[1] = k * (m[1][0] * vx + m[1][1] * vy + m[1][2] * vz); out[2] = k * (m[2][0] * vx + m[2][1] * vy + m[2][2] * vz);
+    return out;
+  }
+  /** Heliocentric galactic position (pc) of a catalogue star (any row with ra, dec, d; or a precomputed one). */
+  G.posHelio = function (s, out) {
+    out = out || {}; const k = idx(s);
+    if (k >= 0) { out.x = T.X[k]; out.y = T.Y[k]; out.z = T.Z[k]; return out; }
+    const lb = G.eqToGal(s.ra, s.dec, {}), L = lb.l * DEG, B = lb.b * DEG, cb = Math.cos(B), d = s.d || 0;
+    out.x = d * cb * Math.cos(L); out.y = d * cb * Math.sin(L); out.z = d * Math.sin(B); return out;
+  };
+  function idx(s) { if (s === T.rows[0]) return 0; if (s.__k != null && T.rows[s.__k] === s) return s.__k; const k = T.rows.indexOf(s); if (k >= 0) s.__k = k; return k; }
+  /** Position (pc) of a star at a time offset tYr (years from J2000). APPROX: straight-line motion at constant velocity
+   *  (proper motion + radial velocity), good to ~1 % of the displacement over ±1 Myr; perspective acceleration and the
+   *  Galactic potential are ignored. */
+  G.posAt = function (s, tYr, out) {
+    out = out || {}; const k = idx(s);
+    if (k >= 0) { out.x = T.X[k] + T.VX[k] * tYr; out.y = T.Y[k] + T.VY[k] * tYr; out.z = T.Z[k] + T.VZ[k] * tYr; return out; }
+    G.posHelio(s, out); velocity(s, vTmp); out.x += vTmp[0] * tYr; out.y += vTmp[1] * tYr; out.z += vTmp[2] * tYr; return out;
+  };
+  /** Space velocity {vx, vy, vz} of a star in km/s (galactic frame). */
+  G.velocity = function (s, out) { out = out || {}; const k = idx(s), q = 1 / K.KMS_PCYR; if (k >= 0) { out.vx = T.VX[k] * q; out.vy = T.VY[k] * q; out.vz = T.VZ[k] * q; } else { velocity(s, vTmp); out.vx = vTmp[0] * q; out.vy = vTmp[1] * q; out.vz = vTmp[2] * q; } return out; };
+  /** Galactocentric cylindrical coordinates of a heliocentric galactic point (pc): {R (kpc), beta (deg, Reid frame),
+   *  z (pc above the mid-plane, including the Sun's z0)}. */
+  G.toGC = function (p, out) { out = out || {}; const xg = K.R0 - p.x / 1000, yg = p.y / 1000; out.R = Math.hypot(xg, yg); let b = Math.atan2(yg, xg) / DEG; if (b <= -180) b += 360; out.beta = b; out.z = p.z + K.Z0; out.xg = xg; out.yg = yg; return out; };
+  /** Inverse of toGC: {R (kpc), beta (deg), z (pc)} → heliocentric galactic pc. */
+  G.fromGC = function (g, out) { out = out || {}; const b = g.beta * DEG; out.x = (K.R0 - g.R * Math.cos(b)) * 1000; out.y = g.R * Math.sin(b) * 1000; out.z = (g.z || 0) - K.Z0; return out; };
+
+  /* the Sun's orbit and the arms */
+  /** The Sun's galactic state at time tMyr (−300…+300, clamped): {t, R (kpc), phi (deg travelled since today), z (pc),
+   *  vR, vz (km/s), omega (deg/Myr), orbitPhase (0..1 of a 230.6-Myr circuit), vertPhase (0..1, 0 = crossing the plane
+   *  upward), clamped}. Linear interpolation between the 1-Myr rows. */
+  G.sunAt = function (tMyr, out) {
+    out = out || {}; const o = T.orb, N = T.orbN; let u = (tMyr - T.orbT0) / T.orbDT, cl = false;
+    if (u < 0) { u = 0; cl = true; } if (u > N - 1) { u = N - 1; cl = true; }
+    const i = Math.min(N - 2, Math.floor(u)), f = u - i, a = o[i], b = o[i + 1];
+    out.t = tMyr; out.R = a[1] + (b[1] - a[1]) * f; out.phi = a[2] + (b[2] - a[2]) * f; out.z = a[3] + (b[3] - a[3]) * f; out.vR = a[4] + (b[4] - a[4]) * f; out.vz = a[5] + (b[5] - a[5]) * f;
+    out.omega = (b[2] - a[2]) / T.orbDT; out.clamped = cl;
+    out.orbitPhase = ((out.phi / 360) % 1 + 1) % 1;
+    // APPROX: the vertical motion as a harmonic oscillator z = A sin θ, vz = A ν cos θ (ν = 78.6 km/s/kpc → 0.080 rad/Myr)
+    const vo = D.sunorbit.constants.vertical_oscillation, amp = vo.amplitude_pc, nu = vo.nu0_kms_kpc * K.KMSKPC_RADS * 3.15576e13, vzPcMyr = out.vz * 1.0227121650537077;
+    out.vertPhase = ((Math.atan2(out.z / amp, vzPcMyr / (amp * nu)) / TAU) % 1 + 1) % 1;
+    return out;
+  };
+  /** Radius (kpc) of arm `a` (an entry of GALAXY.arms()) at azimuth beta (deg, Reid frame). Extrapolates beyond
+   *  beta_range (APPROX: the arms were traced over ~100° only; elsewhere they are log-spiral extrapolations). */
+  G.armRadius = function (a, beta) { const b = beta * DEG, t = b < a.bk ? a.tlt : a.tgt; return a.R_kink * Math.exp(-(b - a.bk) * t); };
+  G.arms = () => T.arms;
+  /** Nearest arm to a galactocentric point: {arm (id), dist (kpc, signed: + outside the arm), width (kpc), inRange}.
+   *  Tries the three windings β, β±360° (the 3-kpc arm is excluded unless opts.all). */
+  G.nearestArm = function (R, beta, out, all) {
+    out = out || {}; let best = 1e9, bid = null, bw = 0, inr = false;
+    for (let i = 0; i < T.arms.length; i++) {
+      const a = T.arms[i]; if (!all && a.id === '3kpc') continue;
+      for (let w = -1; w <= 1; w++) {
+        const bb = beta + 360 * w; if (bb < a.beta_range[0] - 200 || bb > a.beta_range[1] + 200) continue;
+        const ra = G.armRadius(a, bb), d = (R - ra) * Math.cos(Math.atan(bb * DEG < a.bk ? a.tlt : a.tgt));  // APPROX: perpendicular distance ≈ ΔR cos ψ
+        if (Math.abs(d) < Math.abs(best)) { best = d; bid = a.id; bw = a.width; inr = bb >= a.beta_range[0] && bb <= a.beta_range[1]; }
+      }
+    }
+    out.arm = bid; out.dist = best; out.width = bw; out.inRange = inr; return out;
+  };
+  /** The Sun's arm crossings for a pattern speed Ωp (km/s/kpc; nearest of the tabulated 20, 25, 28.2, 30):
+   *  [{arm, t (Myr), extrap}], past negative. Illustrative only (see README). */
+  G.crossings = function (omegaP) { const tab = D.sunorbit.crossings.reid2019, keys = Object.keys(tab); let k = keys[0]; keys.forEach(x => { if (Math.abs(+x - omegaP) < Math.abs(+k - omegaP)) k = x; }); return tab[k]; };
+
+  /* rotation curve */
+  function interp(arr, R) { let u = (R - T.rotR0) / T.rotDR; if (u <= 0) return arr[0] * Math.max(R, 1e-3) / T.rotR0; /* APPROX: solid-body inside 0.5 kpc */ if (u >= T.rotN - 1) return arr[T.rotN - 1] * Math.sqrt(((T.rotN - 1) * T.rotDR + T.rotR0) / R); /* APPROX: Keplerian beyond 25 kpc */ const i = Math.floor(u), f = u - i; return arr[i] + (arr[i + 1] - arr[i]) * f; }
+  /** Circular speed (km/s) at radius R (kpc). curve: 'model' (McMillan 2017 total, default), 'baryons' (no dark
+   *  matter), 'obs' (Eilers 2019 + Sofue 2020), 'flat' (V0 everywhere). `dm === false` means 'baryons'. */
+  G.V = function (R, curve) { if (curve === false || curve === 'baryons') return interp(T.rotVbar, R); if (curve === 'obs') return interp(T.rotVobs, R); if (curve === 'flat') return K.V0; return interp(T.rotV, R); };
+  /** Angular speed Ω = V/R in km/s/kpc (multiply by K.KMSKPC_RADS for rad/s). */
+  G.Omega = function (R, curve) { return G.V(R, curve) / Math.max(R, 1e-3); };
+  /** Orbital period at R in Myr. */
+  G.periodMyr = function (R, curve) { return TAU / (G.Omega(R, curve) * K.KMSKPC_RADS) / 3.15576e13; };
+
+  /* ───────── 3. sound rules ───────── */
+  /** Star tone (Hz): Wien peak of a black body at T (K), lowered forty octaves. 5772 K → 502 nm → 543 Hz. */
+  G.starTone = function (T_K) { const lam = K.WIEN_M_K / Math.max(T_K, 300); return K.C_KMS * 1e3 / lam / Math.pow(2, K.OCT_LIGHT); };
+  /** The pitch of a wavelength (nm) under the forty-octave rule, folded into the octave [f0/√2, f0·√2) about f0. */
+  G.foldLine = function (nm, f0) { let f = K.C_KMS * 1e12 / nm / Math.pow(2, K.OCT_LIGHT); const lo = f0 / Math.SQRT2; while (f < lo) f *= 2; while (f >= lo * 2) f /= 2; return f; };
+  // spectral lines (nm) and their strength (0..1) by spectral class; negative gain = absorption. TiO bands are broad (low Q).
+  const LINES = [
+    { n: 'He II 468.6', nm: 468.6, q: 30, w: { O: 1 } },
+    { n: 'He I 447.1', nm: 447.1, q: 30, w: { O: .6, B: .8 } }, { n: 'He I 587.6', nm: 587.6, q: 30, w: { O: .5, B: .7 } },
+    { n: 'Hα', nm: 656.28, q: 25, w: { O: .3, B: .6, A: 1, F: .7, G: .35, K: .15 } }, { n: 'Hβ', nm: 486.13, q: 25, w: { O: .3, B: .6, A: 1, F: .7, G: .3, K: .1 } },
+    { n: 'Hγ', nm: 434.05, q: 25, w: { B: .5, A: .9, F: .6, G: .25 } }, { n: 'Hδ', nm: 410.17, q: 25, w: { B: .4, A: .8, F: .5, G: .2 } },
+    { n: 'Ca II K 393.4', nm: 393.37, q: 20, w: { A: .3, F: .8, G: 1, K: 1, M: .5 } }, { n: 'Ca II H 396.8', nm: 396.85, q: 20, w: { A: .3, F: .7, G: .9, K: .9, M: .4 } },
+    { n: 'G band CH 430.5', nm: 430.5, q: 12, w: { F: .3, G: .7, K: .7 } }, { n: 'Fe I 438.4', nm: 438.36, q: 30, w: { F: .3, G: .5, K: .5 } },
+    { n: 'Mg b 517.5', nm: 517.5, q: 15, w: { F: .3, G: .7, K: .8, M: .4 } }, { n: 'Fe I 527.0', nm: 527.04, q: 30, w: { G: .4, K: .5 } },
+    { n: 'Na D 589.3', nm: 589.3, q: 20, w: { F: .2, G: .6, K: .9, M: 1 } }, { n: 'Ca I 422.7', nm: 422.67, q: 25, w: { G: .3, K: .7, M: .9 } },
+    { n: 'CN 388.3', nm: 388.3, q: 10, w: { G: .2, K: .4 } },
+    { n: 'TiO 476', nm: 476.1, q: 6, w: { M: .6 } }, { n: 'TiO 495', nm: 495.4, q: 6, w: { M: .7 } }, { n: 'TiO 517', nm: 516.7, q: 6, w: { M: .8 } },
+    { n: 'TiO 545', nm: 544.8, q: 6, w: { M: .8 } }, { n: 'TiO 562', nm: 561.5, q: 6, w: { M: .9 } }, { n: 'TiO 586', nm: 585.9, q: 6, w: { M: .8 } },
+    { n: 'TiO 616', nm: 615.9, q: 6, w: { M: 1 } }, { n: 'TiO 665', nm: 665.1, q: 6, w: { M: .9 } }, { n: 'TiO 705', nm: 705.5, q: 6, w: { M: 1 } }, { n: 'TiO 759', nm: 758.9, q: 6, w: { M: .9 } },
+    { n: 'C₂ Swan 516.5', nm: 516.5, q: 8, w: { C: 1 } }, { n: 'C₂ Swan 473.7', nm: 473.7, q: 8, w: { C: .8 } }
+  ];
+  /** Parse a spectral type string → {cls ('O'…'M', 'C' carbon/S, 'WD'), sub (0..9.9 or null), lc}. */
+  G.parseSp = function (sp) {
+    const s = (sp || '').trim(); let cls = null, sub = null;
+    if (/^D[ABCOQZ]?/.test(s) || /^WD/.test(s)) cls = 'WD';
+    else { const m = s.match(/^(?:sd|esd|d|g|c|k)?([OBAFGKMLTYSCNR])\s?(\d(?:\.\d)?)?/); if (m) { cls = m[1]; sub = m[2] != null ? +m[2] : null; if (cls === 'N' || cls === 'R') cls = 'C'; if (cls === 'S') cls = 'M'; if (cls === 'L' || cls === 'T' || cls === 'Y') cls = 'M'; } }
+    const lc = /^(sd|esd)|VI\b/.test(s) ? 'VI' : /III/.test(s) ? 'III' : /II/.test(s) ? 'II' : /IV/.test(s) ? 'IV' : /V/.test(s) ? 'V' : /I[ab]*\b/.test(s) ? 'I' : (cls === 'WD' ? 'WD' : null);
+    return { cls, sub, lc };
+  };
+  /** Timbre filters for a star: the strongest absorption lines of its spectral class folded into the octave about its tone.
+   *  Returns up to opts.max (default 8) of {f (Hz), gain (dB, negative), q, line}, strongest first. Cached per star row.
+   *  Depth: −3 dB × strength × (1 + opts.depth) (default depth 1 → up to −6 dB); the sum is intended for peaking filters. */
+  G.filters = function (star, opts) {
+    const c = G.filters.cache; let r = c.get(star); if (r) return r;
+    const o = opts || {}, p = G.parseSp(star.sp), cls = p.cls || (star.T > 30000 ? 'O' : star.T > 10000 ? 'B' : star.T > 7500 ? 'A' : star.T > 6000 ? 'F' : star.T > 5200 ? 'G' : star.T > 3700 ? 'K' : 'M');
+    const f0 = G.starTone(star.T || 5772), depth = -3 * (1 + (o.depth == null ? 1 : o.depth));
+    // within a class the lines shift with subtype: Balmer strongest at A0 fading to F; molecular bands strengthen toward M9 (APPROX: linear ramps)
+    const sub = p.sub == null ? 5 : p.sub, ramp = cls === 'M' ? 0.5 + sub / 18 : cls === 'A' ? 1.1 - sub / 20 : 1;
+    r = [];
+    for (let i = 0; i < LINES.length; i++) { const L = LINES[i], w = L.w[cls]; if (!w) continue; r.push({ f: G.foldLine(L.nm, f0), gain: depth * w * ramp, q: L.q, line: L.n }); }
+    r.sort((a, b) => a.gain - b.gain); r.length = Math.min(r.length, o.max || 8); r.f0 = f0; r.cls = cls;
+    c.set(star, r); return r;
+  };
+  G.filters.cache = new Map();
+
+  /** Apparent V magnitude of a star of absolute magnitude M at distance dPc (inverse square: 5 log10(d/10 pc)). */
+  G.apparentMag = function (M, dPc) { return M + 5 * Math.log10(Math.max(dPc, 1e-6) / 10); };
+  /** Loudness 0..1 from an apparent magnitude: 1 at m ≤ opts.bright (default −1.5, Sirius), 0 at m ≥ opts.limit
+   *  (default 6.5, the naked-eye limit), linear in magnitude between — i.e. ~4 dB per magnitude, a clamped
+   *  inverse-square law. opts.gamma (default 1) bends the curve. */
+  G.loudness = function (m, opts) { const b = opts && opts.bright != null ? opts.bright : -1.5, l = opts && opts.limit != null ? opts.limit : 6.5; let x = (l - m) / (l - b); x = x < 0 ? 0 : x > 1 ? 1 : x; const g = opts && opts.gamma; return g && g !== 1 ? Math.pow(x, g) : x; };
+  /** Star loudness and distance from a listener L {x,y,z} (pc): {mag, loud, d}. The star's own position is `pos` (pc). */
+  G.starLoudness = function (star, pos, L, out, opts) { out = out || {}; const d = Math.hypot(pos.x - L.x, pos.y - L.y, pos.z - L.z); const M = ('M' in star) ? star.M : K.SUN.M; out.d = d; out.mag = G.apparentMag(M, d); out.loud = d < 1e-4 ? 0 : G.loudness(out.mag, opts); return out; };
+
+  /** Direction of a source from a listener. src, L: heliocentric galactic pc; facing: the listener's facing in the
+   *  galactic plane, degrees (0 = toward the Galactic centre, 90 = toward l = 90°; same sense as the planetary pages'
+   *  facing angle). Returns {az (deg, 0 ahead, + to the right), el (deg), pan (−1..1 = sin az · cos el), d (pc),
+   *  ax, ay, az3 (unit vector in the Web Audio frame for a PannerNode, after the listener is turned to face +x: use
+   *  setListener(facing) as the planetary pages do), self (true if coincident)}. */
+  G.direction = function (src, L, facing, out) {
+    out = out || {}; const dx = src.x - L.x, dy = src.y - L.y, dz = src.z - L.z, d = Math.hypot(dx, dy, dz); out.d = d;
+    if (d < 1e-9) { out.az = 0; out.el = 90; out.pan = 0; out.ax = 0; out.ay = 1; out.az3 = 0; out.self = true; return out; }
+    out.self = false; const f = (facing || 0) * DEG, cf = Math.cos(f), sf = Math.sin(f);
+    const fx = (dx * cf + dy * sf) / d, rt = (dx * sf - dy * cf) / d, up = dz / d;            // ahead, right, up
+    out.az = Math.atan2(rt, fx) / DEG; out.el = Math.asin(Math.max(-1, Math.min(1, up))) / DEG; out.pan = rt;
+    out.ax = dx / d; out.ay = dz / d; out.az3 = -dy / d; return out;
+  };
+  /** The planetary pages' facing rule in this frame: angle (deg) from L toward target (both pc), plus a turn (deg). */
+  G.facingToward = function (L, target, turn) { return Math.atan2(target.y - L.y, target.x - L.x) / DEG + (turn || 0); };
+
+  /** Doppler factor for a radial velocity rv (km/s, + receding), exaggerated ×exag (1, 100, 1000…): multiply a
+   *  frequency by it. Relativistic form, |β| clamped to 0.95. The Sun's own motion is not removed (heliocentric rv). */
+  G.doppler = function (rv, exag) { let b = (rv || 0) * (exag || 1) / K.C_KMS; b = b > .95 ? .95 : b < -.95 ? -.95 : b; return Math.sqrt((1 - b) / (1 + b)); };
+  /** Line-of-sight velocity (km/s, + receding) of a star as seen from a listener moving with the Sun at position L. */
+  G.radialVelocity = function (star, pos, L, out) { const v = G.velocity(star, out || {}); const dx = pos.x - L.x, dy = pos.y - L.y, dz = pos.z - L.z, d = Math.hypot(dx, dy, dz) || 1; return (v.vx * dx + v.vy * dy + v.vz * dz) / d; };
+
+  /** Light-curve shape: brightness 0..1 (1 = maximum light) at phase 0..1 for a GCVS type. Phase 0 is the epoch
+   *  of maximum (or primary minimum for eclipsing types). mmd = GCVS M−m (rise time, or eclipse duration D for
+   *  eclipsing stars) as % of the period. Shapes (APPROX, idealised):
+   *   Cepheids (DCEP, DCEPS, CEP, CW/W Vir) and RR Lyrae ab (RR, RRAB): a saw — fast rise over mmd %, slow decline with a slight bump;
+   *   RRC, DSCT, BCEP, ACV, ELL, GCAS, SR/L: sinusoid;  Mira (M): sinusoid with a sharper maximum;
+   *   EA (Algol): flat with a V-shaped primary eclipse of width D and a shallow secondary;  EB: eclipses on a sinusoid;  EW: cos 2φ. */
+  G.lightCurve = function (type, phase, mmd) {
+    const t = (type || '').toUpperCase(), ph = phase - Math.floor(phase);
+    if (/^(DCEP|CEP|CW|RRAB|RR(?!C))/.test(t)) { const m = Math.min(.5, Math.max(.05, (mmd || (t[0] === 'R' ? 15 : 25)) / 100)); if (ph > 1 - m) return (ph - (1 - m)) / m; const x = ph / (1 - m); return 1 - Math.pow(x, .8) + .08 * Math.sin(TAU * x) * x; }
+    if (/^EA/.test(t)) { const D = Math.min(.4, Math.max(.03, (mmd || 12) / 100)), half = D / 2; let dp = Math.min(ph, 1 - ph); if (dp < half) return 1 - (1 - dp / half); const ds = Math.abs(ph - .5); if (ds < half) return 1 - .15 * (1 - ds / half); return 1; }
+    if (/^EB/.test(t)) { const D = Math.min(.4, Math.max(.05, (mmd || 15) / 100)), half = D / 2; let v = .85 + .15 * Math.cos(2 * TAU * ph); const dp = Math.min(ph, 1 - ph); if (dp < half) v *= dp / half; return v; }
+    if (/^EW/.test(t)) return .55 + .45 * Math.cos(2 * TAU * ph);
+    if (/^M(\b|$)/.test(t)) { const c = Math.cos(TAU * ph); return .5 + .5 * Math.sign(c) * Math.pow(Math.abs(c), .7); }
+    return .5 + .5 * Math.cos(TAU * ph);
+  };
+  /** Variable-star brightness 0..1 at Julian Date jd (shape of its type; 1 for constant stars). */
+  G.varBright = function (star, jd) { const v = star.var; if (!v || !v.P) return 1; const ep = (v.ep != null ? v.ep + 2400000 : 2451545); return G.lightCurve(v.t, (jd - ep) / v.P, v.mmd); };
+  /** Apparent magnitude of a variable at jd, between its GCVS max and min (uses the catalogue mag if no range). */
+  G.varMag = function (star, jd) { const v = star.var; if (!v || !v.P || v.mx == null || v.mn == null) return star.mag; const mn = v.mn < v.mx ? v.mx + v.mn : v.mn; return mn - (mn - v.mx) * G.varBright(star, jd); };
+  /** Light-curve amplitude (mag, ≥ 0) of a variable; 0 for constant stars. GCVS gives either the minimum magnitude or, flagged,
+   *  the amplitude: a 'minimum' brighter than the maximum is the amplitude (older catalogue files carry it that way). */
+  G.varAmp = function (star) { const v = star.var; if (!v || v.mx == null || v.mn == null) return 0; return v.mn < v.mx ? v.mn : v.mn - v.mx; };
+
+  /** How a pulsar is heard: {f (Hz = its spin frequency), mode: 'tone' (f ≥ 20 Hz, heard directly as a buzz or
+   *  tone), 'beat' (2–20 Hz) or 'click' (< 2 Hz), period (s), msp}. Nothing is transposed: pulsars are audible as they are. */
+  G.pulsarSound = function (p, out) { out = out || {}; const f = p.F0 || 1 / p.P0; out.f = f; out.period = 1 / f; out.mode = f >= 20 ? 'tone' : f >= 2 ? 'beat' : 'click'; out.msp = f > 33; return out; };
+  /** Dispersion delay (s) of frequency fMHz relative to fRefMHz (∞ if omitted) for dispersion measure DM (pc cm⁻³). */
+  G.dispersionDelay = function (DM, fMHz, fRefMHz) { return K.DM_CONST * DM * (1 / (fMHz * fMHz) - (fRefMHz ? 1 / (fRefMHz * fRefMHz) : 0)); };
+  /** The dispersion "whistle" of one pulse: the real sweep across a radio band [hiMHz → loMHz] (default 800 → 400 MHz,
+   *  CHIME's band) lasts dur seconds; it is mapped onto an audio glide from fTop to fBottom (default 2 kHz → 200 Hz,
+   *  a 1:10 range like the band's 1:4 in frequency squared… stated as a mapping). Returns {dur (s, × opts.stretch),
+   *  points: [{t, f}] with n points following the real Δt ∝ f⁻² law}. Crab (DM 56.8): 1.10 s; Vela: 1.32 s. */
+  G.dispersionSweep = function (DM, opts) {
+    const o = opts || {}, hi = o.hiMHz || 800, lo = o.loMHz || 400, fT = o.fTop || 2000, fB = o.fBottom || 200, n = o.n || 16, st = o.stretch || 1;
+    const dur = G.dispersionDelay(DM, lo, hi) * st, pts = o.points || new Array(n);
+    for (let i = 0; i < n; i++) { const u = i / (n - 1), fm = hi * Math.pow(lo / hi, u); pts[i] = { t: G.dispersionDelay(DM, fm, hi) * st, f: fT * Math.pow(fB / fT, u) }; }
+    return { dur, points: pts, DM };
+  };
+
+  /** The rotation chord. radii: array of R (kpc); default rings R_max/n, n = 1…8 with R_max = 24 kpc, so a flat
+   *  curve gives the harmonic series on the outermost ring. opts.curve as in V(); opts.dm === false → baryons only.
+   *  opts.octaves: the stated transposition (default 61 octaves: Ω(24 kpc) = 9.2 km/s/kpc → 4.7×10⁻¹⁷ Hz → ~110 Hz).
+   *  Returns {freqs (Hz), omegas (km/s/kpc), radii, octaves, periodsMyr}. */
+  G.rotationChord = function (radii, opts) {
+    const o = opts || {}, curve = o.dm === false ? 'baryons' : (o.curve || 'model'), oct = o.octaves == null ? 61 : o.octaves, k = Math.pow(2, oct) * K.KMSKPC_RADS / TAU;
+    const R = radii || G.rotationChord.defaultRadii, n = R.length, out = o.out || { freqs: new Float64Array(n), omegas: new Float64Array(n), periodsMyr: new Float64Array(n) };
+    for (let i = 0; i < n; i++) { const w = G.Omega(R[i], curve); out.omegas[i] = w; out.freqs[i] = w * k; out.periodsMyr[i] = TAU / (w * K.KMSKPC_RADS) / 3.15576e13; }
+    out.radii = R; out.octaves = oct; out.curve = curve;
+    // the harmonic each ring *should* play on a flat curve: R_max / R (rounded when within 2 %)
+    if (!out.expected || out.expected.length !== n) out.expected = new Int32Array(n); let Rm = 0; for (let i = 0; i < n; i++) if (R[i] > Rm) Rm = R[i];
+    for (let i = 0; i < n; i++) { const q = Rm / R[i], h = Math.round(q); out.expected[i] = Math.abs(q - h) < .02 * q ? h : 0; }
+    return out;
+  };
+  G.rotationChord.defaultRadii = [24, 12, 8, 6, 4.8, 4, 24 / 7, 3];
+  /** Harmonic snap: how far a set of frequencies is from the harmonic series on its lowest member (or opts.f1).
+   *  opts.expected (e.g. a chord's .expected): the harmonic each voice should be, else the nearest integer multiple.
+   *  Returns {harmonics, cents (signed deviation of each), maxCents, rmsCents, snapped (Hz)}. */
+  G.harmonicSnap = function (freqs, opts) {
+    const n = freqs.length; let f1 = opts && opts.f1; if (!f1) { f1 = Infinity; for (let i = 0; i < n; i++) if (freqs[i] < f1) f1 = freqs[i]; }
+    const ex = opts && opts.expected, out = (opts && opts.out) || { harmonics: new Int32Array(n), cents: new Float64Array(n), snapped: new Float64Array(n) }; let mx = 0, ss = 0;
+    for (let i = 0; i < n; i++) { const r = freqs[i] / f1, h = (ex && ex[i]) || Math.max(1, Math.round(r)), c = 1200 * Math.log2(r / h); out.harmonics[i] = h; out.cents[i] = c; out.snapped[i] = h * f1; const a = Math.abs(c); if (a > mx) mx = a; ss += c * c; }
+    out.maxCents = mx; out.rmsCents = Math.sqrt(ss / n); out.f1 = f1; return out;
+  };
+
+  /** 21-cm line-of-sight profile at galactic longitude l (deg) in the plane: samples along the line of sight,
+   *  [{v (km/s, + receding), weight, arm (id or null), R (kpc), d (kpc)}], step opts.step kpc (0.25) out to opts.dmax
+   *  (30 kpc). v = (Ω(R) − Ω0) R0 sin l with the rotation curve opts.curve. Weight = HI surface density
+   *  (McMillan 2017 HI disc, Σ ∝ exp(−Rm/R − R/Rd), Rm = 4, Rd = 7 kpc) × path length × (1 + A·gauss(arm distance/width))
+   *  with A = opts.armBoost (2.5) — the arms as density ridges (APPROX; the real gas has non-circular motions and the
+   *  far side is as bright as the near). Also returns .terminal (km/s, the tangent-point velocity, |l| < 90° only).
+   *  The returned array is reused between calls unless opts.copy. */
+  const hiBuf = [];
+  G.hiProfile = function (l, opts) {
+    const o = opts || {}, step = o.step || .25, dmax = o.dmax || 30, A = o.armBoost == null ? 2.5 : o.armBoost, curve = o.curve || 'model';
+    const L = l * DEG, sl = Math.sin(L), cl = Math.cos(L), R0 = K.R0, W0 = G.Omega(R0, curve), out = o.copy ? [] : hiBuf;
+    const na = G.hiProfile._na || (G.hiProfile._na = {}), pool = G.hiProfile._pool || (G.hiProfile._pool = []);
+    let i = 0;
+    for (let d = step / 2; d < dmax; d += step) {
+      const R = Math.sqrt(R0 * R0 + d * d - 2 * R0 * d * cl); if (R < .3) continue;
+      const v = (G.Omega(R, curve) - W0) * R0 * sl;
+      const sig = Math.exp(-4 / R - R / 7);                                      // HI surface density, relative
+      const beta = Math.atan2(d * sl, R0 - d * cl) / DEG; G.nearestArm(R, beta, na);
+      const g = Math.exp(-.5 * (na.dist / (na.width || .3)) * (na.dist / (na.width || .3)));
+      const w = sig * step * (1 + A * g) * (R > 20 ? Math.exp(-(R - 20) / 2) : 1);  // the disc truncates beyond ~20 kpc
+      const e = o.copy ? {} : (pool[i] || (pool[i] = {})); e.v = v; e.weight = w; e.arm = g > .3 ? na.arm : null; e.R = R; e.d = d; e.beta = beta; out[i++] = e;
+    }
+    out.length = i;
+    out.terminal = Math.abs(sl) < 1 && cl > 0 ? (G.Omega(R0 * Math.abs(sl), curve) - W0) * R0 * sl : null;
+    return out;
+  };
+  /** Cluster the profile into one component per arm (+ 'disc'): [{arm, v (weighted mean), weight, vmin, vmax}], sorted by v. */
+  G.hiClusters = function (profile) {
+    const m = new Map();
+    for (let i = 0; i < profile.length; i++) { const e = profile[i], k = (e.arm || 'disc') + (e.d > K.R0 ? ':far' : ':near'); let c = m.get(k); if (!c) m.set(k, c = { arm: e.arm || 'disc', far: e.d > K.R0, v: 0, weight: 0, vmin: 1e9, vmax: -1e9 }); c.v += e.v * e.weight; c.weight += e.weight; if (e.v < c.vmin) c.vmin = e.v; if (e.v > c.vmax) c.vmax = e.v; }
+    const out = []; m.forEach(c => { if (c.weight > 0) { c.v /= c.weight; out.push(c); } }); out.sort((a, b) => a.v - b.v); return out;
+  };
+  /** The pitch (Hz) of 21-cm gas at line-of-sight velocity v (km/s, + receding): 1420.405 MHz lowered 21 octaves
+   *  (677.3 Hz), Doppler-shifted with the velocity exaggerated ×exag (default 1000: 100 km/s → −33 %). */
+  G.hiPitch = function (v, exag) { return K.HI_MHZ * 1e6 / Math.pow(2, K.OCT_HI) * G.doppler(v, exag == null ? 1000 : exag); };
+
+  /** Radio source as noise: {alpha, dBPerOct (spectral slope of the power spectrum = 10·α·log10 2 ≈ 3.01 α),
+   *  colour ('white' |α| < .15, 'pink' to −.5… named loosely), S (Jy at 1.4 GHz in year `year`, with fading),
+   *  mag (radio magnitude), loud (0..1 on the radio scale: 1 at −8 (Cas A), 0 at +5)}. */
+  G.radioNoise = function (src, year, out) {
+    out = out || {}; const a = src.alpha == null ? -.7 : src.alpha; let S = src.S1400 || 0;
+    if (src.fade && year != null) S *= Math.pow(1 - src.fade.pct_per_yr / 100, year - (src.fade.epoch0 || src.S1400_epoch || 1980));
+    out.alpha = a; out.dBPerOct = 10 * a * Math.log10(2); out.colour = a > -.15 && a < .15 ? 'white' : a >= .15 ? 'blue' : a > -.6 ? 'pinkish' : a > -1.2 ? 'pink' : 'brown';
+    out.S = S; out.mag = radioMag(S); out.loud = G.loudness(out.mag, { bright: -8, limit: 5 }); return out;
+  };
+
+  /** Seeded PRNG (mulberry32): returns a function giving uniform [0,1). */
+  G.rng = function (seed) { let a = (seed >>> 0) || 1; return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
+  /** Sgr A* flares over spanDays, from the statistics in radio.json (var): near-infrared flares (Poisson, 4/day,
+   *  1–2 h, amplitude 10–100× quiescent, log-uniform), X-ray flares (1.1/day, 1–100×), sub-mm wobbles (30–120 min,
+   *  ±20 %) and a slow radio wander (10–30 % over 1–30 d). Returns sorted [{t (days), dur (days), amp (× quiescent),
+   *  band}]. Use sgrLevel() to read the combined level at a time. */
+  G.sgrFlares = function (seed, spanDays, opts) {
+    const s = T.rrow.find(r => r.id === 'sgra') || {}, V = (s.var) || {}, r = G.rng(seed || 1), out = [], o = opts || {};
+    const nirRate = o.nirPerDay || V.nir_flares_per_day || 4, xRate = o.xrayPerDay || V.xray_flares_per_day || 1.1;
+    const poisson = (rate, band, durLo, durHi, ampLo, ampHi) => { let t = -Math.log(1 - r()) / rate; while (t < spanDays) { out.push({ t, dur: (durLo + (durHi - durLo) * r()) / 24, amp: Math.exp(Math.log(ampLo) + (Math.log(ampHi) - Math.log(ampLo)) * r()), band }); t += -Math.log(1 - r()) / rate; } };
+    poisson(nirRate, 'nir', 1, 2, 10, 100); poisson(xRate, 'xray', .5, 1.5, 1, 100);
+    const sm = V.submm_timescale_min || { lo: 30, hi: 120 }; let t = 0; while (t < spanDays) { const d = (sm.lo + (sm.hi - sm.lo) * r()) / 1440; out.push({ t, dur: d, amp: .8 + .4 * r(), band: 'submm' }); t += d; }
+    const rp = V.radio_pct || { lo: 10, hi: 30, timescale_d: { lo: 1, hi: 30 } }; t = 0; while (t < spanDays) { const d = rp.timescale_d.lo + (rp.timescale_d.hi - rp.timescale_d.lo) * r(); out.push({ t, dur: d, amp: 1 + (rp.lo + (rp.hi - rp.lo) * r()) / 100 * (r() < .5 ? -1 : 1), band: 'radio' }); t += d; }
+    out.sort((a, b) => a.t - b.t); return out;
+  };
+  /** Combined Sgr A* level (× quiescent) at time t (days) from a flare list: radio and sub-mm multiply; the loudest
+   *  NIR/X-ray flare adds a triangular (rise ¼, fall ¾) pulse scaled by opts.flareGain (default .05: a 100× flare → +5). */
+  G.sgrLevel = function (flares, t, opts) {
+    let lv = 1, add = 0; const g = opts && opts.flareGain != null ? opts.flareGain : .05;
+    for (let i = 0; i < flares.length; i++) { const f = flares[i]; if (f.t > t) break; const u = (t - f.t) / f.dur; if (u > 1) continue; if (f.band === 'radio' || f.band === 'submm') lv *= f.amp; else { const sh = u < .25 ? u / .25 : 1 - (u - .25) / .75; add = Math.max(add, (f.amp - 1) * sh * g); } }
+    return lv + add;
+  };
+  /** FRB events over spanDays from frb.json: periodic repeaters burst only in their active window (FRB 20180916B:
+   *  16.35-d cycle, 5-d window; FRB 20121102A: 157 d, 56 % duty), at opts.repeatRate bursts per active day (1);
+   *  other repeaters at opts.repeatRate/4 per day; one-off bursts arrive as a Poisson stream at opts.oneOffPerDay
+   *  (0.3), each drawn from the non-repeaters. Returns sorted [{t (days), frb (row), DM, width_ms, fluence, sweep}]
+   *  where sweep is the dispersionSweep duration (s) across 400–800 MHz. */
+  G.frbEvents = function (seed, spanDays, opts) {
+    const o = opts || {}, r = G.rng(seed || 7), rows = D.frb.frbs, out = [], rr = o.repeatRate == null ? 1 : o.repeatRate, oo = o.oneOffPerDay == null ? .3 : o.oneOffPerDay;
+    const once = rows.filter(f => !f.repeater && !f.rp), reps = rows.filter(f => f.repeater || f.rp);
+    const push = (t, f) => out.push({ t, frb: f, DM: f.DM, width_ms: f.width_ms || 2, fluence: f.fluence || 1, sweep: G.dispersionDelay(f.DM, 400, 800) });
+    reps.forEach(f => {
+      const P = f.period_d, win = f.active_window_d || (P ? .56 * P : 0), rate = P ? rr : rr / 4, ph0 = r();
+      let t = -Math.log(1 - r()) / rate;
+      while (t < spanDays) { if (!P || ((t / P + ph0) % 1) * P < win) push(t, f); t += -Math.log(1 - r()) / rate; }
+    });
+    let t = -Math.log(1 - r()) / oo; while (t < spanDays && once.length) { push(t, once[Math.floor(r() * once.length)]); t += -Math.log(1 - r()) / oo; }
+    out.sort((a, b) => a.t - b.t); return out;
+  };
+
+  /** The Sun's p-modes (BiSON, seismo.json) sped up into hearing: {octaves, modes: [{f (Hz), w (relative power), n, l, nu (µHz)}]}.
+   *  Default transposition 17 octaves (×131 072): νmax 3090 µHz → 405 Hz, Δν 135 µHz → 17.7 Hz; the 5.4-minute
+   *  oscillation becomes 2.5 ms. opts.minW drops the faintest modes (default 1e-3 of the strongest). */
+  G.sunModes = function (opts) {
+    const o = opts || {}, oct = o.octaves == null ? 17 : o.octaves, k = 1e-6 * Math.pow(2, oct), S = D.seismo.sun, mw = o.minW == null ? 1e-3 : o.minW;
+    let wmax = 0; S.modes.forEach(m => { if (m.w > wmax) wmax = m.w; });
+    const modes = []; S.modes.forEach(m => { if (m.w >= mw * wmax) modes.push({ f: m.nu * k, w: m.w / wmax, n: m.n, l: m.l, nu: m.nu }); });
+    return { octaves: oct, modes, numax: S.numax * k, dnu: S.dnu * k };
+  };
+  /** Modes of a star from νmax and Δν (µHz) by the asymptotic relation ν(n,l) = Δν (n + l/2 + ε) − l(l+1) D0, with the
+   *  Sun's ε = 1.525 and D0 = δν02/6 scaled with Δν (APPROX; real giants show mixed modes). The envelope is Gaussian,
+   *  FWHM 0.66 νmax^0.88, with visibilities 1 : 1.5 : 0.5 : 0.05 for l = 0…3. Transposition: opts.octaves, or the integer
+   *  octave count that brings νmax nearest opts.target Hz (default 400) — so a red giant with νmax 30 µHz is raised
+   *  ~24 octaves while the Sun needs 17. Returns {octaves, modes:[{f, w, n, l, nu}], numax (Hz), dnu (Hz)}. Pass a
+   *  seismo.json star row or any {numax, dnu}. */
+  G.starModes = function (st, opts) {
+    const o = opts || {}, numax = st.numax, dnu = st.dnu, S = D.seismo.sun, eps = S.eps || 1.525, D0 = (S.d02 || 9.04) / (S.dnu || 135.1) * dnu / 6;
+    const oct = o.octaves != null ? o.octaves : Math.round(Math.log2((o.target || 400) / (numax * 1e-6))), k = 1e-6 * Math.pow(2, oct);
+    const fw = .66 * Math.pow(numax, .88), sg = fw / 2.3548, n0 = Math.round(numax / dnu - eps), span = o.nRange || Math.max(3, Math.ceil(1.5 * fw / dnu)), vis = [1, 1.5, .5, .05], lmax = o.lmax == null ? 2 : o.lmax, modes = [];
+    for (let n = Math.max(1, n0 - span); n <= n0 + span; n++) for (let l = 0; l <= lmax; l++) { const nu = dnu * (n + l / 2 + eps) - l * (l + 1) * D0, w = vis[l] * Math.exp(-.5 * ((nu - numax) / sg) * ((nu - numax) / sg)); if (w > 1e-3) modes.push({ f: nu * k, w, n, l, nu }); }
+    return { octaves: oct, modes, numax: numax * k, dnu: dnu * k };
+  };
+  /** The seismo.json row for a stars.json row (by id), or null. */
+  G.seismoOf = function (star) { if (!G.seismoOf._m) { G.seismoOf._m = new Map(); D.seismo.stars.forEach(s => G.seismoOf._m.set(s.id, s)); } return G.seismoOf._m.get(star.id) || null; };
+
+  /* ───────── 4. voice budget ───────── */
+  const bud = { score: null, ix: null, pool: [], out: [], reset() { bud.score = new Float64Array(T.n + T.np + T.nr); bud.ix = new Int32Array(T.n + T.np + T.nr); } };
+  function cmpScore(a, b) { return bud.score[b] - bud.score[a]; }
+  /** Default budget from the app's quality setting if present (eco 16, standard 32, high 64), else by touch points. */
+  G.defaultBudget = function () { try { const q = window.MOTS && MOTS.quality && MOTS.quality(); if (q === 'eco') return 16; if (q === 'high') return 64; if (q) return 32; } catch (e) { } try { return (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 700) ? 20 : 48; } catch (e) { return 32; } };
+  /** The N most audible sources for a listener L {x,y,z} (pc, heliocentric galactic), sorted loudest first.
+   *  opts: n (default defaultBudget()), tYr (star positions at this time offset; 0), stars/pulsars/radio (booleans,
+   *  default true), starGain/pulsarGain/radioGain (multiply loudness; default 1, .7, .5), limit/bright (passed to
+   *  loudness for stars), jd (apply variable-star light curves if given), facing (deg; fills az/el/pan).
+   *  Returns a reused array (copy it if you keep it) of {kind: 'star'|'pulsar'|'radio', row, i, loud, mag, d (pc),
+   *  x, y, z (pc, heliocentric), az, el, pan}. No allocation after the first call for a given n. */
+  G.audible = function (L, opts) {
+    const o = opts || {}, N = o.n || G.defaultBudget(), t = o.tYr || 0, sc = bud.score, ix = bud.ix, lx = L ? L.x : 0, ly = L ? L.y : 0, lz = L ? L.z : 0;
+    const gs = o.starGain == null ? 1 : o.starGain, gp = o.pulsarGain == null ? .7 : o.pulsarGain, gr = o.radioGain == null ? .5 : o.radioGain;
+    const br = o.bright == null ? -1.5 : o.bright, lim = o.limit == null ? 6.5 : o.limit, inv = 1 / (lim - br); let m = 0;
+    if (o.stars !== false) for (let i = 0; i < T.n; i++) {
+      const dx = T.X[i] + T.VX[i] * t - lx, dy = T.Y[i] + T.VY[i] * t - ly, dz = T.Z[i] + T.VZ[i] * t - lz, d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 < 1e-8) { continue; }                                     // where you stand
+      let mag = T.M[i] + 2.5 * Math.log10(d2 / 100);                   // 5 log10(d/10)
+      if (o.jd != null && T.rows[i].var) mag += G.varMag(T.rows[i], o.jd) - T.rows[i].mag;
+      let x = (lim - mag) * inv; if (x <= 0) continue; if (x > 1) x = 1; sc[i] = x * gs; ix[m++] = i;
+    }
+    if (o.pulsars !== false) for (let i = 0; i < T.np; i++) {
+      const dx = T.PX[i] - lx, dy = T.PY[i] - ly, dz = T.PZ[i] - lz, d2 = dx * dx + dy * dy + dz * dz, d0 = (T.prow[i].d || 1) * 1000;
+      if (d2 < 1e-8) continue; const mag = T.PM[i] + 2.5 * Math.log10(d2 / (d0 * d0));
+      let x = (5 - mag) / 13; if (x <= 0) continue; if (x > 1) x = 1; sc[T.n + i] = x * gp; ix[m++] = T.n + i;   // radio scale: 1 at −8, 0 at +5
+    }
+    if (o.radio !== false) for (let i = 0; i < T.nr; i++) {
+      const dx = T.RX[i] - lx, dy = T.RY[i] - ly, dz = T.RZ[i] - lz, d2 = dx * dx + dy * dy + dz * dz, r = T.rrow[i], d0 = r.d_kpc != null ? r.d_kpc * 1000 : r.d_Mpc * 1e6;
+      if (d2 < 1e-8) continue; const mag = T.RM[i] + 2.5 * Math.log10(d2 / (d0 * d0));
+      let x = (5 - mag) / 13; if (x <= 0) continue; if (x > 1) x = 1; sc[T.n + T.np + i] = x * gr; ix[m++] = T.n + T.np + i;
+    }
+    // partial selection: sort the candidate indices by score (m ≤ ~1,200: a plain sort is well under a millisecond)
+    const cand = ix.subarray(0, m); cand.sort(cmpScore);
+    const n = Math.min(N, m), out = bud.out; out.length = n;
+    for (let j = 0; j < n; j++) {
+      const i = cand[j], e = bud.pool[j] || (bud.pool[j] = {}); out[j] = e; e.i = i; e.loud = sc[i];
+      if (i < T.n) { e.kind = 'star'; e.row = T.rows[i]; e.x = T.X[i] + T.VX[i] * t; e.y = T.Y[i] + T.VY[i] * t; e.z = T.Z[i] + T.VZ[i] * t; e.mag = T.M[i] + 5 * Math.log10(Math.hypot(e.x - lx, e.y - ly, e.z - lz) / 10); }
+      else if (i < T.n + T.np) { const k = i - T.n; e.kind = 'pulsar'; e.row = T.prow[k]; e.x = T.PX[k]; e.y = T.PY[k]; e.z = T.PZ[k]; e.mag = T.PM[k] + 5 * Math.log10(Math.hypot(e.x - lx, e.y - ly, e.z - lz) / ((e.row.d || 1) * 1000)); }
+      else { const k = i - T.n - T.np; e.kind = 'radio'; e.row = T.rrow[k]; e.x = T.RX[k]; e.y = T.RY[k]; e.z = T.RZ[k]; e.mag = T.RM[k] + 5 * Math.log10(Math.hypot(e.x - lx, e.y - ly, e.z - lz) / (e.row.d_kpc != null ? e.row.d_kpc * 1000 : e.row.d_Mpc * 1e6)); }
+      const dx = e.x - lx, dy = e.y - ly, dz = e.z - lz; e.d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (o.facing != null) { const f = o.facing * DEG, cf = Math.cos(f), sf = Math.sin(f), fx = (dx * cf + dy * sf) / e.d, rt = (dx * sf - dy * cf) / e.d; e.az = Math.atan2(rt, fx) / DEG; e.el = Math.asin(dz / e.d) / DEG; e.pan = rt; }
+    }
+    return out;
+  };
+  /** Find a star row by IAU name, Bayer/Flamsteed (`bf`), HIP or HYG id; or a pulsar by J/B name. */
+  G.find = function (q) { const s = String(q).toLowerCase(); for (let i = 1; i < T.n; i++) { const r = T.rows[i]; if ((r.n && r.n.toLowerCase() === s) || (r.bf && r.bf.toLowerCase() === s) || String(r.hip) === s || String(r.id) === s) return r; } for (let i = 0; i < T.np; i++) { const p = T.prow[i]; if (p.j.toLowerCase() === s || (p.b && p.b.toLowerCase() === s)) return p; } return null; };
+  G.tables = () => T;
+  G.stars = () => T.rows; G.pulsars = () => T.prow; G.radio = () => T.rrow;
+
+  /* ───────── 5. gods ───────── */
+  /** Who speaks for what. `choice` picks the settings option for the pulsars and the black hole: 'forge' (Hephaestus
+   *  and Nyx) or 'chaos' (the Cyclopes and Chaos). Keys are stable ids for the twelve-language text to attach to;
+   *  `name` is the English display name. Entries marked suggested:true are proposals, not decisions. */
+  const GODS = {
+    milkyWay: { key: 'hera', name: 'Hera', why: 'galaxias kyklos, the milky circle of her spilled milk' },
+    hydrogen: { key: 'hera', name: 'Hera', why: 'the milk itself: the gas of the arms', suggested: true },
+    pulsars: { forge: { key: 'hephaestus', name: 'Hephaestus', why: 'the forge: hammer-blows that keep time' }, chaos: { key: 'cyclopes', name: 'the Cyclopes', why: 'the one-eyed smiths, each pulse a stroke' } },
+    blackHole: { forge: { key: 'nyx', name: 'Nyx', why: 'Night, from whom nothing returns' }, chaos: { key: 'chaos', name: 'Chaos', why: 'the void before the gods' } },
+    stars: { key: 'astraeus', name: 'Astraeus', why: 'father of the stars and the winds', suggested: true },
+    variables: { key: 'hecate', name: 'Hecate', why: 'the waxing and waning torch', suggested: true },
+    radio: { key: 'iris', name: 'Iris', why: 'messenger across the dark; the FRBs are her flashes', suggested: true },
+    starquakes: { key: 'poseidon', name: 'Poseidon', why: 'the earth-shaker, here the star-shaker', suggested: true },
+    sunOrbit: { key: 'helios', name: 'Helios', why: 'the Sun on its galactic year', suggested: true }
+  };
+  G.GODS = GODS;
+  /** The speaker for a topic ('milkyWay', 'pulsars', 'blackHole', 'stars', …) under a settings choice ('forge' | 'chaos'). */
+  G.speaker = function (topic, choice) { const g = GODS[topic]; if (!g) return null; return g.key ? g : (g[choice || 'forge'] || g.forge); };
+
+  if (typeof window !== 'undefined') window.GALAXY = G; else if (typeof globalThis !== 'undefined') globalThis.GALAXY = G;
+})();
+</script>
+<script>
 (()=>{
 'use strict';
 
@@ -2243,7 +2814,7 @@ function audible(b){
 }
 
 /* ---------- audio ---------- */
-let AC=null, master, bus, wet, dry, conv, comp, noiseBuf, sunV, audioOn=false;
+let AC=null, master, bus, wet, dry, conv, comp, noiseBuf, sunV, audioOn=false, solarBus=null;
 const V={};
 // the temple echo: four damped feedback delays spread across the stereo field, a fraction of the
 // cost of a convolution reverb
@@ -2472,7 +3043,7 @@ const PANNERS=[];
 function mkPanner(hrtfOK){
   const p=AC.createPanner();p.panningModel=S.hrtf&&hrtfOK&&!(window.MOTS&&MOTS.quality&&MOTS.quality()==='eco')?'HRTF':'equalpower';p.distanceModel='linear';
   p.refDistance=1;p.maxDistance=10000;p.rolloffFactor=0;p.coneInnerAngle=360;p.coneOuterAngle=360;
-  p.connect(bus);PANNERS.push({p,hrtfOK});if(window.MOTS&&MOTS.surround)MOTS.surround.add(p);return p;
+  p.connect(solarBus);PANNERS.push({p,hrtfOK});if(window.MOTS&&MOTS.surround)MOTS.surround.add(p);return p;
 }
 function makeVoice(b){
   // only the planets get true 3D (HRTF) panning; everything else uses cheap stereo panning
@@ -2541,7 +3112,7 @@ function initAudio(){
   try{AC=new ACtor({latencyHint:'playback'})}catch(e){AC=new ACtor()}
   master=AC.createGain();master.gain.value=0;
   comp=AC.createDynamicsCompressor();comp.threshold.value=-20;comp.knee.value=14;comp.ratio.value=4;comp.attack.value=.02;comp.release.value=.35;
-  bus=AC.createGain();dry=AC.createGain();wet=AC.createGain();
+  bus=AC.createGain();solarBus=AC.createGain();solarBus.connect(bus);dry=AC.createGain();wet=AC.createGain();
   // the temple echo has its own input, so voices sent to the surround speakers can still reach it
   // the voices' bus passes through a gain the stage module turns down as the crowd grows, before the compressor (see stage.js)
   verbIn=AC.createGain();const pre=AC.createGain();bus.connect(pre);pre.connect(dry);dry.connect(comp);pre.connect(verbIn);comp.connect(master);
@@ -3249,7 +3820,7 @@ function updateScene(dtSim){
 }
 
 /* ---- the ship ---- */
-const ship={pos:new THREE.Vector3(),vel:new THREE.Vector3(),anchor:null,ap:null};
+const ship={pos:new THREE.Vector3(),vel:new THREE.Vector3(),anchor:null,ap:null,gap:null};
 const keys=new Set();let hold=0, lookDrag=null;
 function placeNear(id,dist){
   const o=OBJ[id],v=toV(P[id]);
@@ -3265,7 +3836,7 @@ function nearestSurface(){
 function travelTo(id){
   const b=id.includes(':')||id==='sun'?null:byId[id];
   const name=id==='sun'?'Hélio, o Sol':id.includes(':')?moonName(id):(b.kind==='comet'?b.name:b.god);
-  ship.ap={id,name};ship.cruise=false;ship.vel.set(0,0,0);
+  ship.ap={id,name};ship.gap=null;ship.cruise=false;ship.vel.set(0,0,0);
   if(b&&S.speak&&audioOn)speakGod(b);
   toast(`Traçando rota para ${name}`);
   closeNav();
@@ -3303,7 +3874,7 @@ function flight(dt){
     camera.quaternion.slerp(tmpQ,1-Math.exp(-dt*2.6));
     if(D<stand*(above?.01:.04)){toast(above?'Acima do plano dos planetas':`Você chegou a ${ship.ap.name}`);if(ship.ap.id.includes(':'))ship.ride=ship.ap.id;ship.ap=null}
   }else{
-    const base=Math.min(40,Math.max(2e-6,ns.d*.55))*(keys.has('Shift')?5:1);
+    const base=(window.FLYG?FLYG.base(ns):Math.min(40,Math.max(2e-6,ns.d*.55)))*(keys.has('Shift')?5:1);
     const f=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion), r=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion), u=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
     const th=(keys.has('w')||keys.has('ArrowUp')?1:0)-(keys.has('s')||keys.has('ArrowDown')?1:0)+hold+(ship.cruise?1:0);
     const st=(keys.has('d')?1:0)-(keys.has('a')?1:0), vt=(keys.has('r')?1:0)-(keys.has('f')?1:0);
@@ -3326,18 +3897,18 @@ function flight(dt){
 // looking around: drag with mouse or finger
 canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);lookDrag={x:e.clientX,y:e.clientY};resumeAudio()});
 canvas.addEventListener('pointermove',e=>{if(!lookDrag)return;const dx=e.clientX-lookDrag.x,dy=e.clientY-lookDrag.y;lookDrag={x:e.clientX,y:e.clientY};
-  if(ship.ap&&Math.hypot(dx,dy)>3){ship.ap=null}
+  if(ship.ap&&Math.hypot(dx,dy)>3){ship.ap=null}if(ship.gap&&Math.hypot(dx,dy)>3){ship.gap=null}
   camera.rotateY(-dx*.0035);camera.rotateX(-dy*.0035)});
 const endLook=()=>{lookDrag=null};canvas.addEventListener('pointerup',endLook);canvas.addEventListener('pointercancel',endLook);
 addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;const k=e.key.length===1?e.key.toLowerCase():e.key;keys.add(k);
-  if(['w','s','a','d','r','f','q','e','ArrowUp','ArrowDown'].includes(k))ship.ap=null;
+  if(['w','s','a','d','r','f','q','e','ArrowUp','ArrowDown'].includes(k)){ship.ap=null;ship.gap=null}
   if(k==='s'||k==='ArrowDown')ship.cruise=false;
   if(k==='c')toggleCruise();
   if(k==='t')toggleNav();if(k==='Escape')closeNav();if(k.startsWith('Arrow'))e.preventDefault()});
 addEventListener('keyup',e=>{const k=e.key.length===1?e.key.toLowerCase():e.key;keys.delete(k)});
 addEventListener('blur',()=>keys.clear());
 function bindHold(el,v){
-  const on=e=>{e.preventDefault();hold=v;ship.ap=null;if(v<0)ship.cruise=false;el.classList.add('on');resumeAudio()}, off=()=>{hold=0;el.classList.remove('on')};
+  const on=e=>{e.preventDefault();hold=v;ship.ap=null;ship.gap=null;if(v<0)ship.cruise=false;el.classList.add('on');resumeAudio()}, off=()=>{hold=0;el.classList.remove('on')};
   el.addEventListener('pointerdown',on);el.addEventListener('pointerup',off);el.addEventListener('pointerleave',off);el.addEventListener('pointercancel',off);
 }
 bindHold($('fwd'),1);bindHold($('bwd'),-1);
@@ -3356,6 +3927,7 @@ function placeLabel(id,pos,show){
   el.classList.toggle('target',!!(ship.ap&&ship.ap.id===id));
 }
 function updateLabels(){
+  if(window.FLYG&&FLYG.labels())return;
   placeLabel('sun',new THREE.Vector3(),true);
   ZODIAC.forEach((z,i)=>placeLabel('zod:'+i,z.centre,S.showZod));
   BODIES.forEach(b=>{const o=OBJ[b.id],d=ship.pos.distanceTo(o.pos);
@@ -3448,10 +4020,10 @@ function neighbours(){
   if(ship.anchor&&byId[ship.anchor].kind==='planet'){const i=PLANETS.findIndex(b=>b.id===ship.anchor);return {inn:PLANETS[i-1]||null,out:PLANETS[i+1]||null}}
   return {inn:[...PLANETS].reverse().find(b=>P[b.id].r<r*.98)||null,out:PLANETS.find(b=>P[b.id].r>r*1.02)||null};
 }
-function toggleCruise(){ship.cruise=!ship.cruise;if(ship.cruise){ship.ap=null;toast('Em cruzeiro: arraste para pilotar, ▼ ou S para parar')}renderCourse()}
+function toggleCruise(){ship.cruise=!ship.cruise;if(ship.cruise){ship.ap=null;ship.gap=null;toast('Em cruzeiro: arraste para pilotar, ▼ ou S para parar')}renderCourse()}
 function riseAbove(){
   const H=Math.max(4,ship.pos.length()*1.6);
-  ship.ap={id:'above',name:'acima dos planetas',goal:new THREE.Vector3(ship.pos.x*.15,H,ship.pos.z*.15+H*.3)};ship.cruise=false;ship.vel.set(0,0,0);
+  ship.ap={id:'above',name:'acima dos planetas',goal:new THREE.Vector3(ship.pos.x*.15,H,ship.pos.z*.15+H*.3)};ship.gap=null;ship.cruise=false;ship.vel.set(0,0,0);
   toast('Subindo para fora do plano dos planetas');
 }
 let courseKey='';
@@ -3473,6 +4045,7 @@ function audioTick(){
   else if(!inSys&&SYS.id)sysLeave3D();
   if(ship.anchor!==lastAnchor){lastAnchor=ship.anchor;renderMoonChips()}
   if(!AC||!audioOn)return;
+  if(window.FLYG)FLYG.audio();
   if(SYS.id){SYS.moons.forEach(sm=>sm.pos=moonPos(byId[SYS.id],sm.m,S.jd));updateSystemAudio();if(window.MOTS&&MOTS.midi.on)midiHolds()}
   else updateAudio();
 }
@@ -3526,6 +4099,7 @@ function readout(ns){
   const sp=v>c?(v/c).toFixed(v/c<10?1:0)+'× a velocidade da luz':Math.round(v).toLocaleString('pt-BR')+' km/s';
   const dist=ship.pos.length();
   $('speedTxt').textContent=`${sp} · ${dist.toFixed(dist<2?3:1).replace('.',',')} UA do Sol`;
+  if(window.FLYG)FLYG.readout(ns);
 }
 function dateStr(jd){const d=new Date((jd-2440587.5)*86400000);if(isNaN(d))return '—';const M=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];const y=d.getUTCFullYear();return `${d.getUTCDate()} ${M[d.getUTCMonth()]} ${y<0?(-y+1)+' a.C.':y}`}
 
@@ -3539,11 +4113,12 @@ function frame3(t){
   const dtSim=S.playing?dt*S.speed:0;S.jd+=dtSim;
   computePositions();updateScene(dtSim);
   const ns=flight(dt);
+  if(window.FLYG)FLYG.frame(dt,t,ns);
   updateAspectLines();
   if(t-lastA>45){audioTick();lastA=t}
   if(t-lastU>250){lastU=t;computeAspects();$('dateTxt').textContent=dateStr(S.jd);$('zodTxt').innerHTML=zodiacLine();$('timeTxt').textContent=fmtSpeed(S.speed);readout(ns);resumeAudio()}
   // the names are placed in the same frame as the picture, from this frame's camera: placed between renders, or from the last frame's camera, they shook beside a planet seen close up
-  if((!MOBILE||t-lastR>=32)&&!(window.MOTS&&MOTS.skyHidden&&MOTS.skyHidden())){camera.updateMatrixWorld();updateLabels();renderer.render(scene,camera);lastR=t}
+  if((!MOBILE||t-lastR>=32)&&!(window.MOTS&&MOTS.skyHidden&&MOTS.skyHidden())){camera.updateMatrixWorld();updateLabels();if(window.FLYG)FLYG.render();else renderer.render(scene,camera);lastR=t}
   requestAnimationFrame(frame3);
 }
 requestAnimationFrame(frame3);
@@ -3555,6 +4130,619 @@ MOTS.app={start:()=>audioOn?Promise.resolve():startAudio3D(),stop:()=>{if(audioO
   _probe:fn=>fn({S,P,SYS,ship,OBJ,nearestSurface,moonWorld,byId,V,audioOn:()=>audioOn,ac:()=>AC})};
 // the caption of the projector view: where the ship is, the date and the sky, in the page's own words
 MOTS.nowPlaying=()=>{const t=document.querySelector('.tl .t');return {k:t?t.textContent:'',h:$('nearTxt').textContent,p:$('zodTxt').textContent,d:$('dateTxt').textContent+' · '+$('timeTxt').textContent}};
+
+
+/* ================= INTERSTELLAR FLIGHT (fly_galaxy.js): the 3D flight continues out into the Milky Way =================
+   Step 4 of the Galaxy extension. Appended inside the flight page's closure after fly3d.js, so it sees the ship, the camera, the
+   scenes and the audio engine; the galactic engine is window.GALAXY (galaxy.js). Among the planets nothing here changes anything:
+   the fades are 1 (the planetary bus) or 0 (the galactic layers) until the ship is past ~150 AU. Everything is prefixed or
+   private; the only global is window.FLYG, which fly3d.js calls through six small hooks (base speed, frame, render, audio,
+   readout, labels).
+   Scales: the ship keeps its position in AU (doubles). The galactic scene is drawn in parsecs with a second camera that shares
+   the cockpit's orientation (1 pc = 206,264.8 AU); both scenes share the one renderer, the far scene first. Sound follows the
+   engine's rules: star tone = Wien peak lowered forty octaves, timbre = the spectral lines of its class, loudness = apparent
+   magnitude from where the ship is, direction = true direction, Doppler = the real radial velocity with an exaggeration switch;
+   pulsars as heard; radio sources as coloured noise; above the disc the rotation chord (dark-matter switch). */
+const FLYG=(()=>{
+'use strict';
+const AU_PC=206264.806247, PC_LY=3.2615637769, AU_LS=499.004784, C_KMS=299792.458;
+const FAR_AU=300, SOLAR_MAX_AU=2.5e5;
+const LANG=document.documentElement.lang||'en';
+const LOCALE={en:'en-GB',pl:'pl-PL',cy:'cy-GB',de:'de-DE',es:'es-ES',fr:'fr-FR',it:'it-IT',zh:'zh-CN',ja:'ja-JP',vi:'vi-VN',bg:'bg-BG',pt:'pt-BR'}[LANG]||'en-GB';
+const BASE=LANG==='en'||!/\/(pl|cy|de|es|fr|it|zh|ja|vi|bg|pt)\/[^/]*$/.test(location.pathname)?'./':'../';
+const clamp=(v,lo,hi)=>v<lo?lo:v>hi?hi:v, sm=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)};
+const uf=(t,o)=>String(t).replace(/\{(\w+)\}/g,(m,k)=>o[k]!==undefined?o[k]:m);
+const fmtN=(n,d)=>Number(n).toLocaleString(LOCALE,{maximumFractionDigits:d,minimumFractionDigits:0});
+
+/* ---------- texts, twelve languages ---------- */
+/*FLYG-TEXTS*/const TX_ALL={
+en:{inter:'Interstellar',helio:'Heliopause',oort:'Oort cloud',acen:'Alpha Centauri',sirius:'Sirius',vela:'Vela pulsar',gc:'Galactic centre',above:'Above the Milky Way',home:'Home',beyond:'Interstellar ▶',
+ shipSpeed:'Ship speed',dop:'Doppler exaggeration',dm:'Dark matter (the flat rotation curve plays the harmonic series)',
+ course:'Setting course for {n}',arrived:'Arrived: {n}',toward:'Travelling to <em>{n}</em>',nearest:'Nearest star: <em>{n}</em>',sun:'the Sun',
+ nm:{helio:'the heliopause',oort:'the Oort cloud',acen:'Alpha Centauri',sirius:'Sirius',vela:'the Vela pulsar',gc:'the Galactic centre',above:'a view above the Milky Way',home:'home'},
+ fromSun:'{d} from the Sun',light:'light from home takes {t}',au:'AU',ly:'ly',pc:'pc',kpc:'kpc',lsec:'{n} light-seconds',lmin:'{n} light-minutes',lhr:'{n} light-hours',lday:'{n} light-days',lyr:'{n} years',lyr1:'one year',
+ kms:'{n} km/s',xc:'{n}× light speed',lys:'{n} ly / s',pcs:'{n} pc / s',kpcs:'{n} kpc / s',
+ cap:{helio:'<b>The heliopause</b>: where the Sun’s wind gives way to interstellar space. Voyager 1 crossed it in 2012, at 121.6 AU; the hiss of the solar wind stops here.',
+  oort:'<b>The Oort cloud</b>: a sparse shell of comets, 2,000 to 100,000 AU from the Sun, where the long-period comets come from.',
+  inter:'<b>Interstellar space.</b> The Sun is now a star behind you, singing its Wien note (543 Hz) like the others.',
+  acen:'<b>Alpha Centauri</b>: three suns, the nearest to ours. Their light takes 4.4 years to reach home.',
+  sirius:'<b>Sirius</b>, the brightest star in our sky: a hot white A star with a white-dwarf companion, 8.6 light-years from home.',
+  vela:'<b>The Vela pulsar</b>: a neutron star spinning eleven times a second, the ash of a supernova 11,000 years ago. Its pulses are heard as they are.',
+  disc:'<b>Leaving the disc</b> of the Milky Way. Below you, the spiral arms as traced by Reid et al. (2019).',
+  whole:'<b>The whole Milky Way</b>: the bar, the arms and Sagittarius A* at the centre. Its flat rotation curve plays the harmonic series; switch off the dark matter and the chord sags.',
+  gc:'<b>Sagittarius A*</b>: the black hole at the centre of the Galaxy, four million suns, 26,000 light-years from home.',
+  home:'<b>Home.</b> The planets sing again.'},
+ hera:'I am Hera. The milky circle across your sky is my spilled milk: a hundred thousand million suns, turning once in two hundred and thirty million years.',
+ sgra:'Sagittarius A*',crab:'Crab pulsar',helioLbl:'Heliopause',lightOf:'light'},
+pl:{inter:'Międzygwiezdne',helio:'Heliopauza',oort:'Obłok Oorta',acen:'Alfa Centauri',sirius:'Syriusz',vela:'Pulsar Vela',gc:'Centrum Galaktyki',above:'Nad Drogą Mleczną',home:'Dom',beyond:'Międzygwiezdne ▶',
+ shipSpeed:'Prędkość statku',dop:'Wyolbrzymienie Dopplera',dm:'Ciemna materia (płaska krzywa rotacji gra szereg harmoniczny)',
+ course:'Kurs na: {n}',arrived:'Dotarliśmy: {n}',toward:'Lot do: <em>{n}</em>',nearest:'Najbliższa gwiazda: <em>{n}</em>',sun:'Słońce',
+ nm:{helio:'heliopauza',oort:'Obłok Oorta',acen:'Alfa Centauri',sirius:'Syriusz',vela:'pulsar Vela',gc:'centrum Galaktyki',above:'widok nad Drogą Mleczną',home:'dom'},
+ fromSun:'{d} od Słońca',light:'światło z domu leci {t}',au:'au',ly:'lś',pc:'pc',kpc:'kpc',lsec:'{n} sekund świetlnych',lmin:'{n} minut świetlnych',lhr:'{n} godzin świetlnych',lday:'{n} dni świetlnych',lyr:'{n} lat',lyr1:'rok',
+ kms:'{n} km/s',xc:'{n}× prędkość światła',lys:'{n} lś / s',pcs:'{n} pc / s',kpcs:'{n} kpc / s',
+ cap:{helio:'<b>Heliopauza</b>: tu wiatr słoneczny ustępuje przestrzeni międzygwiezdnej. Voyager 1 przekroczył ją w 2012 roku, w odległości 121,6 au; tu milknie szum wiatru słonecznego.',
+  oort:'<b>Obłok Oorta</b>: rzadka powłoka komet, od 2 000 do 100 000 au od Słońca, skąd przylatują komety długookresowe.',
+  inter:'<b>Przestrzeń międzygwiezdna.</b> Słońce jest już gwiazdą za tobą i śpiewa swoją nutę Wiena (543 Hz) jak inne.',
+  acen:'<b>Alfa Centauri</b>: trzy słońca, najbliższe naszemu. Ich światło leci do domu 4,4 roku.',
+  sirius:'<b>Syriusz</b>, najjaśniejsza gwiazda naszego nieba: gorąca biała gwiazda typu A z białym karłem jako towarzyszem, 8,6 roku świetlnego od domu.',
+  vela:'<b>Pulsar Vela</b>: gwiazda neutronowa obracająca się jedenaście razy na sekundę, popiół supernowej sprzed 11 000 lat. Jego impulsy słychać takimi, jakie są.',
+  disc:'<b>Opuszczamy dysk</b> Drogi Mlecznej. Pod tobą ramiona spiralne według Reida i in. (2019).',
+  whole:'<b>Cała Droga Mleczna</b>: poprzeczka, ramiona i Sagittarius A* w centrum. Jej płaska krzywa rotacji gra szereg harmoniczny; wyłącz ciemną materię, a akord opadnie.',
+  gc:'<b>Sagittarius A*</b>: czarna dziura w centrum Galaktyki, cztery miliony słońc, 26 000 lat świetlnych od domu.',
+  home:'<b>Dom.</b> Planety znów śpiewają.'},
+ hera:'Jestem Hera. Mleczny krąg na twoim niebie to moje rozlane mleko: sto tysięcy milionów słońc, obracających się raz na dwieście trzydzieści milionów lat.',
+ sgra:'Sagittarius A*',crab:'Pulsar w Krabie',helioLbl:'Heliopauza',lightOf:'światło'},
+cy:{inter:'Rhyngserol',helio:'Heliopaws',oort:'Cwmwl Oort',acen:'Alffa Centauri',sirius:'Sirius',vela:'Pwlsar Vela',gc:'Canol y Galaeth',above:'Uwchlaw’r Llwybr Llaethog',home:'Adref',beyond:'Rhyngserol ▶',
+ shipSpeed:'Cyflymder y llong',dop:'Gorliwio Doppler',dm:'Mater tywyll (mae’r gromlin gylchdroi wastad yn chwarae’r gyfres harmonig)',
+ course:'Gosod cwrs am {n}',arrived:'Wedi cyrraedd: {n}',toward:'Yn teithio i <em>{n}</em>',nearest:'Seren agosaf: <em>{n}</em>',sun:'yr Haul',
+ nm:{helio:'yr heliopaws',oort:'cwmwl Oort',acen:'Alffa Centauri',sirius:'Sirius',vela:'pwlsar Vela',gc:'canol y Galaeth',above:'golwg uwchlaw’r Llwybr Llaethog',home:'adref'},
+ fromSun:'{d} o’r Haul',light:'mae golau o adref yn cymryd {t}',au:'AU',ly:'bg',pc:'pc',kpc:'kpc',lsec:'{n} eiliad golau',lmin:'{n} munud golau',lhr:'{n} awr golau',lday:'{n} diwrnod golau',lyr:'{n} o flynyddoedd',lyr1:'blwyddyn',
+ kms:'{n} km/s',xc:'{n}× cyflymder golau',lys:'{n} bg / e',pcs:'{n} pc / e',kpcs:'{n} kpc / e',
+ cap:{helio:'<b>Yr heliopaws</b>: lle mae gwynt yr Haul yn ildio i’r gofod rhyngserol. Croesodd Voyager 1 ef yn 2012, ar 121.6 AU; yma mae hisian gwynt yr Haul yn peidio.',
+  oort:'<b>Cwmwl Oort</b>: cragen denau o gomedau, 2,000 i 100,000 AU o’r Haul, lle daw’r comedau cyfnod hir ohoni.',
+  inter:'<b>Y gofod rhyngserol.</b> Mae’r Haul bellach yn seren y tu ôl i chi, yn canu ei nodyn Wien (543 Hz) fel y lleill.',
+  acen:'<b>Alffa Centauri</b>: tri haul, yr agosaf at ein un ni. Mae eu golau’n cymryd 4.4 blynedd i gyrraedd adref.',
+  sirius:'<b>Sirius</b>, seren ddisgleiriaf ein hawyr: seren A wen boeth gyda chydymaith corrach gwyn, 8.6 blwyddyn golau o adref.',
+  vela:'<b>Pwlsar Vela</b>: seren niwtron sy’n troi un ar ddeg o weithiau’r eiliad, lludw uwchnofa 11,000 o flynyddoedd yn ôl. Clywir ei phylsau fel y maent.',
+  disc:'<b>Gadael disg</b> y Llwybr Llaethog. Oddi tanoch, y breichiau troellog fel y’u holrheiniwyd gan Reid et al. (2019).',
+  whole:'<b>Y Llwybr Llaethog cyfan</b>: y bar, y breichiau a Sagittarius A* yn y canol. Mae ei gromlin gylchdroi wastad yn chwarae’r gyfres harmonig; diffoddwch y mater tywyll ac mae’r cord yn suddo.',
+  gc:'<b>Sagittarius A*</b>: y twll du yng nghanol y Galaeth, pedair miliwn o heuliau, 26,000 o flynyddoedd golau o adref.',
+  home:'<b>Adref.</b> Mae’r planedau’n canu eto.'},
+ hera:'Hera ydw i. Y cylch llaethog ar draws eich awyr yw fy llaeth a gollwyd: can mil o filiynau o heuliau, yn troi unwaith bob dau gant tri deg miliwn o flynyddoedd.',
+ sgra:'Sagittarius A*',crab:'Pwlsar y Cranc',helioLbl:'Heliopaws',lightOf:'golau'},
+de:{inter:'Interstellar',helio:'Heliopause',oort:'Oortsche Wolke',acen:'Alpha Centauri',sirius:'Sirius',vela:'Vela-Pulsar',gc:'Galaktisches Zentrum',above:'Über der Milchstraße',home:'Heimat',beyond:'Interstellar ▶',
+ shipSpeed:'Schiffsgeschwindigkeit',dop:'Doppler-Übertreibung',dm:'Dunkle Materie (die flache Rotationskurve spielt die Obertonreihe)',
+ course:'Kurs auf {n}',arrived:'Angekommen: {n}',toward:'Unterwegs nach <em>{n}</em>',nearest:'Nächster Stern: <em>{n}</em>',sun:'die Sonne',
+ nm:{helio:'die Heliopause',oort:'die Oortsche Wolke',acen:'Alpha Centauri',sirius:'Sirius',vela:'der Vela-Pulsar',gc:'das Galaktische Zentrum',above:'ein Blick über die Milchstraße',home:'die Heimat'},
+ fromSun:'{d} von der Sonne',light:'Licht von zu Hause braucht {t}',au:'AE',ly:'Lj',pc:'pc',kpc:'kpc',lsec:'{n} Lichtsekunden',lmin:'{n} Lichtminuten',lhr:'{n} Lichtstunden',lday:'{n} Lichttage',lyr:'{n} Jahre',lyr1:'ein Jahr',
+ kms:'{n} km/s',xc:'{n}× Lichtgeschwindigkeit',lys:'{n} Lj / s',pcs:'{n} pc / s',kpcs:'{n} kpc / s',
+ cap:{helio:'<b>Die Heliopause</b>: Hier weicht der Sonnenwind dem interstellaren Raum. Voyager 1 überquerte sie 2012 bei 121,6 AE; das Rauschen des Sonnenwinds endet hier.',
+  oort:'<b>Die Oortsche Wolke</b>: eine dünne Schale aus Kometen, 2 000 bis 100 000 AE von der Sonne, die Heimat der langperiodischen Kometen.',
+  inter:'<b>Interstellarer Raum.</b> Die Sonne ist jetzt ein Stern hinter dir und singt ihren Wien-Ton (543 Hz) wie die anderen.',
+  acen:'<b>Alpha Centauri</b>: drei Sonnen, die nächsten zu unserer. Ihr Licht braucht 4,4 Jahre nach Hause.',
+  sirius:'<b>Sirius</b>, der hellste Stern unseres Himmels: ein heißer weißer A-Stern mit einem Weißen Zwerg als Begleiter, 8,6 Lichtjahre von zu Hause.',
+  vela:'<b>Der Vela-Pulsar</b>: ein Neutronenstern, der sich elfmal pro Sekunde dreht, die Asche einer Supernova vor 11 000 Jahren. Seine Pulse sind zu hören, wie sie sind.',
+  disc:'<b>Die Scheibe</b> der Milchstraße wird verlassen. Unter dir die Spiralarme nach Reid et al. (2019).',
+  whole:'<b>Die ganze Milchstraße</b>: der Balken, die Arme und Sagittarius A* im Zentrum. Ihre flache Rotationskurve spielt die Obertonreihe; schalte die Dunkle Materie ab, und der Akkord sackt ab.',
+  gc:'<b>Sagittarius A*</b>: das Schwarze Loch im Zentrum der Galaxis, vier Millionen Sonnen, 26 000 Lichtjahre von zu Hause.',
+  home:'<b>Zu Hause.</b> Die Planeten singen wieder.'},
+ hera:'Ich bin Hera. Der milchige Kreis über deinem Himmel ist meine verschüttete Milch: hunderttausend Millionen Sonnen, die sich einmal in zweihundertdreißig Millionen Jahren drehen.',
+ sgra:'Sagittarius A*',crab:'Krebs-Pulsar',helioLbl:'Heliopause',lightOf:'Licht'},
+es:{inter:'Interestelar',helio:'Heliopausa',oort:'Nube de Oort',acen:'Alfa Centauri',sirius:'Sirio',vela:'Púlsar de Vela',gc:'Centro galáctico',above:'Sobre la Vía Láctea',home:'Casa',beyond:'Interestelar ▶',
+ shipSpeed:'Velocidad de la nave',dop:'Exageración Doppler',dm:'Materia oscura (la curva de rotación plana toca la serie armónica)',
+ course:'Rumbo a {n}',arrived:'Llegada: {n}',toward:'Viajando a <em>{n}</em>',nearest:'Estrella más cercana: <em>{n}</em>',sun:'el Sol',
+ nm:{helio:'la heliopausa',oort:'la nube de Oort',acen:'Alfa Centauri',sirius:'Sirio',vela:'el púlsar de Vela',gc:'el centro galáctico',above:'una vista sobre la Vía Láctea',home:'casa'},
+ fromSun:'{d} del Sol',light:'la luz de casa tarda {t}',au:'UA',ly:'al',pc:'pc',kpc:'kpc',lsec:'{n} segundos luz',lmin:'{n} minutos luz',lhr:'{n} horas luz',lday:'{n} días luz',lyr:'{n} años',lyr1:'un año',
+ kms:'{n} km/s',xc:'{n}× la velocidad de la luz',lys:'{n} al / s',pcs:'{n} pc / s',kpcs:'{n} kpc / s',
+ cap:{helio:'<b>La heliopausa</b>: donde el viento del Sol cede ante el espacio interestelar. La Voyager 1 la cruzó en 2012, a 121,6 UA; aquí cesa el siseo del viento solar.',
+  oort:'<b>La nube de Oort</b>: una tenue capa de cometas, de 2 000 a 100 000 UA del Sol, de donde vienen los cometas de periodo largo.',
+  inter:'<b>Espacio interestelar.</b> El Sol es ahora una estrella a tu espalda, que canta su nota de Wien (543 Hz) como las demás.',
+  acen:'<b>Alfa Centauri</b>: tres soles, los más cercanos al nuestro. Su luz tarda 4,4 años en llegar a casa.',
+  sirius:'<b>Sirio</b>, la estrella más brillante de nuestro cielo: una estrella A blanca y caliente con una enana blanca por compañera, a 8,6 años luz de casa.',
+  vela:'<b>El púlsar de Vela</b>: una estrella de neutrones que gira once veces por segundo, la ceniza de una supernova de hace 11 000 años. Sus pulsos se oyen tal como son.',
+  disc:'<b>Saliendo del disco</b> de la Vía Láctea. Debajo de ti, los brazos espirales trazados por Reid et al. (2019).',
+  whole:'<b>Toda la Vía Láctea</b>: la barra, los brazos y Sagitario A* en el centro. Su curva de rotación plana toca la serie armónica; apaga la materia oscura y el acorde se hunde.',
+  gc:'<b>Sagitario A*</b>: el agujero negro del centro de la Galaxia, cuatro millones de soles, a 26 000 años luz de casa.',
+  home:'<b>En casa.</b> Los planetas cantan de nuevo.'},
+ hera:'Soy Hera. El círculo lechoso que cruza tu cielo es mi leche derramada: cien mil millones de soles, que giran una vez cada doscientos treinta millones de años.',
+ sgra:'Sagitario A*',crab:'Púlsar del Cangrejo',helioLbl:'Heliopausa',lightOf:'luz'},
+fr:{inter:'Interstellaire',helio:'Héliopause',oort:'Nuage de Oort',acen:'Alpha du Centaure',sirius:'Sirius',vela:'Pulsar des Voiles',gc:'Centre galactique',above:'Au-dessus de la Voie lactée',home:'Maison',beyond:'Interstellaire ▶',
+ shipSpeed:'Vitesse du vaisseau',dop:'Exagération Doppler',dm:'Matière noire (la courbe de rotation plate joue la série harmonique)',
+ course:'Cap sur {n}',arrived:'Arrivée : {n}',toward:'En route vers <em>{n}</em>',nearest:'Étoile la plus proche : <em>{n}</em>',sun:'le Soleil',
+ nm:{helio:'l’héliopause',oort:'le nuage de Oort',acen:'Alpha du Centaure',sirius:'Sirius',vela:'le pulsar des Voiles',gc:'le centre galactique',above:'une vue au-dessus de la Voie lactée',home:'la maison'},
+ fromSun:'{d} du Soleil',light:'la lumière de la maison met {t}',au:'UA',ly:'al',pc:'pc',kpc:'kpc',lsec:'{n} secondes-lumière',lmin:'{n} minutes-lumière',lhr:'{n} heures-lumière',lday:'{n} jours-lumière',lyr:'{n} ans',lyr1:'un an',
+ kms:'{n} km/s',xc:'{n}× la vitesse de la lumière',lys:'{n} al / s',pcs:'{n} pc / s',kpcs:'{n} kpc / s',
+ cap:{helio:'<b>L’héliopause</b> : là où le vent du Soleil cède la place à l’espace interstellaire. Voyager 1 l’a franchie en 2012, à 121,6 UA ; le souffle du vent solaire s’arrête ici.',
+  oort:'<b>Le nuage de Oort</b> : une coquille clairsemée de comètes, de 2 000 à 100 000 UA du Soleil, d’où viennent les comètes à longue période.',
+  inter:'<b>L’espace interstellaire.</b> Le Soleil n’est plus qu’une étoile derrière vous, qui chante sa note de Wien (543 Hz) comme les autres.',
+  acen:'<b>Alpha du Centaure</b> : trois soleils, les plus proches du nôtre. Leur lumière met 4,4 ans à nous parvenir.',
+  sirius:'<b>Sirius</b>, l’étoile la plus brillante de notre ciel : une étoile A blanche et chaude accompagnée d’une naine blanche, à 8,6 années-lumière de la maison.',
+  vela:'<b>Le pulsar des Voiles</b> : une étoile à neutrons qui tourne onze fois par seconde, la cendre d’une supernova d’il y a 11 000 ans. Ses impulsions s’entendent telles quelles.',
+  disc:'<b>Sortie du disque</b> de la Voie lactée. Sous vous, les bras spiraux tracés par Reid et al. (2019).',
+  whole:'<b>Toute la Voie lactée</b> : la barre, les bras et Sagittarius A* au centre. Sa courbe de rotation plate joue la série harmonique ; coupez la matière noire et l’accord s’affaisse.',
+  gc:'<b>Sagittarius A*</b> : le trou noir au centre de la Galaxie, quatre millions de soleils, à 26 000 années-lumière de la maison.',
+  home:'<b>La maison.</b> Les planètes chantent de nouveau.'},
+ hera:'Je suis Héra. Le cercle laiteux qui traverse votre ciel est mon lait répandu : cent mille millions de soleils, qui tournent une fois en deux cent trente millions d’années.',
+ sgra:'Sagittarius A*',crab:'Pulsar du Crabe',helioLbl:'Héliopause',lightOf:'lumière'},
+it:{inter:'Interstellare',helio:'Eliopausa',oort:'Nube di Oort',acen:'Alfa Centauri',sirius:'Sirio',vela:'Pulsar delle Vele',gc:'Centro galattico',above:'Sopra la Via Lattea',home:'Casa',beyond:'Interstellare ▶',
+ shipSpeed:'Velocità della nave',dop:'Esagerazione Doppler',dm:'Materia oscura (la curva di rotazione piatta suona la serie armonica)',
+ course:'Rotta verso {n}',arrived:'Arrivo: {n}',toward:'In viaggio verso <em>{n}</em>',nearest:'Stella più vicina: <em>{n}</em>',sun:'il Sole',
+ nm:{helio:'l’eliopausa',oort:'la nube di Oort',acen:'Alfa Centauri',sirius:'Sirio',vela:'la pulsar delle Vele',gc:'il centro galattico',above:'una vista sopra la Via Lattea',home:'casa'},
+ fromSun:'{d} dal Sole',light:'la luce da casa impiega {t}',au:'UA',ly:'al',pc:'pc',kpc:'kpc',lsec:'{n} secondi luce',lmin:'{n} minuti luce',lhr:'{n} ore luce',lday:'{n} giorni luce',lyr:'{n} anni',lyr1:'un anno',
+ kms:'{n} km/s',xc:'{n}× la velocità della luce',lys:'{n} al / s',pcs:'{n} pc / s',kpcs:'{n} kpc / s',
+ cap:{helio:'<b>L’eliopausa</b>: dove il vento del Sole cede allo spazio interstellare. La Voyager 1 l’ha attraversata nel 2012, a 121,6 UA; qui il fruscio del vento solare si spegne.',
+  oort:'<b>La nube di Oort</b>: un guscio rado di comete, da 2 000 a 100 000 UA dal Sole, da cui vengono le comete di lungo periodo.',
+  inter:'<b>Spazio interstellare.</b> Il Sole è ormai una stella alle tue spalle, che canta la sua nota di Wien (543 Hz) come le altre.',
+  acen:'<b>Alfa Centauri</b>: tre soli, i più vicini al nostro. La loro luce impiega 4,4 anni per arrivare a casa.',
+  sirius:'<b>Sirio</b>, la stella più luminosa del nostro cielo: una calda stella A bianca con una nana bianca per compagna, a 8,6 anni luce da casa.',
+  vela:'<b>La pulsar delle Vele</b>: una stella di neutroni che ruota undici volte al secondo, la cenere di una supernova di 11 000 anni fa. I suoi impulsi si sentono così come sono.',
+  disc:'<b>Si lascia il disco</b> della Via Lattea. Sotto di te, i bracci a spirale tracciati da Reid et al. (2019).',
+  whole:'<b>Tutta la Via Lattea</b>: la barra, i bracci e Sagittarius A* al centro. La sua curva di rotazione piatta suona la serie armonica; spegni la materia oscura e l’accordo si affloscia.',
+  gc:'<b>Sagittarius A*</b>: il buco nero al centro della Galassia, quattro milioni di soli, a 26 000 anni luce da casa.',
+  home:'<b>Casa.</b> I pianeti cantano di nuovo.'},
+ hera:'Sono Era. Il cerchio latteo che attraversa il tuo cielo è il mio latte versato: centomila milioni di soli, che girano una volta ogni duecentotrenta milioni di anni.',
+ sgra:'Sagittarius A*',crab:'Pulsar del Granchio',helioLbl:'Eliopausa',lightOf:'luce'},
+zh:{inter:'星际',helio:'日球层顶',oort:'奥尔特云',acen:'半人马座α',sirius:'天狼星',vela:'船帆座脉冲星',gc:'银河系中心',above:'银河系上方',home:'回家',beyond:'星际 ▶',
+ shipSpeed:'飞船速度',dop:'多普勒放大',dm:'暗物质（平坦的自转曲线奏出泛音列）',
+ course:'设定航向：{n}',arrived:'到达：{n}',toward:'正飞往 <em>{n}</em>',nearest:'最近的恒星：<em>{n}</em>',sun:'太阳',
+ nm:{helio:'日球层顶',oort:'奥尔特云',acen:'半人马座α',sirius:'天狼星',vela:'船帆座脉冲星',gc:'银河系中心',above:'银河系上方',home:'家'},
+ fromSun:'距太阳 {d}',light:'来自家园的光需要 {t}',au:'AU',ly:'光年',pc:'pc',kpc:'kpc',lsec:'{n} 光秒',lmin:'{n} 光分',lhr:'{n} 光时',lday:'{n} 光日',lyr:'{n} 年',lyr1:'一年',
+ kms:'{n} km/s',xc:'{n}× 光速',lys:'{n} 光年/秒',pcs:'{n} pc/秒',kpcs:'{n} kpc/秒',
+ cap:{helio:'<b>日球层顶</b>：太阳风在此让位于星际空间。旅行者1号于2012年在121.6 AU处穿越了它；太阳风的嘶声到此为止。',
+  oort:'<b>奥尔特云</b>：稀疏的彗星壳层，距太阳2 000到100 000 AU，长周期彗星的故乡。',
+  inter:'<b>星际空间。</b>太阳如今已是你身后的一颗恒星，和其他恒星一样唱着它的维恩音（543 Hz）。',
+  acen:'<b>半人马座α</b>：三颗太阳，离我们最近的恒星。它们的光要走4.4年才到家。',
+  sirius:'<b>天狼星</b>，我们天空中最亮的恒星：一颗炽热的白色A型星，带着一颗白矮星伴星，距家8.6光年。',
+  vela:'<b>船帆座脉冲星</b>：每秒自转十一次的中子星，11 000年前一次超新星的余烬。它的脉冲原样可闻。',
+  disc:'<b>离开银河系的盘面。</b>你的下方，是Reid等人（2019）描绘的旋臂。',
+  whole:'<b>整个银河系</b>：棒、旋臂和中心的人马座A*。它平坦的自转曲线奏出泛音列；关掉暗物质，和弦便会下沉。',
+  gc:'<b>人马座A*</b>：银河系中心的黑洞，四百万个太阳的质量，距家26 000光年。',
+  home:'<b>到家了。</b>行星再次歌唱。'},
+ hera:'我是赫拉。横过你天空的乳白圆环，是我洒落的乳汁：一千亿颗太阳，每两亿三千万年转一圈。',
+ sgra:'人马座A*',crab:'蟹状星云脉冲星',helioLbl:'日球层顶',lightOf:'光'},
+ja:{inter:'恒星間',helio:'太陽圏界面',oort:'オールトの雲',acen:'アルファ・ケンタウリ',sirius:'シリウス',vela:'ほ座パルサー',gc:'銀河中心',above:'天の川の上空',home:'帰還',beyond:'恒星間 ▶',
+ shipSpeed:'船の速さ',dop:'ドップラー誇張',dm:'暗黒物質（平坦な回転曲線が倍音列を奏でる）',
+ course:'{n}へ針路を設定',arrived:'到着：{n}',toward:'<em>{n}</em>へ向かっています',nearest:'最も近い恒星：<em>{n}</em>',sun:'太陽',
+ nm:{helio:'太陽圏界面',oort:'オールトの雲',acen:'アルファ・ケンタウリ',sirius:'シリウス',vela:'ほ座パルサー',gc:'銀河中心',above:'天の川の上空',home:'故郷'},
+ fromSun:'太陽から {d}',light:'故郷からの光は {t}かかります',au:'AU',ly:'光年',pc:'pc',kpc:'kpc',lsec:'{n} 光秒',lmin:'{n} 光分',lhr:'{n} 光時',lday:'{n} 光日',lyr:'{n} 年',lyr1:'1 年',
+ kms:'{n} km/s',xc:'光速の {n} 倍',lys:'{n} 光年/秒',pcs:'{n} pc/秒',kpcs:'{n} kpc/秒',
+ cap:{helio:'<b>太陽圏界面</b>：太陽風が星間空間に道を譲る場所。ボイジャー1号は2012年、121.6 AUでここを越えました。太陽風のヒスノイズはここで止まります。',
+  oort:'<b>オールトの雲</b>：太陽から2,000〜100,000 AUに広がるまばらな彗星の殻。長周期彗星の故郷です。',
+  inter:'<b>星間空間。</b>太陽はもう背後の一つの星となり、ほかの星と同じくウィーンの音（543 Hz）を歌っています。',
+  acen:'<b>アルファ・ケンタウリ</b>：三つの太陽、私たちの太陽に最も近い星。その光は故郷まで4.4年かかります。',
+  sirius:'<b>シリウス</b>、私たちの空で最も明るい星：白色矮星を伴う高温の白いA型星、故郷から8.6光年。',
+  vela:'<b>ほ座パルサー</b>：毎秒11回転する中性子星、11,000年前の超新星の燃えかす。そのパルスはありのままに聞こえます。',
+  disc:'<b>天の川の円盤を離れます。</b>眼下には、Reidら（2019）がたどった渦状腕。',
+  whole:'<b>天の川の全景</b>：棒、腕、そして中心のいて座A*。平坦な回転曲線が倍音列を奏でます。暗黒物質を切ると和音は沈みます。',
+  gc:'<b>いて座A*</b>：銀河中心のブラックホール、太陽400万個分、故郷から26,000光年。',
+  home:'<b>故郷。</b>惑星たちが再び歌います。'},
+ hera:'私はヘラ。あなたの空を横切る乳白の環は、私がこぼした乳です。千億の太陽が、二億三千万年に一度めぐります。',
+ sgra:'いて座A*',crab:'かにパルサー',helioLbl:'太陽圏界面',lightOf:'光'},
+vi:{inter:'Liên sao',helio:'Nhật quyển',oort:'Đám mây Oort',acen:'Alpha Centauri',sirius:'Sirius',vela:'Sao xung Vela',gc:'Tâm Ngân Hà',above:'Trên Ngân Hà',home:'Về nhà',beyond:'Liên sao ▶',
+ shipSpeed:'Tốc độ tàu',dop:'Phóng đại Doppler',dm:'Vật chất tối (đường cong quay phẳng chơi chuỗi họa âm)',
+ course:'Đặt hành trình tới {n}',arrived:'Đã tới: {n}',toward:'Đang bay tới <em>{n}</em>',nearest:'Ngôi sao gần nhất: <em>{n}</em>',sun:'Mặt Trời',
+ nm:{helio:'ranh giới nhật quyển',oort:'đám mây Oort',acen:'Alpha Centauri',sirius:'Sirius',vela:'sao xung Vela',gc:'tâm Ngân Hà',above:'điểm nhìn trên Ngân Hà',home:'nhà'},
+ fromSun:'{d} từ Mặt Trời',light:'ánh sáng từ nhà mất {t}',au:'AU',ly:'nas',pc:'pc',kpc:'kpc',lsec:'{n} giây ánh sáng',lmin:'{n} phút ánh sáng',lhr:'{n} giờ ánh sáng',lday:'{n} ngày ánh sáng',lyr:'{n} năm',lyr1:'một năm',
+ kms:'{n} km/s',xc:'{n}× tốc độ ánh sáng',lys:'{n} nas / s',pcs:'{n} pc / s',kpcs:'{n} kpc / s',
+ cap:{helio:'<b>Ranh giới nhật quyển</b>: nơi gió Mặt Trời nhường chỗ cho không gian liên sao. Voyager 1 vượt qua đây năm 2012, ở 121,6 AU; tiếng rít của gió Mặt Trời dừng lại ở đây.',
+  oort:'<b>Đám mây Oort</b>: một lớp vỏ sao chổi thưa thớt, cách Mặt Trời 2 000 đến 100 000 AU, quê hương của các sao chổi chu kỳ dài.',
+  inter:'<b>Không gian liên sao.</b> Mặt Trời giờ là một ngôi sao phía sau bạn, hát nốt Wien của nó (543 Hz) như những ngôi sao khác.',
+  acen:'<b>Alpha Centauri</b>: ba mặt trời, gần nhất với mặt trời của chúng ta. Ánh sáng của chúng mất 4,4 năm để về tới nhà.',
+  sirius:'<b>Sirius</b>, ngôi sao sáng nhất trên bầu trời của chúng ta: một sao A trắng nóng với một sao lùn trắng đồng hành, cách nhà 8,6 năm ánh sáng.',
+  vela:'<b>Sao xung Vela</b>: một sao neutron quay mười một vòng mỗi giây, tro tàn của một siêu tân tinh 11 000 năm trước. Các xung của nó được nghe đúng như thật.',
+  disc:'<b>Rời khỏi đĩa</b> Ngân Hà. Bên dưới bạn là các nhánh xoắn ốc theo Reid và cộng sự (2019).',
+  whole:'<b>Toàn bộ Ngân Hà</b>: thanh, các nhánh và Sagittarius A* ở tâm. Đường cong quay phẳng của nó chơi chuỗi họa âm; tắt vật chất tối và hợp âm sẽ chùng xuống.',
+  gc:'<b>Sagittarius A*</b>: hố đen ở tâm Ngân Hà, bốn triệu mặt trời, cách nhà 26 000 năm ánh sáng.',
+  home:'<b>Về nhà.</b> Các hành tinh lại cất tiếng hát.'},
+ hera:'Ta là Hera. Vòng tròn trắng sữa vắt ngang bầu trời của ngươi là dòng sữa ta làm đổ: một trăm nghìn triệu mặt trời, quay một vòng trong hai trăm ba mươi triệu năm.',
+ sgra:'Sagittarius A*',crab:'Sao xung Con Cua',helioLbl:'Nhật quyển',lightOf:'ánh sáng'},
+bg:{inter:'Междузвездно',helio:'Хелиопауза',oort:'Облак на Оорт',acen:'Алфа Кентавър',sirius:'Сириус',vela:'Пулсарът Вела',gc:'Център на Галактиката',above:'Над Млечния път',home:'У дома',beyond:'Междузвездно ▶',
+ shipSpeed:'Скорост на кораба',dop:'Преувеличен Доплер',dm:'Тъмна материя (плоската крива на въртене свири хармоничния ред)',
+ course:'Курс към {n}',arrived:'Пристигнахме: {n}',toward:'Пътуване към <em>{n}</em>',nearest:'Най-близка звезда: <em>{n}</em>',sun:'Слънцето',
+ nm:{helio:'хелиопаузата',oort:'облака на Оорт',acen:'Алфа Кентавър',sirius:'Сириус',vela:'пулсара Вела',gc:'центъра на Галактиката',above:'изглед над Млечния път',home:'дома'},
+ fromSun:'{d} от Слънцето',light:'светлината от дома пътува {t}',au:'а.е.',ly:'св.г.',pc:'pc',kpc:'kpc',lsec:'{n} светлинни секунди',lmin:'{n} светлинни минути',lhr:'{n} светлинни часа',lday:'{n} светлинни дни',lyr:'{n} години',lyr1:'една година',
+ kms:'{n} км/с',xc:'{n}× скоростта на светлината',lys:'{n} св.г. / с',pcs:'{n} pc / с',kpcs:'{n} kpc / с',
+ cap:{helio:'<b>Хелиопаузата</b>: където слънчевият вятър отстъпва пред междузвездното пространство. „Вояджър 1“ я прекоси през 2012 г. на 121,6 а.е.; тук съскането на слънчевия вятър спира.',
+  oort:'<b>Облакът на Оорт</b>: рядка обвивка от комети на 2 000 до 100 000 а.е. от Слънцето, откъдето идват дългопериодичните комети.',
+  inter:'<b>Междузвездно пространство.</b> Слънцето вече е звезда зад теб и пее своята нота на Вин (543 Hz) като другите.',
+  acen:'<b>Алфа Кентавър</b>: три слънца, най-близките до нашето. Светлината им пътува 4,4 години до дома.',
+  sirius:'<b>Сириус</b>, най-ярката звезда в нашето небе: гореща бяла звезда от клас A с бяло джудже за спътник, на 8,6 светлинни години от дома.',
+  vela:'<b>Пулсарът Вела</b>: неутронна звезда, която се върти единадесет пъти в секунда, пепелта на свръхнова отпреди 11 000 години. Импулсите му се чуват такива, каквито са.',
+  disc:'<b>Напускаме диска</b> на Млечния път. Под теб са спиралните ръкави според Рийд и др. (2019).',
+  whole:'<b>Целият Млечен път</b>: барът, ръкавите и Стрелец A* в центъра. Плоската му крива на въртене свири хармоничния ред; изключи тъмната материя и акордът увисва.',
+  gc:'<b>Стрелец A*</b>: черната дупка в центъра на Галактиката, четири милиона слънца, на 26 000 светлинни години от дома.',
+  home:'<b>У дома.</b> Планетите отново пеят.'},
+ hera:'Аз съм Хера. Млечният кръг през твоето небе е моето разлято мляко: сто хиляди милиона слънца, които се завъртат веднъж на двеста и тридесет милиона години.',
+ sgra:'Стрелец A*',crab:'Пулсарът в Рака',helioLbl:'Хелиопауза',lightOf:'светлина'},
+pt:{inter:'Interestelar',helio:'Heliopausa',oort:'Nuvem de Oort',acen:'Alfa Centauri',sirius:'Sirius',vela:'Pulsar de Vela',gc:'Centro galáctico',above:'Acima da Via Láctea',home:'Casa',beyond:'Interestelar ▶',
+ shipSpeed:'Velocidade da nave',dop:'Exagero Doppler',dm:'Matéria escura (a curva de rotação plana toca a série harmônica)',
+ course:'Rumo a {n}',arrived:'Chegada: {n}',toward:'Viajando para <em>{n}</em>',nearest:'Estrela mais próxima: <em>{n}</em>',sun:'o Sol',
+ nm:{helio:'a heliopausa',oort:'a nuvem de Oort',acen:'Alfa Centauri',sirius:'Sirius',vela:'o pulsar de Vela',gc:'o centro galáctico',above:'uma vista acima da Via Láctea',home:'casa'},
+ fromSun:'{d} do Sol',light:'a luz de casa leva {t}',au:'UA',ly:'al',pc:'pc',kpc:'kpc',lsec:'{n} segundos-luz',lmin:'{n} minutos-luz',lhr:'{n} horas-luz',lday:'{n} dias-luz',lyr:'{n} anos',lyr1:'um ano',
+ kms:'{n} km/s',xc:'{n}× a velocidade da luz',lys:'{n} al / s',pcs:'{n} pc / s',kpcs:'{n} kpc / s',
+ cap:{helio:'<b>A heliopausa</b>: onde o vento do Sol cede lugar ao espaço interestelar. A Voyager 1 a cruzou em 2012, a 121,6 UA; o chiado do vento solar para aqui.',
+  oort:'<b>A nuvem de Oort</b>: uma casca esparsa de cometas, de 2 000 a 100 000 UA do Sol, de onde vêm os cometas de longo período.',
+  inter:'<b>Espaço interestelar.</b> O Sol agora é uma estrela atrás de você, cantando sua nota de Wien (543 Hz) como as outras.',
+  acen:'<b>Alfa Centauri</b>: três sóis, os mais próximos do nosso. A luz deles leva 4,4 anos para chegar em casa.',
+  sirius:'<b>Sirius</b>, a estrela mais brilhante do nosso céu: uma estrela A branca e quente com uma anã branca como companheira, a 8,6 anos-luz de casa.',
+  vela:'<b>O pulsar de Vela</b>: uma estrela de nêutrons que gira onze vezes por segundo, a cinza de uma supernova de 11 000 anos atrás. Seus pulsos são ouvidos tal como são.',
+  disc:'<b>Saindo do disco</b> da Via Láctea. Abaixo de você, os braços espirais traçados por Reid et al. (2019).',
+  whole:'<b>Toda a Via Láctea</b>: a barra, os braços e Sagitário A* no centro. Sua curva de rotação plana toca a série harmônica; desligue a matéria escura e o acorde afunda.',
+  gc:'<b>Sagitário A*</b>: o buraco negro no centro da Galáxia, quatro milhões de sóis, a 26 000 anos-luz de casa.',
+  home:'<b>Em casa.</b> Os planetas cantam de novo.'},
+ hera:'Eu sou Hera. O círculo leitoso que cruza o seu céu é o meu leite derramado: cem mil milhões de sóis, girando uma vez a cada duzentos e trinta milhões de anos.',
+ sgra:'Sagitário A*',crab:'Pulsar do Caranguejo',helioLbl:'Heliopausa',lightOf:'luz'}
+};/*FLYG-TEXTS-END*/
+const deep=(a,b)=>{const o={};for(const k in a)o[k]=(b&&typeof a[k]==='object'&&typeof b[k]==='object')?deep(a[k],b[k]):(b&&b[k]!==undefined?b[k]:a[k]);return o};
+const TX=deep(TX_ALL.en,TX_ALL[LANG]||{});
+
+/* ---------- state ---------- */
+const G=()=>window.GALAXY;
+const ST={ready:false,gf:0,sf:1,gv:0,r:0,dSunPc:0,zPc:0,throttle:1,exag:1,dm:true,warp:1,seen:{},capT:0,nearStar:null,nearStarAU:1e30,nearStarIdx:-1,spokeHera:false,
+  lastSolar:{},large:0,discLeft:false,wholeSeen:false,labelsFar:false,lastScan:0,caps:[]};
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+try{const t=+LS.get('mots.fly.throttle');if(t>0)ST.throttle=t;const x=+LS.get('mots.fly.exag');if(x>=1)ST.exag=x;if(LS.get('mots.fly.dm')==='0')ST.dm=false}catch(e){}
+const QUAL=()=>{try{return window.MOTS&&MOTS.quality?MOTS.quality():''}catch(e){return ''}};
+const LOW=MOBILE||(typeof LOWPOWER!=='undefined'&&LOWPOWER);
+
+/* ---------- frames: galactic pc ↔ the scene's axes (ecliptic x, z, −y, as fly3d.js) ---------- */
+const TMPV={x:0,y:0,z:0},TMPE={x:0,y:0,z:0},TMPG={x:0,y:0,z:0};
+function galToScene(x,y,z,out){TMPV.x=x;TMPV.y=y;TMPV.z=z;const e=G().galToEcl(TMPV,TMPE);out.x=e.x;out.y=e.z;out.z=-e.y;return out}
+const LPOS={x:0,y:0,z:0};   // the ship in heliocentric galactic pc
+function shipGal(){TMPE.x=ship.pos.x/AU_PC;TMPE.y=-ship.pos.z/AU_PC;TMPE.z=ship.pos.y/AU_PC;G().eclToGal(TMPE,LPOS);return LPOS}
+
+/* ---------- the galactic scene ---------- */
+const gscene=new THREE.Scene();
+const gcam=new THREE.PerspectiveCamera(62,1,2e-5,3e5);
+let STARS=null,MW=null,OORT=null,PULS=null,GCGLOW=null,HELIO=null,HELIO2=null;
+// a star's colour from its temperature (a black-body fit, lifted a little toward white so the faint ones still read)
+function bbRGB(T){const t=clamp(T,1000,40000)/100;let r,g,b;
+  r=t<=66?255:329.698727446*Math.pow(t-60,-0.1332047592);g=t<=66?99.4708025861*Math.log(t)-161.1195681661:288.1221695283*Math.pow(t-60,-0.0755148492);b=t>=66?255:t<=19?0:138.5177312231*Math.log(t-10)-305.0447927307;
+  r=clamp(r,0,255)/255;g=clamp(g,0,255)/255;b=clamp(b,0,255)/255;const m=Math.max(r,g,b)||1;r/=m;g/=m;b/=m;return [r*.8+.2,g*.8+.2,b*.8+.2]}
+const STAR_VS=`attribute vec3 col;attribute float absMag;uniform float uPx;uniform float uFade;varying vec3 vC;varying float vA;
+void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);float d=max(length(mv.xyz),1e-7);float m=absMag+2.1714724*log(d/10.0);
+float s=clamp(2.2*pow(10.0,-0.1*(m-2.0)),1.3,70.0);vA=clamp(1.0-(m-3.0)/3.5,0.22,1.0)*uFade;vC=col;gl_PointSize=s*uPx;gl_Position=projectionMatrix*mv;}`;
+const STAR_FS=`varying vec3 vC;varying float vA;void main(){vec2 q=gl_PointCoord-0.5;float r2=dot(q,q)*4.0;if(r2>1.0)discard;float a=exp(-r2*3.2)*0.9+0.5*max(0.0,1.0-r2*9.0);gl_FragColor=vec4(vC*a*vA,a*vA);}`;
+const MW_VS=`attribute vec4 col;uniform float uPx;uniform float uFade;uniform float uSize;uniform float uBoost;varying vec4 vC;
+void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);float d=max(length(mv.xyz),1.0);float s=clamp(uSize*2600.0/d,1.0+0.9*uBoost,7.0);float near=smoothstep(60.0,900.0,d);vC=vec4(col.rgb,min(1.0,col.a*(1.0+0.7*uBoost))*near*uFade);gl_PointSize=s*uPx;gl_Position=projectionMatrix*mv;}`;
+const MW_FS=`varying vec4 vC;void main(){vec2 q=gl_PointCoord-0.5;float r2=dot(q,q)*4.0;if(r2>1.0)discard;float a=exp(-r2*2.5)*vC.a;gl_FragColor=vec4(vC.rgb*a,a);}`;
+function buildStars(){const g=G(),T=g.tables(),n=T.n,pos=new Float32Array(n*3),col=new Float32Array(n*3),mag=new Float32Array(n),v={x:0,y:0,z:0};
+  for(let i=0;i<n;i++){galToScene(T.X[i],T.Y[i],T.Z[i],v);pos[i*3]=v.x;pos[i*3+1]=v.y;pos[i*3+2]=v.z;const row=T.rows[i],c=bbRGB(row.T||5772);col[i*3]=c[0];col[i*3+1]=c[1];col[i*3+2]=c[2];mag[i]=T.M[i]}
+  if(STARS){gscene.remove(STARS);STARS.geometry.dispose()}
+  const gm=new THREE.BufferGeometry();gm.setAttribute('position',new THREE.BufferAttribute(pos,3));gm.setAttribute('col',new THREE.BufferAttribute(col,3));gm.setAttribute('absMag',new THREE.BufferAttribute(mag,1));
+  const mat=STARS?STARS.material:new THREE.ShaderMaterial({uniforms:{uPx:{value:renderer.getPixelRatio()},uFade:{value:0}},vertexShader:STAR_VS,fragmentShader:STAR_FS,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
+  STARS=new THREE.Points(gm,mat);STARS.frustumCulled=false;gscene.add(STARS)}
+function buildMilkyWay(){const g=G(),q=QUAL(),N=Math.round((q==='eco'?9000:LOW?16000:q==='high'?90000:60000)*mwScale),rnd=g.rng(2019),gauss=()=>{let u=0;for(let k=0;k<4;k++)u+=rnd();return (u-2)*1.1};
+  const pos=new Float32Array(N*3),col=new Float32Array(N*4),v={x:0,y:0,z:0},gc={R:0,beta:0,z:0},h={x:0,y:0,z:0};
+  const arms=g.arms().filter(a=>a.id!=='3kpc'),W={norma:.7,sctcen:1,sgrcar:.85,local:.3,perseus:1,outer:.55};let wsum=0;arms.forEach(a=>wsum+=W[a.id]||.5);
+  const K=g.K,barA=27*Math.PI/180;let i=0;
+  const put=(R,beta,zpc,r,gg,b,a)=>{gc.R=R;gc.beta=beta;gc.z=zpc;g.fromGC(gc,h);galToScene(h.x,h.y,h.z,v);pos[i*3]=v.x;pos[i*3+1]=v.y;pos[i*3+2]=v.z;col[i*4]=r;col[i*4+1]=gg;col[i*4+2]=b;col[i*4+3]=a;i++};
+  const nArm=Math.round(N*.58),nDisc=Math.round(N*.26),nBulge=N-nArm-nDisc;
+  for(let k=0;k<nArm;k++){let u=rnd()*wsum,a=arms[0];for(const x of arms){u-=W[x.id]||.5;if(u<=0){a=x;break}}
+    const b0=a.beta_range[0]-55,b1=a.beta_range[1]+55,beta=b0+rnd()*(b1-b0);let R=g.armRadius(a,beta);if(R<2.2||R>16.5){k--;continue}
+    R+=gauss()*(.42+.04*Math.max(0,R-6));const z=gauss()*(95+18*Math.max(0,R-7)*Math.max(0,R-7)/4);
+    const t=rnd(),bright=.55+.45*rnd();
+    if(t<.68)put(R,beta,z,.70*bright,.80*bright,1.0*bright,.5);else if(t<.84)put(R,beta,z,1.0*bright,.62*bright,.74*bright,.48);else put(R,beta,z,1.0*bright,.95*bright,.84*bright,.42)}
+  for(let k=0;k<nDisc;k++){let R=-2.7*Math.log(1-rnd()*.998);if(R>17){k--;continue}const beta=rnd()*360,z=gauss()*(290+40*Math.max(0,R-8)),bright=.5+.5*rnd();put(R,beta,z,1.0*bright,.9*bright,.72*bright,.42)}
+  for(let k=0;k<nBulge;k++){const inBar=rnd()<.6;let xg,yg,z;
+    if(inBar){const s=gauss()*1.9,t=gauss()*.55;xg=s*Math.cos(barA)-t*Math.sin(barA);yg=s*Math.sin(barA)+t*Math.cos(barA);z=gauss()*380}
+    else{xg=gauss()*.9;yg=gauss()*.9;z=gauss()*600}
+    const R=Math.hypot(xg,yg),beta=Math.atan2(yg,xg)*180/Math.PI,bright=.6+.4*rnd();put(R,beta,z,1.0*bright,.84*bright,.6*bright,.6)}
+  if(MW){gscene.remove(MW);MW.geometry.dispose()}
+  const gm=new THREE.BufferGeometry();gm.setAttribute('position',new THREE.BufferAttribute(pos,3));gm.setAttribute('col',new THREE.BufferAttribute(col,4));
+  MW=new THREE.Points(gm,new THREE.ShaderMaterial({uniforms:{uPx:{value:renderer.getPixelRatio()},uFade:{value:0},uSize:{value:LOW?16:20},uBoost:{value:0}},vertexShader:MW_VS,fragmentShader:MW_FS,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+  MW.frustumCulled=false;gscene.add(MW);
+  // the centre: a warm glow around Sagittarius A*
+  gc.R=0;gc.beta=0;gc.z=0;g.fromGC(gc,h);galToScene(h.x,h.y,h.z,v);
+  if(!GCGLOW){GCGLOW=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('rgba(255,220,170,1)','rgba(230,150,80,.35)'),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:0}));gscene.add(GCGLOW)}
+  GCGLOW.position.set(v.x,v.y,v.z);GCGLOW.scale.set(900,900,1);ST.gcPos=new THREE.Vector3(v.x,v.y,v.z);
+  // the Sun's place in the disc, for the "above" view
+  ST.sunPos=new THREE.Vector3(0,0,0);ST.upGal=galToScene(0,0,1,{x:0,y:0,z:0})}
+function buildOort(){const g=G(),rnd=g.rng(77),N=LOW?2500:6000,pos=new Float32Array(N*3);
+  for(let k=0;k<N;k++){const r=Math.pow(10,-2.0+rnd()*1.7)*(1+.1*rnd()),u=rnd()*2-1,th=rnd()*Math.PI*2,s=Math.sqrt(1-u*u);pos[k*3]=r*s*Math.cos(th);pos[k*3+1]=r*u;pos[k*3+2]=r*s*Math.sin(th)}
+  const gm=new THREE.BufferGeometry();gm.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  OORT=new THREE.Points(gm,new THREE.PointsMaterial({size:1.7,sizeAttenuation:false,color:0xaabcd4,transparent:true,opacity:0,depthWrite:false}));OORT.frustumCulled=false;gscene.add(OORT)}
+function buildPulsars(){const g=G(),T=g.tables(),n=T.np+T.nr,pos=new Float32Array(n*3),col=new Float32Array(n*3),v={x:0,y:0,z:0};
+  for(let i=0;i<T.np;i++){galToScene(T.PX[i],T.PY[i],T.PZ[i],v);pos.set([v.x,v.y,v.z],i*3);col.set([.62,.86,1],i*3)}
+  for(let i=0;i<T.nr;i++){galToScene(T.RX[i],T.RY[i],T.RZ[i],v);pos.set([v.x,v.y,v.z],(T.np+i)*3);col.set([1,.55,.75],(T.np+i)*3)}
+  const gm=new THREE.BufferGeometry();gm.setAttribute('position',new THREE.BufferAttribute(pos,3));gm.setAttribute('color',new THREE.BufferAttribute(col,3));
+  PULS=new THREE.Points(gm,new THREE.PointsMaterial({size:2.6,sizeAttenuation:false,vertexColors:true,transparent:true,opacity:0,depthWrite:false}));PULS.frustumCulled=false;gscene.add(PULS)}
+// the heliopause in the solar scene: a dotted shell at 120 AU (a sphere; the real bubble is blunt at the nose and long in the tail)
+function buildHelio(){const rnd=G().rng(5),N=LOW?1400:3000,pos=new Float32Array(N*3);
+  for(let k=0;k<N;k++){const u=rnd()*2-1,th=rnd()*Math.PI*2,s=Math.sqrt(1-u*u),r=120*(1+.012*(rnd()-.5));pos[k*3]=r*s*Math.cos(th);pos[k*3+1]=r*u;pos[k*3+2]=r*s*Math.sin(th)}
+  const gm=new THREE.BufferGeometry();gm.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  HELIO=new THREE.Points(gm,new THREE.PointsMaterial({size:1.8,sizeAttenuation:false,color:0x9fb0ff,transparent:true,opacity:0,depthWrite:false}));HELIO.frustumCulled=false;scene.add(HELIO);
+  HELIO2=new THREE.Mesh(new THREE.SphereGeometry(120,48,32),new THREE.MeshBasicMaterial({color:0x6f7fd8,transparent:true,opacity:0,side:THREE.BackSide,blending:THREE.AdditiveBlending,depthWrite:false}));HELIO2.frustumCulled=false;scene.add(HELIO2)}
+
+/* ---------- the solar scene's things that fade as the ship leaves: the painted sky, the zodiac, the markers ---------- */
+let FADERS=null;
+function faders(){if(FADERS)return FADERS;FADERS=[];
+  scene.children.forEach(o=>{if(o.isPoints&&o.geometry.attributes.position.count===3500)FADERS.push([o.material,o.material.opacity,o]);});
+  ZOD3.traverse(o=>{if(o.material)FADERS.push([o.material,o.material.opacity,o])});
+  [DOTS,MOONDOTS,ROCKPTS].forEach(o=>FADERS.push([o.material,o.material.opacity,o]));
+  BODIES.forEach(b=>{const o=OBJ[b.id];if(o.orbit)FADERS.push([o.orbit.material,o.orbit.material.opacity,o.orbit]);if(o.tail)FADERS.push([o.tail.material,o.tail.material.opacity,o.tail])});
+  return FADERS}
+let fadeApplied=-1;
+function applyFades(){const sf=ST.sf;if(Math.abs(sf-fadeApplied)<.004)return;fadeApplied=sf;
+  faders().forEach(([m,base,o])=>{m.opacity=base*sf;if(!m.transparent&&sf<1)m.transparent=true;o.visible=sf>.01});ZOD3.visible=S.showZod&&sf>.01}
+
+/* ---------- labels in the galactic scene ---------- */
+const GL={};const pvG=new THREE.Vector3();
+function glbl(id,text,cls,onclick){const d=document.createElement('div');d.className='lbl '+(cls||'');d.innerHTML=text;d.hidden=true;if(onclick)d.onclick=onclick;else{d.style.pointerEvents='none'}$('labels').appendChild(d);GL[id]=d;return d}
+function placeG(el,x,y,z,show,cam){if(!show){el.hidden=true;return}pvG.set(x,y,z).project(cam||gcam);
+  if(pvG.z>1||pvG.z<-1||Math.abs(pvG.x)>1.1||Math.abs(pvG.y)>1.1){el.hidden=true;return}
+  el.hidden=false;const cv=renderer.domElement,W=cv.clientWidth||innerWidth,H=cv.clientHeight||innerHeight;el.style.transform=`translate3d(${((pvG.x*.5+.5)*W+10).toFixed(1)}px,${((-pvG.y*.5+.5)*H).toFixed(1)}px,0) translateY(-50%)`}
+const NAMED=[],PLACED=[];   // star rows with a proper name, for labels (built after load); the screen boxes placed this frame
+function clash(){const x=(pvG.x*.5+.5),y=(-pvG.y*.5+.5);for(let i=0;i<PLACED.length;i++){const p=PLACED[i];if(Math.abs(p[0]-x)<.09&&Math.abs(p[1]-y)<.025)return true}PLACED.push([x,y]);return false}
+const SV={x:0,y:0,z:0};
+function starScene(row,out){const g=G();g.posAt(row,tYr(),TMPG);return galToScene(TMPG.x,TMPG.y,TMPG.z,out)}
+const tYr=()=>(S.jd-J2000)/365.25;
+function labels(){const far=ST.r>FAR_AU;
+  if(!far){if(ST.labelsFar){ST.labelsFar=false;for(const k in GL)GL[k].hidden=true}
+    if(HELIO&&GL.helio){const r=ST.r,show=r>35&&r<700;if(show){const d=ship.pos.clone().normalize().multiplyScalar(120);placeG(GL.helio,d.x,d.y,d.z,true,camera)}else GL.helio.hidden=true}
+    return false}
+  if(!ST.labelsFar){ST.labelsFar=true;for(const k in LBL)LBL[k].hidden=true;if(GL.helio)GL.helio.hidden=true}
+  if(!ST.ready)return true;
+  PLACED.length=0;placeG(LBL.sun,0,0,0,true);if(!LBL.sun.hidden)clash();LBL.sun.classList.toggle('target',!!(ship.gap&&ship.gap.id==='home'));
+  // named stars: the brightest as seen from the ship (reusing the audio ranking when it runs), at most 14
+  const list=AS.labelList||[];let n=0;
+  for(let i=0;i<NAMED.length;i++){const e=NAMED[i];const show=n<14&&list.indexOf(e.row)>=0;if(show){starScene(e.row,SV);placeG(e.el,SV.x,SV.y,SV.z,true);if(!e.el.hidden&&clash())e.el.hidden=true;e.el.classList.toggle('target',!!(ship.gap&&ship.gap.row===e.row));n++}else e.el.hidden=true}
+  if(GL.sgra){placeG(GL.sgra,ST.gcPos.x,ST.gcPos.y,ST.gcPos.z,ST.dSunPc>300);GL.sgra.classList.toggle('target',!!(ship.gap&&ship.gap.id==='gc'))}
+  if(GL.vela&&ST.velaPos)placeG(GL.vela,ST.velaPos.x,ST.velaPos.y,ST.velaPos.z,ST.dSunPc>.3&&ST.dSunPc<3000);
+  if(GL.crab&&ST.crabPos)placeG(GL.crab,ST.crabPos.x,ST.crabPos.y,ST.crabPos.z,ST.dSunPc>.3&&ST.dSunPc<3000);
+  return true}
+
+/* ---------- loading ---------- */
+async function sha256hex(buf){const h=await crypto.subtle.digest('SHA-256',buf);return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('')}
+async function loadLargeIfChosen(){if(LS.get('mots.galaxyLarge')!=='1')return;const g=G();const url=new URL(BASE+'galaxy/stars_large.json',location.href).href,murl=new URL(BASE+'galaxy/stars_large.meta.json',location.href).href;
+  try{let cache=null;try{cache=await caches.open('galaxy-large')}catch(e){}
+    let buf=null;const cached=cache&&await cache.match(url);if(cached)buf=await cached.arrayBuffer();
+    let meta=null;try{const mr=cache&&await cache.match(murl);if(mr)meta=await mr.json()}catch(e){}
+    if(buf&&meta&&meta.sha256&&await sha256hex(buf)!==meta.sha256)buf=null;
+    if(!buf){const res=await fetch(url);if(!res.ok)return;buf=await res.arrayBuffer();if(cache)try{await cache.put(url,new Response(buf.slice(0),{headers:{'content-type':'application/json'}}))}catch(e){}}
+    const json=JSON.parse(new TextDecoder().decode(buf));g.setFetch(u=>Promise.resolve(json));let n=0;try{n=await g.loadLarge(BASE)}finally{g.setFetch(u=>fetch(u).then(r=>{if(!r.ok)throw new Error(u+' '+r.status);return r.json()}))}
+    ST.large=n;buildStars();AS.dirty=true}catch(e){console.warn('flight: large catalogue',e&&e.message||e)}}
+function onReady(){const g=G();buildStars();buildMilkyWay();buildOort();buildPulsars();buildHelio();
+  const T=g.tables();for(let i=1;i<T.n;i++){const r=T.rows[i];if(r.n)NAMED.push({row:r,el:glbl('s'+i,r.n,'minor',()=>travelG({star:r}))})}
+  glbl('sgra',TX.sgra,'minor',()=>travelG('gc'));const vela=g.find('J0835-4510'),crab=g.find('J0534+2200');
+  if(vela){const p=g.pulsars().indexOf(vela);ST.velaPos=galToScene(T.PX[p],T.PY[p],T.PZ[p],new THREE.Vector3());ST.velaRow=vela;glbl('vela',TX.vela,'minor',()=>travelG('vela'))}
+  if(crab){const p=g.pulsars().indexOf(crab);ST.crabPos=galToScene(T.PX[p],T.PY[p],T.PZ[p],new THREE.Vector3());glbl('crab',TX.crab,'minor',null)}
+  glbl('helio',TX.helioLbl,'minor',()=>travelG('helio'));
+  ST.ready=true;buildPanel();loadLargeIfChosen()}
+const loading=G()?G().load(BASE).then(onReady).catch(e=>console.warn('flight: galaxy data',e&&e.message||e)):null;
+
+/* ---------- destinations and the interstellar autopilot ---------- */
+const DEST=['helio','oort','acen','sirius','vela','gc','above','home'];
+const STAR_OF={acen:'Rigil Kentaurus',sirius:'Sirius'};
+function goalOf(id){const g=G(),out={id,goal:new THREE.Vector3(),look:new THREE.Vector3(),stand:1,name:TX.nm[id]||id,cap:id};
+  const outward=ship.pos.length()>1e-6?ship.pos.clone().normalize():new THREE.Vector3(0,.3,-1).normalize();
+  if(typeof id==='object'&&id.star){const row=id.star;out.id='star';out.row=row;starScene(row,SV);const p=new THREE.Vector3(SV.x,SV.y,SV.z).multiplyScalar(AU_PC);
+    const standAU=Math.max(400,(row.R||1)*0.00465*SUN_MAG*160);out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(standAU));out.look.copy(p);out.stand=standAU;out.name=row.n||row.bf||('HIP '+row.hip);out.cap=row.n==='Rigil Kentaurus'||row.n==='Toliman'||row.n==='Proxima Centauri'?'acen':row.n==='Sirius'?'sirius':'star';return out}
+  if(id==='helio'){out.goal.copy(outward).multiplyScalar(126);out.look.set(0,0,0);out.stand=6;return out}
+  if(id==='oort'){out.goal.copy(outward).multiplyScalar(20000);out.look.set(0,0,0);out.stand=800;return out}
+  if(id==='acen'||id==='sirius'){const row=g.find(STAR_OF[id]);const o=goalOf({star:row});o.id=id;o.cap=id;o.name=TX.nm[id];return o}
+  if(id==='vela'){const p=ST.velaPos.clone().multiplyScalar(AU_PC);out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(2*AU_PC));out.look.copy(p);out.stand=2*AU_PC;out.row=ST.velaRow;return out}
+  if(id==='gc'){const p=ST.gcPos.clone().multiplyScalar(AU_PC);const up=new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z);out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(350*AU_PC)).addScaledVector(up,120*AU_PC);out.look.copy(p);out.stand=350*AU_PC;return out}
+  if(id==='above'){const c=ST.gcPos.clone(),up=new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z),away=c.clone().normalize().multiplyScalar(-1);const mid=c.clone().multiplyScalar(.5);out.goal.copy(mid).addScaledVector(away,7000).addScaledVector(up,13500).multiplyScalar(AU_PC);out.look.copy(mid).multiplyScalar(AU_PC);out.stand=2000*AU_PC;return out}
+  if(id==='home'){out.goal.set(0,0,0);out.look.set(0,0,0);out.stand=150;return out}
+  return null}
+function travelG(id){if(!ST.ready){toast('…');return}const gp=goalOf(id);if(!gp)return;
+  ship.gap=gp;ship.ap=null;ship.drift=null;ship.cruise=false;ship.vel.set(0,0,0);ship.ride=null;
+  toast(uf(TX.course,{n:gp.name}));if(typeof closeNav==='function')closeNav();if(typeof resumeAudio==='function')resumeAudio();if(typeof renderCourse==='function')renderCourse()}
+const lookM=new THREE.Matrix4(),lookQ=new THREE.Quaternion(),UP=new THREE.Vector3(0,1,0);
+function autopilot(dt){const gp=ship.gap;if(!gp)return;
+  const D=gp.goal.clone().sub(ship.pos),dist=D.length();
+  // speed: proportional to the smaller of the distance still to go and the distance to the nearest body, so leaving and arriving are both gradual (log-time in both)
+  const dn=Math.max(nearestBodyAU(),.5),v=1.05*ST.throttle*ST.warp*Math.max(Math.min(dist,dn),1e-4);
+  const step=Math.min(dist,v*dt);if(dist>1e-9)ship.pos.addScaledVector(D,step/dist);
+  // look at the target; while far from it, blend toward the direction of travel so the sky streams past
+  const lookAt=gp.look.clone();if(dist>gp.stand*40&&gp.id!=='helio'&&gp.id!=='oort'){lookAt.copy(ship.pos).addScaledVector(D,1/dist)}
+  const upv=gp.id==='above'||gp.id==='gc'?new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z):UP;
+  lookM.lookAt(ship.pos,lookAt,upv);lookQ.setFromRotationMatrix(lookM);camera.quaternion.slerp(lookQ,1-Math.exp(-dt*(gp.id==='above'?1.2:2.4)));
+  if(dist<gp.stand*.03){ship.gap=null;
+    if(gp.id==='home'){ship.ap=null;if(typeof travelTo==='function')travelTo('earth');caption('home');return}
+    toast(uf(TX.arrived,{n:gp.name}));caption(gp.cap,gp);
+    if(gp.id==='above')ship.drift={centre:gp.look.clone(),axis:new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z),look:gp.look.clone(),rate:.006}}
+  camera.position.copy(ship.pos)}
+// after the view from above: the ship circles the Galaxy's pole slowly, so the disc turns below you, until you touch the controls
+const driftQ=new THREE.Quaternion(),driftRel=new THREE.Vector3();
+function drift(dt){const d=ship.drift;if(!d)return;if(keys.size||hold||ship.cruise||lookDrag||ship.ap||ship.gap){ship.drift=null;return}
+  driftRel.copy(ship.pos).sub(d.centre);driftQ.setFromAxisAngle(d.axis,d.rate*dt);driftRel.applyQuaternion(driftQ);ship.pos.copy(d.centre).add(driftRel);
+  lookM.lookAt(ship.pos,d.look,d.axis);lookQ.setFromRotationMatrix(lookM);camera.quaternion.slerp(lookQ,1-Math.exp(-dt*1.5));camera.position.copy(ship.pos)}
+function nearestBodyAU(){let best=ship.pos.length()-SUN_R;for(const b of BODIES){const o=OBJ[b.id];if(!o.pos)continue;const d=ship.pos.distanceTo(o.pos)-o.r;if(d<best)best=d}
+  if(ST.nearStarAU<best)best=ST.nearStarAU;return Math.max(best,1e-7)}
+// the nearest star to the ship (every ~100 ms; the Sun is index 0)
+function scanStars(now){if(!ST.ready||now-ST.lastScan<100)return;ST.lastScan=now;const g=G(),T=g.tables(),L=shipGal(),t=tYr();let bi=-1,bd=1e30;
+  for(let i=0;i<T.n;i++){const dx=T.X[i]+T.VX[i]*t-L.x,dy=T.Y[i]+T.VY[i]*t-L.y,dz=T.Z[i]+T.VZ[i]*t-L.z,d2=dx*dx+dy*dy+dz*dz;if(d2<bd){bd=d2;bi=i}}
+  ST.nearStarIdx=bi;ST.nearStar=bi>=0?T.rows[bi]:null;ST.nearStarAU=bi>=0?Math.sqrt(bd)*AU_PC:1e30;
+  // never fly into a star: keep a little way off its centre
+  if(bi>0&&ST.nearStarAU<.3){starScene(T.rows[bi],SV);const c=new THREE.Vector3(SV.x,SV.y,SV.z).multiplyScalar(AU_PC);ship.pos.copy(c).add(ship.pos.clone().sub(c).normalize().multiplyScalar(.3));camera.position.copy(ship.pos)}}
+
+/* ---------- the manual flight's speed law: the planets' law, with the cap lifted once past them, and the stars counted as bodies ---------- */
+function base(ns){const r=ship.pos.length(),d=Math.min(ns.d,ST.nearStarAU),cap=40*Math.max(1,r/73);return Math.min(cap,Math.max(2e-6,d*.55))*ST.throttle}
+
+/* ---------- each frame ---------- */
+let lastCam={far:0},slowT=0,mwScale=1;
+function frame(dt,t,ns){const r=ship.pos.length();ST.r=r;
+  scanStars(t);
+  if(ship.gap)autopilot(dt);else drift(dt);
+  // the fades: the planetary choir and the painted sky go between 150 and 3,000 AU; the galactic layers come in over the same stretch
+  const sf=1-sm(Math.log10(150),Math.log10(3000),Math.log10(Math.max(r,1)));ST.sf=sf;ST.gf=1-sf;
+  if(ST.ready){const L=shipGal();ST.dSunPc=Math.hypot(L.x,L.y,L.z);ST.zPc=L.z+G().K.Z0;
+    ST.gv=sm(0,1,Math.max((Math.abs(ST.zPc)-700)/3000,(ST.dSunPc*.38-700)/3000));
+    STARS.material.uniforms.uFade.value=ST.gf;MW.material.uniforms.uFade.value=ST.gf;MW.material.uniforms.uBoost.value=ST.gv;OORT.material.opacity=ST.gf*.85*(1-sm(.6,4,ST.dSunPc));PULS.material.opacity=ST.gf*.8*(1-ST.gv*.6);GCGLOW.material.opacity=.3*sm(100,2500,ST.dSunPc);
+    const hp=sm(25,60,r)*(1-sm(300,900,r));HELIO.material.opacity=.75*hp;HELIO2.material.opacity=.05*hp*(r<120?1:0);HELIO.visible=hp>.01;HELIO2.visible=HELIO2.material.opacity>.002;
+    thresholds(r)}
+  applyFades();
+  if(ST.ready&&ST.gf>.5&&ST.adapt!==false){if(dt>.06)slowT+=dt;else slowT=Math.max(0,slowT-dt*.5);if(slowT>3&&mwScale>.26){slowT=0;mwScale*=.5;buildMilkyWay()}}
+  // the planetary bus fades with the painted sky
+  if(typeof solarBus!=='undefined'&&solarBus&&AC&&Math.abs(sf-(ST.sfSent||0))>.01){ST.sfSent=sf;tgt(solarBus.gain,sf,.25)}
+  if(ST.ready&&ST.gf>0&&!(AC&&audioOn))assign(performance.now()/1000);
+  if(!ST.ready&&loading===null&&G())G().load(BASE).then(onReady);}
+function thresholds(r){const out=k=>{if(!ST.seen[k]){ST.seen[k]=true;caption(k)}};
+  const dirOut=ship.gap&&ship.gap.id!=='home';
+  if(r>121&&r<400&&!ST.seen.helio&&(dirOut||!ship.gap))out('helio');if(r<60)ST.seen.helio=false;
+  if(r>2000&&r<9000&&(dirOut||!ship.gap))out('oort');if(r<800)ST.seen.oort=false;
+  if(r>110000&&r<4e5&&(dirOut||!ship.gap))out('inter');if(r<50000)ST.seen.inter=false;
+  if(Math.abs(ST.zPc)>500&&!ST.discLeft){ST.discLeft=true;caption('disc')}if(Math.abs(ST.zPc)<200)ST.discLeft=false;
+  if(ST.gv>=.98&&!ST.wholeSeen){ST.wholeSeen=true;caption('whole');speakHera()}}
+
+/* ---------- rendering: the far scene first, then the solar system over it ---------- */
+function render(){const r=ST.r;camera.updateMatrixWorld();
+  if(ST.ready&&ST.gf>0){gcam.quaternion.copy(camera.quaternion);gcam.position.set(ship.pos.x/AU_PC,ship.pos.y/AU_PC,ship.pos.z/AU_PC);
+    if(gcam.aspect!==camera.aspect){gcam.aspect=camera.aspect;gcam.updateProjectionMatrix()}gcam.updateMatrixWorld();
+    renderer.autoClear=true;renderer.render(gscene,gcam);renderer.autoClear=false;renderer.clearDepth()}
+  else renderer.autoClear=true;
+  if(r<SOLAR_MAX_AU){const far=r>6000?r*3:2e4;if(Math.abs(far-lastCam.far)>lastCam.far*.2){lastCam.far=far;camera.far=far;camera.updateProjectionMatrix()}renderer.render(scene,camera)}
+  renderer.autoClear=true}
+
+/* ---------- readout: distance in the right unit, light-travel time, speed ---------- */
+function fmtDist(rAU){if(rAU<9999)return fmtN(rAU,rAU<100?1:0)+' '+TX.au;const ly=rAU/AU_PC*PC_LY;if(ly<999)return fmtN(ly,ly<10?2:ly<100?1:0)+' '+TX.ly;const pc=rAU/AU_PC;if(pc<999)return fmtN(pc,0)+' '+TX.pc;return fmtN(pc/1000,pc<9999?2:1)+' '+TX.kpc}
+function fmtLight(rAU){const s=rAU*AU_LS;if(s<90)return uf(TX.lsec,{n:fmtN(s,0)});const m=s/60;if(m<90)return uf(TX.lmin,{n:fmtN(m,m<10?1:0)});const h=m/60;if(h<36)return uf(TX.lhr,{n:fmtN(h,h<10?1:0)});const d=h/24;if(d<300)return uf(TX.lday,{n:fmtN(d,d<10?1:0)});const y=d/365.25;if(y<1.05)return TX.lyr1;return uf(TX.lyr,{n:fmtN(y,y<10?1:0)})}
+function fmtSpeedG(vAU){const kms=vAU*AU_KM;if(kms<C_KMS*.95)return uf(TX.kms,{n:fmtN(kms,0)});const lys=vAU/AU_PC*PC_LY;if(lys<.5)return uf(TX.xc,{n:fmtN(kms/C_KMS,kms/C_KMS<10?1:0)});if(lys<500)return uf(TX.lys,{n:fmtN(lys,lys<10?1:0)});const pcs=vAU/AU_PC;if(pcs<500)return uf(TX.pcs,{n:fmtN(pcs,0)});return uf(TX.kpcs,{n:fmtN(pcs/1000,pcs<5000?2:0)})}
+function readout(ns){const r=ST.r;galChips();
+  if(r<=FAR_AU&&!ship.gap)return;
+  const v=ship.speed||0;$('speedTxt').textContent=`${fmtSpeedG(v)} · ${uf(TX.fromSun,{d:fmtDist(r)})} · ${uf(TX.light,{t:fmtLight(r)})}`;
+  if(ship.gap)$('nearTxt').innerHTML=uf(TX.toward,{n:ship.gap.name});
+  else if(r>FAR_AU){const s=ST.nearStar;$('nearTxt').innerHTML=uf(TX.nearest,{n:s?(s.sun?TX.sun:(s.n||s.bf||s.gl||('HIP '+s.hip))):'—'})}}
+
+/* ---------- HUD: the destination chips, captions, the panel's interstellar section ---------- */
+let chipsEl=null,capEl=null,chipsKey='';
+function hud(){const bc=document.querySelector('.hud.bc');if(!bc)return;
+  capEl=document.createElement('div');capEl.className='gcap';capEl.id='galCap';capEl.setAttribute('aria-live','polite');bc.insertBefore(capEl,bc.firstChild);
+  chipsEl=document.createElement('div');chipsEl.className='chips gchips';chipsEl.id='galChips';bc.insertBefore(chipsEl,$('courseChips'));
+  chipsEl.onclick=e=>{const c=e.target.closest('.chip');if(!c)return;if(typeof resumeAudio==='function')resumeAudio();travelG(c.dataset.g)};
+  // the "Interstellar ▶" chip on the planets' course row, past the last planet
+  $('courseChips').addEventListener('click',e=>{const c=e.target.closest('.chip');if(c&&c.dataset.c==='g:helio'){e.stopPropagation();if(typeof resumeAudio==='function')resumeAudio();travelG('helio')}},true);
+  if(window.MOTS&&MOTS.fade)try{MOTS.fade(chipsEl)}catch(e){}}
+function galChips(){if(!chipsEl)return;const r=ST.r,show=r>60||!!ship.gap;const key=show+':'+(ship.gap?ship.gap.id:'')+':'+ST.ready;
+  if(key!==chipsKey){chipsKey=key;chipsEl.innerHTML=show?DEST.map(id=>`<button class="chip${ship.gap&&ship.gap.id===id?' on':''}" data-g="${id}">${TX[id]}</button>`).join(''):''}
+  const cc=$('courseChips');if(!show&&!cc.querySelector('[data-c="g:helio"]')&&typeof neighbours==='function'&&!neighbours().out){const b=document.createElement('button');b.className='chip';b.dataset.c='g:helio';b.textContent=TX.beyond;cc.appendChild(b)}}
+function caption(k,gp){if(!capEl)return;let t=TX.cap[k];if(k==='star'&&gp&&gp.row){const row=gp.row,d=(row.d||0)*PC_LY;t=`<b>${gp.name}</b> · ${uf(TX.fromSun,{d:fmtN(d,1)+' '+TX.ly})} · ${uf(TX.light,{t:fmtLight(d/PC_LY*AU_PC)})}`}
+  if(!t)return;capEl.innerHTML=t;capEl.classList.add('on');clearTimeout(caption.h);caption.h=setTimeout(()=>capEl.classList.remove('on'),k==='whole'?12000:8000);ST.caps.push(k)}
+function buildPanel(){const dest=$('dest');if(!dest||$('gdest'))return;
+  const wrap=document.createElement('div');wrap.innerHTML=`<h3>${TX.inter}</h3><div class="dest" id="gdest">${DEST.map(id=>`<button data-g="${id}"><span class="sw" style="background:${{helio:'#9fb0ff',oort:'#aabcd4',acen:'#ffd9a0',sirius:'#dfe8ff',vela:'#9fd3ff',gc:'#ffb060',above:'#c9984f',home:'#4a90d9'}[id]}"></span><span class="nm">${TX[id]}</span></button>`).join('')}</div>`;
+  dest.parentElement.after(wrap);$('gdest').onclick=e=>{const c=e.target.closest('button');if(c){if(typeof resumeAudio==='function')resumeAudio();travelG(c.dataset.g)}};
+  const speedField=$('speed').closest('.field');
+  const f=document.createElement('div');f.className='field';f.innerHTML=`<label for="gThrottle">${TX.shipSpeed} <output id="gThrottleOut"></output></label><input id="gThrottle" type="range" min="0" max="1000" value="500">`;speedField.after(f);
+  const th=$('gThrottle'),to=$('gThrottleOut');const showT=()=>{to.textContent='×'+fmtN(ST.throttle,ST.throttle<1?2:ST.throttle<10?1:0)};th.value=Math.round((Math.log10(ST.throttle)+1.5)/3*1000);showT();
+  th.oninput=e=>{ST.throttle=Math.pow(10,e.target.value/1000*3-1.5);showT();LS.set('mots.fly.throttle',ST.throttle)};
+  const d=document.createElement('div');d.innerHTML=`<h3>${TX.dop}</h3><div class="seg" id="gDop">${[1,100,1000].map(x=>`<button data-x="${x}" aria-pressed="${ST.exag===x}">×${x}</button>`).join('')}</div>`;f.after(d);
+  d.querySelectorAll('button').forEach(b=>b.onclick=()=>{ST.exag=+b.dataset.x;d.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));LS.set('mots.fly.exag',ST.exag)});
+  const dm=document.createElement('label');dm.className='check';dm.innerHTML=`<input type="checkbox" id="gDm"${ST.dm?' checked':''}> ${TX.dm}`;d.after(dm);$('gDm').onchange=e=>{ST.dm=e.target.checked;LS.set('mots.fly.dm',ST.dm?'1':'0');AS.chordKey=''}}
+hud();
+
+/* ---------- Hera ---------- */
+function speakHera(){if(ST.spokeHera||!S.speak||!window.speechSynthesis)return;ST.spokeHera=true;
+  try{const u=new SpeechSynthesisUtterance(TX.hera);let v=null;try{if(typeof pickVoice==='function')v=pickVoice('f',9)}catch(e){}
+    if(!v){const vs=speechSynthesis.getVoices().filter(x=>x.lang&&x.lang.toLowerCase().startsWith(LOCALE.slice(0,2)));v=vs.find(x=>/female|woman|zira|samantha|anna|hazel/i.test(x.name))||vs[0]}
+    if(v){u.voice=v;u.lang=v.lang}else u.lang=LOCALE;u.rate=.95;u.pitch=.9;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}}
+
+/* ---------- audio: stars, pulsars, radio noise, the solar wind, the rotation chord ---------- */
+let GA=null;
+const budget=()=>{const q=QUAL();if(LOW)return q==='eco'?4:q==='high'?8:6;return q==='eco'?6:q==='high'?14:10};
+const NLINES=()=>QUAL()==='eco'?0:LOW?2:3;
+const KR=p=>{try{p.automationRate='k-rate'}catch(e){}};const krBiq=f=>{KR(f.frequency);KR(f.Q);KR(f.gain);KR(f.detune);return f};
+function mkPan(to){const p=AC.createPanner();p.panningModel='equalpower';p.distanceModel='linear';p.refDistance=1;p.maxDistance=10000;p.rolloffFactor=0;p.coneInnerAngle=360;p.coneOuterAngle=360;if(p.positionX){KR(p.positionX);KR(p.positionY);KR(p.positionZ)}p.connect(to);return p}
+function audioInit(){if(GA||!AC)return;GA={bus:mkGain(1,bus),star:[],pulsar:[],radio:[],chord:[],hiss:null,pulseWaves:new Map(),churn:0,swaps:0};
+  // the solar wind: a hiss that grows toward the heliopause and stops there
+  const h={};h.hp=krBiq(AC.createBiquadFilter());h.hp.type='highpass';h.hp.frequency.value=180;h.lp=krBiq(AC.createBiquadFilter());h.lp.type='lowpass';h.lp.frequency.value=1500;h.lp.Q.value=.5;
+  h.g=mkGain(0,GA.bus);h.tap=mkGain(.6,h.hp);noiseBus.connect(h.tap);h.hp.connect(h.lp);h.lp.connect(h.g);GA.hiss=h}
+function pulseWave(duty){const d=Math.round(clamp(duty,.02,.5)*50)/50;let w=GA.pulseWaves.get(d);if(w)return w;const N=64,re=new Float32Array(N),im=new Float32Array(N);for(let n=1;n<N;n++)re[n]=2*Math.sin(n*Math.PI*d)/(n*Math.PI);w=AC.createPeriodicWave(re,im,{disableNormalization:true});GA.pulseWaves.set(d,w);return w}
+function buildSlot(kind,k){const sl={kind,k,row:null,f:220,loud:0,d:0,rv:0,on:false,I:null,swT:0,rise:0,hold:false,lines:null,f0:0};
+  sl.pan=mkPan(GA.bus);sl.vg=mkGain(0,sl.pan);const I={};
+  if(kind==='star'){I.o1=AC.createOscillator();I.o1.type='sine';I.o2=AC.createOscillator();I.o2.type='sawtooth';I.g1=mkGain(.9);I.g2=mkGain(.2);I.o1.connect(I.g1);I.o2.connect(I.g2);
+    I.lp=krBiq(AC.createBiquadFilter());I.lp.type='lowpass';I.lp.Q.value=.7;I.lp.frequency.value=2400;I.g1.connect(I.lp);I.g2.connect(I.lp);
+    I.pk=[];for(let j=0;j<NLINES();j++){const f=krBiq(AC.createBiquadFilter());f.type='peaking';f.gain.value=0;f.Q.value=20;f.frequency.value=440;I.pk.push(f)}
+    let last=I.lp;I.pk.forEach(f=>{last.connect(f);last=f});last.connect(sl.vg);
+    I.vib=AC.createOscillator();I.vib.frequency.value=.11+k*.017;I.vd=mkGain(2.2);I.vib.connect(I.vd);I.vd.connect(I.o1.detune);I.vd.connect(I.o2.detune);I.vib.start();
+    I.o1.start();I.o2.start();I.srcs=[I.o1,I.o2,I.vib]}
+  else if(kind==='pulse'){I.o=AC.createOscillator();I.o.setPeriodicWave(pulseWave(.1));I.car=AC.createOscillator();I.car.type='sine';I.car.frequency.value=220;
+    I.gate=mkGain(0);I.dc=AC.createConstantSource();I.dc.offset.value=.1;I.dc.connect(I.gate.gain);I.og=mkGain(1);I.o.connect(I.og);I.og.connect(I.gate.gain);
+    I.car.connect(I.gate);I.direct=mkGain(0);I.o.connect(I.direct);
+    I.lp=krBiq(AC.createBiquadFilter());I.lp.type='lowpass';I.lp.frequency.value=3000;I.lp.Q.value=.5;I.gate.connect(I.lp);I.direct.connect(I.lp);I.lp.connect(sl.vg);
+    I.o.start();I.car.start();I.dc.start();I.srcs=[I.o,I.car,I.dc]}
+  else if(kind==='noise'){I.lp=krBiq(AC.createBiquadFilter());I.lp.type='lowpass';I.lp.Q.value=.4;I.lp.frequency.value=1800;I.hp=krBiq(AC.createBiquadFilter());I.hp.type='highpass';I.hp.frequency.value=60;
+    I.fin=mkGain(.5);noiseBus.connect(I.fin);I.fin.connect(I.hp);I.hp.connect(I.lp);I.lp.connect(sl.vg);I.taps=[[noiseBus,I.fin]];I.srcs=[]}
+  else if(kind==='chord'){I.o1=AC.createOscillator();I.o1.type='sine';I.o2=AC.createOscillator();I.o2.type='triangle';I.g2=mkGain(.18);I.o2.detune.value=4;
+    I.lp=krBiq(AC.createBiquadFilter());I.lp.type='lowpass';I.lp.frequency.value=1600;I.lp.Q.value=.5;I.o1.connect(I.lp);I.o2.connect(I.g2);I.g2.connect(I.lp);I.lp.connect(sl.vg);I.o1.start();I.o2.start();I.srcs=[I.o1,I.o2]}
+  sl.I=I;return sl}
+function killSlot(sl){const I=sl.I;if(!I)return;try{sl.vg.gain.setTargetAtTime(0,AC.currentTime,.05)}catch(e){}
+  setTimeout(()=>{(I.srcs||[]).forEach(o=>{try{o.stop()}catch(e){}});(I.taps||[]).forEach(([b,n])=>{try{b.disconnect(n)}catch(e){}});try{sl.pan.disconnect()}catch(e){}},400)}
+function ensure(list,kind,n){while(list.length<n)list.push(buildSlot(kind,list.length));while(list.length>n)killSlot(list.pop())}
+// hysteresis (as the Galactic Synthesiser): a slot keeps its source while it is still among the best n + slack; a freed slot takes the best unheld one
+const slackOf=n=>Math.max(2,Math.ceil(n*.5));
+function holdSlots(held,cand,n,copy){const lim=Math.min(cand.length,n+slackOf(n));
+  for(let j=0;j<cand.length;j++)cand[j].held=false;
+  for(let k=0;k<n;k++){const h=held[k];if(!h||!h.row)continue;let f=-1;for(let j=0;j<lim;j++)if(cand[j].row===h.row){f=j;break}
+    if(f<0){h.row=null;if(GA)GA.churn++}else{copy(cand[f],h);cand[f].held=true}}
+  let j=0;for(let k=0;k<n;k++){if(held[k]&&held[k].row)continue;while(j<cand.length&&cand[j].held)j++;if(j>=cand.length)break;const o=held[k]||(held[k]={});copy(cand[j],o);cand[j].held=true;j++}
+  held.length=n}
+const cpAud=(e,o)=>{o.i=e.i;o.loud=e.loud;o.mag=e.mag;o.row=e.row;o.x=e.x;o.y=e.y;o.z=e.z;o.d=e.d};
+const AS={t:0,star:[],pulsar:[],radio:[],labelList:[],chord:null,chordKey:'',dirty:true};
+function assign(now){const g=G();if(!g||!g.ready)return;const quick=AS.dirty;if(!quick&&now-AS.t<.3)return;AS.t=now;AS.dirty=false;
+  const L=shipGal(),N=budget(),t=tYr();
+  const a=g.audible(L,{n:N+slackOf(N),tYr:t,stars:true,pulsars:false,radio:false});holdSlots(AS.star,a,N,cpAud);
+  AS.labelList.length=0;for(let j=0;j<a.length&&j<16;j++)AS.labelList.push(a[j].row);
+  const np=LOW?1:2;const p=g.audible(L,{n:np+slackOf(np),stars:false,radio:false});holdSlots(AS.pulsar,p,np,cpAud);
+  const nr=LOW?1:2;const rr=g.audible(L,{n:nr+slackOf(nr),stars:false,pulsars:false});holdSlots(AS.radio,rr,nr,cpAud);
+  const nc=LOW?6:8,key=ST.dm+':'+nc;if(key!==AS.chordKey){AS.chordKey=key;AS.chord=g.rotationChord(g.rotationChord.defaultRadii.slice(0,nc),{dm:ST.dm,octaves:61})}}
+const SWAP_OUT=.3;
+function swapping(sl,row,t){if(sl.row&&row!==sl.row){if(!sl.swT)sl.swT=t;if(t<sl.swT+SWAP_OUT){sl.hold=true;return true}}
+  if(sl.row!==row){sl.rise=t;if(GA)GA.swaps++}sl.swT=0;return false}
+const DIRV={x:0,y:0,z:0},POS={x:0,y:0,z:0},TMPRV={};
+function panTo(sl,x,y,z){const L=LPOS,dx=x-L.x,dy=y-L.y,dz=z-L.z,d=Math.hypot(dx,dy,dz)||1;galToScene(dx/d,dy/d,dz/d,DIRV);setPos(sl.pan,DIRV.x,DIRV.y,DIRV.z)}
+let flares=null;const seedT0=performance.now();
+function audio(){if(!AC||!ST.ready)return;audioInit();const t=AC.currentTime,g=G(),gf=ST.gf,r=ST.r,now=performance.now()/1000;
+  // the solar wind
+  const hz=sm(30,100,r)*(1-sm(119,127,r));tgt(GA.hiss.g.gain,.022*hz,hz>0?.4:.12);
+  if(gf<=0){if(GA.star.length||GA.chord.length){ensure(GA.star,'star',0);ensure(GA.pulsar,'pulse',0);ensure(GA.radio,'noise',0);ensure(GA.chord,'chord',0)}return}
+  assign(now);const N=budget();ensure(GA.star,'star',N);ensure(GA.pulsar,'pulse',LOW?1:2);ensure(GA.radio,'noise',LOW?1:2);ensure(GA.chord,'chord',ST.gv>0?(LOW?6:8):0);
+  const L=LPOS;let nOn=0;for(let k=0;k<N;k++){const e=AS.star[k];if(e&&e.row)nOn++}const mixK=1/Math.sqrt(Math.max(3,nOn));
+  // stars
+  for(let k=0;k<GA.star.length;k++){const sl=GA.star[k],e=AS.star[k],I=sl.I;
+    if(!e||!e.row){sl.row=null;tgt(sl.vg.gain,0,.1);continue}
+    if(swapping(sl,e.row,t)){sl.hold=false;tgt(sl.vg.gain,0,.07);continue}
+    const row=e.row;POS.x=e.x;POS.y=e.y;POS.z=e.z;panTo(sl,e.x,e.y,e.z);
+    sl.rv=g.radialVelocity(row,POS,L,TMPRV);let f=g.starTone(row.T||5772)*g.doppler(sl.rv,ST.exag);
+    let loud=e.loud;if(row.var&&row.var.P){const vb=g.varBright(row,S.jd);loud*=Math.pow(10,-.2*g.varAmp(row)*(1-vb))}
+    if(sl.row!==row){sl.row=row;sl.lines=null}
+    const gain=.1*mixK*loud*gf;tgt(sl.vg.gain,gain,t<sl.rise+.8?.35:.12);
+    tgt(I.o1.frequency,f,.08);tgt(I.o2.frequency,f,.08);
+    const bright=clamp(.25+(row.T?Math.log10(row.T/3000)/1.2:0)*.5,0,1);tgt(I.g1.gain,1-bright*.6,.15);tgt(I.g2.gain,.08+bright*.5,.15);
+    if(sl.lines!==row){sl.lines=row;const F=g.filters(row,{max:3});for(let j=0;j<I.pk.length;j++){const Ln=F[j];if(Ln){I.pk[j].frequency.setTargetAtTime(Ln.f*(f/F.f0),t,.05);I.pk[j].Q.setTargetAtTime(Ln.q,t,.05);I.pk[j].gain.setTargetAtTime(Ln.gain*1.5,t,.05)}else I.pk[j].gain.setTargetAtTime(0,t,.05)}sl.f0=F.f0;sl.F=F}
+    else if(sl.F&&I.pk.length){for(let j=0;j<I.pk.length&&sl.F[j];j++)tgt(I.pk[j].frequency,sl.F[j].f*(f/sl.f0),.1)}}
+  // pulsars, heard as they are
+  for(let k=0;k<GA.pulsar.length;k++){const sl=GA.pulsar[k],e=AS.pulsar[k],I=sl.I;
+    if(!e||!e.row){sl.row=null;tgt(sl.vg.gain,0,.1);continue}
+    if(swapping(sl,e.row,t)){sl.hold=false;tgt(sl.vg.gain,0,.07);continue}
+    const P=e.row;panTo(sl,e.x,e.y,e.z);const ps=g.pulsarSound(P,TMPRV),f0=ps.f,tone=f0>=20;
+    if(sl.row!==P){sl.row=P;I.o.setPeriodicWave(pulseWave(P.W50&&P.P0?P.W50/1000/P.P0:.08))}
+    tgt(I.o.frequency,f0,.05);
+    const duty=P.W50&&P.P0?clamp(P.W50/1000/P.P0,.02,.5):.08;tgt(I.dc.offset,tone?0:duty,.05);tgt(I.og.gain,tone?0:1,.05);tgt(I.direct.gain,tone?.8:0,.05);
+    tgt(sl.vg.gain,.32*Math.max(.25,e.loud)*gf*(1-ST.gv*.5),t<sl.rise+.8?.35:.12)}
+  // radio sources as coloured noise (Sgr A* flickers)
+  for(let k=0;k<GA.radio.length;k++){const sl=GA.radio[k],e=AS.radio[k],I=sl.I;
+    if(!e||!e.row){sl.row=null;tgt(sl.vg.gain,0,.1);continue}
+    if(swapping(sl,e.row,t)){sl.hold=false;tgt(sl.vg.gain,0,.07);continue}
+    panTo(sl,e.x,e.y,e.z);const rn=g.radioNoise(e.row,2026,TMPRV);let loud=Math.max(.2,rn.loud);
+    if(e.row.id==='sgra'){if(!flares)flares=g.sgrFlares(7,400);const days=((performance.now()-seedT0)/1000)/24;loud*=Math.min(3,g.sgrLevel(flares,days%380))*.6}
+    sl.row=e.row;tgt(I.lp.frequency,clamp(6000*Math.pow(2,2.5*rn.alpha),120,16000),.2);tgt(sl.vg.gain,.05*loud*gf,.2)}
+  // the rotation chord, above the disc: rings at R, R/2, R/3 … turning 1, 2, 3 … times as fast on a flat curve
+  const ch=AS.chord;for(let k=0;k<GA.chord.length;k++){const sl=GA.chord[k],I=sl.I;if(!ch||k>=ch.freqs.length){tgt(sl.vg.gain,0,.2);continue}
+    tgt(I.o1.frequency,ch.freqs[k],.6);tgt(I.o2.frequency,ch.freqs[k],.6);
+    // each ring from its own place in the plane: spread around the listener as the rings' directions
+    if(sl.k!==undefined&&!sl.pannedK){sl.pannedK=true;const az=(-1+2*k/Math.max(1,GA.chord.length-1))*70*Math.PI/180;const up=new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z),fw=new THREE.Vector3(ST.gcPos.x,ST.gcPos.y,ST.gcPos.z).normalize(),rt=new THREE.Vector3().crossVectors(fw,up).normalize();
+      const dir=fw.clone().multiplyScalar(Math.cos(az)).addScaledVector(rt,Math.sin(az)).addScaledVector(up,-.5).normalize();setPos(sl.pan,dir.x,dir.y,dir.z)}
+    tgt(sl.vg.gain,.085*Math.pow(.86,k)*ST.gv*gf,.5)}}
+
+/* ---------- the test window ---------- */
+const api={base,frame,render,audio,readout,labels,travel:travelG,caption,ST,AS,GA:()=>GA,TX,gscene,gcam,
+  warp:x=>{ST.warp=x},adapt:b=>{ST.adapt=b},jump:id=>{const gp=goalOf(id);if(!gp)return;ship.gap=null;ship.ap=null;ship.vel.set(0,0,0);ship.pos.copy(gp.goal);camera.position.copy(ship.pos);lookM.lookAt(ship.pos,gp.look,UP);camera.quaternion.setFromRotationMatrix(lookM)},
+  stats:()=>({churn:GA?GA.churn:0,swaps:GA?GA.swaps:0,stars:GA?GA.star.filter(s=>s.row).length:0,pulsars:GA?GA.pulsar.filter(s=>s.row).length:0,radio:GA?GA.radio.filter(s=>s.row).length:0,chord:GA?GA.chord.length:0,gf:ST.gf,sf:ST.sf,gv:ST.gv,r:ST.r,dSunPc:ST.dSunPc,zPc:ST.zPc,ready:ST.ready,large:ST.large,caps:ST.caps.slice(),nearStar:ST.nearStar&&(ST.nearStar.n||ST.nearStar.id)}),
+  ready:()=>loading};
+window.FLYG=api;return api;
+})();
 
 })();
 </script>
