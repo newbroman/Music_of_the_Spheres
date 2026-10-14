@@ -1093,7 +1093,7 @@ function entry(b){return E[b.id]||(E[b.id]={b,want:0,vol:0,seen:0})}
 
 function voice(b,v,dest){
   const e=entry(b), c=H.ctx;
-  const inp=mk(1), dry=mk(ON.colour?0:1,dest), wet=mk(ON.colour?1:0);
+  const co=colourOn(), inp=mk(1), dry=mk(co?0:1,dest), wet=mk(co?1:0);
   let conv=null;
   // the convolver's output is folded back to one channel: a stereo copy fed to an HRTF panner would be summed in each ear and come out 6 dB louder
   try{conv=c.createConvolver();conv.normalize=false;conv.buffer=colourIR(c,b);const mono=mk(1,dest);mono.channelCount=1;mono.channelCountMode='explicit';wet.connect(conv);conv.connect(mono)}catch(err){wet.connect(dest)}
@@ -1101,6 +1101,8 @@ function voice(b,v,dest){
   e.colour={inp,dry,wet,conv,dest};e.pan=v.pan;
   return inp;
 }
+// the colour filter steps aside while the bodies sound as their spectral lines (the lines already are their light)
+function colourOn(){return ON.colour&&!(LNS.on&&LNS.mode==='lines'&&BSD)}
 function setColour(on){for(const id in E){const e=E[id];if(!e.colour)continue;tg(e.colour.dry.gain,on?0:1,.05);tg(e.colour.wet.gain,on?1:0,.05)}}
 
 function buildHeat(e){
@@ -1226,7 +1228,7 @@ function readout(b){
 /* --- controls --- */
 const css=document.createElement('style');css.textContent='.lightRow{display:flex;flex-wrap:wrap;gap:0 14px;align-items:center}.lightRow .check{min-height:1.9rem}#lightTxt:empty{display:none}';document.head.appendChild(css);
 const KEYS=['colour','heat','radio'];
-function setOn(k,on){ON[k]=!!on;LS.set('mots.light.'+k,on?'1':'0');if(k==='colour')setColour(on);document.querySelectorAll('input[data-light="'+k+'"]').forEach(i=>i.checked=!!on)}
+function setOn(k,on){ON[k]=!!on;LS.set('mots.light.'+k,on?'1':'0');if(k==='colour')setColour(colourOn());document.querySelectorAll('input[data-light="'+k+'"]').forEach(i=>i.checked=!!on)}
 function controls(){
   const row=document.createElement('div');row.className='lightRow';
   KEYS.forEach(k=>{const l=document.createElement('label');l.className='check';const i=document.createElement('input');i.type='checkbox';i.dataset.light=k;i.checked=ON[k];i.onchange=()=>setOn(k,i.checked);l.appendChild(i);l.appendChild(document.createTextNode(' '+T[k]));row.appendChild(l)});
@@ -1234,7 +1236,7 @@ function controls(){
 }
 function mount(){
   const groups=document.getElementById('groups');
-  if(groups){ // the dial: a field under the choir's groups
+  if(groups&&document.getElementById('roster')){ // the dial: a field under the choir's groups
     const f=document.createElement('div');f.className='field';f.id='lightCtl';const lab=document.createElement('span');lab.className='lab';lab.textContent=T.light;f.appendChild(lab);f.appendChild(controls());
     const note=document.createElement('p');note.className='note';note.textContent=T.note;f.appendChild(note);groups.insertAdjacentElement('afterend',f);
   }
@@ -1434,6 +1436,144 @@ function chordGraph(ac,noise,C,t0,opts){const o=opts||{},gn=(v,to)=>{const g=ac.
 function chordKill(gr,ac,fade){const t=ac.currentTime;try{gr.master.gain.cancelScheduledValues(t);gr.master.gain.setTargetAtTime(0,t,fade||.25)}catch(e){}
   setTimeout(()=>{gr.srcs.forEach(s=>{try{s.stop()}catch(e){}});gr.taps.forEach(([a,b])=>{try{a.disconnect(b)}catch(e){}});gr.nodes.forEach(n=>{try{n.disconnect()}catch(e){}})},(fade||.25)*4000+200)}
 
+/* ---------- spectral lines as a voice: the dial's "Spectral lines" / "Both" option and the synthesiser's "Spectral lines" voice type ----------
+   The rule. A body's line chord is its N strongest lines (N by the Quality setting: Eco 3, Standard 5, High 8): its own bands from
+   bodyspectra.json, strongest first, filled with the Sun's lines in its reflected light when it has fewer of its own (so the Moon is
+   sunlight plus its slope and pyroxene, and a grey body is simply sunlight); the Sun itself is its Fraunhofer lines. Each line sits at
+   f = c/λ/2⁴⁰ (the forty-octave rule, unfolded: an infrared band is a lower note), its loudness its depth^1.25, two lines within 25 cents
+   merged into one. ROOTED AT THE SUNG PITCH (the default): the chord is transposed whole so that its centre, the loudness-weighted mean
+   of the lines' pitches (in log frequency), lands on the note the body or sphere sings at that moment; the intervals between the lines
+   stay the real ratios of their frequencies, and a line that would leave 35 Hz–6 kHz is moved by whole octaves back into it. So the
+   music keeps its tune, rhythm and phrasing and only the voice changes. AT TRUE PITCH the lines sound at their own forty-octave pitches
+   (350 nm → 779 Hz, 2.5 µm → 109 Hz) and only the rhythm and phrasing of the music are kept. Each line is one sine (k-rate), and all the
+   lines of a voice share one pitch source (a ConstantSourceNode on every line's detune), so moving the note, an ornament or a vibrato is
+   one automation however many lines sound. The chord is normalised to an RMS of 1 at its output; the host sets its level. ---------- */
+const LNW={
+ en:{ls:'Lines',lab:'Sound as',gods:'Gods’ voices',lines:'Spectral lines',both:'Both',tp:'At their true pitch',nG:'Each body sings in its god’s voice.',
+   nL:'Each body sounds as its own spectral lines: its strongest bands (for the Sun its Fraunhofer lines; for the Moon reflected sunlight, its slope and pyroxene). The chord’s intervals are the real ratios of the lines, its centre on the note the body sings: the music keeps its tune, rhythm and phrasing, and only the voice changes.',
+   nB:'The gods sing, and each body’s spectral lines sound with them.',
+   nT:'At true pitch the lines sound where the forty-octave rule puts them (350 nm → 779 Hz, 2.5 µm → 109 Hz): the rhythm and phrasing stay, and the tune gives way to the light’s own chord.',
+   tpS:'True pitch',tpTip:'The lines at their forty-octave pitches instead of rooted on the strip’s note',pPl:'The planets’ lines',pSt:'Starlight lines'},
+ pl:{ls:'Linie',lab:'Brzmienie',gods:'Głosy bogów',lines:'Linie widmowe',both:'Jedno i drugie',tp:'W ich prawdziwej wysokości',nG:'Każde ciało śpiewa głosem swojego boga.',
+   nL:'Każde ciało brzmi własnymi liniami widmowymi: najsilniejszymi pasmami (u Słońca liniami Fraunhofera, u Księżyca odbitym światłem słonecznym, nachyleniem widma i piroksenem). Interwały akordu to prawdziwe stosunki linii, a jego środek leży na nucie, którą ciało śpiewa: muzyka zachowuje melodię, rytm i frazowanie, zmienia się tylko głos.',
+   nB:'Bogowie śpiewają, a linie widmowe każdego ciała brzmią razem z nimi.',
+   nT:'W prawdziwej wysokości linie brzmią tam, gdzie stawia je reguła czterdziestu oktaw (350 nm → 779 Hz, 2,5 µm → 109 Hz): rytm i frazowanie zostają, a melodia ustępuje akordowi samego światła.',
+   tpS:'Prawdziwa wysokość',tpTip:'Linie w wysokościach według reguły czterdziestu oktaw, zamiast od nuty paska',pPl:'Linie planet',pSt:'Linie gwiezdnego światła'},
+ cy:{ls:'Llinellau',lab:'Seinio fel',gods:'Lleisiau’r duwiau',lines:'Llinellau sbectrol',both:'Y ddau',tp:'Ar eu traw go iawn',nG:'Mae pob corff yn canu â llais ei dduw.',
+   nL:'Mae pob corff yn seinio fel ei linellau sbectrol ei hun: ei fandiau cryfaf (llinellau Fraunhofer i’r Haul; i’r Lleuad, golau’r Haul wedi’i adlewyrchu, ei goleddf a’i phyrocsen). Cyfyngau’r cord yw cymarebau go iawn y llinellau, a’i ganol ar y nodyn y mae’r corff yn ei ganu: mae’r gerddoriaeth yn cadw ei halaw, ei rhythm a’i brawddegu, a dim ond y llais sy’n newid.',
+   nB:'Mae’r duwiau’n canu, a llinellau sbectrol pob corff yn seinio gyda nhw.',
+   nT:'Ar eu traw go iawn mae’r llinellau’n seinio lle mae rheol y deugain wythfed yn eu gosod (350 nm → 779 Hz, 2.5 µm → 109 Hz): mae’r rhythm a’r brawddegu’n aros, ac mae’r alaw’n ildio i gord y golau ei hun.',
+   tpS:'Traw go iawn',tpTip:'Y llinellau ar eu traw deugain wythfed, yn lle o nodyn y stribed',pPl:'Llinellau’r planedau',pSt:'Llinellau golau’r sêr'},
+ de:{ls:'Linien',lab:'Klang',gods:'Stimmen der Götter',lines:'Spektrallinien',both:'Beides',tp:'In ihrer wahren Tonhöhe',nG:'Jeder Körper singt mit der Stimme seines Gottes.',
+   nL:'Jeder Körper klingt als seine eigenen Spektrallinien: seine stärksten Banden (bei der Sonne die Fraunhoferlinien, beim Mond das reflektierte Sonnenlicht, seine Steigung und das Pyroxen). Die Intervalle des Akkords sind die wahren Verhältnisse der Linien, seine Mitte liegt auf dem Ton, den der Körper singt: Die Musik behält Melodie, Rhythmus und Phrasierung, nur die Stimme ändert sich.',
+   nB:'Die Götter singen, und die Spektrallinien jedes Körpers klingen mit.',
+   nT:'In wahrer Tonhöhe klingen die Linien dort, wohin die Vierzig-Oktaven-Regel sie setzt (350 nm → 779 Hz, 2,5 µm → 109 Hz): Rhythmus und Phrasierung bleiben, die Melodie weicht dem eigenen Akkord des Lichts.',
+   tpS:'Wahre Tonhöhe',tpTip:'Die Linien in ihrer Tonhöhe nach der Vierzig-Oktaven-Regel statt vom Ton des Kanals aus',pPl:'Die Linien der Planeten',pSt:'Linien des Sternenlichts'},
+ es:{ls:'Líneas',lab:'Suenan como',gods:'Voces de los dioses',lines:'Líneas espectrales',both:'Ambas',tp:'A su altura real',nG:'Cada cuerpo canta con la voz de su dios.',
+   nL:'Cada cuerpo suena como sus propias líneas espectrales: sus bandas más fuertes (en el Sol, las líneas de Fraunhofer; en la Luna, la luz solar reflejada, su pendiente y el piroxeno). Los intervalos del acorde son las proporciones reales de las líneas y su centro cae en la nota que canta el cuerpo: la música conserva su melodía, su ritmo y su fraseo; solo cambia la voz.',
+   nB:'Los dioses cantan y las líneas espectrales de cada cuerpo suenan con ellos.',
+   nT:'A su altura real, las líneas suenan donde las pone la regla de las cuarenta octavas (350 nm → 779 Hz, 2,5 µm → 109 Hz): el ritmo y el fraseo se mantienen, y la melodía cede ante el acorde propio de la luz.',
+   tpS:'Altura real',tpTip:'Las líneas a su altura de cuarenta octavas, en lugar de partir de la nota de la tira',pPl:'Las líneas de los planetas',pSt:'Líneas de luz estelar'},
+ fr:{ls:'Raies',lab:'Sonnent en',gods:'Voix des dieux',lines:'Raies spectrales',both:'Les deux',tp:'À leur hauteur réelle',nG:'Chaque corps chante avec la voix de son dieu.',
+   nL:'Chaque corps sonne comme ses propres raies spectrales : ses bandes les plus fortes (pour le Soleil, les raies de Fraunhofer ; pour la Lune, la lumière solaire réfléchie, sa pente et le pyroxène). Les intervalles de l’accord sont les rapports réels des raies, et son centre se pose sur la note que chante le corps : la musique garde sa mélodie, son rythme et son phrasé ; seule la voix change.',
+   nB:'Les dieux chantent, et les raies spectrales de chaque corps sonnent avec eux.',
+   nT:'À leur hauteur réelle, les raies sonnent là où la règle des quarante octaves les place (350 nm → 779 Hz, 2,5 µm → 109 Hz) : le rythme et le phrasé demeurent, la mélodie cède la place à l’accord propre de la lumière.',
+   tpS:'Hauteur réelle',tpTip:'Les raies à leur hauteur selon la règle des quarante octaves, au lieu de partir de la note de la tranche',pPl:'Les raies des planètes',pSt:'Raies de la lumière des étoiles'},
+ it:{ls:'Righe',lab:'Suonano come',gods:'Voci degli dèi',lines:'Righe spettrali',both:'Entrambe',tp:'Alla loro altezza reale',nG:'Ogni corpo canta con la voce del suo dio.',
+   nL:'Ogni corpo suona come le sue righe spettrali: le sue bande più forti (per il Sole le righe di Fraunhofer; per la Luna la luce solare riflessa, la sua pendenza e il pirosseno). Gli intervalli dell’accordo sono i rapporti reali delle righe e il suo centro cade sulla nota che il corpo canta: la musica conserva melodia, ritmo e fraseggio, cambia solo la voce.',
+   nB:'Gli dèi cantano e le righe spettrali di ogni corpo suonano con loro.',
+   nT:'All’altezza reale le righe suonano dove le pone la regola delle quaranta ottave (350 nm → 779 Hz, 2,5 µm → 109 Hz): ritmo e fraseggio restano, la melodia lascia il posto all’accordo proprio della luce.',
+   tpS:'Altezza reale',tpTip:'Le righe alla loro altezza secondo la regola delle quaranta ottave, invece che dalla nota della traccia',pPl:'Le righe dei pianeti',pSt:'Righe della luce stellare'},
+ zh:{ls:'谱线',lab:'音色',gods:'众神之声',lines:'光谱线',both:'两者',tp:'用真实音高',nG:'每个天体以其神祇的声音歌唱。',
+   nL:'每个天体以自身的光谱线发声：它最强的谱带（太阳是夫琅禾费线；月球是反射的太阳光、光谱斜率和辉石）。和弦的音程就是谱线真实的频率比，和弦中心落在该天体所唱的音上：音乐保留旋律、节奏和乐句，只换了嗓音。',
+   nB:'众神歌唱，每个天体的光谱线与之同响。',
+   nT:'用真实音高时，谱线按“四十个八度”规则所定的音高发声（350 nm → 779 Hz，2.5 µm → 109 Hz）：节奏与乐句保留，旋律让位于光本身的和弦。',
+   tpS:'真实音高',tpTip:'谱线按四十个八度规则的音高发声，而不以音轨的音为根',pPl:'行星的谱线',pSt:'星光谱线'},
+ ja:{ls:'スペクトル線',lab:'音色',gods:'神々の声',lines:'スペクトル線',both:'両方',tp:'本来の音高で',nG:'それぞれの天体が、その神の声で歌います。',
+   nL:'それぞれの天体が自分のスペクトル線で鳴ります。最も強い帯（太陽はフラウンホーファー線、月は反射した太陽光とスペクトルの傾き、輝石）です。和音の音程は線の実際の周波数比で、和音の中心はその天体が歌う音に置かれます。旋律・リズム・フレーズはそのままに、声だけが変わります。',
+   nB:'神々が歌い、それぞれの天体のスペクトル線が共に鳴ります。',
+   nT:'本来の音高では、線は「40オクターブの規則」が定める高さで鳴ります（350 nm → 779 Hz、2.5 µm → 109 Hz）。リズムとフレーズは残り、旋律は光そのものの和音に道を譲ります。',
+   tpS:'本来の音高',tpTip:'ストリップの音を根音にせず、40オクターブの規則による音高で線を鳴らします',pPl:'惑星たちの線',pSt:'星の光の線'},
+ vi:{ls:'Vạch',lab:'Âm sắc',gods:'Giọng các vị thần',lines:'Vạch quang phổ',both:'Cả hai',tp:'Ở cao độ thật',nG:'Mỗi thiên thể hát bằng giọng vị thần của nó.',
+   nL:'Mỗi thiên thể vang lên bằng chính các vạch quang phổ của nó: những dải mạnh nhất (Mặt Trời là các vạch Fraunhofer; Mặt Trăng là ánh Mặt Trời phản xạ, độ dốc quang phổ và pyroxen). Các quãng của hợp âm là tỉ lệ thật giữa các vạch, và tâm hợp âm đặt đúng nốt mà thiên thể hát: âm nhạc giữ nguyên giai điệu, nhịp điệu và cách ngắt câu, chỉ giọng hát đổi khác.',
+   nB:'Các vị thần hát, và các vạch quang phổ của mỗi thiên thể cùng vang lên.',
+   nT:'Ở cao độ thật, các vạch vang lên đúng chỗ quy tắc bốn mươi quãng tám đặt chúng (350 nm → 779 Hz, 2,5 µm → 109 Hz): nhịp điệu và cách ngắt câu được giữ, giai điệu nhường chỗ cho hợp âm của chính ánh sáng.',
+   tpS:'Cao độ thật',tpTip:'Các vạch ở cao độ theo quy tắc bốn mươi quãng tám, thay vì lấy nốt của dải làm gốc',pPl:'Vạch của các hành tinh',pSt:'Vạch ánh sao'},
+ bg:{ls:'Линии',lab:'Звучат като',gods:'Гласовете на боговете',lines:'Спектрални линии',both:'И двете',tp:'В истинската им височина',nG:'Всяко тяло пее с гласа на своя бог.',
+   nL:'Всяко тяло звучи като собствените си спектрални линии: най-силните си ивици (при Слънцето – линиите на Фраунхофер; при Луната – отразената слънчева светлина, наклонът на спектъра и пироксенът). Интервалите на акорда са истинските съотношения между линиите, а средата му стои на тона, който тялото пее: музиката запазва мелодията, ритъма и фразирането си, сменя се само гласът.',
+   nB:'Боговете пеят, а спектралните линии на всяко тяло звучат заедно с тях.',
+   nT:'В истинската им височина линиите звучат там, където ги поставя правилото на четиридесетте октави (350 nm → 779 Hz, 2,5 µm → 109 Hz): ритъмът и фразирането остават, а мелодията отстъпва пред собствения акорд на светлината.',
+   tpS:'Истинска височина',tpTip:'Линиите във височината си по правилото на четиридесетте октави, вместо от тона на канала',pPl:'Линиите на планетите',pSt:'Линии на звездната светлина'},
+ pt:{ls:'Linhas',lab:'Soam como',gods:'Vozes dos deuses',lines:'Linhas espectrais',both:'Ambas',tp:'Na altura real',nG:'Cada corpo canta com a voz do seu deus.',
+   nL:'Cada corpo soa como as suas próprias linhas espectrais: as bandas mais fortes (no Sol, as linhas de Fraunhofer; na Lua, a luz do Sol refletida, a inclinação do espectro e o piroxênio). Os intervalos do acorde são as razões reais entre as linhas, e o centro do acorde fica na nota que o corpo canta: a música mantém a melodia, o ritmo e o fraseado; só a voz muda.',
+   nB:'Os deuses cantam, e as linhas espectrais de cada corpo soam com eles.',
+   nT:'Na altura real, as linhas soam onde a regra das quarenta oitavas as coloca (350 nm → 779 Hz, 2,5 µm → 109 Hz): o ritmo e o fraseado continuam, e a melodia dá lugar ao acorde da própria luz.',
+   tpS:'Altura real',tpTip:'As linhas na altura da regra das quarenta oitavas, em vez de partirem da nota da faixa',pPl:'As linhas dos planetas',pSt:'Linhas da luz das estrelas'}};
+const LW=Object.assign({},LNW.en,LNW[LANG]||{});
+const nLines=()=>{const q=MOTS.quality?MOTS.quality():'std';return q==='eco'?3:q==='high'?8:5};
+const LNF_LO=35,LNF_HI=6000,LN_MERGE=25;
+// a set from candidate lines [{f, a, n}]: strongest first, near-unisons merged, the first n kept, normalised to an RMS of 1, its centre
+function lineSetOf(cand,n,key){const s=cand.filter(L=>L.a>0&&L.f>0).sort((x,y)=>y.a-x.a),out=[];
+  for(const L of s){const m=out.find(o=>Math.abs(1200*Math.log2(L.f/o.f))<LN_MERGE);if(m){m.a=Math.hypot(m.a,L.a);continue}if(out.length<n)out.push({f:L.f,a:L.a,n:L.n})}
+  if(!out.length)return null;let q=0,c=0;out.forEach(L=>{q+=L.a*L.a;c+=L.a*L.a*Math.log(L.f)});const k=1/Math.sqrt(q/2),centre=Math.exp(c/q);
+  out.forEach(L=>{L.a*=k;L.r=L.f/centre});out.sort((x,y)=>x.f-y.f);return {key,lines:out,centre}}
+const LSETS=new Map();
+// a body's set: id is a bodyspectra key ('jupiter', 'selene', 'io', 'halley' …) or 'sun' for the Fraunhofer lines; null until the data are in
+function lineSet(id,n){if(!BSD||!id)return null;n=n||nLines();const key=id+':'+n;if(LSETS.has(key))return LSETS.get(key);let set=null;
+  if(id==='sun')set=lineSetOf(BSD.sun.map(L=>({f:BODYSPEC.fOf(L[1]),a:Math.pow(L[2],1.25),n:L[0]})),n,key);
+  // the sphere of the fixed stars (the thinkers' heavens): the Balmer lines of a white star like Vega or Sirius, with a little calcium
+  else if(id==='stars')set=lineSetOf([['Hα',656.28,.75],['Hβ',486.13,.9],['Hγ',434.05,.85],['Hδ',410.17,.8],['Hε',397.01,.7],['H8',388.9,.6],['H9',383.54,.5],['H10',379.79,.4],['Ca II K',393.37,.25]].map(L=>({f:BODYSPEC.fOf(L[1]),a:Math.pow(L[2],1.25),n:L[0]})),n,key);
+  else{const C=BODYSPEC.chord(BSD,id,{level:1,gamma:1.25});if(C)set=lineSetOf(C.lines.concat(C.sun).map(L=>({f:L.f0,a:L.a,n:L.n})),n,key)}
+  LSETS.set(key,set);return set}
+// a star's set, from the galaxy engine's lineChord (its lines at their Doppler-shifted forty-octave pitches)
+function starSet(C,n){if(!C||!C.lines||!C.lines.length)return null;return lineSetOf(C.lines.map(L=>({f:L.f,a:L.amp,n:L.n})),n||nLines(),'star')}
+const fold=f=>{while(f<LNF_LO)f*=2;while(f>LNF_HI)f/=2;return f};
+/** the voice: {out (RMS 1 at gain 1), lo, hi (the lines below and above the centre: a tilt for "brightness"), det (a gain into every line's
+ *  detune: connect vibrato or wobble here), cs (the shared pitch source, cents from fref), sp (cents added to the upper lines only: a
+ *  spread, the synthesiser's detune), srcs, setF(f, tc), setAt(f, t) (a sequencer's exact step), accent(f, kind, t), fref, tp}.
+ *  opts: truePitch, vib (cents, 0 for none), t (start time) */
+function lineVoice(ac,set,f0,o){o=o||{};const gn=(v,to)=>{const g=ac.createGain();g.gain.value=v;if(to)g.connect(to);return g};
+  const tp=!!o.truePitch,t=o.t!=null?o.t:ac.currentTime,out=gn(1),lo=gn(1,out),hi=gn(1,out),det=gn(1),srcs=[];
+  const cs=ac.createConstantSource();cs.offset.value=0;cs.connect(det);const sp=ac.createConstantSource();sp.offset.value=0;srcs.push(cs,sp);
+  const fref=tp?1:Math.max(20,f0||220);
+  set.lines.forEach((L,i)=>{const x=ac.createOscillator();x.type='sine';KRp(x.frequency);KRp(x.detune);x.frequency.value=tp?L.f:fold(fref*L.r);
+    x.detune.value=((i*7)%5-2)*1.2;det.connect(x.detune);if(L.r>=1)sp.connect(x.detune);const g=gn(L.a,L.r<1?lo:hi);x.connect(g);srcs.push(x)});
+  if(o.vib){const v=ac.createOscillator();v.frequency.value=4.6+((set.lines.length*13)%10)/10;const vd=gn(o.vib,det);v.connect(vd);srcs.push(v)}
+  srcs.forEach(s=>s.start(t));let last=0;
+  const V={out,lo,hi,det,cs,sp,srcs,fref,tp,set,
+    setAt(f,t1){if(tp||!(f>0))return;const c=1200*Math.log2(f/fref);cs.offset.cancelScheduledValues(t1);cs.offset.setValueAtTime(c,t1);last=c},
+    setF(f,tc){if(tp||!(f>0))return;const c=1200*Math.log2(f/fref);if(Math.abs(c-last)<.5)return;last=c;cs.offset.setTargetAtTime(c,ac.currentTime,tc==null?.07:tc)},
+    // a sung attack in pitch: a grace from a tone above or below, or the thinker's flourish (up a third and back)
+    accent(f,kind,t1){if(tp||!(f>0))return;const p=cs.offset,c=1200*Math.log2(f/fref),now=t1||ac.currentTime;p.cancelScheduledValues(now);
+      if(kind==='flourish')[0,204,408,204,0].forEach((d,k)=>p.setTargetAtTime(c+d,now+k*.13,.025));else{p.setTargetAtTime(c+(kind==='retro'?204:-204),now,.008);p.setTargetAtTime(c,now+.03,.04)}last=c}};
+  return V}
+/** a struck chord (the thinkers' lyre and monochord): every line at once, a soft attack and a decay of dec seconds; returns its end time */
+function linePluck(ac,set,f,dest,lvl,dec,o){o=o||{};const t=o.t!=null?o.t:ac.currentTime+.02,tp=!!o.truePitch,env=ac.createGain();env.gain.value=0;env.connect(dest);
+  env.gain.setValueAtTime(0,t);env.gain.linearRampToValueAtTime(lvl,t+.008);env.gain.setTargetAtTime(0,t+.008,dec);const end=t+dec*6;
+  set.lines.forEach((L,i)=>{const x=ac.createOscillator();x.type='sine';x.frequency.value=tp?L.f:fold(f*L.r);const g=ac.createGain();g.gain.value=L.a*(1-.06*i);x.connect(g);g.connect(env);x.start(t);x.stop(end)});
+  setTimeout(()=>{try{env.disconnect()}catch(e){}},(end-ac.currentTime+.3)*1000);return end}
+// the setting (the dial only: enable() is called by the dial's own code, so the flight, which shares the dial's engine, keeps its gods)
+const LNS={on:false,mode:['gods','lines','both'].includes(LS.get('mots.lines'))?LS.get('mots.lines'):'gods',tp:LS.get('mots.lines.true')==='1',fns:[]};
+const linesMode=()=>LNS.on&&BSD?LNS.mode:'gods';
+function linesFire(){setColour(colourOn());LNS.fns.forEach(f=>{try{f()}catch(e){}})}
+function linesSet(mode,tp){if(mode&&['gods','lines','both'].includes(mode)){LNS.mode=mode;LS.set('mots.lines',mode)}if(tp!=null){LNS.tp=!!tp;LS.set('mots.lines.true',tp?'1':'0')}
+  linesUI();if(LNS.mode!=='gods'&&!BSD)bsData().then(linesFire).catch(()=>{});else linesFire()}
+function linesUI(){const box=document.getElementById('linesCtl');if(!box)return;box.querySelectorAll('#linesSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===LNS.mode)));
+  const c=box.querySelector('#linesTrue');if(c){c.checked=LNS.tp;c.closest('label').hidden=LNS.mode==='gods'}
+  const n=box.querySelector('#linesNote');if(n)n.textContent=LNS.mode==='gods'?LW.nG:LNS.mode==='both'?LW.nB+(LNS.tp?' '+LW.nT:''):(LNS.tp?LW.nT:LW.nL)}
+function linesEnable(){if(LNS.on)return;LNS.on=true;if(LNS.mode!=='gods')bsData().then(linesFire).catch(()=>{});
+  const vn=document.getElementById('voicesNote');if(!vn||document.getElementById('linesCtl'))return;
+  // (the dial's .field styles its labels as small capitals, so the checkbox sits beside the field, as the page's other checkboxes do)
+  const f=document.createElement('div');f.id='linesCtl';
+  f.innerHTML=`<div class="field"><span class="lab">${ESCH(LW.lab)}</span><div class="seg" id="linesSeg" role="group" aria-label="${ESCH(LW.lab)}">${['gods','lines','both'].map(v=>`<button type="button" data-v="${v}" aria-pressed="${v===LNS.mode}">${ESCH(LW[v])}</button>`).join('')}</div></div>`+
+    `<label class="check"><input type="checkbox" id="linesTrue"> ${ESCH(LW.tp)}</label><p class="note" id="linesNote"></p>`;
+  const st=document.createElement('style');st.textContent='#linesCtl [hidden]{display:none!important}#linesCtl .field{margin-top:.6rem}';document.head.appendChild(st);
+  vn.insertAdjacentElement('afterend',f);
+  f.querySelectorAll('#linesSeg button').forEach(b=>b.onclick=()=>linesSet(b.dataset.v));f.querySelector('#linesTrue').onchange=e=>linesSet(null,e.target.checked);linesUI()}
+if(MOTS.onQuality)MOTS.onQuality(()=>linesFire());
+const LINES={enable:linesEnable,mode:linesMode,set:linesSet,truePitch:()=>LNS.tp,ready:()=>!!BSD,load:()=>bsData(),on:f=>LNS.fns.push(f),n:nLines,
+  lineSet,starSet,voice:lineVoice,pluck:linePluck,words:LW,fold};
+
 /* --- the sheet --- */
 const bcss=document.createElement('style');bcss.textContent=`
 .bsheet{position:fixed;z-index:70;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + .6rem);width:min(42rem,calc(100vw - 1.2rem));box-sizing:border-box;background:var(--glass,rgba(10,12,24,.94));border:1px solid var(--line,rgba(201,152,79,.4));border-radius:14px;padding:.6rem .9rem .7rem;color:var(--vellum,#e9e1cc);font-family:var(--f-body,system-ui,sans-serif);font-size:.84rem;line-height:1.4;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 10px 40px rgba(0,0,0,.6);max-height:calc(100vh - 1.5rem);max-height:calc(100dvh - 1.5rem);overflow:auto;overscroll-behavior:contain;text-align:left}
@@ -1462,7 +1602,7 @@ const NB=new WeakMap();
 function sctx(){if(H&&H.ctx&&H.ctx.state==='running')return H.ctx;if(!SAC){const A=window.AudioContext||window.webkitAudioContext;if(!A)return null;SAC=new A()}if(SAC.state!=='running')SAC.resume().catch(()=>{});return SAC}
 function noiseOf(ac){let n=NB.get(ac);if(n)return n;const b=ac.createBuffer(1,ac.sampleRate*2,ac.sampleRate),d=b.getChannelData(0);let s=7;for(let i=0;i<d.length;i++){s=(s*16807)%2147483647;d[i]=s/1073741823.5-1}const src=ac.createBufferSource();src.buffer=b;src.loop=true;n=ac.createGain();src.connect(n);src.start();NB.set(ac,n);return n}
 function ensureSheet(){if(BSH)return;BSH=document.createElement('div');BSH.className='bsheet';BSH.id='bodySheet';BSH.hidden=true;BSH.setAttribute('role','dialog');document.body.appendChild(BSH);
-  BSH.onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;if(a==='x')close();else if(a==='chord'){if(BH&&BH.kind==='chord')stopHear();else hearChord()}else if(a==='sweep'){if(BH&&BH.kind==='sweep')stopHear();else hearSweep()}};
+  BSH.onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;if(a==='x')close();else if(a==='chord'){if(BH&&BH.kind==='chord'){if(BS)BS.want=false;stopHear()}else hearChord()}else if(a==='sweep'){if(BH&&BH.kind==='sweep'){if(BS)BS.want=false;stopHear()}else hearSweep()}};
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&BSH&&!BSH.hidden){e.stopPropagation();close()}},true);
   addEventListener('resize',()=>{if(BSH&&!BSH.hidden)draw()})}
 /** open the sheet for a body: ref = {id (bodyspectra key: 'jupiter', 'io', 'selene' …), name (as the page writes it), sub (optional)} */
@@ -1476,7 +1616,9 @@ function render(){const {ref,C}=BS,nm=ESCH(ref.name||ref.id),comet=C.lines.some(
   const txt=(t1+' '+ESCH(uf(SP.rule,{hi:fmt(C.hiHz,0),lo:fmt(C.loHz,0)}))+' '+ESCH(SP.dop)+(C.typical?' '+ESCH(uf(SP.typ,{c:SP.cls[C.cls]||C.cls})):'')).replace(/(\d) (µm|nm|Hz)/g,'$1\u00a0$2');
   BSH.innerHTML=`<div class="bsh"><b>${nm}</b><small>${ESCH(SP.title)}</small><button class="bsx" data-a="x" aria-label="${ESCH(SP.close)}">×</button></div><canvas aria-label="${ESCH(SP.title)}"></canvas><p class="bst">${txt}</p><p class="bsr">${ESCH(C.refs.join(' · '))}</p>`+
     `<div class="bsb"><button data-a="chord">${ESCH(SP.hearChord)}</button><button data-a="sweep">${ESCH(SP.hearSweep)}</button><button data-a="x">${ESCH(SP.close)}</button></div>`;
-  BCV=BSH.querySelector('canvas');draw()}
+  BCV=BSH.querySelector('canvas');draw();
+  // the sheet sings as it opens: its lines held and looping until Stop or close (not when the page's volume is at nothing)
+  if(!BS.started){BS.started=true;BS.want=true;if(pageVol()>0)hearChord()}}
 function close(){stopHear();if(BSH)BSH.hidden=true;BS=null}
 const MONO='500 10px "IBM Plex Mono",ui-monospace,monospace',BOLD='600 10.5px "IBM Plex Mono",ui-monospace,monospace';
 // the colour of a wavelength (an approximation of the CIE hue, after D. Bruton), dimmed toward the ends of sight; beyond it a muted false colour
@@ -1524,18 +1666,29 @@ function draw(){if(!BSH||BSH.hidden||!BCV)return;const dpr=Math.min(2,devicePixe
   // the sweep cursor
   if(BH&&BH.kind==='sweep'){const u=Math.max(0,Math.min(1,(BH.ac.currentTime-BH.t0)/BH.dur)),x=u*W,nm=nmOf(x);c.fillStyle='rgba(255,255,255,.9)';c.fillRect(x-1,top-6,2,stripY+stripH-top+6);c.font=MONO;c.textAlign=x>W*.6?'right':'left';c.fillStyle='#e9e1cc';c.fillText(`${wl(nm)} · ${fmt(BODYSPEC.fOf(nm),0)} Hz`,x+(x>W*.6?-5:5),Hh-3)}}
 function setBtn(a,on){if(!BSH)return;const b=BSH.querySelector(`[data-a="${a}"]`);if(b){b.textContent=on?SP.stop:(a==='chord'?SP.hearChord:SP.hearSweep);b.classList.toggle('on',on)}}
-function hearChord(){if(!BS||!BS.C)return;const ac=sctx();if(!ac)return;stopHear();const t=ac.currentTime,dur=8,out=ac.createGain();out.gain.value=1;out.connect(ac.destination);
-  const gr=chordGraph(ac,noiseOf(ac),BS.C,t+.02);gr.master.connect(out);gr.master.gain.setValueAtTime(0,t);gr.master.gain.linearRampToValueAtTime(1,t+.5);gr.master.gain.setTargetAtTime(0,t+dur-.9,.3);
-  BH={kind:'chord',ac,t0:t,dur,gr,out,end:setTimeout(stopHear,(dur+.6)*1000)};setBtn('chord',true);const tick=()=>{if(!BH||BH.kind!=='chord')return;draw();BH.raf=requestAnimationFrame(tick)};tick()}
+// the page's volume (its own Volume slider, where it has one), and a little ducking of the page's music while the sheet sounds
+const pageVol=()=>{const v=document.getElementById('vol');return v?Math.max(0,Math.min(1,(+v.value||0)/100)):1};
+let duckT=null;
+function duck(on){clearTimeout(duckT);const f=()=>{try{if(MOTS.sheetDuck)MOTS.sheetDuck(on)}catch(e){}};if(on)f();else duckT=setTimeout(f,350)}
+function outChain(ac){const vol=ac.createGain();vol.gain.value=pageVol();vol.connect(ac.destination);const out=ac.createGain();out.gain.value=1;out.connect(vol);return {out,vol}}
+function volTick(){if(!BH||!BH.vol)return;const v=pageVol();if(Math.abs(v-(BH.lv==null?-1:BH.lv))>.004){BH.lv=v;BH.vol.gain.setTargetAtTime(v,BH.ac.currentTime,.05)}}
+// the drawing follows the chord as it enters (about three seconds), then a few times a second: the held chord costs a phone almost nothing to watch
+function hearTick(kind){let lastD=0;const tick=()=>{if(!BH||BH.kind!==kind)return;volTick();const now=performance.now();if(kind!=='chord'||BH.ac.currentTime-BH.t0<3.5||now-lastD>250){lastD=now;draw()}BH.raf=requestAnimationFrame(tick)};tick()}
+/* "Hear its lines": the chord held and looping until Stop or the sheet closes, breathing gently (±1 dB over nine seconds) */
+function hearChord(){if(!BS||!BS.C)return;const ac=sctx();if(!ac)return;stopHear();const t=ac.currentTime,{out,vol}=outChain(ac);
+  const gr=chordGraph(ac,noiseOf(ac),BS.C,t+.02);gr.master.connect(out);gr.master.gain.setValueAtTime(0,t);gr.master.gain.linearRampToValueAtTime(1,t+.5);
+  const lfo=ac.createOscillator();lfo.frequency.value=.11;const ld=ac.createGain();ld.gain.value=.11;out.gain.value=.89;lfo.connect(ld);ld.connect(out.gain);lfo.start(t);
+  BH={kind:'chord',ac,t0:t,dur:1e9,gr,out,vol,lv:pageVol(),srcs:[lfo]};BS.want=true;setBtn('chord',true);duck(true);hearTick('chord')}
 function sweepCurves(D,id,n){const b=BODYSPEC.rec(D,id),sp=BODYSPEC.spectrum(D,id,{n}),F=new Float32Array(n),A=new Float32Array(n);let ref=0;b.c.forEach(p=>{if(p[1]>ref)ref=p[1]});
   for(let i=0;i<n;i++){F[i]=BODYSPEC.fOf(sp.nm[i]);A[i]=.15*Math.min(1.35,Math.pow(sp.R[i]/ref,.7))*Math.pow(sp.T[i],1.6)}return {F,A}}
-function hearSweep(){if(!BS||!BS.C)return;const ac=sctx();if(!ac)return;stopHear();const t=ac.currentTime,dur=9,n=512,{F,A}=sweepCurves(BS.D,BS.ref.id,n),out=ac.createGain();out.connect(ac.destination);
+/* "Hear the sweep": its light from ultraviolet to infrared, then back to the looping chord (unless the chord was stopped) */
+function hearSweep(){if(!BS||!BS.C)return;const ac=sctx();if(!ac)return;stopHear();const t=ac.currentTime,dur=9,n=512,{F,A}=sweepCurves(BS.D,BS.ref.id,n),{out,vol}=outChain(ac);
   const o=ac.createOscillator();o.type='sine';const o2=ac.createOscillator();o2.type='triangle';const g=ac.createGain(),g2=ac.createGain();g.gain.value=0;g2.gain.value=.08;o.connect(g);o2.connect(g2);g2.connect(g);g.connect(out);
   o.frequency.setValueAtTime(F[0],t);o.frequency.setValueCurveAtTime(F,t+.02,dur-.04);o2.frequency.setValueAtTime(F[0]*2,t);o2.frequency.setValueCurveAtTime(F.map(x=>x*2),t+.02,dur-.04);
   g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(A[0],t+.02);g.gain.setValueCurveAtTime(A,t+.02,dur-.04);g.gain.setTargetAtTime(0,t+dur,.05);o.start(t);o2.start(t);o.stop(t+dur+.4);o2.stop(t+dur+.4);
-  BH={kind:'sweep',ac,t0:t,dur,srcs:[o,o2],out,end:setTimeout(stopHear,(dur+.5)*1000)};setBtn('sweep',true);const tick=()=>{if(!BH||BH.kind!=='sweep')return;draw();BH.raf=requestAnimationFrame(tick)};tick()}
-function stopHear(){if(!BH)return;const h=BH;BH=null;clearTimeout(h.end);cancelAnimationFrame(h.raf);const t=h.ac.currentTime;try{h.out.gain.cancelScheduledValues(t);h.out.gain.setTargetAtTime(0,t,.04)}catch(e){}
-  setTimeout(()=>{if(h.gr)chordKill(h.gr,h.ac,.02);if(h.srcs)h.srcs.forEach(s=>{try{s.stop()}catch(e){}});try{h.out.disconnect()}catch(e){}},300);setBtn('chord',false);setBtn('sweep',false);draw()}
+  BH={kind:'sweep',ac,t0:t,dur,srcs:[o,o2],out,vol,lv:pageVol(),end:setTimeout(()=>{const back=!!(BS&&BS.want);stopHear();if(back&&BS&&BSH&&!BSH.hidden)hearChord()},(dur+.5)*1000)};setBtn('sweep',true);duck(true);hearTick('sweep')}
+function stopHear(){if(!BH)return;const h=BH;BH=null;clearTimeout(h.end);cancelAnimationFrame(h.raf);const t=h.ac.currentTime,g=h.vol||h.out;try{g.gain.cancelScheduledValues(t);g.gain.setTargetAtTime(0,t,.04)}catch(e){}
+  setTimeout(()=>{if(h.gr)chordKill(h.gr,h.ac,.02);if(h.srcs)h.srcs.forEach(s=>{try{s.stop()}catch(e){}});try{h.out.disconnect()}catch(e){}try{if(h.vol)h.vol.disconnect()}catch(e){}},300);setBtn('chord',false);setBtn('sweep',false);duck(false);draw()}
 /* the measurement window: a body's chord rendered offline as the sheet plays it (8 s, fade in 0.5 s, held, fade out), with its RMS (all and held),
    peak, the largest sample-to-sample step (a click would be > 0.1), its spectral peaks (Hz) and a 1/6-octave profile 100–1000 Hz */
 function renderBody(id,secs){return bsData().then(D=>{const C=BODYSPEC.chord(D,id,{gamma:1.25,level:BS_LEVEL}),sr=44100,dur=secs||8,ac=new OfflineAudioContext(1,Math.round(sr*(dur+.5)),sr);
@@ -1555,6 +1708,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('.bslink');if(!b)
 
 MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
   // the bodies' spectra (step 4e) and the chord graph shared with the stars' sheet
+  lines:LINES,
   spectrum:{open,close,render:renderBody,data:bsData,engine:BODYSPEC,isOpen:()=>!!(BSH&&!BSH.hidden),hearing:()=>BH?BH.kind:null,words:SP},chordGraph,chordKill,sysRows,
   // a window for tests
   _probe:{nmToHz,hzToNm,umToHz,heatOf,colourCurve,gainAt,albedoOf,jupiterRadio:()=>H?jupiterRadio(H):null,earthRadio:()=>H?earthRadio(H):null,entries:()=>E,colourIR:b=>H?colourIR(H.ctx,b):null,win,ALB,HEAT,BODYSPEC}};
@@ -4508,16 +4662,64 @@ function buildSunInst(v,fadeIn){
 function droneFreqs(){if(SYS.tonic)return [SYS.tonic,SYS.tonic*1.5,SYS.tonic/2];let t=C_BASE*PY[S.mode]*8*Math.pow(2,keyShift());return [t,t*1.5,t/2]}
 const APOLLO=[{type:'bass',tilt:1.25,vib:[4.6,.02],breath:.08,jit:.003,syl:2.0,rest:2.6,ens:.5,words:'a p o l o: n'},{type:'tenor',tilt:1.15,vib:[5.0,.02],breath:.06,jit:.003,syl:2.0,rest:2.6,ens:0,words:'a p o l o: n'}];
 
+
+/* ---------- spectral lines (light.js, MOTS.light.lines): the dial's "Spectral lines" and "Both" ----------
+   A body keeps its music and changes its voice: the same pitch, rhythm and phrasing, sung as its line chord, the chord's intervals the
+   real ratios of its lines and its centre on the note the body sings (or, at true pitch, the lines at their forty-octave pitches; the rule
+   is written out in light.js). Per voice only its N strongest lines (Eco 3, Standard 5, High 8), one sine each on a shared pitch source,
+   so a line voice costs about what a god's instrument costs; the number of voices is the gods' budget. Breathing: in Today's sky each
+   chord swells and settles in the phrases of the body's own singer (its words, syllable length and rest); in a thinker's heavens the
+   chord is struck and swells on the thinker's articulations, as the sirens' voices are. Only the dial turns this on (the flight shares
+   this engine and keeps its gods). */
+const LNX=()=>window.MOTS&&MOTS.light&&MOTS.light.lines;
+function lmode(){const L=LNX();return L?L.mode():'gods'}
+// a voice's style: rebuilt when the voices, the lines option, true pitch or the number of lines (the Quality) change
+function lkey(m){const L=LNX(),lm=lmode();return lm==='gods'?m:(lm==='lines'?'lines':m)+'|'+lm+'|'+(L.truePitch()?1:0)+'|'+L.n()+'|'+lineK()}
+const SPEC_OF={moon:'selene',sun:'sun'};
+const specOf=b=>b.spec||SPEC_OF[b.id]||b.id;
+// a line chord at RMS 1, matched to a god's instrument part (measured on the page's output: Today's sky about 0.11 RMS with the lines,
+// 0.15 with the gods; a dense heaven is held down by the gain staging below, a sparse one, Plato's, sings at the lines' own level)
+const LGAIN=.2,lineK=()=>1;
+// the stage's gain staging (stage.js) holds a dense mix at its reference before the compressor; the lines' sines are denser and steadier
+// than the gods' voices, so while they sound that reference sits 4.5 dB lower (a sparse heaven, already under it, is left as it is)
+function linesPre(){try{const C=MOTS.surround&&MOTS.surround._s&&MOTS.surround._s.cfg;if(!C||!C.preRef)return;if(C.preRef0==null)C.preRef0=C.preRef;C.preRef=C.preRef0*(lmode()==="gods"?1:Math.pow(10,-4.5/20))}catch(e){}}
+// add a body's lines to a part (k: their share; floor: the level between phrases); false if it has no spectrum
+function lineAdd(part,spec,f,hv,k,floor){const L=LNX(),set=L&&L.lineSet(spec);if(!set||!part)return false;
+  const lv=L.voice(AC,set,f,{truePitch:L.truePitch(),vib:LOWPOWER?0:4});
+  const br=mkGain(floor,mkGain(LGAIN*k,part.g));lv.out.connect(br);(part.srcs=part.srcs||[]).push(...lv.srcs);
+  part.L={lv,br,hv:hv||{syl:.7,rest:1.6,words:'a:'},next:AC.currentTime+.15+Math.random()*1.2,floor,f};return true}
+// a part that is only the body's lines; null if it has no spectrum (the god sings instead)
+function linePart(spec,v,f,hv,floor){const part={g:mkGain(0,v.vol),srcs:[],taps:[]};part.g.gain.setTargetAtTime(1,AC.currentTime,.15);
+  if(!lineAdd(part,spec,f,hv,lineK(),floor)){try{part.g.disconnect()}catch(e){}return null}return part}
+// any body's voice in the current style (moons, system moons): the lines, the god, or both
+function buildAny(body,v,f){const lm=lmode(),sp=specOf(body);v.lkey=lkey(S.voices);
+  if(lm==='lines'){const p=linePart(sp,v,f,body.hv,.3);if(p){v.part=p;v.mode='lines';return p}}
+  v.part=S.voices==='human'?buildHumanPart(body,v):buildInst(body,v,true);v.mode=S.voices;if(lm==='both')lineAdd(v.part,sp,f,body.hv,.6*lineK(),.3);return v.part}
+// a phrase of breath: the chord swells over the length of the singer's phrase, then settles while the singer would rest
+function lineBreath(P,t0){const hv=P.hv;let d=0;parseWords(hv.words||'a:').forEach(({t,hold})=>{d+=FT.bass[t]?(hv.syl||.6)*(hold?2.4:1):.1});
+  d=Math.max(1.2,d*(.85+Math.random()*.3));const g=P.br.gain;g.setTargetAtTime(1,t0,.2);g.setTargetAtTime(P.floor,t0+d,.4);
+  P.next=t0+d+.6+Math.max(.5,(hv.rest||1.5)*(.7+Math.random()*.6))}
+function linesTick(part,f,now){const P=part&&part.L;if(!P)return;P.lv.setF(f);P.f=f;if(!P.steady&&now+.12>=P.next)lineBreath(P,Math.max(now+.05,P.next))}
+// a thinker's articulation on the lines: the chord struck (a quick swell settling to half) with the sirens' grace or flourish in pitch
+function lineAccent(part,f,retro,flourish){const P=part&&part.L;if(!P)return;const now=AC.currentTime,a=P.br.gain;a.cancelScheduledValues(now);a.setValueAtTime(a.value,now);a.linearRampToValueAtTime(1,now+.035);a.setTargetAtTime(.5,now+.14,.35);
+  P.lv.accent(f,flourish?'flourish':retro?'retro':'',now);P.f=f}
+
 // voices are built only while they can be heard; switching mode clears them and they rebuild in the new style
 function applyVoiceMode(){
   if(!AC)return;const mode=S.voices;
-  BODIES.forEach(b=>{const v=V[b.id];if(v.part&&v.mode!==mode){killPart(v.part);v.part=null;v.mode=null}});
-  if(sunV.mode!==mode){
-    killPart(sunV.part);
+  const key=lkey(mode),lm=lmode();
+  BODIES.forEach(b=>{const v=V[b.id];if(v.part&&v.lkey!==key){killPart(v.part);v.part=null;v.mode=null}});
+  if(sunV.lkey!==key){
+    killPart(sunV.part);const f0=droneFreqs()[0];
+    // Apollo as the Sun's Fraunhofer lines, rooted on the drone's tonic and breathing as slowly as his drone
+    const lp=lm==='lines'?linePart('sun',sunV,f0,APOLLO[0],.55):null;
+    if(lp){sunV.part=lp;sunV.mode='lines'}
+    else{
     if(mode==='human'){const part={g:mkGain(0,sunV.vol)};part.g.gain.setTargetAtTime(.9,AC.currentTime,.15);
       part.hums=APOLLO.map(sp=>{const h=makeHuman(sp,part.g,false);h.next=AC.currentTime+.6;return h});sunV.part=part;}
     else sunV.part=buildSunInst(sunV,sunV.mode!==null);
-    sunV.mode=mode;
+    sunV.mode=mode;if(lm==='both')lineAdd(sunV.part,'sun',f0,APOLLO[0],.5,.55)}
+    sunV.lkey=key;linesPre();
   }
 }
 const ensureHuman=applyVoiceMode;
@@ -4526,7 +4728,10 @@ function buildPure(b,v){const I={srcs:[],taps:[]},f0=P[b.id].f;I.g=mkGain(0,v.vo
   I.o1=AC.createOscillator();I.o1.type='sine';I.o1.frequency.value=f0;I.o2=AC.createOscillator();I.o2.type='triangle';I.o2.frequency.value=f0;
   I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.frequency.value=6000;I.lp.connect(I.g);I.o1.connect(mkGain(.15,I.lp));I.o2.connect(mkGain(.05,I.lp));
   I.vd=AC.createGain();I.srcs.push(I.o1,I.o2);I.osc=[[I.o1,0],[I.o2,0]];I.srcs.forEach(o=>o.start());return I}
-function buildPart(b,v){v.part=S.thinker==='sonic'&&b.kind==='planet'?buildPure(b,v):S.voices==='human'?buildHumanPart(b,v):buildInst(b,v,true);v.mode=S.thinker==='sonic'&&b.kind==='planet'?'instrument':S.voices;v.born=AC.currentTime}
+function buildPart(b,v){const lm=lmode(),f=P[b.id].f;v.lkey=lkey(S.voices);v.born=AC.currentTime;
+  if(lm==='lines'){const p=linePart(specOf(b),v,f,b.hv,.3);if(p){v.part=p;v.mode='lines';return}}
+  v.part=S.thinker==='sonic'&&b.kind==='planet'?buildPure(b,v):S.voices==='human'?buildHumanPart(b,v):buildInst(b,v,true);v.mode=S.thinker==='sonic'&&b.kind==='planet'?'instrument':S.voices;
+  if(lm==='both')lineAdd(v.part,specOf(b),f,b.hv,.6*lineK(),.3)}
 
 
 // a small reusable set of panners lets an auditioned planet's moons circle your head
@@ -4660,6 +4865,8 @@ function updateAudio(){
   // rank the candidates by loudness; only the loudest MAXVOICES are allowed to sing
   const cand=BODIES.filter(b=>audible(b)&&!(b.kind==='minor'&&S.minorMode==='wobble')).map(b=>[b.id,loudness(b,P[b.id],audioDir(P[b.id],L))]).sort((a,c)=>c[1]-a[1]);
   const allowed=new Set(cand.slice(0,MAXVOICES).map(x=>x[0]));
+  // a change of style (the lines option, true pitch, Quality, or between Today and a thinker's heaven) rebuilds the voices as they sing
+  if(sunV.lkey!==lkey(S.voices))applyVoiceMode();
   const swell={};ASPNOW.forEach(a=>{swell[a.a.id]=Math.max(swell[a.a.id]||0,a.str);swell[a.b.id]=Math.max(swell[a.b.id]||0,a.str)});
   // Kepler: planets in concord swell together, and a universal harmony swells them all
   if(S.thinker==='kepler'){kepConcords();KEPC.forEach(c=>{swell[c.a]=Math.max(swell[c.a]||0,1.6*c.str);swell[c.b]=Math.max(swell[c.b]||0,1.6*c.str)});KEPU.forEach(k=>swell[k]=Math.max(swell[k]||0,2.4))}
@@ -4693,6 +4900,7 @@ function updateAudio(){
     if(window.MOTS&&MOTS.light)MOTS.light.tick(b,v,volT,aud);
     if(v.air)tgt(v.air.frequency,aud?16000:Math.max(1800,16000*Math.pow(1+(a.d||0),-.6)),.4);
     if(Hp&&(on||aud))humanTick(Hp.h,p.f,1,now);
+    if(v.part&&v.part.L&&(on||aud))linesTick(v.part,p.f*Math.pow(2,W.c/1200),now);
     // moons follow their planet: silent when it is
     const mOn=S.thinker==='today'&&(on||aud)&&!!v.part&&(S.groups.moons.on||aud);
     tgt(v.moonVol.gain,mOn&&!aud?S.groups.moons.vol*Math.min(1,g):0,.12);
@@ -4710,8 +4918,8 @@ function updateAudio(){
       if(wantM&&!m.sv){const mb=moonBody(b,{m,id:'smoon:'+b.id+':'+m.rank});m.sv={body:mb,vol:mkGain(0,m.out),part:null,rate:.3}}
       const sv=m.sv;if(!sv)return;
       const mf=melodyPitch(moonBase(p.f),moonPhase(b,m));P[sv.body.id]={f:mf};
-      if(sv.part&&sv.mode!==S.voices){killPart(sv.part);sv.part=null}
-      if(wantM&&!sv.part){sv.part=S.voices==='human'?buildHumanPart(sv.body,sv):buildInst(sv.body,sv,true);sv.mode=S.voices;sv.born=now}
+      if(sv.part&&sv.lkey!==lkey(S.voices)){killPart(sv.part);sv.part=null}
+      if(wantM&&!sv.part){buildAny(sv.body,sv,mf);sv.born=now}
       else if(!wantM&&sv.part&&now-sv.born>2.5){killPart(sv.part);sv.part=null}
       if(!sv.part){tgt(sv.vol.gain,0,.1);return}
       singAt(sv,mf,now);
@@ -4724,7 +4932,8 @@ function updateAudio(){
   const sa=audioDir({x:0,y:0,z:0},L);setPos(sunV.pan,sa.x,sa.y,sa.z);
   const [d1,d2,d3]=droneFreqs(), sp=sunV.part;
   if(sunV.mode==='instrument'){tgt(sp.d1.frequency,d1,.3);tgt(sp.d2.frequency,d2,.3);tgt(sp.d3.frequency,d3,.3)}
-  else if(sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
+  else if(sunV.mode==='human'&&sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
+  if(sp&&sp.L)linesTick(sp,d1,now);
   tgt(sunV.vol.gain,S.drone&&S.thinker==='today'&&!S.solo.size?(S.audition?.025:.07*(sa.self?.7:Math.max(.3,1-S.dist*.6*Math.min(1,sa.d/20)))):0,.3);
 }
 // the lyre: soft attack, sine body and a gentle octave, folded below 1.1 kHz so it rings rather than ticks
@@ -4790,6 +4999,7 @@ function singAt(v,f,now){
   const I=v.mode==='instrument'?v.part:null;
   if(I){tgt(I.o1.frequency,f,.06);tgt(I.o2.frequency,f,.06);if(I.o3)tgt(I.o3.frequency,f,.06);tgt(I.vd.gain,f*.004,.2)}
   else if(v.part&&v.part.h)humanTick(v.part.h,f,1,now);
+  if(v.part&&v.part.L)linesTick(v.part,f,now);
 }
 function moonRel(b,m){return Math.min(1,3*Math.pow(m.R/b.R,.25+.85*S.dist))}
 // a moon's name in the score and MIDI: its key (selene, io ...), or its place in the list
@@ -4872,7 +5082,7 @@ function moonBody(b,sm){
     vowel:v0==='a'?'ah':v0,
     // nearly every major moon is tidally locked, so its day equals its orbit; Hyperion tumbles chaotically
     rot:m.name==='Hyperion'?13*24:Math.abs(m.P)*24,
-    hv:{type:'child',tilt:1.1,vib:[5.6,.02],breath:.08,jit:m.name==='Hyperion'?.02:.004,syl:.5,rest:2.2,ens:0,words:g2p(m.name)},
+    hv:{type:'child',tilt:1.1,vib:[5.6,.02],breath:.08,jit:m.name==='Hyperion'?.02:.004,syl:.5,rest:2.2,ens:0,words:g2p(m.name)},spec:typeof m.k==='string'?m.k:null,
     ...(m.body||{})};   // a derived system (listen.js) gives its bodies their own voice, day and vowel
 }
 function buildSystemVoices(){
@@ -4886,7 +5096,7 @@ function buildSystemVoices(){
     if(sm.m.name==='Hyperion')v.rate=1.7;
     return v;
   });
-  SYS.mode=S.voices;
+  SYS.mode=lkey(S.voices);
 }
 function killSystemVoices(){
   SYS.voices.forEach(v=>{killPart(v.part);tgt(v.vol.gain,0,.08);const pan=v.pan;setTimeout(()=>{try{pan.disconnect()}catch(e){}const i=PANNERS.findIndex(x=>x.p===pan);if(i>=0)PANNERS.splice(i,1)},700)});
@@ -4897,7 +5107,7 @@ function silenceMoonVoices(x,now){(x.moons||[]).forEach(m=>{const sv=m.sv;if(sv&
 function updateSystemAudio(){
   const now=AC.currentTime, b=byId[SYS.id], pp=P[SYS.id], ang=sysFacing();
   setListener(ang);
-  if(SYS.mode!==S.voices)buildSystemVoices();
+  if(SYS.mode!==lkey(S.voices))buildSystemVoices();
   const L=sysListener(), law=.25+.85*S.dist;
   // every other body falls silent while you are inside a system
   BODIES.forEach(x=>{
@@ -4905,6 +5115,7 @@ function updateSystemAudio(){
     if(x.id!==SYS.id){tgt(v.vol.gain,0,.1);tgt(v.moonVol.gain,0,.1);silenceMoonVoices(x,now);
       if(v.part&&now-(v.born||0)>1){killPart(v.part);v.part=null;v.mode=null}return}
     // the planet hums at the centre of its system
+    if(v.part&&v.lkey!==lkey(S.voices)){killPart(v.part);v.part=null}
     if(!v.part)buildPart(x,v);
     const a=audioDir({x:0,y:0,z:0},L);setPos(v.pan,a.x,a.y,a.z);
     const g=a.self?.5:Math.min(.8,Math.pow((x.R/a.d)/.002,law)*.5);
@@ -4912,6 +5123,7 @@ function updateSystemAudio(){
     const I=v.mode==='instrument'?v.part:null;
     if(I){tgt(I.o1.frequency,pp.f,.07);tgt(I.o2.frequency,pp.f,.07);if(I.o3)tgt(I.o3.frequency,pp.f,.07)}
     if(v.mode==='human')humanTick(v.part.h,pp.f,1,now);
+    if(v.part.L)linesTick(v.part,pp.f,now);
   });
   // reference loudness: the moon that looks biggest from the planet's centre sings at full voice
   const ref=Math.max(...SYS.moons.map(sm=>sm.m.R/sm.m.a));
@@ -4923,7 +5135,7 @@ function updateSystemAudio(){
     const a=audioDir(sm.pos,L);setPos(v.pan,a.x,a.y,a.z,.06);
     const g=v.gRel=isMe?.55:Math.min(1.6,Math.pow((sm.m.R/Math.max(a.d,1))/ref,law));
     const want=!S.muted.has(mb.id)&&mAllowed.has(k)&&g>(v.part?.025:.035);
-    if(want&&!v.part){v.part=S.voices==='human'?buildHumanPart(mb,v):buildInst(mb,v,true);v.mode=S.voices;v.born=now}
+    if(want&&!v.part){buildAny(mb,v,f);v.born=now}
     else if(!want&&v.part&&now-v.born>2.5){killPart(v.part);v.part=null}
     if(!v.part){tgt(v.vol.gain,0,.1);return}
     singAt(v,f,now);
@@ -4934,7 +5146,8 @@ function updateSystemAudio(){
   else{const sd={x:-pp.x,y:-pp.y,z:-pp.z}, sl=Math.hypot(sd.x,sd.y,sd.z)||1;setPos(sunV.pan,sd.x/sl,sd.z/sl,-sd.y/sl)}
   const [d1,d2,d3]=droneFreqs(), sp=sunV.part;
   if(sunV.mode==='instrument'){tgt(sp.d1.frequency,d1,.3);tgt(sp.d2.frequency,d2,.3);tgt(sp.d3.frequency,d3,.3)}
-  else if(sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
+  else if(sunV.mode==='human'&&sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
+  if(sp&&sp.L)linesTick(sp,d1,now);
   tgt(sunV.vol.gain,S.drone?.03:0,.3);
   POOL.forEach(s=>tgt(s.g.gain,0,.1));
   ASP.forEach(s=>tgt(s.g.gain,0,.3));
@@ -5477,6 +5690,10 @@ document.querySelectorAll('#voices button').forEach(btn=>btn.onclick=()=>{
 });
 document.querySelectorAll('#minorMode button').forEach(btn=>btn.onclick=()=>{S.minorMode=btn.dataset.v;document.querySelectorAll('#minorMode button').forEach(x=>x.setAttribute('aria-pressed',String(x===btn)));renderInfo()});
 $('speak').onchange=e=>{S.speak=e.target.checked;if(!S.speak)stopSpeech()};
+// the spectral-lines option: light.js draws it under the voices; this page is the only one that turns it on (the flight keeps its gods)
+if(window.MOTS&&MOTS.light&&MOTS.light.lines){MOTS.light.lines.enable();MOTS.light.lines.on(()=>{if(AC)applyVoiceMode()})}
+// the spectrum sheet ducks the music a little while it sounds (light.js calls this)
+MOTS.sheetDuck=on=>{if(!AC||!audioOn||!master||S.speaking)return;tgt(master.gain,S.vol*(on?.5:1),on?.25:.8)};
 const SYN=window.speechSynthesis||null;
 const FEMALE=/female|kalina|daria|maria|samantha|victoria|karen|moira|tessa|fiona|serena|kate|susan|zira|hazel|libby|sonia|allison|ava|joanna|amy|emma|martha|catherine|nicky|kathy|shelley|sandy|flo|grandma|aria|jenny|mia|zoe|google uk english female/i;
 const MALE=/(^|\W)male|ivan|borislav|daniel|alex|fred|arthur|oliver|thomas|george|david|mark|ryan|aaron|gordon|rishi|james|tom|lee|oskar|reed|rocko|eddy|grandpa|guy|brian|google uk english male/i;
@@ -5789,8 +6006,16 @@ function sirenBody(who,f){
   const words=fate?{lachesis:'l a k e s i: s',clotho:'k l o: t o:',atropos:'a t r o p o: s'}[who]:(VOW_OF[who]==='u'?'u:':VOW_OF[who]==='i'?'i:':VOW_OF[who]==='o'?'o:':'a:');
   return {id:'siren:'+who,kind:'minor',tiltWob:0,hv:{type:fate?'alto':f<300?'alto':'soprano',tilt:1.15,vib:[5.2,.025],breath:.09,jit:.004,syl:fate?.8:.7,rest:fate?2.2:.35,ens:.15,words}};
 }
-// a plucked string, for the lyre and the monochord
-function plk(w,dest,f,lvl,dec,harm){strPluck(dest,f,lvl,dec,harm);if(window.MOTS&&MOTS.midi&&MOTS.midi.hit)MOTS.midi.hit(w,AC.currentTime+.02,f,Math.min(1,lvl*12),Math.min(2,dec*1.2))}
+// with the spectral lines: each sphere sounds as the lines of the body it carries (the Moon's sphere the Moon's, the Sun's the Fraunhofer
+// lines, the fixed stars the Balmer lines of a white star like Vega, the elements the Earth's own bands); the Fates keep their voices
+const SPHERE_SPEC={moon:'selene',sun:'sun',stars:'stars',heaven:'stars',emp1:'stars',emp2:'stars',emp3:'stars',fire:'sun',efire:'sun',counter:'sun',earth:'earth',earthwater:'earth',elements:'earth',water:'earth',air:'earth'};
+function sphereSpec(w){if(FATES.includes(w))return null;return SPHERE_SPEC[w]||(byId[w]?w:null)}
+// a struck line chord sits about as loud as the plucked string it replaces
+const LPLK=.45;
+// a plucked string, for the lyre and the monochord (with the lines: the sphere's line chord struck, or both)
+function plk(w,dest,f,lvl,dec,harm){const lm=lmode(),sw=lm!=='gods'?sphereSpec(w):null,L=LNX(),set=sw?L.lineSet(sw):null;
+  if(set)L.pluck(AC,set,f,dest,lvl*LPLK*(lm==='both'?.6:1),dec,{truePitch:L.truePitch()});
+  if(!set||lm==='both')strPluck(dest,f,lvl*(set?.7:1),dec,harm);if(window.MOTS&&MOTS.midi&&MOTS.midi.hit)MOTS.midi.hit(w,AC.currentTime+.02,f,Math.min(1,lvl*12),Math.min(2,dec*1.2))}
 function strPluck(dest,f,lvl,dec,harm){
   const t=AC.currentTime+.02,o=AC.createOscillator(),o2=AC.createOscillator();o.type=harm?'triangle':'sawtooth';o2.type='triangle';o.frequency.value=f;o2.frequency.value=f*2.003;
   const lp=AC.createBiquadFilter();lp.type='lowpass';lp.Q.value=.8;lp.frequency.setValueAtTime(Math.min(9000,f*(harm?4:10)),t);lp.frequency.setTargetAtTime(f*1.6,t,dec*.3);
@@ -5937,13 +6162,23 @@ function thinkerAudio(){
     if(model==='lyre'){tgt(v.vol.gain,0,.1);if(art&&!silent&&!soloMute){plk(w,v.pl,v.retro?f*2:f,(v.retro?.026:.045)*d.up,v.retro?.5:1.4,v.retro);SIR.plk[w]=performance.now()}return}
     if(model==='monochord'&&art&&!STILL.has(w)&&!soloMute){plk(w,v.pl,f,.035*d.up,1.5);SIR.plk[w]=performance.now()}
     if(model==='monochord'&&STILL.has(w)&&!['earth','emp3'].includes(w)){tgt(v.vol.gain,0,.2);return}
-    const mode=S.voices==='human'&&!STILL.has(w)&&!th.trai&&humans<humanCap?'human':'instrument';if(mode==='human')humans++;
-    if(v.part&&v.mode!==mode){killPart(v.part);v.part=null}
-    if(!v.part&&!silent&&built<3){v.part=mode==='human'?buildHumanPart(sirenBody(w,f),v):th.trai?buildCourt(v,f,TRAI_INST[w]):buildSiren(v,f,VOW_OF[w]);v.mode=mode;built++;if(mode==='human')v.part.h.next=now+.2;v.lastArt=tR}
+    // the spectral lines: the sphere keeps this thinker's pitch, rhythm and phrasing, and sounds as the lines of the body it carries
+    const lm=lmode(),sw=lm!=='gods'?sphereSpec(w):null;
+    const mode0=S.voices==='human'&&!STILL.has(w)&&!th.trai&&humans<humanCap?'human':'instrument',mode=sw&&lm==='lines'?'lines':mode0;if(mode==='human')humans++;
+    const key=mode+(sw?'|'+lkey(S.voices):'');
+    if(v.part&&v.lkey!==key){killPart(v.part);v.part=null}
+    if(!v.part&&!silent&&built<3){
+      if(mode==='lines'){v.part=linePart(sw,v,f,sirenBody(w,f).hv,.5);if(v.part){v.part.L.steady=true;v.mode='lines'}}
+      if(!v.part){v.part=mode0==='human'?buildHumanPart(sirenBody(w,f),v):th.trai?buildCourt(v,f,TRAI_INST[w]):buildSiren(v,f,VOW_OF[w]);v.mode=mode0;if(mode0==='human')v.part.h.next=now+.2;
+        if(sw&&lm==='both'&&lineAdd(v.part,sw,f,sirenBody(w,f).hv,.35,.5))v.part.L.steady=true}
+      v.lkey=key;built++;v.lastArt=tR}
     if(!v.part){tgt(v.vol.gain,0,.15);return}
     if(v.mode==='instrument'&&!athens())tgt(v.part.art.gain,.8,.3);
+    if(v.part.L&&!athens())tgt(v.part.L.br.gain,.8,.3);
+    if(v.part.L){if(art)lineAccent(v.part,f,v.retro,flourish);else v.part.L.lv.setF(f)}
     if(th.trai&&v.mode==='instrument'){const n=athens()?TRAI.net[w]||0:0;tgt(v.part.o2.detune,6+24*n,.6);if(v.part.nb)tgt(v.part.nb.frequency,f*2,.2)}
-    if(v.mode==='instrument'){if(art){articulate(v.part,f,v.retro,flourish);if(!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,flourish)}else{tgt(v.part.o1.frequency,f,.12);tgt(v.part.o2.frequency,f,.12)}tgt(v.part.lp.frequency,d.up<1?900:v.retro?1700:2800,.3)}
+    if(v.mode==='lines'){if(art&&!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,flourish)}
+    else if(v.mode==='instrument'){if(art){articulate(v.part,f,v.retro,flourish);if(!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,flourish)}else{tgt(v.part.o1.frequency,f,.12);tgt(v.part.o2.frequency,f,.12)}tgt(v.part.lp.frequency,d.up<1?900:v.retro?1700:2800,.3)}
     else{const h=v.part.h,ff=f*Math.pow(2,h.shift||0);tgt(h.o1.frequency,ff,.08);if(h.o2)tgt(h.o2.frequency,ff,.08);
       if((art||!athens()||tR-(v.lastArt||0)>5500)&&now+.12>=h.next){schedulePhrase(h,now+.05,f,1);v.lastArt=tR;if(!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,false)}}
     if(art)v.lastArt=tR;

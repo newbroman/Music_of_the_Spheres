@@ -2008,16 +2008,64 @@ function buildSunInst(v,fadeIn){
 function droneFreqs(){if(SYS.tonic)return [SYS.tonic,SYS.tonic*1.5,SYS.tonic/2];let t=C_BASE*PY[S.mode]*8*Math.pow(2,keyShift());return [t,t*1.5,t/2]}
 const APOLLO=[{type:'bass',tilt:1.25,vib:[4.6,.02],breath:.08,jit:.003,syl:2.0,rest:2.6,ens:.5,words:'a p o l o: n'},{type:'tenor',tilt:1.15,vib:[5.0,.02],breath:.06,jit:.003,syl:2.0,rest:2.6,ens:0,words:'a p o l o: n'}];
 
+
+/* ---------- spectral lines (light.js, MOTS.light.lines): the dial's "Spectral lines" and "Both" ----------
+   A body keeps its music and changes its voice: the same pitch, rhythm and phrasing, sung as its line chord, the chord's intervals the
+   real ratios of its lines and its centre on the note the body sings (or, at true pitch, the lines at their forty-octave pitches; the rule
+   is written out in light.js). Per voice only its N strongest lines (Eco 3, Standard 5, High 8), one sine each on a shared pitch source,
+   so a line voice costs about what a god's instrument costs; the number of voices is the gods' budget. Breathing: in Today's sky each
+   chord swells and settles in the phrases of the body's own singer (its words, syllable length and rest); in a thinker's heavens the
+   chord is struck and swells on the thinker's articulations, as the sirens' voices are. Only the dial turns this on (the flight shares
+   this engine and keeps its gods). */
+const LNX=()=>window.MOTS&&MOTS.light&&MOTS.light.lines;
+function lmode(){const L=LNX();return L?L.mode():'gods'}
+// a voice's style: rebuilt when the voices, the lines option, true pitch or the number of lines (the Quality) change
+function lkey(m){const L=LNX(),lm=lmode();return lm==='gods'?m:(lm==='lines'?'lines':m)+'|'+lm+'|'+(L.truePitch()?1:0)+'|'+L.n()+'|'+lineK()}
+const SPEC_OF={moon:'selene',sun:'sun'};
+const specOf=b=>b.spec||SPEC_OF[b.id]||b.id;
+// a line chord at RMS 1, matched to a god's instrument part (measured on the page's output: Today's sky about 0.11 RMS with the lines,
+// 0.15 with the gods; a dense heaven is held down by the gain staging below, a sparse one, Plato's, sings at the lines' own level)
+const LGAIN=.2,lineK=()=>1;
+// the stage's gain staging (stage.js) holds a dense mix at its reference before the compressor; the lines' sines are denser and steadier
+// than the gods' voices, so while they sound that reference sits 4.5 dB lower (a sparse heaven, already under it, is left as it is)
+function linesPre(){try{const C=MOTS.surround&&MOTS.surround._s&&MOTS.surround._s.cfg;if(!C||!C.preRef)return;if(C.preRef0==null)C.preRef0=C.preRef;C.preRef=C.preRef0*(lmode()==="gods"?1:Math.pow(10,-4.5/20))}catch(e){}}
+// add a body's lines to a part (k: their share; floor: the level between phrases); false if it has no spectrum
+function lineAdd(part,spec,f,hv,k,floor){const L=LNX(),set=L&&L.lineSet(spec);if(!set||!part)return false;
+  const lv=L.voice(AC,set,f,{truePitch:L.truePitch(),vib:LOWPOWER?0:4});
+  const br=mkGain(floor,mkGain(LGAIN*k,part.g));lv.out.connect(br);(part.srcs=part.srcs||[]).push(...lv.srcs);
+  part.L={lv,br,hv:hv||{syl:.7,rest:1.6,words:'a:'},next:AC.currentTime+.15+Math.random()*1.2,floor,f};return true}
+// a part that is only the body's lines; null if it has no spectrum (the god sings instead)
+function linePart(spec,v,f,hv,floor){const part={g:mkGain(0,v.vol),srcs:[],taps:[]};part.g.gain.setTargetAtTime(1,AC.currentTime,.15);
+  if(!lineAdd(part,spec,f,hv,lineK(),floor)){try{part.g.disconnect()}catch(e){}return null}return part}
+// any body's voice in the current style (moons, system moons): the lines, the god, or both
+function buildAny(body,v,f){const lm=lmode(),sp=specOf(body);v.lkey=lkey(S.voices);
+  if(lm==='lines'){const p=linePart(sp,v,f,body.hv,.3);if(p){v.part=p;v.mode='lines';return p}}
+  v.part=S.voices==='human'?buildHumanPart(body,v):buildInst(body,v,true);v.mode=S.voices;if(lm==='both')lineAdd(v.part,sp,f,body.hv,.6*lineK(),.3);return v.part}
+// a phrase of breath: the chord swells over the length of the singer's phrase, then settles while the singer would rest
+function lineBreath(P,t0){const hv=P.hv;let d=0;parseWords(hv.words||'a:').forEach(({t,hold})=>{d+=FT.bass[t]?(hv.syl||.6)*(hold?2.4:1):.1});
+  d=Math.max(1.2,d*(.85+Math.random()*.3));const g=P.br.gain;g.setTargetAtTime(1,t0,.2);g.setTargetAtTime(P.floor,t0+d,.4);
+  P.next=t0+d+.6+Math.max(.5,(hv.rest||1.5)*(.7+Math.random()*.6))}
+function linesTick(part,f,now){const P=part&&part.L;if(!P)return;P.lv.setF(f);P.f=f;if(!P.steady&&now+.12>=P.next)lineBreath(P,Math.max(now+.05,P.next))}
+// a thinker's articulation on the lines: the chord struck (a quick swell settling to half) with the sirens' grace or flourish in pitch
+function lineAccent(part,f,retro,flourish){const P=part&&part.L;if(!P)return;const now=AC.currentTime,a=P.br.gain;a.cancelScheduledValues(now);a.setValueAtTime(a.value,now);a.linearRampToValueAtTime(1,now+.035);a.setTargetAtTime(.5,now+.14,.35);
+  P.lv.accent(f,flourish?'flourish':retro?'retro':'',now);P.f=f}
+
 // voices are built only while they can be heard; switching mode clears them and they rebuild in the new style
 function applyVoiceMode(){
   if(!AC)return;const mode=S.voices;
-  BODIES.forEach(b=>{const v=V[b.id];if(v.part&&v.mode!==mode){killPart(v.part);v.part=null;v.mode=null}});
-  if(sunV.mode!==mode){
-    killPart(sunV.part);
+  const key=lkey(mode),lm=lmode();
+  BODIES.forEach(b=>{const v=V[b.id];if(v.part&&v.lkey!==key){killPart(v.part);v.part=null;v.mode=null}});
+  if(sunV.lkey!==key){
+    killPart(sunV.part);const f0=droneFreqs()[0];
+    // Apollo as the Sun's Fraunhofer lines, rooted on the drone's tonic and breathing as slowly as his drone
+    const lp=lm==='lines'?linePart('sun',sunV,f0,APOLLO[0],.55):null;
+    if(lp){sunV.part=lp;sunV.mode='lines'}
+    else{
     if(mode==='human'){const part={g:mkGain(0,sunV.vol)};part.g.gain.setTargetAtTime(.9,AC.currentTime,.15);
       part.hums=APOLLO.map(sp=>{const h=makeHuman(sp,part.g,false);h.next=AC.currentTime+.6;return h});sunV.part=part;}
     else sunV.part=buildSunInst(sunV,sunV.mode!==null);
-    sunV.mode=mode;
+    sunV.mode=mode;if(lm==='both')lineAdd(sunV.part,'sun',f0,APOLLO[0],.5,.55)}
+    sunV.lkey=key;linesPre();
   }
 }
 const ensureHuman=applyVoiceMode;
@@ -2026,7 +2074,10 @@ function buildPure(b,v){const I={srcs:[],taps:[]},f0=P[b.id].f;I.g=mkGain(0,v.vo
   I.o1=AC.createOscillator();I.o1.type='sine';I.o1.frequency.value=f0;I.o2=AC.createOscillator();I.o2.type='triangle';I.o2.frequency.value=f0;
   I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.frequency.value=6000;I.lp.connect(I.g);I.o1.connect(mkGain(.15,I.lp));I.o2.connect(mkGain(.05,I.lp));
   I.vd=AC.createGain();I.srcs.push(I.o1,I.o2);I.osc=[[I.o1,0],[I.o2,0]];I.srcs.forEach(o=>o.start());return I}
-function buildPart(b,v){v.part=S.thinker==='sonic'&&b.kind==='planet'?buildPure(b,v):S.voices==='human'?buildHumanPart(b,v):buildInst(b,v,true);v.mode=S.thinker==='sonic'&&b.kind==='planet'?'instrument':S.voices;v.born=AC.currentTime}
+function buildPart(b,v){const lm=lmode(),f=P[b.id].f;v.lkey=lkey(S.voices);v.born=AC.currentTime;
+  if(lm==='lines'){const p=linePart(specOf(b),v,f,b.hv,.3);if(p){v.part=p;v.mode='lines';return}}
+  v.part=S.thinker==='sonic'&&b.kind==='planet'?buildPure(b,v):S.voices==='human'?buildHumanPart(b,v):buildInst(b,v,true);v.mode=S.thinker==='sonic'&&b.kind==='planet'?'instrument':S.voices;
+  if(lm==='both')lineAdd(v.part,specOf(b),f,b.hv,.6*lineK(),.3)}
 
 
 // a small reusable set of panners lets an auditioned planet's moons circle your head
@@ -2158,6 +2209,8 @@ function updateAudio(){
   // rank the candidates by loudness; only the loudest MAXVOICES are allowed to sing
   const cand=BODIES.filter(b=>audible(b)&&!(b.kind==='minor'&&S.minorMode==='wobble')).map(b=>[b.id,loudness(b,P[b.id],audioDir(P[b.id],L))]).sort((a,c)=>c[1]-a[1]);
   const allowed=new Set(cand.slice(0,MAXVOICES).map(x=>x[0]));
+  // a change of style (the lines option, true pitch, Quality, or between Today and a thinker's heaven) rebuilds the voices as they sing
+  if(sunV.lkey!==lkey(S.voices))applyVoiceMode();
   const swell={};ASPNOW.forEach(a=>{swell[a.a.id]=Math.max(swell[a.a.id]||0,a.str);swell[a.b.id]=Math.max(swell[a.b.id]||0,a.str)});
   // Kepler: planets in concord swell together, and a universal harmony swells them all
   if(S.thinker==='kepler'){kepConcords();KEPC.forEach(c=>{swell[c.a]=Math.max(swell[c.a]||0,1.6*c.str);swell[c.b]=Math.max(swell[c.b]||0,1.6*c.str)});KEPU.forEach(k=>swell[k]=Math.max(swell[k]||0,2.4))}
@@ -2191,6 +2244,7 @@ function updateAudio(){
     if(window.MOTS&&MOTS.light)MOTS.light.tick(b,v,volT,aud);
     if(v.air)tgt(v.air.frequency,aud?16000:Math.max(1800,16000*Math.pow(1+(a.d||0),-.6)),.4);
     if(Hp&&(on||aud))humanTick(Hp.h,p.f,1,now);
+    if(v.part&&v.part.L&&(on||aud))linesTick(v.part,p.f*Math.pow(2,W.c/1200),now);
     // moons follow their planet: silent when it is
     const mOn=S.thinker==='today'&&(on||aud)&&!!v.part&&(S.groups.moons.on||aud&&MED.audMoons);
     tgt(v.moonVol.gain,mOn&&!aud?S.groups.moons.vol*Math.min(1,g):0,.12);
@@ -2208,8 +2262,8 @@ function updateAudio(){
       if(wantM&&!m.sv){const mb=moonBody(b,{m,id:'smoon:'+b.id+':'+m.rank});m.sv={body:mb,vol:mkGain(0,m.out),part:null,rate:.3}}
       const sv=m.sv;if(!sv)return;
       const mf=melodyPitch(moonBase(p.f),moonPhase(b,m));P[sv.body.id]={f:mf};
-      if(sv.part&&sv.mode!==S.voices){killPart(sv.part);sv.part=null}
-      if(wantM&&!sv.part){sv.part=S.voices==='human'?buildHumanPart(sv.body,sv):buildInst(sv.body,sv,true);sv.mode=S.voices;sv.born=now}
+      if(sv.part&&sv.lkey!==lkey(S.voices)){killPart(sv.part);sv.part=null}
+      if(wantM&&!sv.part){buildAny(sv.body,sv,mf);sv.born=now}
       else if(!wantM&&sv.part&&now-sv.born>2.5){killPart(sv.part);sv.part=null}
       if(!sv.part){tgt(sv.vol.gain,0,.1);return}
       singAt(sv,mf,now);
@@ -2222,7 +2276,8 @@ function updateAudio(){
   const sa=audioDir({x:0,y:0,z:0},L);setPos(sunV.pan,sa.x,sa.y,sa.z);
   const [d1,d2,d3]=droneFreqs(), sp=sunV.part;
   if(sunV.mode==='instrument'){tgt(sp.d1.frequency,d1,.3);tgt(sp.d2.frequency,d2,.3);tgt(sp.d3.frequency,d3,.3)}
-  else if(sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
+  else if(sunV.mode==='human'&&sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
+  if(sp&&sp.L)linesTick(sp,d1,now);
   tgt(sunV.vol.gain,S.drone&&S.thinker==='today'&&!S.solo.size?(S.audition?.025:.07*MED.sunK*(sa.self?.7:Math.max(.3,1-S.dist*.6*Math.min(1,sa.d/20)))):0,.3);
 }
 // the lyre: soft attack, sine body and a gentle octave, folded below 1.1 kHz so it rings rather than ticks
@@ -2288,6 +2343,7 @@ function singAt(v,f,now){
   const I=v.mode==='instrument'?v.part:null;
   if(I){tgt(I.o1.frequency,f,.06);tgt(I.o2.frequency,f,.06);if(I.o3)tgt(I.o3.frequency,f,.06);tgt(I.vd.gain,f*.004,.2)}
   else if(v.part&&v.part.h)humanTick(v.part.h,f,1,now);
+  if(v.part&&v.part.L)linesTick(v.part,f,now);
 }
 function moonRel(b,m){return Math.min(1,3*Math.pow(m.R/b.R,.25+.85*S.dist))}
 // a moon's name in the score and MIDI: its key (selene, io ...), or its place in the list
@@ -2370,7 +2426,7 @@ function moonBody(b,sm){
     vowel:v0==='a'?'ah':v0,
     // nearly every major moon is tidally locked, so its day equals its orbit; Hyperion tumbles chaotically
     rot:m.name==='Hyperion'?13*24:Math.abs(m.P)*24,
-    hv:{type:'child',tilt:1.1,vib:[5.6,.02],breath:.08,jit:m.name==='Hyperion'?.02:.004,syl:.5,rest:2.2,ens:0,words:g2p(m.name)},
+    hv:{type:'child',tilt:1.1,vib:[5.6,.02],breath:.08,jit:m.name==='Hyperion'?.02:.004,syl:.5,rest:2.2,ens:0,words:g2p(m.name)},spec:typeof m.k==='string'?m.k:null,
     ...(m.body||{})};   // a derived system (listen.js) gives its bodies their own voice, day and vowel
 }
 function buildSystemVoices(){
@@ -2384,7 +2440,7 @@ function buildSystemVoices(){
     if(sm.m.name==='Hyperion')v.rate=1.7;
     return v;
   });
-  SYS.mode=S.voices;
+  SYS.mode=lkey(S.voices);
 }
 function killSystemVoices(){
   SYS.voices.forEach(v=>{killPart(v.part);tgt(v.vol.gain,0,.08);const pan=v.pan;setTimeout(()=>{try{pan.disconnect()}catch(e){}const i=PANNERS.findIndex(x=>x.p===pan);if(i>=0)PANNERS.splice(i,1)},700)});
@@ -2395,7 +2451,7 @@ function silenceMoonVoices(x,now){(x.moons||[]).forEach(m=>{const sv=m.sv;if(sv&
 function updateSystemAudio(){
   const now=AC.currentTime, b=byId[SYS.id], pp=P[SYS.id], ang=sysFacing();
   setListener(ang);
-  if(SYS.mode!==S.voices)buildSystemVoices();
+  if(SYS.mode!==lkey(S.voices))buildSystemVoices();
   const L=sysListener(), law=.25+.85*S.dist;
   // every other body falls silent while you are inside a system
   BODIES.forEach(x=>{
@@ -2403,6 +2459,7 @@ function updateSystemAudio(){
     if(x.id!==SYS.id){tgt(v.vol.gain,0,.1);tgt(v.moonVol.gain,0,.1);silenceMoonVoices(x,now);
       if(v.part&&now-(v.born||0)>1){killPart(v.part);v.part=null;v.mode=null}return}
     // the planet hums at the centre of its system
+    if(v.part&&v.lkey!==lkey(S.voices)){killPart(v.part);v.part=null}
     if(!v.part)buildPart(x,v);
     const a=audioDir({x:0,y:0,z:0},L);setPos(v.pan,a.x,a.y,a.z);
     const g=a.self?.5:Math.min(.8,Math.pow((x.R/a.d)/.002,law)*.5);
@@ -2410,6 +2467,7 @@ function updateSystemAudio(){
     const I=v.mode==='instrument'?v.part:null;
     if(I){tgt(I.o1.frequency,pp.f,.07);tgt(I.o2.frequency,pp.f,.07);if(I.o3)tgt(I.o3.frequency,pp.f,.07)}
     if(v.mode==='human')humanTick(v.part.h,pp.f,1,now);
+    if(v.part.L)linesTick(v.part,pp.f,now);
   });
   // reference loudness: the moon that looks biggest from the planet's centre sings at full voice
   const ref=Math.max(...SYS.moons.map(sm=>sm.m.R/sm.m.a));
@@ -2421,7 +2479,7 @@ function updateSystemAudio(){
     const a=audioDir(sm.pos,L);setPos(v.pan,a.x,a.y,a.z,.06);
     const g=v.gRel=isMe?.55:Math.min(1.6,Math.pow((sm.m.R/Math.max(a.d,1))/ref,law));
     const want=!S.muted.has(mb.id)&&mAllowed.has(k)&&g>(v.part?.025:.035);
-    if(want&&!v.part){v.part=S.voices==='human'?buildHumanPart(mb,v):buildInst(mb,v,true);v.mode=S.voices;v.born=now}
+    if(want&&!v.part){buildAny(mb,v,f);v.born=now}
     else if(!want&&v.part&&now-v.born>2.5){killPart(v.part);v.part=null}
     if(!v.part){tgt(v.vol.gain,0,.1);return}
     singAt(v,f,now);
@@ -2432,7 +2490,8 @@ function updateSystemAudio(){
   else{const sd={x:-pp.x,y:-pp.y,z:-pp.z}, sl=Math.hypot(sd.x,sd.y,sd.z)||1;setPos(sunV.pan,sd.x/sl,sd.z/sl,-sd.y/sl)}
   const [d1,d2,d3]=droneFreqs(), sp=sunV.part;
   if(sunV.mode==='instrument'){tgt(sp.d1.frequency,d1,.3);tgt(sp.d2.frequency,d2,.3);tgt(sp.d3.frequency,d3,.3)}
-  else if(sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
+  else if(sunV.mode==='human'&&sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
+  if(sp&&sp.L)linesTick(sp,d1,now);
   tgt(sunV.vol.gain,S.drone?.03:0,.3);
   POOL.forEach(s=>tgt(s.g.gain,0,.1));
   ASP.forEach(s=>tgt(s.g.gain,0,.3));
@@ -2750,8 +2809,16 @@ function sirenBody(who,f){
   const words=fate?{lachesis:'l a k e s i: s',clotho:'k l o: t o:',atropos:'a t r o p o: s'}[who]:(VOW_OF[who]==='u'?'u:':VOW_OF[who]==='i'?'i:':VOW_OF[who]==='o'?'o:':'a:');
   return {id:'siren:'+who,kind:'minor',tiltWob:0,hv:{type:fate?'alto':f<300?'alto':'soprano',tilt:1.15,vib:[5.2,.025],breath:.09,jit:.004,syl:fate?.8:.7,rest:fate?2.2:.35,ens:.15,words}};
 }
-// a plucked string, for the lyre and the monochord
-function plk(w,dest,f,lvl,dec,harm){strPluck(dest,f,lvl,dec,harm);if(window.MOTS&&MOTS.midi&&MOTS.midi.hit)MOTS.midi.hit(w,AC.currentTime+.02,f,Math.min(1,lvl*12),Math.min(2,dec*1.2))}
+// with the spectral lines: each sphere sounds as the lines of the body it carries (the Moon's sphere the Moon's, the Sun's the Fraunhofer
+// lines, the fixed stars the Balmer lines of a white star like Vega, the elements the Earth's own bands); the Fates keep their voices
+const SPHERE_SPEC={moon:'selene',sun:'sun',stars:'stars',heaven:'stars',emp1:'stars',emp2:'stars',emp3:'stars',fire:'sun',efire:'sun',counter:'sun',earth:'earth',earthwater:'earth',elements:'earth',water:'earth',air:'earth'};
+function sphereSpec(w){if(FATES.includes(w))return null;return SPHERE_SPEC[w]||(byId[w]?w:null)}
+// a struck line chord sits about as loud as the plucked string it replaces
+const LPLK=.45;
+// a plucked string, for the lyre and the monochord (with the lines: the sphere's line chord struck, or both)
+function plk(w,dest,f,lvl,dec,harm){const lm=lmode(),sw=lm!=='gods'?sphereSpec(w):null,L=LNX(),set=sw?L.lineSet(sw):null;
+  if(set)L.pluck(AC,set,f,dest,lvl*LPLK*(lm==='both'?.6:1),dec,{truePitch:L.truePitch()});
+  if(!set||lm==='both')strPluck(dest,f,lvl*(set?.7:1),dec,harm);if(window.MOTS&&MOTS.midi&&MOTS.midi.hit)MOTS.midi.hit(w,AC.currentTime+.02,f,Math.min(1,lvl*12),Math.min(2,dec*1.2))}
 function strPluck(dest,f,lvl,dec,harm){lvl*=MED.plk;
   const t=AC.currentTime+.02,o=AC.createOscillator(),o2=AC.createOscillator();o.type=harm?'triangle':'sawtooth';o2.type='triangle';o.frequency.value=f;o2.frequency.value=f*2.003;
   const lp=AC.createBiquadFilter();lp.type='lowpass';lp.Q.value=.8;lp.frequency.setValueAtTime(Math.min(9000,f*(harm?4:10)),t);lp.frequency.setTargetAtTime(f*1.6,t,dec*.3);
@@ -2898,13 +2965,23 @@ function thinkerAudio(){
     if(model==='lyre'){tgt(v.vol.gain,0,.1);if(art&&!silent&&!soloMute){plk(w,v.pl,v.retro?f*2:f,(v.retro?.026:.045)*d.up,v.retro?.5:1.4,v.retro);SIR.plk[w]=performance.now()}return}
     if(model==='monochord'&&art&&!STILL.has(w)&&!soloMute){plk(w,v.pl,f,.035*d.up,1.5);SIR.plk[w]=performance.now()}
     if(model==='monochord'&&STILL.has(w)&&!['earth','emp3'].includes(w)){tgt(v.vol.gain,0,.2);return}
-    const mode=S.voices==='human'&&!STILL.has(w)&&!th.trai&&humans<humanCap?'human':'instrument';if(mode==='human')humans++;
-    if(v.part&&v.mode!==mode){killPart(v.part);v.part=null}
-    if(!v.part&&!silent&&built<3){v.part=mode==='human'?buildHumanPart(sirenBody(w,f),v):th.trai?buildCourt(v,f,TRAI_INST[w]):buildSiren(v,f,VOW_OF[w]);v.mode=mode;built++;if(mode==='human')v.part.h.next=now+.2;v.lastArt=tR}
+    // the spectral lines: the sphere keeps this thinker's pitch, rhythm and phrasing, and sounds as the lines of the body it carries
+    const lm=lmode(),sw=lm!=='gods'?sphereSpec(w):null;
+    const mode0=S.voices==='human'&&!STILL.has(w)&&!th.trai&&humans<humanCap?'human':'instrument',mode=sw&&lm==='lines'?'lines':mode0;if(mode==='human')humans++;
+    const key=mode+(sw?'|'+lkey(S.voices):'');
+    if(v.part&&v.lkey!==key){killPart(v.part);v.part=null}
+    if(!v.part&&!silent&&built<3){
+      if(mode==='lines'){v.part=linePart(sw,v,f,sirenBody(w,f).hv,.5);if(v.part){v.part.L.steady=true;v.mode='lines'}}
+      if(!v.part){v.part=mode0==='human'?buildHumanPart(sirenBody(w,f),v):th.trai?buildCourt(v,f,TRAI_INST[w]):buildSiren(v,f,VOW_OF[w]);v.mode=mode0;if(mode0==='human')v.part.h.next=now+.2;
+        if(sw&&lm==='both'&&lineAdd(v.part,sw,f,sirenBody(w,f).hv,.35,.5))v.part.L.steady=true}
+      v.lkey=key;built++;v.lastArt=tR}
     if(!v.part){tgt(v.vol.gain,0,.15);return}
     if(v.mode==='instrument'&&!athens())tgt(v.part.art.gain,.8,.3);
+    if(v.part.L&&!athens())tgt(v.part.L.br.gain,.8,.3);
+    if(v.part.L){if(art)lineAccent(v.part,f,v.retro,flourish);else v.part.L.lv.setF(f)}
     if(th.trai&&v.mode==='instrument'){const n=athens()?TRAI.net[w]||0:0;tgt(v.part.o2.detune,6+24*n,.6);if(v.part.nb)tgt(v.part.nb.frequency,f*2,.2)}
-    if(v.mode==='instrument'){if(art){articulate(v.part,f,v.retro,flourish);if(!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,flourish)}else{tgt(v.part.o1.frequency,f,.12);tgt(v.part.o2.frequency,f,.12)}tgt(v.part.lp.frequency,d.up<1?900:v.retro?1700:2800,.3)}
+    if(v.mode==='lines'){if(art&&!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,flourish)}
+    else if(v.mode==='instrument'){if(art){articulate(v.part,f,v.retro,flourish);if(!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,flourish)}else{tgt(v.part.o1.frequency,f,.12);tgt(v.part.o2.frequency,f,.12)}tgt(v.part.lp.frequency,d.up<1?900:v.retro?1700:2800,.3)}
     else{const h=v.part.h,ff=f*Math.pow(2,h.shift||0);tgt(h.o1.frequency,ff,.08);if(h.o2)tgt(h.o2.frequency,ff,.08);
       if((art||!athens()||tR-(v.lastArt||0)>MED.resing)&&now+.12>=h.next&&medGate(now)){schedulePhrase(h,now+.05,f,1);v.lastArt=tR;if(!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,false)}}
     if(art)v.lastArt=tR;
