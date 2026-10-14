@@ -148,7 +148,9 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
 .gcard .gcb .chip{color:var(--vellum)}
 .gcard .gcb .chip.on{color:#f3d9a4;border-color:var(--bronze);background:rgba(201,152,79,.18)}
 .gstars .seg button{padding:.5rem .25rem;font-size:.8rem}
-@media (max-width:620px){.gcard{font-size:.78rem;padding:.4rem .7rem .45rem;line-height:1.35}.gcard .gcp{display:none}.gcard .gcf{font-size:.7rem}}
+@media (max-width:620px){.gcard{font-size:.78rem;padding:.4rem .7rem .45rem;line-height:1.35;gap:.15rem}.gcard .gcp{display:none}.gcard .gcf{font-size:.7rem}
+ /* a phone held upright: the card stays short so the star keeps the sky above it — the buttons in one row that scrolls sideways, the voice toggle on one line */
+ .gcard .gcb{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -.7rem;padding:.1rem .7rem;-webkit-overflow-scrolling:touch}.gcard .gcb::-webkit-scrollbar{display:none}.gcard .gcb .chip{flex:0 0 auto}.gcard .gcvt{min-height:2.2rem;padding:0}}
 @media (max-height:520px){.gcard{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + var(--tap) + 52px);transform:translateX(-50%);width:max-content;max-width:min(64vw,36rem);font-size:.74rem;padding:.3rem .7rem}.gcard .gcp{display:none}}
 @media (prefers-reduced-motion:reduce){.gcard{transition:none}}
 /* the star search (fly_galaxy.js): a box in the Travel panel with instant suggestions; rows are ≥ 44 px, the ⤼ button jumps */
@@ -2245,11 +2247,53 @@ MOTS.score.start=start;MOTS.score.stop=stop;MOTS.score.xml=musicXML;MOTS.score.m
     T.radioById = new Map(); T.orbitById = new Map();
     if (D.starradio) { (D.starradio.radio || []).forEach(r => T.radioById.set(r.id, r)); (D.starradio.orbits || []).forEach(o => { if (!T.orbitById.has(o.id)) T.orbitById.set(o.id, o); if (o.comp != null && !T.orbitById.has(o.comp)) T.orbitById.set(o.comp, o); }); }
     T.sysOf = new Map(); for (let i = 1; i < n; i++) { const r = T.rows[i]; if (r.sys != null) { let a = T.sysOf.get(r.sys); if (!a) T.sysOf.set(r.sys, a = []); a.push(r); } }
+    placeSystems();
     bud.reset();
     G.filters.cache.clear();
     G.starVoice.cache.clear(); G.spectrum.cache.clear(); G.starRGB.cache.clear();
     srch.index = null;
   }
+  /** The members of a catalogued system placed with their primary (step 5, interstellar Flight at close range). The rows of a
+   *  system (`sys`) carry independent parallaxes and radial velocities whose errors (0.1 pc, 10 km/s) dwarf the system's real size
+   *  (tens of AU), so, seen from beside the primary, a companion from its own row would float a thousand AU off or drift away. Here
+   *  each companion keeps its own direction on the sky but is set at the primary's distance; when starradio.json gives the pair's
+   *  semi-major axis the separation is made that a_au (along the catalogued sky offset, or due east when the rows coincide, as
+   *  Sirius B's does with Sirius); and the companion takes the primary's space velocity, so the system moves as one. APPROX: a circular
+   *  orbit of radius a, the companion's place on it unknown. Stars without `sys` (Proxima) are untouched; far from the system (the
+   *  dial, the synthesiser) the difference is invisible. */
+  function placeSystems() {
+    T.sysOf.forEach((rows, sys) => {
+      const prim = rows.find(r => r.cmp === 'A') || rows.find(r => r.id === sys) || rows.slice().sort((a, b) => (a.mag != null ? a.mag : 99) - (b.mag != null ? b.mag : 99))[0];
+      const kp = idx(prim); if (kp < 0) return;
+      const Px = T.X[kp], Py = T.Y[kp], Pz = T.Z[kp], dP = Math.hypot(Px, Py, Pz); if (!(dP > 0)) return;
+      for (let j = 0; j < rows.length; j++) {
+        const r = rows[j]; if (r === prim) continue; const k = idx(r); if (k < 0) continue;
+        const d0 = Math.hypot(T.X[k], T.Y[k], T.Z[k]) || dP, ux = T.X[k] / d0, uy = T.Y[k] / d0, uz = T.Z[k] / d0;
+        let x = ux * dP, y = uy * dP, z = uz * dP;                    // at the primary's distance, its own direction
+        const o = T.orbitById.get(r.id) || (rows.length === 2 ? T.orbitById.get(prim.id) : null);   // the pair's orbit: named for both, or the primary's only orbit when the system is a pair (Capella)
+        const a = o && o.a_au > 0 && ((o.id === prim.id && (o.comp === r.id || (o.comp == null && rows.length === 2))) || (o.id === r.id && o.comp === prim.id)) ? o.a_au * K.AU_PC : 0;
+        if (a > 0) {
+          let sx = x - Px, sy = y - Py, sz = z - Pz, s = Math.hypot(sx, sy, sz);
+          if (s < 1e-9) {   // the rows coincide: due east on the sky (the equatorial east vector in the galactic frame)
+            const ra = (r.ra || 0) * DEG, ex = -Math.sin(ra), ey = Math.cos(ra), ez = 0, m = EG;
+            sx = m[0][0] * ex + m[0][1] * ey + m[0][2] * ez; sy = m[1][0] * ex + m[1][1] * ey + m[1][2] * ez; sz = m[2][0] * ex + m[2][1] * ey + m[2][2] * ez; s = Math.hypot(sx, sy, sz) || 1;
+          }
+          x = Px + sx / s * a; y = Py + sy / s * a; z = Pz + sz / s * a;
+        }
+        T.X[k] = x; T.Y[k] = y; T.Z[k] = z; T.VX[k] = T.VX[kp]; T.VY[k] = T.VY[kp]; T.VZ[k] = T.VZ[kp]; r.__placed = prim;
+      }
+    });
+  }
+  /** The primary of a star's catalogued system when it was placed beside one (placeSystems), else null. */
+  G.primaryOf = function (s) { return s.__placed || null; };
+  /** The members of a star's catalogued system (itself included), or [s] when it has none. */
+  G.systemOf = function (s) { return (s.sys != null && T.sysOf.get(s.sys)) || [s]; };
+  /** A star's radius in AU from its catalogued radius (R☉ = 0.00465047 AU), else from L and T, a white dwarf 0.013 R☉, else the Sun's. */
+  G.starRadiusAU = function (s) {
+    const Tk = s.T || 5772, sp = String(s.sp || '').trim(), wd = /^D[ABCOQZX]?/.test(sp) || /^WD/.test(sp) || s.lc === 'WD';
+    const R = s.R > 0 ? s.R : (s.L > 0 ? Math.sqrt(s.L) * Math.pow(5772 / Tk, 2) : wd ? .013 : 1);
+    return R * 0.00465047;
+  };
   /** "Radio magnitude": −2.5 log10(S / 1 Jy) at 1.4 GHz — Vela (1.05 Jy) ≈ 0, Cas A (2100 Jy) ≈ −8.3, the Crab pulsar (14 mJy) ≈ 4.6. */
   function radioMag(SJy) { return -2.5 * Math.log10(Math.max(SJy, 1e-9)); }
   G.radioMag = radioMag;
@@ -4656,6 +4700,7 @@ const FLYG=(()=>{
 'use strict';
 const AU_PC=206264.806247, PC_LY=3.2615637769, AU_LS=499.004784, C_KMS=299792.458;
 const FAR_AU=300, SOLAR_MAX_AU=2.5e5;
+const STAND_R=28.6, TILT=.07;   // arrival at a star: stand 28.6 radii off (its disc spans 2°), and aim so it sits 7 % of the screen above the centre, clear of the card
 const LANG=document.documentElement.lang||'en';
 const LOCALE={en:'en-GB',pl:'pl-PL',cy:'cy-GB',de:'de-DE',es:'es-ES',fr:'fr-FR',it:'it-IT',zh:'zh-CN',ja:'ja-JP',vi:'vi-VN',bg:'bg-BG',pt:'pt-BR'}[LANG]||'en-GB';
 const BASE=LANG==='en'||!/\/(pl|cy|de|es|fr|it|zh|ja|vi|bg|pt)\/[^/]*$/.test(location.pathname)?'./':'../';
@@ -5362,18 +5407,23 @@ let STARS=null,MW=null,OORT=null,PULS=null,GCGLOW=null,HELIO=null,HELIO2=null;
 // a star's true colour from its temperature: its Planck spectrum through the CIE 1931 colour-matching functions to sRGB, normalised to full
 // brightness (GALAXY.starRGB): the Sun white with a hint of yellow, M dwarfs orange-red, B stars blue-white. Stored gamma-encoded, as the screen shows it.
 function bbRGB(T){return G().starRGB(T||5772)}
-const STAR_VS=`attribute vec3 col;attribute float absMag;uniform float uPx;uniform float uFade;varying vec3 vC;varying float vA;
-void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);float d=max(length(mv.xyz),1e-7);float m=absMag+2.1714724*log(d/10.0);
-float s=clamp(2.2*pow(10.0,-0.1*(m-2.0)),1.3,70.0);vA=clamp(1.0-(m-3.0)/3.5,0.22,1.0)*uFade;vC=col;gl_PointSize=s*uPx;gl_Position=projectionMatrix*mv;}`;
+// One position for every star everywhere: the catalogue's J2000 place plus its space velocity × the sim's years since J2000 (GALAXY.posAt),
+// here done on the GPU (attribute vel in pc/yr, uniform uT in years) so the point sprites sit where the labels, the arrival look-at, the
+// picking and the sound sources put them, and glide when time runs fast. Stars within uNear1 pc of the ship are drawn as discs instead
+// (NEAR below) and their points fade out between uNear0 and uNear1.
+const STAR_VS=`attribute vec3 col;attribute vec3 vel;attribute float absMag;uniform float uPx;uniform float uFade;uniform float uT;uniform float uNear0;uniform float uNear1;varying vec3 vC;varying float vA;
+void main(){vec4 mv=modelViewMatrix*vec4(position+vel*uT,1.0);float d=max(length(mv.xyz),1e-7);float m=absMag+2.1714724*log(d/10.0);
+float s=clamp(2.2*pow(10.0,-0.1*(m-2.0)),1.3,70.0);vA=clamp(1.0-(m-3.0)/3.5,0.22,1.0)*uFade*smoothstep(uNear0,uNear1,d);vC=col;gl_PointSize=s*uPx;gl_Position=projectionMatrix*mv;}`;
 const STAR_FS=`varying vec3 vC;varying float vA;void main(){vec2 q=gl_PointCoord-0.5;float r2=dot(q,q)*4.0;if(r2>1.0)discard;float a=exp(-r2*3.2)*0.9+0.5*max(0.0,1.0-r2*9.0);gl_FragColor=vec4(vC*a*vA,a*vA);}`;
 const MW_VS=`attribute vec4 col;uniform float uPx;uniform float uFade;uniform float uSize;uniform float uBoost;uniform float uAlpha;varying vec4 vC;
 void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);float d=max(length(mv.xyz),1.0);float s=clamp(uSize*2600.0/d,1.0+0.9*uBoost,7.0);float near=smoothstep(60.0,900.0,d);vC=vec4(col.rgb,min(1.0,col.a*(1.0+0.7*uBoost))*near*uFade*uAlpha);gl_PointSize=s*uPx;gl_Position=projectionMatrix*mv;}`;
 const MW_FS=`varying vec4 vC;void main(){vec2 q=gl_PointCoord-0.5;float r2=dot(q,q)*4.0;if(r2>1.0)discard;float a=exp(-r2*2.5)*vC.a;gl_FragColor=vec4(vC.rgb*a,a);}`;
-function buildStars(){const g=G(),T=g.tables(),n=T.n,pos=new Float32Array(n*3),col=new Float32Array(n*3),mag=new Float32Array(n),v={x:0,y:0,z:0};
-  for(let i=0;i<n;i++){galToScene(T.X[i],T.Y[i],T.Z[i],v);pos[i*3]=v.x;pos[i*3+1]=v.y;pos[i*3+2]=v.z;const row=T.rows[i],c=bbRGB(row.T||5772);col[i*3]=c[0];col[i*3+1]=c[1];col[i*3+2]=c[2];mag[i]=T.M[i]}
+const NEAR_PC=[.05,.1];   // the band (pc from the ship: 10,000–20,000 AU) over which a star's point gives way to its disc
+function buildStars(){const g=G(),T=g.tables(),n=T.n,pos=new Float32Array(n*3),vel=new Float32Array(n*3),col=new Float32Array(n*3),mag=new Float32Array(n),v={x:0,y:0,z:0};
+  for(let i=0;i<n;i++){galToScene(T.X[i],T.Y[i],T.Z[i],v);pos[i*3]=v.x;pos[i*3+1]=v.y;pos[i*3+2]=v.z;galToScene(T.VX[i],T.VY[i],T.VZ[i],v);vel[i*3]=v.x;vel[i*3+1]=v.y;vel[i*3+2]=v.z;const row=T.rows[i],c=bbRGB(row.T||5772);col[i*3]=c[0];col[i*3+1]=c[1];col[i*3+2]=c[2];mag[i]=T.M[i]}
   if(STARS){gscene.remove(STARS);STARS.geometry.dispose()}
-  const gm=new THREE.BufferGeometry();gm.setAttribute('position',new THREE.BufferAttribute(pos,3));gm.setAttribute('col',new THREE.BufferAttribute(col,3));gm.setAttribute('absMag',new THREE.BufferAttribute(mag,1));
-  const mat=STARS?STARS.material:new THREE.ShaderMaterial({uniforms:{uPx:{value:renderer.getPixelRatio()},uFade:{value:0}},vertexShader:STAR_VS,fragmentShader:STAR_FS,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
+  const gm=new THREE.BufferGeometry();gm.setAttribute('position',new THREE.BufferAttribute(pos,3));gm.setAttribute('vel',new THREE.BufferAttribute(vel,3));gm.setAttribute('col',new THREE.BufferAttribute(col,3));gm.setAttribute('absMag',new THREE.BufferAttribute(mag,1));
+  const mat=STARS?STARS.material:new THREE.ShaderMaterial({uniforms:{uPx:{value:renderer.getPixelRatio()},uFade:{value:0},uT:{value:0},uNear0:{value:NEAR_PC[0]},uNear1:{value:NEAR_PC[1]}},vertexShader:STAR_VS,fragmentShader:STAR_FS,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
   STARS=new THREE.Points(gm,mat);STARS.frustumCulled=false;gscene.add(STARS)}
 function buildMilkyWay(){const g=G(),q=QUAL(),N=Math.round((q==='eco'?9000:LOW?16000:q==='high'?90000:60000)*mwScale),rnd=g.rng(2019),gauss=()=>{let u=0;for(let k=0;k<4;k++)u+=rnd();return (u-2)*1.1};
   const pos=new Float32Array(N*3),col=new Float32Array(N*4),v={x:0,y:0,z:0},gc={R:0,beta:0,z:0},h={x:0,y:0,z:0};
@@ -5417,6 +5467,44 @@ function buildHelio(){const rnd=G().rng(5),N=LOW?1400:3000,pos=new Float32Array(
   HELIO=new THREE.Points(gm,new THREE.PointsMaterial({size:1.8,sizeAttenuation:false,color:0x9fb0ff,transparent:true,opacity:0,depthWrite:false}));HELIO.frustumCulled=false;scene.add(HELIO);
   HELIO2=new THREE.Mesh(new THREE.SphereGeometry(120,48,32),new THREE.MeshBasicMaterial({color:0x6f7fd8,transparent:true,opacity:0,side:THREE.BackSide,blending:THREE.AdditiveBlending,depthWrite:false}));HELIO2.frustumCulled=false;scene.add(HELIO2)}
 
+/* ---------- near stars as discs (NEAR): a star you stand beside looks like a star, not a dot ----------
+   Within NEAR_PC[1] (20,000 AU) of the ship a star is drawn as a limb-darkened disc in its true colour (GALAXY.starRGB) with a soft
+   corona and a glare that grows with its apparent brightness; its disc has its real angular size from its real radius
+   (GALAXY.starRadiusAU) and the distance, with a floor of 1.4 px so a far companion or a red dwarf remains a bright point with glare.
+   The point sprite fades out as the disc fades in (the same band, NEAR_PC). Drawn in a third pass with its own scene and camera in AU
+   with the ship at the origin (a floating origin: 0.1 AU beside a star 270,000 AU from the Sun is far below float32's reach in the
+   parsec scene), one billboard quad per star, pooled; six at most, so phones carry nothing. Companions sit where the engine put them
+   (placeSystems: α Cen B 23 AU from A, Sirius B 20 AU from Sirius, Capella's pair 0.7 AU apart). */
+const NEAR={list:[],px:new Map(),pool:[],scene:new THREE.Scene(),cam:new THREE.PerspectiveCamera(62,1,1e-6,1e7),n:0,max:LOW?4:6};
+const DISC_VS=`uniform float uHalf;varying vec2 vQ;void main(){vQ=position.xy;vec4 mv=modelViewMatrix*vec4(0.,0.,0.,1.);mv.xy+=position.xy*uHalf;gl_Position=projectionMatrix*mv;}`;
+const DISC_FS=`precision highp float;uniform vec3 uCol;uniform float uDisc;uniform float uCore;uniform float uGlow;uniform float uA;varying vec2 vQ;
+void main(){float r=length(vQ);if(r>1.0)discard;float q=r/uDisc;
+ float mu=sqrt(max(0.0,1.0-q*q));float I=1.0-0.40*(1.0-mu);float edge=1.0-smoothstep(1.0-uCore,1.0,q);
+ vec3 disc=mix(uCol,vec3(1.0),0.45*I*I*I)*I*1.15*edge;
+ float x=max(0.0,r-uDisc);float oD=1.0-edge;float cor=0.6*exp(-x/(0.22*uDisc+0.012))*oD;float gl=uGlow*0.42/(1.0+pow(x/0.22,1.6))*(1.0-smoothstep(0.5,1.0,r))*oD;
+ vec3 light=disc+mix(uCol,vec3(1.0),0.3)*cor+uCol*gl;
+ gl_FragColor=vec4(light*uA,1.0);}`;
+let DISC_GEO=null;
+function discMesh(){if(!DISC_GEO)DISC_GEO=new THREE.PlaneGeometry(2,2);
+  const m=new THREE.Mesh(DISC_GEO,new THREE.ShaderMaterial({uniforms:{uHalf:{value:1},uCol:{value:new THREE.Vector3(1,1,1)},uDisc:{value:.1},uCore:{value:.1},uGlow:{value:1},uA:{value:1}},vertexShader:DISC_VS,fragmentShader:DISC_FS,transparent:true,depthWrite:false,depthTest:false,blending:THREE.CustomBlending,blendSrc:THREE.OneFactor,blendDst:THREE.OneFactor}));
+  m.frustumCulled=false;m.visible=false;NEAR.scene.add(m);NEAR.pool.push(m);return m}
+const NV={x:0,y:0,z:0};
+// each frame: place the near stars relative to the ship (AU), size their discs and glares in pixels, remember the label offsets
+function nearFrame(){NEAR.px.clear();NEAR.n=0;if(!ST.ready||ST.gf<=0||!NEAR.list.length){NEAR.pool.forEach(m=>m.visible=false);return}
+  const g=G(),cv=renderer.domElement,H=cv.clientHeight||innerHeight,pxr=H/(2*Math.tan(gcam.fov*Math.PI/360));let k=0;
+  for(let i=0;i<NEAR.list.length&&k<NEAR.max;i++){const row=NEAR.list[i];starScene(row,NV);const dx=NV.x*AU_PC-ship.pos.x,dy=NV.y*AU_PC-ship.pos.y,dz=NV.z*AU_PC-ship.pos.z,d=Math.hypot(dx,dy,dz);if(!(d>1e-9))continue;
+    const dPc=d/AU_PC,fade=1-sm(NEAR_PC[0],NEAR_PC[1],dPc);if(fade<=0)continue;
+    const R=g.starRadiusAU(row),discPx=R/d*pxr,M=('M' in row)?row.M:4.83,m=M+5*Math.log10(dPc/10),glow=clamp(1-(m-3)/3.5,.22,1);
+    const glarePx=clamp(10*Math.pow(10,-.075*(m+8)),3,.2*H),dp=Math.max(discPx,1.4),halfPx=Math.max(glarePx,dp*3.2,4),half=halfPx/pxr*d;
+    const mesh=NEAR.pool[k]||discMesh(),u=mesh.material.uniforms,c=bbRGB(row.T||5772);k++;
+    mesh.visible=true;mesh.position.set(dx,dy,dz);u.uHalf.value=half;u.uDisc.value=dp/halfPx;u.uCore.value=clamp(2.2/dp,.08,1);u.uGlow.value=glow;u.uA.value=fade*ST.gf;u.uCol.value.set(c[0],c[1],c[2]);
+    NEAR.px.set(row,Math.max(dp*1.25+6,10))}
+  for(let i=k;i<NEAR.pool.length;i++)NEAR.pool[i].visible=false;NEAR.n=k}
+function nearCam(){const c=NEAR.cam;c.quaternion.copy(camera.quaternion);c.position.set(0,0,0);if(c.aspect!==camera.aspect){c.aspect=camera.aspect;c.updateProjectionMatrix()}c.updateMatrixWorld();c.matrixWorldInverse.copy(c.matrixWorld).invert();return c}
+function nearRender(){if(!NEAR.n)return;renderer.render(NEAR.scene,nearCam())}
+// the stars drawn as discs: the arrival star, its companions, anything within the band — gathered by scanStars every 100 ms
+function nearSort(){const list=NEAR.list;if(list.length>NEAR.max){list.forEach(r=>{starScene(r,NV);r.__nd=Math.hypot(NV.x*AU_PC-ship.pos.x,NV.y*AU_PC-ship.pos.y,NV.z*AU_PC-ship.pos.z)});list.sort((a,b)=>a.__nd-b.__nd)}}
+
 /* ---------- the solar scene's things that fade as the ship leaves: the painted sky, the zodiac, the markers ---------- */
 let FADERS=null;
 function faders(){if(FADERS)return FADERS;FADERS=[];
@@ -5432,9 +5520,10 @@ function applyFades(){const sf=ST.sf;if(Math.abs(sf-fadeApplied)<.004)return;fad
 /* ---------- labels in the galactic scene ---------- */
 const GL={};const pvG=new THREE.Vector3();
 function glbl(id,text,cls,onclick){const d=document.createElement('div');d.className='lbl '+(cls||'');d.innerHTML=text;d.hidden=true;if(onclick)d.onclick=onclick;else{d.style.pointerEvents='none'}$('labels').appendChild(d);GL[id]=d;return d}
-function placeG(el,x,y,z,show,cam){if(!show){el.hidden=true;return}pvG.set(x,y,z).project(cam||gcam);
+// dx: the label's gap from the point (10 px), or, for a star drawn as a disc, from the edge of its glare — beside the star, never on it
+function placeG(el,x,y,z,show,cam,dx){if(!show){el.hidden=true;return}pvG.set(x,y,z).project(cam||gcam);
   if(pvG.z>1||pvG.z<-1||Math.abs(pvG.x)>1.1||Math.abs(pvG.y)>1.1){el.hidden=true;return}
-  el.hidden=false;const cv=renderer.domElement,W=cv.clientWidth||innerWidth,H=cv.clientHeight||innerHeight;el.style.transform=`translate3d(${((pvG.x*.5+.5)*W+10).toFixed(1)}px,${((-pvG.y*.5+.5)*H).toFixed(1)}px,0) translateY(-50%)`}
+  el.hidden=false;const cv=renderer.domElement,W=cv.clientWidth||innerWidth,H=cv.clientHeight||innerHeight;el.style.transform=`translate3d(${((pvG.x*.5+.5)*W+(dx||10)).toFixed(1)}px,${((-pvG.y*.5+.5)*H).toFixed(1)}px,0) translateY(-50%)`}
 const NAMED=[],PLACED=[];   // star rows with a proper name, for labels (built after load); the screen boxes placed this frame
 function clash(){const x=(pvG.x*.5+.5),y=(-pvG.y*.5+.5);for(let i=0;i<PLACED.length;i++){const p=PLACED[i];if(Math.abs(p[0]-x)<.09&&Math.abs(p[1]-y)<.025)return true}PLACED.push([x,y]);return false}
 const SV={x:0,y:0,z:0};
@@ -5449,7 +5538,7 @@ function labels(){const far=ST.r>FAR_AU;
   PLACED.length=0;placeG(LBL.sun,0,0,0,ST.dSunPc<120000);if(!LBL.sun.hidden)clash();LBL.sun.classList.toggle('target',!!(ship.gap&&ship.gap.id==='home'));
   // named stars: the brightest as seen from the ship (reusing the audio ranking when it runs), at most 14
   const list=AS.labelList||[];let n=0;
-  for(let i=0;i<NAMED.length;i++){const e=NAMED[i];const show=n<14&&list.indexOf(e.row)>=0;if(show){starScene(e.row,SV);placeG(e.el,SV.x,SV.y,SV.z,true);if(!e.el.hidden&&clash())e.el.hidden=true;e.el.classList.toggle('target',!!(ship.gap&&ship.gap.row===e.row));n++}else e.el.hidden=true}
+  for(let i=0;i<NAMED.length;i++){const e=NAMED[i];const near=NEAR.px.get(e.row),show=(n<14&&list.indexOf(e.row)>=0)||near!=null;if(show){starScene(e.row,SV);if(near!=null)placeG(e.el,SV.x*AU_PC-ship.pos.x,SV.y*AU_PC-ship.pos.y,SV.z*AU_PC-ship.pos.z,true,nearCam(),near+8);else placeG(e.el,SV.x,SV.y,SV.z,true);if(!e.el.hidden&&clash()&&near==null)e.el.hidden=true;e.el.classList.toggle('target',!!(ship.gap&&ship.gap.row===e.row)||!!(ST.card&&ST.card.row===e.row));n++}else e.el.hidden=true}
   if(GL.sgra){placeG(GL.sgra,ST.gcPos.x,ST.gcPos.y,ST.gcPos.z,ST.dSunPc>300);GL.sgra.classList.toggle('target',!!(ship.gap&&ship.gap.id==='gc'))}
   if(GL.vela&&ST.velaPos)placeG(GL.vela,ST.velaPos.x,ST.velaPos.y,ST.velaPos.z,ST.dSunPc>.3&&ST.dSunPc<3000);
   if(GL.crab&&ST.crabPos)placeG(GL.crab,ST.crabPos.x,ST.crabPos.y,ST.crabPos.z,ST.dSunPc>.3&&ST.dSunPc<3000);
@@ -5554,14 +5643,20 @@ const STAR_OF={acen:'Rigil Kentaurus',sirius:'Sirius'};
 function goalOf(id){const g=G(),out={id,goal:new THREE.Vector3(),look:new THREE.Vector3(),stand:1,name:TX.nm[id]||TL.nm[id]||id,cap:id};
   const outward=ship.pos.length()>1e-6?ship.pos.clone().normalize():new THREE.Vector3(0,.3,-1).normalize();
   if(typeof id==='object'&&id.star){const row=id.star;out.id='star';out.row=row;starScene(row,SV);const p=new THREE.Vector3(SV.x,SV.y,SV.z).multiplyScalar(AU_PC);
-    const standAU=Math.max(400,(row.R||1)*0.00465*SUN_MAG*160);out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(standAU));out.look.copy(p);out.stand=standAU;out.name=g.nameOf('star',row,LANG);out.cap=row.n==='Rigil Kentaurus'||row.n==='Toliman'||row.n==='Proxima Centauri'?'acen':row.n==='Sirius'?'sirius':'star';return out}
+    // stand where the star's disc spans 2° (28.6 radii: 0.13 AU from a sun, 115 AU from Betelgeuse, 0.02 AU from Proxima), its glare and corona around it
+    const standAU=g.starRadiusAU(row)*STAND_R;let f=p.clone().sub(ship.pos);if(f.lengthSq()<1e-12)f.copy(outward).negate();f.normalize();   // the view axis: along the way we come
+    // a companion (α Cen B, Sirius B, Capella's pair; Proxima is too far): come in so it sits to the left of the star, level with it, its label between the two (24° off in landscape, 10° on a phone held upright)
+    let comp=null,cd=1e30;for(const r of g.systemOf(row)){if(r===row)continue;starScene(r,SV);const q=new THREE.Vector3(SV.x,SV.y,SV.z).multiplyScalar(AU_PC),dd=q.distanceTo(p);if(dd>standAU*.1&&dd<cd){cd=dd;comp=q}}
+    if(comp){const c=comp.sub(p).normalize(),land=innerWidth>innerHeight,al=(land?-24:-10)*Math.PI/180;let w=f.clone().addScaledVector(c,-f.dot(c));if(w.lengthSq()<1e-6)w=new THREE.Vector3().crossVectors(c,UP);w.normalize().negate();
+      f.copy(c).multiplyScalar(Math.cos(al)).addScaledVector(w,-Math.sin(al)).normalize();out.up=new THREE.Vector3().crossVectors(w,f).normalize()}
+    out.goal.copy(p).addScaledVector(f,-standAU);out.look.copy(p);out.stand=standAU;out.anchor=p.clone();out.tilt=1;out.name=g.nameOf('star',row,LANG);out.cap=row.n==='Rigil Kentaurus'||row.n==='Toliman'||row.n==='Proxima Centauri'?'acen':row.n==='Sirius'?'sirius':'star';return out}
   if(typeof id==='object'&&id.galaxy){const r=id.galaxy,c=GALPOS[r.id]||galToScene(g.galaxyPos(r,{}).x,g.galaxyPos(r,{}).y,g.galaxyPos(r,{}).z,new THREE.Vector3());const p=c.clone().multiplyScalar(AU_PC);
     const big=r.disc&&r.disc.rmax,rh=r.rhpc||((r.rh||5)/60*Math.PI/180*r.d*1000),standPc=big?r.disc.rmax*1000*(r.k==='spiral'?1.7:2.4):Math.max(6*rh,r.k==='compact'?4*rh:0,400);
     const fr=g.galaxyFrame(r,{}),N=galToScene(fr.N.x,fr.N.y,fr.N.z,new THREE.Vector3()),from=ship.pos.clone().sub(p).normalize();if(N.dot(from)<0)N.negate();
     // approach spirals from above their disc, so the arms show; everything else straight from where we come
     const dir=big&&r.k==='spiral'?from.multiplyScalar(.78).addScaledVector(N,.62).normalize():from;
     out.id='galaxy';out.row=r;out.gal=r;out.goal.copy(p).addScaledVector(dir,standPc*AU_PC);out.look.copy(p);out.stand=standPc*AU_PC;out.up=big&&r.k==='spiral'?N:null;out.name=galName(r);out.cap=r.id==='m31'||r.id==='m33'?r.id:'gal';return out}
-  if(typeof id==='object'&&id.pulsar){const P=id.pulsar,T=g.tables(),k=g.pulsars().indexOf(P),p=galToScene(T.PX[k],T.PY[k],T.PZ[k],new THREE.Vector3()).multiplyScalar(AU_PC);out.id='pulsar';out.row=P;out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(2*AU_PC));out.look.copy(p);out.stand=2*AU_PC;out.name=g.nameOf('pulsar',P,LANG);out.cap='pulsar';return out}
+  if(typeof id==='object'&&id.pulsar){const P=id.pulsar,T=g.tables(),k=g.pulsars().indexOf(P),p=galToScene(T.PX[k],T.PY[k],T.PZ[k],new THREE.Vector3()).multiplyScalar(AU_PC);out.id='pulsar';out.row=P;out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(2*AU_PC));out.look.copy(p);out.stand=2*AU_PC;out.tilt=1;out.name=g.nameOf('pulsar',P,LANG);out.cap='pulsar';return out}
   if(typeof id==='object'&&id.radio){const R=id.radio;if(R.id==='sgra')return goalOf('gc');const T=g.tables(),k=g.radio().indexOf(R),p=galToScene(T.RX[k],T.RY[k],T.RZ[k],new THREE.Vector3()).multiplyScalar(AU_PC);out.id='radio';out.row=R;out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(25*AU_PC));out.look.copy(p);out.stand=25*AU_PC;out.name=g.nameOf('radio',R,LANG);out.cap='radio';return out}
   if(id==='m31'||id==='m33'){const r=g.galaxy(id);if(!r)return null;const o=goalOf({galaxy:r});o.id=id;o.name=TL.nm[id];return o}
   if(id==='mag'){const l=GALPOS.lmc,s2=GALPOS.smc;if(!l||!s2)return null;const mid=l.clone().add(s2).multiplyScalar(.5),from=ship.pos.clone().divideScalar(AU_PC).sub(mid).normalize();
@@ -5573,24 +5668,31 @@ function goalOf(id){const g=G(),out={id,goal:new THREE.Vector3(),look:new THREE.
   if(id==='helio'){out.goal.copy(outward).multiplyScalar(126);out.look.set(0,0,0);out.stand=6;return out}
   if(id==='oort'){out.goal.copy(outward).multiplyScalar(20000);out.look.set(0,0,0);out.stand=800;return out}
   if(id==='acen'||id==='sirius'){const row=g.find(STAR_OF[id]);const o=goalOf({star:row});o.id=id;o.cap=id;o.name=TX.nm[id];return o}
-  if(id==='vela'){const p=ST.velaPos.clone().multiplyScalar(AU_PC);out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(2*AU_PC));out.look.copy(p);out.stand=2*AU_PC;out.row=ST.velaRow;return out}
+  if(id==='vela'){const p=ST.velaPos.clone().multiplyScalar(AU_PC);out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(2*AU_PC));out.look.copy(p);out.stand=2*AU_PC;out.tilt=1;out.row=ST.velaRow;return out}
   if(id==='gc'){const p=ST.gcPos.clone().multiplyScalar(AU_PC);const up=new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z);out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(350*AU_PC)).addScaledVector(up,120*AU_PC);out.look.copy(p);out.stand=350*AU_PC;return out}
   if(id==='above'){const c=ST.gcPos.clone(),up=new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z),away=c.clone().normalize().multiplyScalar(-1);const mid=c.clone().multiplyScalar(.5);out.goal.copy(mid).addScaledVector(away,7000).addScaledVector(up,13500).multiplyScalar(AU_PC);out.look.copy(mid).multiplyScalar(AU_PC);out.stand=2000*AU_PC;return out}
   if(id==='home'){out.goal.set(0,0,0);out.look.set(0,0,0);out.stand=150;return out}
   return null}
 function travelG(id){if(!ST.ready){toast('…');return}const gp=goalOf(id);if(!gp)return;
-  ship.gap=gp;ship.ap=null;ship.drift=null;ship.cruise=false;ship.vel.set(0,0,0);ship.ride=null;ST.orbit=null;hideCard();
+  ship.gap=gp;ship.ap=null;ship.drift=null;ship.cruise=false;ship.vel.set(0,0,0);ship.ride=null;ST.orbit=null;ST.park=null;hideCard();
   toast(uf(TX.course,{n:gp.name}));if(typeof closeNav==='function')closeNav();if(typeof resumeAudio==='function')resumeAudio();if(typeof renderCourse==='function')renderCourse()}
-const lookM=new THREE.Matrix4(),lookQ=new THREE.Quaternion(),UP=new THREE.Vector3(0,1,0);
-function autopilot(dt){const gp=ship.gap;if(!gp)return;
+const lookM=new THREE.Matrix4(),lookQ=new THREE.Quaternion(),UP=new THREE.Vector3(0,1,0),tiltQ=new THREE.Quaternion(),XAXIS=new THREE.Vector3(1,0,0);
+// a star moves (proper motion and radial velocity, at the sim's time speed): the goal, the look-at and the orbit's centre follow it
+const trackV=new THREE.Vector3();
+function trackStar(gp){if(!gp||!gp.anchor||!gp.row)return;starScene(gp.row,SV);trackV.set(SV.x,SV.y,SV.z).multiplyScalar(AU_PC).sub(gp.anchor);if(trackV.lengthSq()<1e-20)return;gp.goal.add(trackV);gp.look.add(trackV);gp.anchor.add(trackV);return trackV}
+// the cockpit's aim at a destination: look at it, and (gp.tilt) pitch down a little so the star sits above the centre, clear of the arrival card
+function aimQ(gp,lookAt,out,frac){const upv=gp.up?gp.up:gp.id==='above'||gp.id==='gc'||gp.id==='mag'?new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z):UP;lookM.lookAt(ship.pos,lookAt||gp.look,upv);out.setFromRotationMatrix(lookM);
+  if(gp.tilt){const H=renderer.domElement.clientHeight||innerHeight,pxr=H/(2*Math.tan(gcam.fov*Math.PI/360));out.multiply(tiltQ.setFromAxisAngle(XAXIS,-Math.atan((frac==null?TILT:frac)*H/pxr)))}return out}
+// once the card is up: the star goes to the middle of the free sky between the title and the card — at most 8 % above the centre in landscape, 24 % on a phone held upright, where the card takes the lower half
+function tiltFrac(){const H=innerHeight,cap=H>innerWidth?.24:.08;if(!cardEl||cardEl.hidden)return TILT;const ct=cardEl.getBoundingClientRect().top,tl=document.querySelector('.hud.tl'),top=tl?tl.getBoundingClientRect().bottom:H*.15;return clamp((H/2-(top+ct)/2)/H,TILT,cap)}
+function autopilot(dt){const gp=ship.gap;if(!gp)return;trackStar(gp);
   const D=gp.goal.clone().sub(ship.pos),dist=D.length();
   // speed: proportional to the smaller of the distance still to go and the distance to the nearest body, so leaving and arriving are both gradual (log-time in both)
   const dn=Math.max(nearestBodyAU(),.5),v=1.05*ST.throttle*ST.warp*Math.max(Math.min(dist,dn),1e-4);
   const step=Math.min(dist,v*dt);if(dist>1e-9)ship.pos.addScaledVector(D,step/dist);
   // look at the target; while far from it, blend toward the direction of travel so the sky streams past
   const lookAt=gp.look.clone();if(dist>gp.stand*40&&gp.id!=='helio'&&gp.id!=='oort'){lookAt.copy(ship.pos).addScaledVector(D,1/dist)}
-  const upv=gp.up?gp.up:gp.id==='above'||gp.id==='gc'||gp.id==='mag'?new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z):UP;
-  lookM.lookAt(ship.pos,lookAt,upv);lookQ.setFromRotationMatrix(lookM);camera.quaternion.slerp(lookQ,1-Math.exp(-dt*(gp.id==='above'?1.2:2.4)));
+  aimQ(gp,lookAt,lookQ);camera.quaternion.slerp(lookQ,1-Math.exp(-dt*(gp.id==='above'?1.2:2.4)));
   if(dist<gp.stand*.03){ship.gap=null;
     if(gp.id==='home'){ship.ap=null;if(typeof travelTo==='function')travelTo('earth');caption('home');return}
     toast(uf(TX.arrived,{n:gp.name}));arrive(gp);
@@ -5601,10 +5703,17 @@ function autopilot(dt){const gp=ship.gap;if(!gp)return;
 // left, ahead, right, behind, once in about forty seconds; any control ends it, as the drift
 const orbQ=new THREE.Quaternion(),orbRel=new THREE.Vector3();
 function orbitStep(dt){const o=ST.orbit;if(!o)return;if(keys.size||hold||ship.cruise||lookDrag||ship.ap||ship.gap){stopOrbit();return}
+  if(o.gp&&trackStar(o.gp)){o.centre.add(trackV);ship.pos.add(trackV)}
   orbRel.copy(ship.pos).sub(o.centre);orbQ.setFromAxisAngle(o.axis,o.rate*dt);orbRel.applyQuaternion(orbQ);ship.pos.copy(o.centre).add(orbRel);camera.position.copy(ship.pos);ship.vel.set(0,0,0)}
 function startOrbit(gp){if(!gp||!gp.look)return;ship.drift=null;ship.ap=null;ship.gap=null;ship.cruise=false;ship.vel.set(0,0,0);
   const up=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);ST.orbit={centre:gp.look.clone(),axis:up,rate:2*Math.PI/40,gp};cardButtons()}
 function stopOrbit(){if(!ST.orbit)return;ST.orbit=null;cardButtons()}
+// parked beside a star: the ship rides along with it (its proper motion and radial velocity, at the sim's time speed), so when time runs fast the star
+// stays where it is in the window instead of sliding away; any control ends it
+function park(dt){const gp=ST.park;if(!gp)return;if(keys.size||hold||ship.cruise||lookDrag||ship.ap||ship.gap||ST.orbit){ST.park=null;return}
+  if(trackStar(gp)){ship.pos.add(trackV);camera.position.copy(ship.pos)}
+  // and settles the aim the autopilot was still turning toward when it arrived (a fast approach ends before the cockpit has finished turning)
+  if(gp.aim){if(camera.quaternion.angleTo(gp.aim)>.0015)camera.quaternion.slerp(gp.aim,1-Math.exp(-dt*3));else gp.aim=null}}
 // after the view from above: the ship circles the Galaxy's pole slowly, so the disc turns below you, until you touch the controls
 const driftQ=new THREE.Quaternion(),driftRel=new THREE.Vector3();
 function drift(dt){const d=ship.drift;if(!d)return;if(keys.size||hold||ship.cruise||lookDrag||ship.ap||ship.gap){ship.drift=null;return}
@@ -5613,11 +5722,12 @@ function drift(dt){const d=ship.drift;if(!d)return;if(keys.size||hold||ship.crui
 function nearestBodyAU(){let best=ship.pos.length()-SUN_R;for(const b of BODIES){const o=OBJ[b.id];if(!o.pos)continue;const d=ship.pos.distanceTo(o.pos)-o.r;if(d<best)best=d}
   if(ST.nearStarAU<best)best=ST.nearStarAU;if(ST.nearGalAU<best)best=ST.nearGalAU;return Math.max(best,1e-7)}
 // the nearest star to the ship (every ~100 ms; the Sun is index 0)
-function scanStars(now){if(!ST.ready||now-ST.lastScan<100)return;ST.lastScan=now;const g=G(),T=g.tables(),L=shipGal(),t=tYr();let bi=-1,bd=1e30;
-  for(let i=0;i<T.n;i++){const dx=T.X[i]+T.VX[i]*t-L.x,dy=T.Y[i]+T.VY[i]*t-L.y,dz=T.Z[i]+T.VZ[i]*t-L.z,d2=dx*dx+dy*dy+dz*dz;if(d2<bd){bd=d2;bi=i}}
+function scanStars(now){if(!ST.ready||now-ST.lastScan<100)return;ST.lastScan=now;const g=G(),T=g.tables(),L=shipGal(),t=tYr();let bi=-1,bd=1e30;const near=NEAR.list,nr2=NEAR_PC[1]*NEAR_PC[1];near.length=0;
+  for(let i=0;i<T.n;i++){const dx=T.X[i]+T.VX[i]*t-L.x,dy=T.Y[i]+T.VY[i]*t-L.y,dz=T.Z[i]+T.VZ[i]*t-L.z,d2=dx*dx+dy*dy+dz*dz;if(d2<bd){bd=d2;bi=i}if(d2<nr2&&i>0)near.push(T.rows[i])}
+  nearSort();
   ST.nearStarIdx=bi;ST.nearStar=bi>=0?T.rows[bi]:null;ST.nearStarAU=bi>=0?Math.sqrt(bd)*AU_PC:1e30;scanGalaxies();
-  // never fly into a star: keep a little way off its centre
-  if(bi>0&&ST.nearStarAU<.3){starScene(T.rows[bi],SV);const c=new THREE.Vector3(SV.x,SV.y,SV.z).multiplyScalar(AU_PC);ship.pos.copy(c).add(ship.pos.clone().sub(c).normalize().multiplyScalar(.3));camera.position.copy(ship.pos)}}
+  // never fly into a star: keep two and a half radii off its centre (its disc is drawn at its real size)
+  if(bi>0){const keep=Math.max(2.5*g.starRadiusAU(T.rows[bi]),1e-4);if(ST.nearStarAU<keep){starScene(T.rows[bi],SV);const c=new THREE.Vector3(SV.x,SV.y,SV.z).multiplyScalar(AU_PC);const off=ship.pos.clone().sub(c);if(off.lengthSq()<1e-18)off.set(0,.3,-1);ship.pos.copy(c).add(off.normalize().multiplyScalar(keep));camera.position.copy(ship.pos);ST.nearStarAU=keep}}}
 
 /* ---------- the manual flight's speed law: the planets' law, with the cap lifted once past them, and the stars counted as bodies ---------- */
 function base(ns){const r=ship.pos.length(),d=Math.min(ns.d,ST.nearStarAU,ST.nearGalAU),cap=40*Math.max(1,r/73);return Math.min(cap,Math.max(2e-6,d*.55))*ST.throttle}
@@ -5626,13 +5736,13 @@ function base(ns){const r=ship.pos.length(),d=Math.min(ns.d,ST.nearStarAU,ST.nea
 let lastCam={far:0},slowT=0,mwScale=1;
 function frame(dt,t,ns){const r=ship.pos.length();ST.r=r;
   scanStars(t);
-  if(ship.gap)autopilot(dt);else if(ST.orbit)orbitStep(dt);else drift(dt);
+  if(ship.gap)autopilot(dt);else if(ST.orbit)orbitStep(dt);else{drift(dt);park(dt)}
   // the fades: the planetary choir and the painted sky go between 150 and 3,000 AU; the galactic layers come in over the same stretch
   const sf=1-sm(Math.log10(150),Math.log10(3000),Math.log10(Math.max(r,1)));ST.sf=sf;ST.gf=1-sf;
   if(ST.ready){const L=shipGal();ST.dSunPc=Math.hypot(L.x,L.y,L.z);ST.zPc=L.z+G().K.Z0;
     ST.gv=sm(0,1,Math.max((Math.abs(ST.zPc)-700)/3000,(ST.dSunPc*.38-700)/3000));
     const farF=1-sm(30000,150000,ST.dSunPc);ST.farF=farF;   // the catalogue stars and pulsars fade out as the whole Galaxy shrinks to a disc (they would all pile into one pixel)
-    STARS.material.uniforms.uFade.value=ST.gf*farF;MW.material.uniforms.uFade.value=ST.gf;MW.material.uniforms.uBoost.value=ST.gv;MW.material.uniforms.uAlpha.value=clamp(Math.pow(100000/Math.max(ST.dSunPc,1),2),.35,1);OORT.material.opacity=ST.gf*.85*(1-sm(.6,4,ST.dSunPc));PULS.material.opacity=ST.gf*.8*(1-ST.gv*.6)*farF;GCGLOW.material.opacity=.3*sm(100,2500,ST.dSunPc)*clamp(Math.pow(200000/Math.max(ST.dSunPc,1),2),0,1);galaxyFrame();
+    STARS.material.uniforms.uFade.value=ST.gf*farF;STARS.material.uniforms.uT.value=tYr();nearFrame();MW.material.uniforms.uFade.value=ST.gf;MW.material.uniforms.uBoost.value=ST.gv;MW.material.uniforms.uAlpha.value=clamp(Math.pow(100000/Math.max(ST.dSunPc,1),2),.35,1);OORT.material.opacity=ST.gf*.85*(1-sm(.6,4,ST.dSunPc));PULS.material.opacity=ST.gf*.8*(1-ST.gv*.6)*farF;GCGLOW.material.opacity=.3*sm(100,2500,ST.dSunPc)*clamp(Math.pow(200000/Math.max(ST.dSunPc,1),2),0,1);galaxyFrame();
     const hp=sm(25,60,r)*(1-sm(300,900,r));HELIO.material.opacity=.75*hp;HELIO2.material.opacity=.05*hp*(r<120?1:0);HELIO.visible=hp>.01;HELIO2.visible=HELIO2.material.opacity>.002;
     thresholds(r)}
   applyFades();
@@ -5655,7 +5765,7 @@ function thresholds(r){const out=k=>{if(!ST.seen[k]){ST.seen[k]=true;caption(k)}
 function render(){const r=ST.r;camera.updateMatrixWorld();
   if(ST.ready&&ST.gf>0){gcam.quaternion.copy(camera.quaternion);gcam.position.set(ship.pos.x/AU_PC,ship.pos.y/AU_PC,ship.pos.z/AU_PC);
     if(gcam.aspect!==camera.aspect){gcam.aspect=camera.aspect;gcam.updateProjectionMatrix()}gcam.updateMatrixWorld();
-    renderer.autoClear=true;renderer.render(gscene,gcam);renderer.autoClear=false;renderer.clearDepth()}
+    renderer.autoClear=true;renderer.render(gscene,gcam);renderer.autoClear=false;nearRender();renderer.clearDepth()}
   else renderer.autoClear=true;
   if(r<SOLAR_MAX_AU){const far=r>6000?r*3:2e4;if(Math.abs(far-lastCam.far)>lastCam.far*.2){lastCam.far=far;camera.far=far;camera.updateProjectionMatrix()}renderer.render(scene,camera)}
   renderer.autoClear=true}
@@ -5732,7 +5842,8 @@ function card(gp){if(!cardEl||!gp)return;ST.card=gp;const S2=TX.st,cap=gp.cap!==
 function cardButtons(){if(!cardEl||cardEl.hidden)return;const b=cardEl.querySelector('[data-a="orbit"]');if(b){b.textContent=ST.orbit?TX.st.orbiting:TX.st.orbit;b.classList.toggle('on',!!ST.orbit)}}
 function refreshHear(){const el=$('galHear');if(el&&ST.card&&!cardEl.hidden){const t=hearLine(ST.card);if(el.innerHTML!==t)el.innerHTML=t}}
 function hideCard(){if(!cardEl)return;cardEl.classList.remove('on');cardEl.hidden=true;ST.card=null}
-function arrive(gp){ST.caps.push(gp.cap);if(gp.row)ST.visited[gp.row.id!=null?gp.row.id:gp.name]=true;if(gp.id==='gc')ST.visited.gc=true;
+function arrive(gp){ST.caps.push(gp.cap);ST.park=gp.anchor?gp:null;arriveShow(gp);if(ST.park)gp.aim=aimQ(gp,null,new THREE.Quaternion(),tiltFrac())}
+function arriveShow(gp){if(gp.row)ST.visited[gp.row.id!=null?gp.row.id:gp.name]=true;if(gp.id==='gc')ST.visited.gc=true;
   if(gp.gal&&gp.id!=='mag'){card(gp);if(gp.gal.id==='m31')speakAndromeda();else speakName(gp)}
   else if(gp.cap==='star'||gp.cap==='acen'||gp.cap==='sirius'||gp.id==='vela'||gp.id==='gc'||gp.id==='pulsar'||gp.id==='radio'){card(gp);speakName(gp)}else caption(gp.cap,gp)}
 // the nearest galaxy not yet visited (the Milky Way and the current one excluded)
@@ -5813,7 +5924,7 @@ function renderSug(){const sug=$('gSug'),inp=$('gQ');if(!sug)return;const S2=TL.
 function specOf(r){if(r.kind==='star')return {star:r.row};if(r.kind==='galaxy')return r.row.id==='mw'?'gc':{galaxy:r.row};if(r.kind==='pulsar')return {pulsar:r.row};if(r.kind==='radio')return {radio:r.row};return null}
 function pick(r,jump){if(r.kind==='constellation'){SR.con=r.row;searchFor(SR.q);return}const spec=specOf(r);if(!spec)return;if(typeof resumeAudio==='function')resumeAudio();
   if(jump)jumpTo(spec);else travelG(spec);if(typeof closeNav==='function')closeNav()}
-function jumpTo(id){const gp=goalOf(id);if(!gp)return;ship.gap=null;ship.ap=null;ship.drift=null;ship.cruise=false;ship.vel.set(0,0,0);ST.orbit=null;hideCard();ship.pos.copy(gp.goal);camera.position.copy(ship.pos);lookM.lookAt(ship.pos,gp.look,gp.up||UP);camera.quaternion.setFromRotationMatrix(lookM);
+function jumpTo(id){const gp=goalOf(id);if(!gp)return;ship.gap=null;ship.ap=null;ship.drift=null;ship.cruise=false;ship.vel.set(0,0,0);ST.orbit=null;hideCard();ship.pos.copy(gp.goal);camera.position.copy(ship.pos);aimQ(gp,null,camera.quaternion);ST.lastScan=0;
   if(gp.id!=='home'&&gp.id!=='helio'&&gp.id!=='oort'){AS.dirty=true;toast(uf(TX.arrived,{n:gp.name}));arrive(gp)}}
 // the HUD: a "Find a star" entry in the "⋯" menu (on a desktop the shell shows the menu's entries as buttons in the top-right row)
 function searchButton(force){if($('gSearchBtn'))return true;const mm=document.querySelector('#moreMenu .mmenu'),tr=document.querySelector('.hud.tr');if(!mm&&!(force&&tr))return false;
@@ -6080,7 +6191,7 @@ let popEl=null,tapS=null;
 function pickAt(px,py,rad){if(!ST.ready||!STARS)return null;const g=G(),T=g.tables(),cv=renderer.domElement,W=cv.clientWidth||innerWidth,H=cv.clientHeight||innerHeight,L=gcam.position;let best=null,bs=1e9;
   const test=(x,y,z,mag,mk)=>{pvG.set(x,y,z).project(gcam);if(pvG.z>1||pvG.z<-1)return;const sx=(pvG.x*.5+.5)*W,sy=(-pvG.y*.5+.5)*H,d=Math.hypot(sx-px,sy-py);if(d>rad)return;const sc=d/rad*2.5+mag*.25;if(sc<bs){bs=sc;best=mk()}};
   const far=ST.farF==null?1:ST.farF;
-  if(far>.05){const pos=STARS.geometry.attributes.position.array;for(let i=0;i<T.n;i++){const x=pos[i*3],y=pos[i*3+1],z=pos[i*3+2],dd=Math.hypot(x-L.x,y-L.y,z-L.z);if(dd<1e-9)continue;const mag=T.M[i]+5*Math.log10(dd/10);if(mag>7.5)continue;test(x,y,z,mag,()=>({kind:'star',row:T.rows[i]}))}
+  if(far>.05){const t=tYr();for(let i=0;i<T.n;i++){galToScene(T.X[i]+T.VX[i]*t,T.Y[i]+T.VY[i]*t,T.Z[i]+T.VZ[i]*t,SV);const x=SV.x,y=SV.y,z=SV.z,dd=Math.hypot(x-L.x,y-L.y,z-L.z);if(dd<1e-9)continue;const mag=T.M[i]+5*Math.log10(dd/10);if(mag>7.5)continue;test(x,y,z,mag,()=>({kind:'star',row:T.rows[i]}))}
     if(PULS){const pp=PULS.geometry.attributes.position.array;for(let i=0;i<T.np;i++){const x=pp[i*3],y=pp[i*3+1],z=pp[i*3+2],dd=Math.hypot(x-L.x,y-L.y,z-L.z),d0=(T.prow[i].d||1)*1000;test(x,y,z,T.PM[i]+5*Math.log10(Math.max(dd,1e-9)/d0)+2,()=>({kind:'pulsar',row:T.prow[i]}))}
       for(let i=0;i<T.nr;i++){const k=T.np+i,x=pp[k*3],y=pp[k*3+1],z=pp[k*3+2],r=T.rrow[i],dd=Math.hypot(x-L.x,y-L.y,z-L.z),d0=r.d_kpc!=null?r.d_kpc*1000:r.d_Mpc*1e6;test(x,y,z,T.RM[i]+5*Math.log10(Math.max(dd,1e-9)/d0)+2,()=>({kind:'radio',row:r}))}}}
   for(const id in GALPOS){const p=GALPOS[id],r=g.galaxy(id);if(!r)continue;const dd=p.distanceTo(L);if(dd<50)continue;test(p.x,p.y,p.z,r.M+5*Math.log10(dd/10)-1,()=>({kind:'galaxy',row:r}))}
@@ -6266,11 +6377,11 @@ function fft(re,im){const n=re.length;for(let i=1,j=0;i<n;i++){let bit=n>>1;for(
 const api={base,frame,render,audio,readout,labels,travel:travelG,caption,ST,AS,OPT,GA:()=>GA,TX,TL,gscene,gcam,far:()=>ST.r>FAR_AU,card:()=>cardEl,nextStar,nextGalaxy,orbit:()=>ST.card&&startOrbit(ST.card),
   search:(q,n)=>G().search(q,{n:n||9}),pick:(r,jump)=>pick(r,jump),searchFor,SR,galPos:id=>GALPOS[id],
   setOpt:(k,v)=>{OPT[k]=v;saveOpt();if(GA){tgt(GA.starG.gain,OPT.vol,.1);tgt(GA.chordG.gain,OPT.dmVol,.1)}refreshHear()},
-  warp:x=>{ST.warp=x},adapt:b=>{ST.adapt=b},jump:id=>{const gp=goalOf(id);if(!gp)return;ship.gap=null;ship.ap=null;ship.drift=null;ship.vel.set(0,0,0);ST.orbit=null;ship.pos.copy(gp.goal);camera.position.copy(ship.pos);lookM.lookAt(ship.pos,gp.look,gp.up||UP);camera.quaternion.setFromRotationMatrix(lookM);AS.dirty=true},jumpTo,
+  warp:x=>{ST.warp=x},adapt:b=>{ST.adapt=b},jump:id=>{const gp=goalOf(id);if(!gp)return;ship.gap=null;ship.ap=null;ship.drift=null;ship.vel.set(0,0,0);ST.orbit=null;ship.pos.copy(gp.goal);camera.position.copy(ship.pos);aimQ(gp,null,camera.quaternion);ST.lastScan=0;AS.dirty=true},jumpTo,
   stats:()=>({churn:GA?GA.churn:0,swaps:GA?GA.swaps:0,quake:!!(GA&&GA.quake&&GA.quake.on),orbit:!!ST.orbit,card:!!(cardEl&&!cardEl.hidden),mode:OPT.mode,vol:OPT.vol,stars:GA?GA.star.filter(s=>s.row).length:0,pulsars:GA?GA.pulsar.filter(s=>s.row).length:0,radio:GA?GA.radio.filter(s=>s.row).length:0,chord:GA?GA.chord.length:0,gal:GA?GA.gal.filter(s=>s.row).length:0,galVoices:AS.gal.filter(e=>e&&e.row).map(e=>e.row.id),chordOwner:AS.chordOwner,chordScore:AS.chordScore,galN:ST.galN,nearGal:ST.nearGal&&ST.nearGal.id,nearGalAU:ST.nearGalAU,gf:ST.gf,sf:ST.sf,gv:ST.gv,r:ST.r,dSunPc:ST.dSunPc,zPc:ST.zPc,ready:ST.ready,large:ST.large,caps:ST.caps.slice(),nearStar:ST.nearStar&&(ST.nearStar.n||ST.nearStar.id)}),
   // step 4c
   pop:(body,x,y)=>openPop(body,x,y),hidePop,pick:(x,y,r)=>pickAt(x,y,r||16),sheet:(k,body)=>openSheet(k,body),closeSheet,hear:()=>hear(),stopHear,solo:(b,s)=>solo(b,s),voice:row=>G().starVoice(row),rules:row=>voiceRules(row),popEl:()=>popEl,sheetEl:()=>sheetEl,hearing:()=>!!HEAR,renderVoice,
-  ready:()=>loading};
+  ready:()=>loading,tYr,near:NEAR,shipPos:()=>ship.pos,starScene:(row)=>starScene(row,{x:0,y:0,z:0}),goalOf};
 window.FLYG=api;return api;
 })();
 

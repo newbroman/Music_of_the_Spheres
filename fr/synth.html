@@ -3593,11 +3593,53 @@ window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,t
     T.radioById = new Map(); T.orbitById = new Map();
     if (D.starradio) { (D.starradio.radio || []).forEach(r => T.radioById.set(r.id, r)); (D.starradio.orbits || []).forEach(o => { if (!T.orbitById.has(o.id)) T.orbitById.set(o.id, o); if (o.comp != null && !T.orbitById.has(o.comp)) T.orbitById.set(o.comp, o); }); }
     T.sysOf = new Map(); for (let i = 1; i < n; i++) { const r = T.rows[i]; if (r.sys != null) { let a = T.sysOf.get(r.sys); if (!a) T.sysOf.set(r.sys, a = []); a.push(r); } }
+    placeSystems();
     bud.reset();
     G.filters.cache.clear();
     G.starVoice.cache.clear(); G.spectrum.cache.clear(); G.starRGB.cache.clear();
     srch.index = null;
   }
+  /** The members of a catalogued system placed with their primary (step 5, interstellar Flight at close range). The rows of a
+   *  system (`sys`) carry independent parallaxes and radial velocities whose errors (0.1 pc, 10 km/s) dwarf the system's real size
+   *  (tens of AU), so, seen from beside the primary, a companion from its own row would float a thousand AU off or drift away. Here
+   *  each companion keeps its own direction on the sky but is set at the primary's distance; when starradio.json gives the pair's
+   *  semi-major axis the separation is made that a_au (along the catalogued sky offset, or due east when the rows coincide, as
+   *  Sirius B's does with Sirius); and the companion takes the primary's space velocity, so the system moves as one. APPROX: a circular
+   *  orbit of radius a, the companion's place on it unknown. Stars without `sys` (Proxima) are untouched; far from the system (the
+   *  dial, the synthesiser) the difference is invisible. */
+  function placeSystems() {
+    T.sysOf.forEach((rows, sys) => {
+      const prim = rows.find(r => r.cmp === 'A') || rows.find(r => r.id === sys) || rows.slice().sort((a, b) => (a.mag != null ? a.mag : 99) - (b.mag != null ? b.mag : 99))[0];
+      const kp = idx(prim); if (kp < 0) return;
+      const Px = T.X[kp], Py = T.Y[kp], Pz = T.Z[kp], dP = Math.hypot(Px, Py, Pz); if (!(dP > 0)) return;
+      for (let j = 0; j < rows.length; j++) {
+        const r = rows[j]; if (r === prim) continue; const k = idx(r); if (k < 0) continue;
+        const d0 = Math.hypot(T.X[k], T.Y[k], T.Z[k]) || dP, ux = T.X[k] / d0, uy = T.Y[k] / d0, uz = T.Z[k] / d0;
+        let x = ux * dP, y = uy * dP, z = uz * dP;                    // at the primary's distance, its own direction
+        const o = T.orbitById.get(r.id) || (rows.length === 2 ? T.orbitById.get(prim.id) : null);   // the pair's orbit: named for both, or the primary's only orbit when the system is a pair (Capella)
+        const a = o && o.a_au > 0 && ((o.id === prim.id && (o.comp === r.id || (o.comp == null && rows.length === 2))) || (o.id === r.id && o.comp === prim.id)) ? o.a_au * K.AU_PC : 0;
+        if (a > 0) {
+          let sx = x - Px, sy = y - Py, sz = z - Pz, s = Math.hypot(sx, sy, sz);
+          if (s < 1e-9) {   // the rows coincide: due east on the sky (the equatorial east vector in the galactic frame)
+            const ra = (r.ra || 0) * DEG, ex = -Math.sin(ra), ey = Math.cos(ra), ez = 0, m = EG;
+            sx = m[0][0] * ex + m[0][1] * ey + m[0][2] * ez; sy = m[1][0] * ex + m[1][1] * ey + m[1][2] * ez; sz = m[2][0] * ex + m[2][1] * ey + m[2][2] * ez; s = Math.hypot(sx, sy, sz) || 1;
+          }
+          x = Px + sx / s * a; y = Py + sy / s * a; z = Pz + sz / s * a;
+        }
+        T.X[k] = x; T.Y[k] = y; T.Z[k] = z; T.VX[k] = T.VX[kp]; T.VY[k] = T.VY[kp]; T.VZ[k] = T.VZ[kp]; r.__placed = prim;
+      }
+    });
+  }
+  /** The primary of a star's catalogued system when it was placed beside one (placeSystems), else null. */
+  G.primaryOf = function (s) { return s.__placed || null; };
+  /** The members of a star's catalogued system (itself included), or [s] when it has none. */
+  G.systemOf = function (s) { return (s.sys != null && T.sysOf.get(s.sys)) || [s]; };
+  /** A star's radius in AU from its catalogued radius (R☉ = 0.00465047 AU), else from L and T, a white dwarf 0.013 R☉, else the Sun's. */
+  G.starRadiusAU = function (s) {
+    const Tk = s.T || 5772, sp = String(s.sp || '').trim(), wd = /^D[ABCOQZX]?/.test(sp) || /^WD/.test(sp) || s.lc === 'WD';
+    const R = s.R > 0 ? s.R : (s.L > 0 ? Math.sqrt(s.L) * Math.pow(5772 / Tk, 2) : wd ? .013 : 1);
+    return R * 0.00465047;
+  };
   /** "Radio magnitude": −2.5 log10(S / 1 Jy) at 1.4 GHz — Vela (1.05 Jy) ≈ 0, Cas A (2100 Jy) ≈ −8.3, the Crab pulsar (14 mJy) ≈ 4.6. */
   function radioMag(SJy) { return -2.5 * Math.log10(Math.max(SJy, 1e-9)); }
   G.radioMag = radioMag;
