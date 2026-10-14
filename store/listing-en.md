@@ -33,7 +33,7 @@ MORE
 • Record what you hear and save it
 • 3D sound on headphones
 • Works offline once installed
-• Nine languages: English, Polski, Cymraeg, Deutsch, Español, Français, Italiano, 中文 and 日本語
+• Twelve languages: English, Polski, Cymraeg, Deutsch, Español, Français, Italiano, Português, Български, Tiếng Việt, 中文 and 日本語
 
 FOR SUPPORTERS
 The Stage panel turns the app into a live instrument: sound for a PA or 5.1 surround, MIDI out for stage lights, and a full-screen projector view. It opens with a one-off supporter purchase, at whatever level you choose.
