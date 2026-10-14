@@ -230,11 +230,59 @@ star catalogue tradition as given on Chinese Wikipedia); household names for the
 bright radio sources and the Local Group galaxies; and the Greek letters with the Latin and three-letter spellings used
 for Bayer designations.
 
+## The stars' radio emission and the famous binaries' orbits (`starradio.json`)
+
+A hand-curated table (step 4c of the extension): order-of-magnitude radio properties of 42 notable stars of stars.json,
+and the orbital periods of 18 famous binaries among them. Every row carries its own `ref`; rows marked `est` are
+class-typical values, not measurements of that star. Any star not in the table is radio-quiet, below detection (upper
+limits of 0.1–1 mJy are typical). The main sources:
+
+- The Sun: Dulk, G. A. 1985, ARA&A 23, 169, "Radio emission from the Sun and stars"; Tapping, K. F. 2013, Space Weather
+  11, 394 (the 10.7-cm flux).
+- Flare stars: Güdel, M. 2002, ARA&A 40, 217, "Stellar radio astronomy" (the review the class-typical values follow);
+  Zic, A. et al. 2020, ApJ 905, 23 (Proxima, ASKAP 888 MHz); MacGregor, M. A. et al. 2018, ApJL 855, L2 (Proxima, ALMA);
+  Pérez-Torres, M. et al. 2021, A&A 645, A77 (Proxima, 1.6 GHz); Lynch, C. R. et al. 2017, ApJL 836, L30 (UV Cet, MWA);
+  Benz, A. O., Conway, J. & Güdel, M. 1998, A&A 331, 596 (UV Cet, VLBI); Güdel, M. et al. 1989, A&A 220, L5 and Osten,
+  R. A. & Bastian, T. S. 2008, ApJ 674, 1078 (AD Leo); Osten, R. A. et al. 2005, ApJ 621, 398 (EV Lac); Villadsen, J. &
+  Hallinan, G. 2019, ApJ 871, 214 (coherent bursts of AD Leo, UV Cet, EV Lac, EQ Peg, YZ CMi).
+- Masers and red (super)giants: Pardo, J. R. et al. 2004, A&A 424, 145 (SiO monitoring of Mira and χ Cyg); Cotton,
+  W. D. et al. 2010, ApJS 187, 107 (VLBA SiO); Bowers, P. F. & Johnston, K. J. 1994, ApJS 92, 189 (H₂O); Sivagnanam, P.
+  et al. 1990, A&AS 86, 1 (OH); Richards, A. M. S. et al. 2012, A&A 546, A16 and Lane, A. P. et al. 1987, ApJ 323, 756
+  (μ Cep H₂O); Nakashima, J. & Deguchi, S. 2003, PASJ 55, 229 (SiO in μ Cep, α Ori, α Sco); Lim, J. et al. 1998, Nature
+  392, 575 and O'Gorman, E. et al. 2015, A&A 580, A101 (Betelgeuse continuum); Hjellming, R. M. & Newell, R. T. 1983,
+  ApJ 275, 704 and O'Gorman, E. et al. 2020, A&A 638, A65 (Antares); Matthews, L. D. & Karovska, M. 2006, ApJL 637, L49
+  (Mira A and B continuum). Line rest frequencies: the JPL / CDMS / NRAO spectral-line lists (H₂O 22 235.08 MHz, SiO
+  v=1 43 122.08 and v=2 42 820.59 MHz, OH 1612.231, 1665.402, 1667.359 MHz).
+- Hot-star winds: Bieging, J. H., Abbott, D. C. & Churchwell, E. B. 1989, ApJ 340, 518; Blomme, R. et al. 2002, A&A 382,
+  921 and 2003, A&A 408, 715; Scuderi, S. et al. 1998, A&A 332, 251.
+- Active binaries: Lestrade, J.-F. et al. 1988, ApJ 328, 232 and Peterson, W. M. et al. 2010, Nature 463, 207 (Algol);
+  Richards, M. T. et al. 2003, ApJS 147, 337; Drake, S. A., Simon, T. & Linsky, J. L. 1989, ApJS 71, 905 (the VLA survey
+  of RS CVn and Algol systems, and the A-star non-detections); Bastian, T. S. et al. 1992, ApJ 384, L47 (λ And); Umana,
+  G. et al. 1993, A&A 267, 126 (σ Gem) and 2000, A&A 358, 229 (β Lyr); Güdel, M. et al. 1993, ApJ 405, L63 and Schmitt,
+  J. H. M. M. et al. 1994, ApJ 433, 268 (Castor).
+- Thermal chromospheres: Drake, S. A. & Linsky, J. L. 1986, AJ 91, 602; O'Gorman, E. et al. 2013, AJ 146, 98 (Arcturus,
+  Aldebaran); Trigilio, C. et al. 2018, MNRAS 481, 217 and Liseau, R. et al. 2015, A&A 573, L4 (α Cen A and B); Drake,
+  S. A., Simon, T. & Brown, A. 1993, ApJ 406, 247 and Villadsen, J. et al. 2014, ApJ 788, 112 (Procyon and other dwarfs);
+  Bastian, T. S. et al. 2018, ApJ 857, 133, Suresh, A. et al. 2020, ApJ 904, 138 and MacGregor, M. A. et al. 2015, ApJ
+  809, 47 (ε Eri).
+- Radio-quiet stars: Callingham, J. R. et al. 2021, Nature Astronomy 5, 1233 (V-LoTSS) and Pritchard, J. et al. 2021,
+  MNRAS 502, 5438 (ASKAP; non-detections of the nearest stars); Lawler, S. M. et al. 2014, MNRAS 444, 2665 (τ Cet);
+  Boley, A. C. et al. 2012, ApJL 750, L21 (Fomalhaut).
+- Orbits: Bond, H. E. et al. 2017, ApJ 840, 70 (Sirius) and 2015, ApJ 813, 106 (Procyon); Pourbaix, D. & Boffin, H. M. J.
+  2016, A&A 586, A90 (α Cen); Kervella, P., Thévenin, F. & Lovis, C. 2017, A&A 598, L7 (Proxima's orbit); Kervella, P.
+  et al. 2016, A&A 593, A127 (UV Cet) and 2008, A&A 488, 667 (61 Cyg); Kolbas, V. et al. 2015, MNRAS 451, 4150 (Algol);
+  Torres, G. et al. 2015, ApJ 807, 26 (Capella) and 2022, ApJ 941, 8 (Castor); Reimers, D. et al. 2008, A&A 491, 229
+  (Antares); Evans, N. R. et al. 2008, AJ 136, 1137 (Polaris); Harmanec, P. 2002, AN 323, 87 (β Lyr); Tkachenko, A. et
+  al. 2016, MNRAS 458, 1964 (Spica); Harvin, J. A. et al. 2002, ApJ 565, 1216 (δ Ori); Prieur, J.-L. et al. 2002, ApJS
+  139, 249 (Mira); Mason, B. D. et al. 2001, AJ 122, 3466 (the Washington Double Star Catalog: η Cas, ξ Boo, Aldebaran).
+
+The table is CC0; cite the papers above for the numbers.
+
 ## Software
 
 Python 3.13, numpy 2.5, pandas 3.0, galpy 1.12.0 (Bovy 2015), curl. No Astropy. Build scripts: `common.py`,
 `build_stars.py`, `build_stars_large.py`, `build_pulsars.py`, `build_radio.py`, `build_rotation.py`, `build_sunorbit.py`,
-`build_seismo.py`, `build_localgroup.py`, `build_names.py`, `tests.py`, `build_all.sh`. SciPy 1.18 for the Bessel functions of the galaxies' disc models.
+`build_seismo.py`, `build_localgroup.py`, `build_names.py`, `build_starradio.py`, `tests.py`, `build_all.sh`. SciPy 1.18 for the Bessel functions of the galaxies' disc models.
 
 ## Short credits for the app
 
@@ -245,7 +293,8 @@ Python 3.13, numpy 2.5, pandas 3.0, galpy 1.12.0 (Bovy 2015), curl. No Astropy. 
 > 2010. Solar oscillations: BiSON (Broomhall et al. 2009). Radio sources: Baars et al. 1977; Trotter et al. 2017;
 > GRAVITY and EHT Collaborations. Local Group: McConnachie 2012 via VizieR/CDS; distances Li et al. 2021 (M31), Breuval
 > et al. 2023 (M33), Pietrzyński et al. 2019 (LMC), Graczyk et al. 2020 (SMC); rotation curves Corbelli et al. 2010 and
-> 2014, van der Marel & Kallivayalil 2014, Di Teodoro et al. 2019.
+> 2014, van der Marel & Kallivayalil 2014, Di Teodoro et al. 2019. Stellar radio emission: Güdel 2002 and the papers
+> listed under starradio.json (Zic et al. 2020; Lynch et al. 2017; Lim et al. 1998; Peterson et al. 2010; Pardo et al. 2004…).
 >
 > Large star pack (optional download): Gaia DR3, ESA/Gaia/DPAC (Gaia Collaboration, Vallenari et al. 2023), with
 > HYG v4.4 names (CC BY-SA 4.0); show the full ESA acknowledgement above with it.

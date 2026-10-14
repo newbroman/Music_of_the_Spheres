@@ -3775,7 +3775,8 @@ function zodiacLine(){
   if(ASPNOW.length)t+='<span class="asp"><br>'+ASPNOW.slice(0,3).map(a=>`${a.a.god} ${a.asp.sym}\uFE0E ${a.b.god}: ${a.asp.name}, ${a.asp.iv}`).join('<br>')+'</span>';
   return t;
 }
-function keyShift(){if(!S.zodiacKey||S.thinker!=='today')return 0;let v=(sunSign()*Math.log2(1.5))%1;if(v>=.5)v-=1;return v}
+// the Sun's sign sets the key, unless a sign's card has held the key at a sign of its own (S.keySign)
+function keyShift(){if(!S.zodiacKey||S.thinker!=='today')return 0;let v=((S.keySign==null?sunSign():S.keySign)*Math.log2(1.5))%1;if(v>=.5)v-=1;return v}
 function rawPitch(om){let f=S.F*Math.pow(om/OM_EARTH,0.353);while(f<40)f*=2;while(f>2400)f/=2;return f}
 function moonPitch(P){let f=1760*Math.pow(Math.abs(P)/0.3,-0.294)*(S.F/330);while(f<120)f*=2;return quantize(f)}
 function noteName(f){
@@ -3803,6 +3804,141 @@ function audible(b){
   if(S.solo.size&&!S.solo.has(b.id))return false;
   return true;
 }
+
+/* ---------- the signs of the zodiac: tap a sign on any sky for its card. Shared by the dial, the dance, the synth and the flight, which
+   each add what the sign does in their own music and their own buttons (see ZC.open). Texts live here in all twelve languages. ---------- */
+/*ZODIAC-START*/
+// each sign: when the Sun is in it (tropical dates), the IAU constellation behind it, where that constellation's stars really lie along the
+// ecliptic today (precession has carried the signs about one constellation west of their stars), when the Sun crosses those stars, its brightest stars
+const ZI=[
+ {con:'Ari',sun:[[3,21],[4,19]],real:[29,53.5],rsun:[[4,18],[5,13]],stars:['Hamal','Sheratan','Mesarthim']},
+ {con:'Tau',sun:[[4,20],[5,20]],real:[53.5,90],rsun:[[5,13],[6,21]],stars:['Aldebaran','Elnath','Alcyone']},
+ {con:'Gem',sun:[[5,21],[6,20]],real:[90,118],rsun:[[6,21],[7,20]],stars:['Pollux','Castor','Alhena']},
+ {con:'Cnc',sun:[[6,21],[7,22]],real:[118,138],rsun:[[7,20],[8,10]],stars:['Tarf','Asellus Australis','Acubens']},
+ {con:'Leo',sun:[[7,23],[8,22]],real:[138,174],rsun:[[8,10],[9,16]],stars:['Regulus','Denebola','Algieba']},
+ {con:'Vir',sun:[[8,23],[9,22]],real:[174,218],rsun:[[9,16],[10,30]],stars:['Spica','Porrima','Vindemiatrix']},
+ {con:'Lib',sun:[[9,23],[10,22]],real:[218,241],rsun:[[10,30],[11,23]],stars:['Zubeneschamali','Zubenelgenubi','Brachium']},
+ {con:'Sco',sun:[[10,23],[11,21]],real:[241,248],rsun:[[11,23],[11,29]],oph:[12,17],stars:['Antares','Shaula','Sargas']},
+ {con:'Sgr',sun:[[11,22],[12,21]],real:[266,300],rsun:[[12,17],[1,20]],stars:['Kaus Australis','Nunki','Ascella']},
+ {con:'Cap',sun:[[12,22],[1,19]],real:[300,327.5],rsun:[[1,20],[2,16]],stars:['Deneb Algedi','Dabih','Algedi']},
+ {con:'Aqr',sun:[[1,20],[2,18]],real:[327.5,351.5],rsun:[[2,16],[3,11]],stars:['Sadalsuud','Sadalmelik','Skat']},
+ {con:'Psc',sun:[[2,19],[3,20]],real:[351.5,29],rsun:[[3,11],[4,18]],stars:['Alpherg','Fumalsamakah','Alrescha']}];
+const ZLANG=(document.documentElement.lang||'en').slice(0,2);
+const ZT_ALL={
+ en:{sign:'Sign of the zodiac',el:['fire','earth','air','water'],mod:['cardinal','fixed','mutable'],span:'{a}°–{b}° of the ecliptic',sunIn:'The Sun in the sign',stars:'Its stars today',drift:'By precession the constellation {c} has slipped one sign on: its stars now lie at {a}°–{b}°, and the Sun passes in front of them {d}',oph:', then crosses Ophiuchus, which is no sign, until {d}',now:'In the sign now',none:'no wanderer at the moment',music:'In the music',keyIf:'If the Sun stood here: the key of {k}, {m}',keyHeld:'Key held at {s}',release:'release',chordIf:'When {z}, {kr} or {p} stand here: the chord {r}',elIf:'The Moon here ({e}) turns the sky mix to {st}',hear:'Hear it',use:'Use it',look:'Look there',fly:'Fly towards',close:'Close',bright:'Its brightest stars',go:'go there',loading:'the star catalogue is still loading',keys:'Signs of the zodiac',sun:'Helios',held:'The key is held at {s}: the Sun’s sign no longer sets it.'},
+ pl:{sign:'Znak zodiaku',el:['ogień','ziemia','powietrze','woda'],mod:['kardynalny','stały','zmienny'],span:'{a}°–{b}° ekliptyki',sunIn:'Słońce w znaku',stars:'Jego gwiazdy dziś',drift:'Przez precesję gwiazdozbiór {c} przesunął się o jeden znak: jego gwiazdy leżą dziś na {a}°–{b}°, a Słońce przechodzi przed nimi {d}',oph:', a potem przez Wężownika, który nie jest znakiem, do {d}',now:'W znaku teraz',none:'teraz żadnego wędrowca',music:'W muzyce',keyIf:'Gdyby Słońce tu stało: tonacja {k}, {m}',keyHeld:'Tonacja zatrzymana na {s}',release:'zwolnij',chordIf:'Gdy stoi tu {z}, {kr} lub {p}: akord {r}',elIf:'Księżyc tutaj ({e}) przestawia miks z nieba na {st}',hear:'Posłuchaj',use:'Użyj',look:'Spójrz tam',fly:'Leć tam',close:'Zamknij',bright:'Najjaśniejsze gwiazdy',go:'leć tam',loading:'katalog gwiazd jeszcze się ładuje',keys:'Znaki zodiaku',sun:'Helios',held:'Tonacja zatrzymana na {s}: znak Słońca już jej nie wyznacza.'},
+ cy:{sign:'Arwydd y sidydd',el:['tân','daear','aer','dŵr'],mod:['cardinal','sefydlog','cyfnewidiol'],span:'{a}°–{b}° o’r ecliptig',sunIn:'Yr Haul yn yr arwydd',stars:'Ei sêr heddiw',drift:'Drwy’r blaenlithriad mae cytser {c} wedi symud un arwydd ymlaen: mae ei sêr heddiw ar {a}°–{b}°, ac mae’r Haul yn mynd o’u blaen {d}',oph:', ac yna drwy Ophiuchus, nad yw’n arwydd, hyd {d}',now:'Yn yr arwydd nawr',none:'dim crwydryn ar hyn o bryd',music:'Yn y gerddoriaeth',keyIf:'Pe bai’r Haul yma: cywair {k}, {m}',keyHeld:'Cywair wedi’i ddal ar {s}',release:'rhyddhau',chordIf:'Pan fo {z}, {kr} neu {p} yma: y cord {r}',elIf:'Y Lleuad yma ({e}) yn troi cymysgu’r awyr at {st}',hear:'Gwrando',use:'Defnyddio',look:'Edrych yno',fly:'Hedfan yno',close:'Cau',bright:'Ei sêr disgleiriaf',go:'mynd yno',loading:'mae catalog y sêr yn dal i lwytho',keys:'Arwyddion y sidydd',sun:'Helios',held:'Mae’r cywair wedi’i ddal ar {s}: nid arwydd yr Haul sy’n ei osod mwyach.'},
+ de:{sign:'Tierkreiszeichen',el:['Feuer','Erde','Luft','Wasser'],mod:['kardinal','fix','veränderlich'],span:'{a}°–{b}° der Ekliptik',sunIn:'Die Sonne im Zeichen',stars:'Seine Sterne heute',drift:'Durch die Präzession ist das Sternbild {c} um ein Zeichen weitergerückt: seine Sterne stehen heute bei {a}°–{b}°, und die Sonne zieht {d} vor ihnen vorbei',oph:', danach durch den Schlangenträger, der kein Zeichen ist, bis {d}',now:'Jetzt im Zeichen',none:'zurzeit kein Wanderer',music:'In der Musik',keyIf:'Stünde die Sonne hier: Tonart {k}, {m}',keyHeld:'Tonart gehalten auf {s}',release:'loslassen',chordIf:'Stehen {z}, {kr} oder {p} hier: der Akkord {r}',elIf:'Der Mond hier ({e}) schaltet den Himmelsmix auf {st}',hear:'Anhören',use:'Verwenden',look:'Dorthin schauen',fly:'Dorthin fliegen',close:'Schließen',bright:'Seine hellsten Sterne',go:'hinfliegen',loading:'der Sternkatalog lädt noch',keys:'Tierkreiszeichen',sun:'Helios',held:'Die Tonart ist auf {s} gehalten: das Zeichen der Sonne bestimmt sie nicht mehr.'},
+ es:{sign:'Signo del zodiaco',el:['fuego','tierra','aire','agua'],mod:['cardinal','fijo','mutable'],span:'{a}°–{b}° de la eclíptica',sunIn:'El Sol en el signo',stars:'Sus estrellas hoy',drift:'Por la precesión, la constelación de {c} se ha corrido un signo: sus estrellas están hoy en {a}°–{b}°, y el Sol pasa ante ellas {d}',oph:', y luego por Ofiuco, que no es signo, hasta el {d}',now:'En el signo ahora',none:'ningún errante por ahora',music:'En la música',keyIf:'Si el Sol estuviera aquí: tonalidad de {k}, {m}',keyHeld:'Tonalidad fijada en {s}',release:'soltar',chordIf:'Cuando {z}, {kr} o {p} están aquí: el acorde {r}',elIf:'La Luna aquí ({e}) lleva la mezcla del cielo a {st}',hear:'Escúchalo',use:'Úsalo',look:'Mirar allí',fly:'Volar hacia allí',close:'Cerrar',bright:'Sus estrellas más brillantes',go:'ir allí',loading:'el catálogo de estrellas aún se está cargando',keys:'Signos del zodiaco',sun:'Helios',held:'La tonalidad está fijada en {s}: el signo del Sol ya no la elige.'},
+ fr:{sign:'Signe du zodiaque',el:['feu','terre','air','eau'],mod:['cardinal','fixe','mutable'],span:'{a}°–{b}° de l’écliptique',sunIn:'Le Soleil dans le signe',stars:'Ses étoiles aujourd’hui',drift:'Par la précession, la constellation {c} a glissé d’un signe : ses étoiles sont aujourd’hui à {a}°–{b}°, et le Soleil passe devant elles {d}',oph:', puis traverse Ophiuchus, qui n’est pas un signe, jusqu’au {d}',now:'Dans le signe en ce moment',none:'aucun errant pour l’instant',music:'Dans la musique',keyIf:'Si le Soleil était ici : tonalité de {k}, {m}',keyHeld:'Tonalité tenue sur {s}',release:'relâcher',chordIf:'Quand {z}, {kr} ou {p} sont ici : l’accord {r}',elIf:'La Lune ici ({e}) fait passer le mix du ciel en {st}',hear:'Écouter',use:'Utiliser',look:'Regarder là',fly:'Voler vers là',close:'Fermer',bright:'Ses étoiles les plus brillantes',go:'y aller',loading:'le catalogue d’étoiles se charge encore',keys:'Signes du zodiaque',sun:'Hélios',held:'La tonalité est tenue sur {s} : le signe du Soleil ne la fixe plus.'},
+ it:{sign:'Segno dello zodiaco',el:['fuoco','terra','aria','acqua'],mod:['cardinale','fisso','mobile'],span:'{a}°–{b}° dell’eclittica',sunIn:'Il Sole nel segno',stars:'Le sue stelle oggi',drift:'Per la precessione la costellazione {c} è scivolata di un segno: le sue stelle stanno oggi a {a}°–{b}°, e il Sole passa davanti a loro {d}',oph:', poi attraversa l’Ofiuco, che non è un segno, fino al {d}',now:'Nel segno adesso',none:'nessun errante per ora',music:'Nella musica',keyIf:'Se il Sole fosse qui: tonalità di {k}, {m}',keyHeld:'Tonalità fissata su {s}',release:'rilascia',chordIf:'Quando {z}, {kr} o {p} stanno qui: l’accordo {r}',elIf:'La Luna qui ({e}) porta il mix del cielo a {st}',hear:'Ascolta',use:'Usa',look:'Guarda là',fly:'Vola là',close:'Chiudi',bright:'Le sue stelle più brillanti',go:'vai là',loading:'il catalogo delle stelle si sta ancora caricando',keys:'Segni dello zodiaco',sun:'Helios',held:'La tonalità è fissata su {s}: il segno del Sole non la sceglie più.'},
+ zh:{sign:'黄道星座',el:['火','土','风','水'],mod:['基本','固定','变动'],span:'黄经 {a}°–{b}°',sunIn:'太阳在此星座',stars:'它的星星如今',drift:'由于岁差，{c}的星群已移后一个星座：如今位于黄经 {a}°–{b}°，太阳在 {d} 从它们前面经过',oph:'，随后经过蛇夫座（它不是黄道十二宫之一），直到 {d}',now:'现在在此星座',none:'现在没有行星',music:'在音乐中',keyIf:'若太阳在此：{k} 调，{m}',keyHeld:'调已固定在 {s}',release:'解除',chordIf:'当 {z}、{kr} 或 {p} 在此：{r} 和弦',elIf:'月亮在此（{e}）会把天空混音切换为 {st}',hear:'听一听',use:'使用',look:'看向那里',fly:'飞向那里',close:'关闭',bright:'最亮的恒星',go:'前往',loading:'恒星目录仍在加载',keys:'黄道十二宫',sun:'赫利俄斯',held:'调已固定在 {s}：太阳所在的星座不再决定它。'},
+ ja:{sign:'黄道十二宮',el:['火','地','風','水'],mod:['活動','不動','柔軟'],span:'黄経 {a}°–{b}°',sunIn:'太陽がこの宮にある期間',stars:'その星々は今',drift:'歳差のため{c}の星座はひとつ先の宮へずれています。星々は今、黄経 {a}°–{b}° にあり、太陽は {d} にその前を通ります',oph:'。その後、宮ではないへびつかい座を {d} まで通ります',now:'今この宮にいるもの',none:'今は惑星なし',music:'音楽では',keyIf:'太陽がここにあれば：{k} 調、{m}',keyHeld:'調を {s} に固定中',release:'解除',chordIf:'{z}、{kr}、{p} がここにあると：{r} の和音',elIf:'月がここ（{e}）にあるとスカイミックスは {st} へ',hear:'聴く',use:'使う',look:'そちらを見る',fly:'そちらへ飛ぶ',close:'閉じる',bright:'最も明るい星',go:'行く',loading:'星のカタログを読み込み中',keys:'黄道十二宮',sun:'ヘリオス',held:'調を {s} に固定中：太陽の宮はもう調を決めません。'},
+ vi:{sign:'Cung hoàng đạo',el:['lửa','đất','khí','nước'],mod:['thống lĩnh','kiên định','linh hoạt'],span:'{a}°–{b}° trên hoàng đạo',sunIn:'Mặt Trời trong cung',stars:'Các ngôi sao của nó hôm nay',drift:'Do tuế sai, chòm sao {c} đã lệch đi một cung: các ngôi sao của nó nay nằm ở {a}°–{b}°, và Mặt Trời đi qua trước chúng {d}',oph:', rồi qua chòm Xà Phu, vốn không phải là cung, đến {d}',now:'Đang ở trong cung',none:'hiện không có hành tinh nào',music:'Trong âm nhạc',keyIf:'Nếu Mặt Trời ở đây: giọng {k}, {m}',keyHeld:'Giữ giọng ở {s}',release:'thả',chordIf:'Khi {z}, {kr} hay {p} ở đây: hợp âm {r}',elIf:'Mặt Trăng ở đây ({e}) chuyển phối theo bầu trời sang {st}',hear:'Nghe thử',use:'Dùng',look:'Nhìn về đó',fly:'Bay về đó',close:'Đóng',bright:'Những ngôi sao sáng nhất',go:'đến đó',loading:'danh mục sao vẫn đang tải',keys:'Các cung hoàng đạo',sun:'Helios',held:'Giọng được giữ ở {s}: cung của Mặt Trời không còn quyết định nó nữa.'},
+ bg:{sign:'Зодиакален знак',el:['огън','земя','въздух','вода'],mod:['кардинален','фиксиран','променлив'],span:'{a}°–{b}° от еклиптиката',sunIn:'Слънцето в знака',stars:'Звездите му днес',drift:'Заради прецесията съзвездието {c} се е изместило с един знак напред: звездите му днес са на {a}°–{b}°, а Слънцето минава пред тях {d}',oph:', а после през Змиеносец, който не е знак, до {d}',now:'В знака сега',none:'сега няма планета',music:'В музиката',keyIf:'Ако Слънцето беше тук: тоналност {k}, {m}',keyHeld:'Тоналността е задържана на {s}',release:'освободи',chordIf:'Когато {z}, {kr} или {p} са тук: акордът {r}',elIf:'Луната тук ({e}) превключва небесния микс на {st}',hear:'Чуй',use:'Използвай',look:'Погледни натам',fly:'Лети натам',close:'Затвори',bright:'Най-ярките му звезди',go:'отиди там',loading:'каталогът на звездите още се зарежда',keys:'Зодиакални знаци',sun:'Хелиос',held:'Тоналността е задържана на {s}: знакът на Слънцето вече не я определя.'},
+ pt:{sign:'Signo do zodíaco',el:['fogo','terra','ar','água'],mod:['cardinal','fixo','mutável'],span:'{a}°–{b}° da eclíptica',sunIn:'O Sol no signo',stars:'Suas estrelas hoje',drift:'Pela precessão, a constelação de {c} deslizou um signo: suas estrelas estão hoje em {a}°–{b}°, e o Sol passa diante delas {d}',oph:', e depois por Ofiúco, que não é signo, até {d}',now:'No signo agora',none:'nenhum planeta agora',music:'Na música',keyIf:'Se o Sol estivesse aqui: tonalidade de {k}, {m}',keyHeld:'Tonalidade fixada em {s}',release:'soltar',chordIf:'Quando {z}, {kr} ou {p} estão aqui: o acorde {r}',elIf:'A Lua aqui ({e}) leva o mix do céu para {st}',hear:'Ouça',use:'Use',look:'Olhar para lá',fly:'Voar para lá',close:'Fechar',bright:'Suas estrelas mais brilhantes',go:'ir para lá',loading:'o catálogo de estrelas ainda está carregando',keys:'Signos do zodíaco',sun:'Hélio',held:'A tonalidade está fixada em {s}: o signo do Sol já não a escolhe.'}};
+const ZTX=ZT_ALL[ZLANG]||ZT_ALL.en;
+// the seven modes as the dial's menu names them, for pages that have no such menu
+const ZMODES=({en:{E:'Dorian',D:'Phrygian',C:'Lydian',B:'Mixolydian',A:'Hypodorian',G:'Hypophrygian',F:'Hypolydian'},pl:{E:'Dorycka',D:'Frygijska',C:'Lidyjska',B:'Miksolidyjska',A:'Hypodorycka',G:'Hypofrygijska',F:'Hypolidyjska'},cy:{E:'Doriaidd',D:'Phrygaidd',C:'Lydiaidd',B:'Mixolydiaidd',A:'Hypodoriaidd',G:'Hypophrygaidd',F:'Hypolydiaidd'},de:{E:'Dorisch',D:'Phrygisch',C:'Lydisch',B:'Mixolydisch',A:'Hypodorisch',G:'Hypophrygisch',F:'Hypolydisch'},es:{E:'Dórico',D:'Frigio',C:'Lidio',B:'Mixolidio',A:'Hipodórico',G:'Hipofrigio',F:'Hipolidio'},fr:{E:'Dorien',D:'Phrygien',C:'Lydien',B:'Mixolydien',A:'Hypodorien',G:'Hypophrygien',F:'Hypolydien'},it:{E:'Dorico',D:'Frigio',C:'Lidio',B:'Misolidio',A:'Ipodorico',G:'Ipofrigio',F:'Ipolidio'},zh:{E:'多利亚调式',D:'弗里几亚调式',C:'利底亚调式',B:'混合利底亚调式',A:'下多利亚调式',G:'下弗里几亚调式',F:'下利底亚调式'},ja:{E:'ドリア旋法',D:'フリギア旋法',C:'リディア旋法',B:'ミクソリディア旋法',A:'ヒポドリア旋法',G:'ヒポフリギア旋法',F:'ヒポリディア旋法'},vi:{E:'Dorian',D:'Phrygian',C:'Lydian',B:'Mixolydian',A:'Hypodorian',G:'Hypophrygian',F:'Hypolydian'},bg:{E:'Дорийски',D:'Фригийски',C:'Лидийски',B:'Миксолидийски',A:'Хиподорийски',G:'Хипофригийски',F:'Хиполидийски'},pt:{E:'Dórico',D:'Frígio',C:'Lídio',B:'Mixolídio',A:'Hipodórico',G:'Hipofrígio',F:'Hipolídio'}})[ZLANG]||{E:'Dorian',D:'Phrygian',C:'Lydian',B:'Mixolydian',A:'Hypodorian',G:'Hypophrygian',F:'Hypolydian'};
+const zfill=(t,o)=>String(t).replace(/\{(\w+)\}/g,(m,k)=>o[k]!==undefined?o[k]:m);
+const zesc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// the key a sign gives when the Sun stands in it: each sign a Pythagorean fifth on, kept within half an octave of home (as keyShift does)
+function zodShift(k){let v=(k*Math.log2(1.5))%1;if(v>=.5)v-=1;return v}
+// the tonic the dial's drone would take in that key, and the degrees of the present mode above it
+function zodTonic(k){return C_BASE*PY[S.mode]*8*Math.pow(2,zodShift(k))}
+function zodDegs(){const t=Math.log2(PY[S.mode]);return Object.values(PY).map(r=>((Math.log2(r)-t)%1+1)%1).sort((a,b)=>a-b)}
+function zodKeyName(k){return noteName(zodTonic(k)).replace(/-?\d.*$/,'')}
+function zodModeName(){const sel=document.getElementById('mode');const o=sel&&sel.selectedOptions&&sel.selectedOptions[0];return o?o.textContent.replace(/[,，（(、].*$/,'').trim():(ZMODES[S.mode]||S.mode)}
+function zodDate(md){const [m,d]=md;if(ZLANG==='zh'||ZLANG==='ja')return `${m}月${d}日`;try{return dateStr(jdOf(2001,m,d)).replace(/\s*2001\b.*$|^2001\s*/g,'').trim()}catch(e){return `${d}/${m}`}}
+const zodDates=r=>zodDate(r[0])+' – '+zodDate(r[1]);
+// the sign a body stands in, seen from the Earth (the Sun and the Moon by their own longitudes)
+function zodSignOf(id){const e=P.earth;if(!e)return -1;if(id==='sun')return sunSign();
+  if(id==='moon'){const m=byId.earth.moons[0];const th=TAU*((S.jd-J2000)/m.P+m.ph0);return Math.floor((((th/DEG)%360)+360)%360/30)%12}
+  const p=P[id];if(!p)return -1;return Math.floor(((Math.atan2(p.y-e.y,p.x-e.x)/DEG)%360+360)%360/30)%12}
+function zodWhoIn(k){const out=[];if(zodSignOf('sun')===k)out.push(ZTX.sun);if(zodSignOf('moon')===k)out.push(byId.earth.moons[0].name.split(' ')[0]);
+  BODIES.forEach(b=>{if(b.kind==='planet'&&b.id!=='earth'&&zodSignOf(b.id)===k)out.push(b.god)});return out}
+// a short phrase on the page's own audio context: the scale rising, then the chord held. Its own little chain, so it is heard even while the
+// page's music is silent, and kept well under full scale
+function zodHear(ac,scale,chord){
+  if(!ac)return;if(ac.state!=='running')ac.resume().catch(()=>{});
+  const t0=ac.currentTime+.06,out=ac.createGain();out.gain.value=.9;
+  const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2400;lp.Q.value=.6;lp.connect(out);out.connect(ac.destination);
+  const note=(f,t,len,a)=>{const g=ac.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(a,t+.025);g.gain.setTargetAtTime(0,t+len,.14);g.connect(lp);
+    [[f,'triangle',1],[f*2,'sine',.22],[f/2,'sine',.28]].forEach(([ff,ty,v])=>{const o=ac.createOscillator();o.type=ty;o.frequency.value=ff;const og=ac.createGain();og.gain.value=v;o.connect(og);og.connect(g);o.start(t);o.stop(t+len+1)})};
+  const dt=.21;scale.forEach((f,i)=>note(f,t0+i*dt,dt*.95,.1));const tc=t0+scale.length*dt+.08;chord.forEach(f=>note(f,tc,1.5,.07));
+  setTimeout(()=>{try{out.disconnect()}catch(e){}},(scale.length*dt+3.6)*1000);
+}
+/* the card itself. ZC.open(k,spec): spec.music() gives the page's own lines, spec.acts the buttons [{t,fn,on}], spec.extra() more html,
+   spec.side 'left'|'right' where it sits on a wide screen. The highlight is read by the pages' drawing code through ZC.k. */
+const ZC={k:null,el:null,spec:null,back:null,
+  css(){if(document.getElementById('zcStyle'))return;const st=document.createElement('style');st.id='zcStyle';st.textContent=`
+.zc{position:fixed;z-index:70;left:1rem;bottom:1rem;width:min(24rem,calc(100vw - 2rem));max-height:min(80vh,42rem);overflow:auto;overscroll-behavior:contain;background:rgba(12,14,26,.97);border:1px solid var(--bronze-dim,#8a6a3a);border-radius:12px;padding:1rem 1.1rem;box-shadow:0 12px 40px rgba(0,0,0,.65);color:var(--vellum,#e9e1cc);font-family:var(--f-body,system-ui,sans-serif);font-size:.92rem;line-height:1.45;text-align:left}
+.zc.right{left:auto;right:1rem}
+.zc[hidden]{display:none}
+.zc .zc-x{position:absolute;top:.3rem;right:.3rem;width:var(--tap,2.75rem);height:var(--tap,2.75rem);border:0;background:transparent;color:var(--vellum-dim,#aea791);font-size:1.5rem;line-height:1;cursor:pointer;border-radius:50%}
+.zc .zc-x:hover{color:var(--vellum,#e9e1cc)}
+.zc-head{display:flex;gap:.8rem;align-items:center;padding-right:2.6rem}
+.zc-sym{font-size:2.3rem;line-height:1;color:var(--bronze,#c9984f);font-family:var(--f-display,serif);flex:none}
+.zc-greek{font-family:var(--f-display,serif);color:var(--bronze,#c9984f);font-size:1rem;line-height:1.2}
+.zc h3{font-family:var(--f-display,serif);font-weight:400;font-size:1.5rem;line-height:1.1;margin:0;color:var(--vellum,#e9e1cc)}
+.zc h3:focus{outline:none}
+.zc-sub{color:var(--vellum-dim,#aea791);font-size:.85rem;margin-top:.15rem}
+.zc dl{margin:.8rem 0 0;display:grid;grid-template-columns:1fr;gap:.5rem}
+.zc dl>div{margin:0}
+.zc dt{font-family:var(--f-mono,monospace);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--vellum-dim,#aea791);margin:0 0 .1rem}
+.zc dd{margin:0}
+.zc dd b{color:var(--bronze,#c9984f);font-weight:600}
+.zc-acts{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.85rem}
+.zc-acts button,.zc-stars button,.zc-chip{appearance:none;min-height:var(--tap,2.75rem);padding:.35rem .9rem;border-radius:999px;border:1px solid var(--bronze-dim,#8a6a3a);background:transparent;color:var(--bronze,#c9984f);font-family:var(--f-body,system-ui,sans-serif);font-size:.9rem;cursor:pointer;line-height:1.2}
+.zc-acts button:hover,.zc-stars button:hover,.zc-chip:hover{border-color:var(--bronze,#c9984f)}
+.zc-acts button[aria-pressed=true]{background:var(--bronze,#c9984f);color:#1a1206;border-color:var(--bronze,#c9984f)}
+.zc-stars{list-style:none;margin:.5rem 0 0;padding:0}
+.zc-stars li{display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.15rem 0;border-top:1px solid rgba(201,152,79,.18)}
+.zc-stars small{font-family:var(--f-mono,monospace);color:var(--vellum-dim,#aea791);margin-left:.4rem}
+.zc-stars button{min-height:2.25rem;padding:.2rem .7rem;font-size:.82rem}
+.zc .zc-dim{color:var(--vellum-dim,#aea791);margin:.4rem 0 0}
+.zc-chip{display:inline-flex;align-items:center;gap:.4rem;margin:.35rem 0 0;font-size:.85rem;min-height:2.25rem;padding:.2rem .8rem}
+.zc-chip[hidden]{display:none}
+.zodkeys{position:absolute;left:50%;top:8px;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;gap:2px;max-width:92%;opacity:0;pointer-events:none;z-index:5}
+.zodkeys.fixed{position:fixed;top:auto;bottom:6rem}
+.zodkeys:focus-within{opacity:1;pointer-events:auto}
+.zodkeys button{appearance:none;min-width:var(--tap,2.75rem);min-height:var(--tap,2.75rem);border:1px solid var(--bronze-dim,#8a6a3a);background:rgba(12,14,26,.92);color:var(--bronze,#c9984f);border-radius:6px;font-family:var(--f-display,serif);font-size:1.1rem;cursor:pointer}
+@media (max-width:760px){.zc,.zc.right{left:0;right:0;bottom:0;width:auto;border-radius:12px 12px 0 0;max-height:min(72vh,30rem);padding-bottom:calc(.9rem + env(safe-area-inset-bottom,0px))}}
+@media (min-width:761px) and (max-height:520px){.zc{top:0;bottom:0;left:0;right:auto;width:min(24rem,55vw);max-height:none;border-radius:0 12px 12px 0;padding-left:calc(1.1rem + env(safe-area-inset-left,0px))}.zc.right{left:auto;right:0;border-radius:12px 0 0 12px;padding-left:1.1rem;padding-right:calc(1.1rem + env(safe-area-inset-right,0px))}}
+@media (prefers-reduced-motion:no-preference){.zc{animation:zcIn .18s ease-out}@keyframes zcIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}}
+.mots-proj .zc{display:none}`;document.head.appendChild(st)},
+  build(){if(this.el)return;this.css();const d=document.createElement('div');d.className='zc';d.id='zodCard';d.setAttribute('role','dialog');d.hidden=true;document.body.appendChild(d);this.el=d;
+    d.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.classList.contains('zc-x')){this.close();return}
+      const a=b.dataset.act;if(a!==undefined&&this.spec&&this.spec.acts[+a]){this.spec.acts[+a].fn(this.k,b);this.sync()}
+      if(b.dataset.star!==undefined&&this.spec&&this.spec.star)this.spec.star(this.k,+b.dataset.star)});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!d.hidden){e.stopPropagation();this.close()}},true);
+    document.addEventListener('pointerdown',e=>{if(!d.hidden&&!d.contains(e.target))this.close()},true)},
+  open(k,spec){this.build();this.k=k;this.spec=spec;const d=this.el;if(d.hidden)this.back=document.activeElement;d.classList.toggle('right',spec.side==='right');
+    const sg=SIGNS[k],z=ZI[k];
+    let drift=zfill(ZTX.drift,{c:sg[1],a:z.real[0],b:z.real[1],d:zodDates(z.rsun)});if(z.oph)drift+=zfill(ZTX.oph,{d:zodDate(z.oph)});drift=drift.replace(/\.$/,'')+(ZLANG==='ja'||ZLANG==='zh'?'。':'.');
+    const who=zodWhoIn(k);
+    d.innerHTML=`<button type="button" class="zc-x" aria-label="${zesc(ZTX.close)}">×</button>
+<div class="zc-head"><span class="zc-sym" aria-hidden="true">${sg[2]}&#xFE0E;</span><div><div class="zc-greek">${zesc(sg[0])}</div><h3 id="zcTitle" tabindex="-1">${zesc(sg[1])}</h3><div class="zc-sub">${zesc(ZTX.el[k%4])} · ${zesc(ZTX.mod[k%3])} · ${zesc(zfill(ZTX.span,{a:k*30,b:k*30+30}))}</div></div></div>
+<dl><div><dt>${zesc(ZTX.sunIn)}</dt><dd>${zesc(zodDates(z.sun))}</dd></div>
+<div><dt>${zesc(ZTX.stars)}</dt><dd>${zesc(drift)}</dd></div>
+<div><dt>${zesc(ZTX.now)}</dt><dd>${who.length?zesc(who.join(' · ')):'<span class="zc-dim">'+zesc(ZTX.none)+'</span>'}</dd></div>
+<div><dt>${zesc(ZTX.music)}</dt><dd>${spec.music?spec.music(k):''}</dd></div></dl>
+<div class="zc-acts">${(spec.acts||[]).map((a,i)=>`<button type="button" data-act="${i}"${a.on?` aria-pressed="${String(!!a.on(k))}"`:''}>${zesc(a.t)}</button>`).join('')}</div>
+${spec.extra?spec.extra(k):''}`;
+    d.setAttribute('aria-label',ZTX.sign+': '+sg[1]);
+    const wasHidden=d.hidden;d.hidden=false;if(wasHidden||spec.focus!==false){const h=d.querySelector('h3');if(h)h.focus({preventScroll:true})}},
+  sync(){if(!this.el||this.el.hidden||!this.spec)return;this.el.querySelectorAll('.zc-acts button').forEach((b,i)=>{const a=this.spec.acts[i];if(a&&a.on)b.setAttribute('aria-pressed',String(!!a.on(this.k)))})},
+  close(){if(!this.el||this.el.hidden)return;this.el.hidden=true;const k=this.k;this.k=null;if(this.spec&&this.spec.onClose)this.spec.onClose(k);const b=this.back;this.back=null;if(b&&b.focus&&document.contains(b)&&b!==document.body)try{b.focus({preventScroll:true})}catch(e){}},
+  // a row of twelve buttons for the keyboard: invisible until it is reached with Tab, then it stands over the sky
+  keys(parent,onPick,fixed){this.css();const d=document.createElement('div');d.className='zodkeys'+(fixed?' fixed':'');d.setAttribute('role','group');d.setAttribute('aria-label',ZTX.keys);
+    SIGNS.forEach((s,k)=>{const b=document.createElement('button');b.type='button';b.textContent=s[2]+'\uFE0E';b.setAttribute('aria-label',s[1]+' · '+s[0]);b.onclick=()=>onPick(k);d.appendChild(b)});parent.appendChild(d);return d},
+  // the "key held at …" chip beside a page's zodiac line, for a key chosen from a card (S.keySign, read by keyShift)
+  chip(after,onChange){if(!after||document.getElementById('zcChip'))return;this.css();const b=document.createElement('button');b.type='button';b.id='zcChip';b.className='zc-chip';b.hidden=true;after.insertAdjacentElement('afterend',b);
+    const sync=()=>{const k=S.keySign;if(k==null){b.hidden=true;return}b.hidden=false;b.innerHTML=`${SIGNS[k][2]}︎ ${zesc(zfill(ZTX.keyHeld,{s:SIGNS[k][1]}))} <span aria-hidden="true">✕</span>`;b.title=zfill(ZTX.held,{s:SIGNS[k][1]});b.setAttribute('aria-label',zfill(ZTX.keyHeld,{s:SIGNS[k][1]})+' · '+ZTX.release)};
+    b.onclick=()=>{S.keySign=null;sync();if(onChange)onChange();ZC.sync()};this.chipSync=sync;sync()},
+  chipSync(){}
+};
+/*ZODIAC-END*/
 
 /* ---------- audio ---------- */
 let AC=null, master, bus, wet, dry, conv, comp, noiseBuf, sunV, audioOn=false;
@@ -4588,7 +4724,7 @@ function fitRR(){
 // text with a dark halo, so labels stay legible over rings and stars
 function txt(g,t,x,y){g.save();g.lineJoin='round';g.lineWidth=Math.max(2.5,2*K);g.strokeStyle='rgba(6,8,16,.78)';g.strokeText(t,x,y);g.restore();g.fillText(t,x,y)}
 // a centred label kept inside the canvas (the zodiac names at the rim); it is also an obstacle the bodies' names keep clear of
-function txtIn(g,t,x,y){const w=g.measureText(t).width/2,h=parseFloat(g.font)*.6;x=Math.max(4+w,Math.min(W-4-w,x));y=Math.max(4+h,Math.min(H-4-h,y));txt(g,t,x,y);labObstacle(x-w,y-h,x+w,y+h)}
+function txtIn(g,t,x,y){const w=g.measureText(t).width/2,h=parseFloat(g.font)*.6;x=Math.max(4+w,Math.min(W-4-w,x));y=Math.max(4+h,Math.min(H-4-h,y));txt(g,t,x,y);labObstacle(x-w,y-h,x+w,y+h);return {x0:x-w,y0:y-h,x1:x+w,y1:y+h}}
 // a body's name beside it: to its right, or to its left when the right edge would cut it off
 function txtBy(g,t,x,y,off){const w=g.measureText(t).width;y=Math.max(8,Math.min(H-8,y));if(x+off+w>W-4&&x-off-w>=4){g.textAlign='right';txt(g,t,x-off,y);g.textAlign='left'}else txt(g,t,x+off,y)}
 /* ---- label placement: the bodies' names are gathered while the frame is drawn and placed at its end, each beside its dot and clear of
@@ -4646,12 +4782,13 @@ function proj(x,y,z){
 }
 function ringPt(ang,rad){const a=ang+S.az;return {x:CX+rad*Math.cos(a),y:CY-rad*Math.sin(a)*Math.sin(S.tilt)}}
 const ZOD=['Κριός','Ταῦρος','Δίδυμοι','Καρκίνος','Λέων','Παρθένος','Ζυγός','Σκορπίος','Τοξότης','Αἰγόκερως','Ὑδροχόος','Ἰχθύες'];
+const ZBOX=[];   // where each sign's name was written this frame, so a tap on it finds the sign
 const bodyPx=b=>(b.kind==='comet'?2.2:Math.max(2,Math.min(9,1.4+2.1*Math.log10(Math.max(b.R,10)/120))))*SK;
 let screen={};
 
 function draw(t){
   fitRR();labClear();
-  if(S.thinker!=='today'){drawThinker(t);return}
+  if(S.thinker!=='today'){if(ZC.k!=null)ZC.close();drawThinker(t);return}
   const g=cx2;g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,W,H);
   // stars
   STARS.forEach(s=>{g.fillStyle=`rgba(233,225,204,${.12+s.m*.35})`;g.fillRect(s.x*W,s.y*H,s.m>.92?1.6:1,s.m>.92?1.6:1)});
@@ -4663,8 +4800,12 @@ function draw(t){
   g.strokeStyle='rgba(201,152,79,.38)';g.beginPath();
   for(let k=0;k<360;k++){const l=k%30===0?1.035:k%5===0?1.022:1.011;const a=ringPt(k*DEG,Rz),b=ringPt(k*DEG,Rz*l);g.moveTo(a.x,a.y);g.lineTo(b.x,b.y)}
   g.stroke();
+  // the sign whose card is open: its sector lit, and a dashed arc just inside the ring where its constellation's stars really lie today
+  if(ZC.k!=null){const k=ZC.k,z=ZI[k];g.fillStyle='rgba(201,152,79,.16)';g.beginPath();for(let a=k*30;a<=k*30+30;a+=2){const p=ringPt(a*DEG,Rz*.985);a===k*30?g.moveTo(p.x,p.y):g.lineTo(p.x,p.y)}for(let a=k*30+30;a>=k*30;a-=2){const p=ringPt(a*DEG,Rz*1.035);g.lineTo(p.x,p.y)}g.closePath();g.fill();
+    g.strokeStyle='rgba(243,217,164,.9)';g.lineWidth=2;g.beginPath();for(let a=k*30;a<=k*30+30;a+=2){const p=ringPt(a*DEG,Rz*1.035);a===k*30?g.moveTo(p.x,p.y):g.lineTo(p.x,p.y)}g.stroke();
+    let lo=z.real[0],hi=z.real[1];if(hi<lo)hi+=360;g.strokeStyle='rgba(98,165,151,.85)';g.lineWidth=2.5;g.setLineDash([4,4]);g.beginPath();for(let a=lo;a<=hi+.01;a+=2){const p=ringPt(Math.min(a,hi)*DEG,Rz*.955);a===lo?g.moveTo(p.x,p.y):g.lineTo(p.x,p.y)}g.stroke();g.setLineDash([])}
   g.fillStyle='rgba(212,166,87,.9)';g.font=`${Math.max(11,RR*.05)}px "GFS Didot",Georgia,serif`;g.textAlign='center';g.textBaseline='middle';
-  ZOD.forEach((n,k)=>{const p=ringPt((k*30+15)*DEG,Rz*1.1);txtIn(g,n,p.x,p.y)});
+  ZOD.forEach((n,k)=>{const p=ringPt((k*30+15)*DEG,Rz*1.1);const on=ZC.k===k;if(on)g.fillStyle='#f3d9a4';ZBOX[k]=txtIn(g,n,p.x,p.y);if(on)g.fillStyle='rgba(212,166,87,.9)'});
   if(SYS.id){drawSystem(g,t);return}
   // orbits
   const L=listenerPos();
@@ -4778,12 +4919,30 @@ const endPtr=e=>{
     if(!best||bd>(screen[best].r||0)+1.5){let md=9;Object.entries(screen).forEach(([id,s])=>{if(!s.moon)return;let d=Math.hypot(s.x-x,s.y-y);
       if(s.bx0!==undefined)d=Math.min(s.big&&d<11?0:d,Math.hypot(Math.max(s.bx0-x,0,x-s.bx1),Math.max(Math.abs(y-s.by)-7,0)));else if(d>(s.big?11:4.5))return;if(d<md){md=d;best=id}})}
     if(S.thinker!=='today'){thinkerTap(best);return}
+    {const zk=zodHit(x,y,!!best);if(zk!=null){openSignCard(zk);return}}
     if(SYS.id){ if(best&&best.startsWith('moon:')){const k=+best.split(':')[1];SYS.vp=SYS.vp===k?'centre':k;renderInfo()} else if(best===SYS.id){SYS.vp='centre';renderInfo()} }
     else if(best&&best.startsWith('moon:')){const [,pid,k]=best.split(':');if(S.audition===pid&&S.audMoon===+k)endAudition();else auditionMoon(pid,+k)}
     else if(best&&best!=='sun'){ if(S.audition===best&&S.audMoon==null)endAudition(); else audition(best); }
     else if(S.audition&&!SYS.id)endAudition();}
 };
 cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
+// the signs of the zodiac on the ring: a tap on a sign's name (with room around it, more on a touch screen) or anywhere on the band outside the
+// orbits opens the sign's card; the card is also reachable from the keyboard through a row of twelve buttons that appears when it is tabbed to
+// strict: only the name itself (a tap on the word wins over a far body drawn under it); otherwise with room round it and the whole band
+function zodHit(x,y,strict){const Rz=RR*1.06,st=Math.max(Math.sin(S.tilt),1e-3),pad=strict?0:matchMedia('(pointer:coarse)').matches?16:8;
+  for(let k=0;k<12;k++){const b=ZBOX[k];if(b&&x>=b.x0-pad&&x<=b.x1+pad&&y>=b.y0-pad&&y<=b.y1+pad)return k}
+  if(strict)return null;const dx=x-CX,dy=(CY-y)/st;if(Math.hypot(dx,dy)<Rz*.95)return null;
+  return Math.floor((((Math.atan2(dy,dx)-S.az)/DEG)%360+360)%360/30)%12}
+function zodScale(k){const t0=zodTonic(k);return zodDegs().map(d=>t0*Math.pow(2,d)).concat([t0*2])}
+function openSignCard(k){
+  if(S.thinker!=='today')return;
+  ZC.open(k,{side:'right',
+    music:k=>zesc(zfill(ZTX.keyIf,{k:zodKeyName(k),m:zodModeName()})),
+    acts:[{t:ZTX.hear,fn:k=>{if(!AC)initAudio();const t0=zodTonic(k);zodHear(AC,zodScale(k),[t0,t0*1.5,t0*2])}},
+      {t:ZTX.use,on:k=>S.keySign===k,fn:k=>{S.keySign=S.keySign===k?null:k;if(S.keySign!=null&&!S.zodiacKey){S.zodiacKey=true;const c=$('zodKey');if(c)c.checked=true}ZC.chipSync()}}]});
+}
+{const keys=ZC.keys(cv.parentElement,openSignCard);keys.classList.add('today-only');
+ const zt=document.getElementById('zodTxt');if(zt)ZC.chip(zt)}
 cv.addEventListener('wheel',e=>{e.preventDefault();setZoom(S.rmax*Math.exp(e.deltaY*.0012))},{passive:false});
 function setZoom(r){S.rmax=Math.max(1.6,Math.min(1500,r));document.querySelectorAll('#zoomChips .chip').forEach(c=>c.setAttribute('aria-pressed',String(Math.abs(Math.log(+c.dataset.z/S.rmax))<.05)))}
 document.querySelectorAll('#zoomChips .chip').forEach(c=>c.onclick=()=>setZoom(+c.dataset.z));
@@ -5876,7 +6035,7 @@ MOTS.app={tt:TT,think:THINK,
   playTime:on=>{if(S.playing!==on)$('play').click()},
   order:()=>THINK_ORDER.slice(),current:()=>S.thinker,speedNow:()=>S.speed,written:()=>!athens(),timeRunning:()=>S.playing,
   // a window for tests: run a function over the dial's inner state
-  _probe:fn=>fn({speakGod,BODIES,S,SIR,TRAI,P,THINK,curF,traiSky,traiBell,traiTick,geo,horiz,jdOf,computePositions,lonOf,audioOn:()=>audioOn,V,WOB,ac:()=>AC,byId,scr:()=>screen,SYS,enterSystem,leaveSystem,renderInfo,renderAud,setSpeed,noteName,fmt,quantize,J2000,TAU,DEG,kepler,endAudition,setThinker})};
+  _probe:fn=>fn({speakGod,BODIES,S,SIR,TRAI,P,THINK,curF,traiSky,traiBell,traiTick,geo,horiz,jdOf,computePositions,lonOf,audioOn:()=>audioOn,V,WOB,ac:()=>AC,byId,scr:()=>screen,SYS,enterSystem,leaveSystem,renderInfo,renderAud,setSpeed,noteName,fmt,quantize,J2000,TAU,DEG,kepler,endAudition,setThinker,zodHit,ZBOX,ZC,openSignCard})};
 requestAnimationFrame(frame);
 })();
 </script>
