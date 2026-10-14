@@ -4381,10 +4381,10 @@ window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,t
   };
 
   /* ───────── 1. data ───────── */
-  const D = { stars: null, pulsars: null, radio: null, frb: null, rotation: null, sunorbit: null, seismo: null, localgroup: null, names: null, starradio: null, bodyspectra: null };
-  const G = { version: '0.4.0', K, data: D, ready: false, large: false };
+  const D = { stars: null, pulsars: null, radio: null, frb: null, rotation: null, sunorbit: null, seismo: null, localgroup: null, names: null, starradio: null, bodyspectra: null, blackholes: null };
+  const G = { version: '0.5.0', K, data: D, ready: false, large: false };
   const FILES = ['stars', 'pulsars', 'radio', 'frb', 'rotation', 'sunorbit', 'seismo'];
-  const OPTIONAL = ['localgroup', 'names', 'starradio', 'bodyspectra'];   // steps 4b/4c: the Local Group, the search names, the stars' radio table, the bodies' spectra; a page without them still works
+  const OPTIONAL = ['localgroup', 'names', 'starradio', 'bodyspectra', 'blackholes'];   // steps 4b/4c/4f: the Local Group, the search names, the stars' radio table, the bodies' spectra, the black holes; a page without them still works
   let fetchFn = (u) => fetch(u).then(r => { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); });
   G.setFetch = (f) => { fetchFn = f; };  // tests supply a file-reading shim
   let baseUrl = '';
@@ -5242,8 +5242,11 @@ window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,t
       if (r.gaia) keys.push('gaia ' + r.gaia, r.gaia, 'gaia dr3 ' + r.gaia);
       push('star', r, keys, r.n || r.bf || (r.hip ? 'HIP ' + r.hip : r.gl || ('HYG ' + r.id)), r.mag); }
     for (let i = 0; i < T.np; i++) { const p = T.prow[i], keys = [p.j, 'psr ' + p.j, p.b, p.b && 'psr ' + p.b, p.nm], o = OB[p.j]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('pulsar', p, keys, p.b || p.j, T.PM[i]); }
-    for (let i = 0; i < T.nr; i++) { const r = T.rrow[i], keys = [r.n].concat(r.alt || []), o = OB[r.id]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('radio', r, keys, r.n, T.RM[i]); }
+    for (let i = 0; i < T.nr; i++) { if (D.blackholes && T.rrow[i].id === 'sgra') continue; const r = T.rrow[i], keys = [r.n].concat(r.alt || []), o = OB[r.id]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('radio', r, keys, r.n, T.RM[i]); }
     for (let i = 0; i < T.ng; i++) { const g = T.grow[i], keys = [g.n, g.id].concat(g.alt || []), o = OB[g.id]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('galaxy', g, keys, g.n, g.mag); }
+    // the black holes (step 4f): their names, other names, localized names, the words for "black hole" in the twelve languages, and 
+    G.blackholes().forEach(b => { const keys = [b.n, b.id].concat(b.alt || [], BH_WORDS); if (b.nm) Object.keys(b.nm).forEach(l => keys.push(b.nm[l])); const o = OB[b.id]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x)));
+      push('blackhole', b, keys, b.n, b.id === 'sgra' ? -60 : -50 - Math.log10(b.M || b.M_lim || 1)); });   // Sgr A* first, then the heaviest
     // the constellations themselves: choosing one lists its stars
     Object.keys(con).forEach(ab => { if (ab !== con[ab].ab) return; const c = con[ab]; push('constellation', c, conNames(ab), c.la, -99); });
     srch.index = ix; return ix;
@@ -5268,7 +5271,146 @@ window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,t
   G.constellationStars = function (c) { const ab = typeof c === 'string' ? c : c.ab, out = []; for (let i = 1; i < T.n; i++) { const r = T.rows[i]; if (r.con === ab) out.push(r); } out.sort((a, b) => a.mag - b.mag); return out; };
   /** A localized display name for a catalogue object in language `lang`: names.json first, else the catalogue's own. */
   G.nameOf = function (kind, row, lang) { const nm = D.names || {}; if (kind === 'star') { const v = (nm.stars || {})[row.n] || (row.bf && (nm.stars || {})[row.bf]); if (v && v[lang] && lang !== 'en') return v[lang]; return row.n || row.bf || (row.hip ? 'HIP ' + row.hip : row.gl || ('HYG ' + row.id)); }
+    if (kind === 'blackhole') { if (row.nm && row.nm[lang]) return row.nm[lang]; const ob = (nm.objects || {})[row.id]; if (ob && ob[lang]) return ob[lang].split(',')[0].trim(); return row.n; }
     if (kind === 'constellation') return row[lang] || row.la; const o = (nm.objects || {})[kind === 'pulsar' ? row.j : row.id]; if (o && o[lang]) return o[lang].split(',')[0].trim(); return kind === 'pulsar' ? (row.b || row.j) : row.n; };
+
+  /* ───────── 4f. black holes (blackholes.json; step 4f of the extension) ─────────
+     Sagittarius A* with its S-stars on their published Keplerian orbits, the stellar black holes with real orbits (Gaia BH1–3,
+     Cygnus X-1, V404 Cygni, A0620−00), the quiet supermassive black holes of the Local Group, GW150914's chirp. All in plain
+     numbers; the Flight turns them into pictures and sound and states every rule. Units: au, km/s, solar masses, seconds. */
+  const BHK = { RG_KM: 1.476625, TG_S: 4.925491e-6, AU_KM: 1.495978707e8, KMS_AUYR: 4.740470463533348, JD2000: 2451545.0 };
+  G.BHK = BHK;
+  const BH_WORDS = ['black hole', 'schwarzes loch', 'czarna dziura', 'twll du', 'agujero negro', 'trou noir', 'buco nero', '黑洞', 'ブラックホール', 'hố đen', 'черна дупка', 'buraco negro'];
+  /** All black-hole rows: Sgr A* first, then the others (blackholes.json), or [] when the table is not loaded. */
+  G.blackholes = function () { const B = D.blackholes; if (!B) return []; if (!G.blackholes._c) G.blackholes._c = [B.sgra].concat(B.bhs); return G.blackholes._c; };
+  /** A black-hole row by id ('sgra', 'gaiabh1', 'cygx1', 'm31bh' …) or name (case-insensitive), or null. */
+  G.blackhole = function (q) { const s = String(q).toLowerCase(); return G.blackholes().find(b => b.id === s || b.n.toLowerCase() === s || (b.alt || []).some(a => a.toLowerCase() === s)) || null; };
+  /** GW150914's published parameters (blackholes.json gw), or null. */
+  G.gwEvent = () => (D.blackholes && D.blackholes.gw) || null;
+  /** The gravitational radius GM/c² of a mass M (solar masses) in au; the shadow's diameter 2√27 GM/c² (Schwarzschild). */
+  G.rgAU = M => BHK.RG_KM * M / BHK.AU_KM;
+  G.shadowAU = M => 2 * Math.sqrt(27) * G.rgAU(M);
+  /** The period (s, as seen from far away) of a circular orbit at r gravitational radii round a mass M: 2π r^1.5 GM/c³. ISCO: r = 6. */
+  G.orbitPeriodS = (M, r) => 2 * Math.PI * Math.pow(r, 1.5) * BHK.TG_S * M;
+  /** Hawking temperature (K) of a black hole of M solar masses: 6.17 × 10⁻⁸ K / M. */
+  G.hawkingK = M => 6.17e-8 / M;
+  /** Heliocentric position (pc, galactic) of a black-hole row: its own ra/dec/d, its host galaxy's centre, or Sgr A* at the model's centre. */
+  G.bhPos = function (b, out) {
+    out = out || {}; if (b.id === 'sgra') return G.fromGC({ R: 0, beta: 0, z: 0 }, out);
+    if (b.host) { const g = G.galaxy(b.host); if (g) return G.galaxyPos(g, out); }
+    const lb = G.eqToGal(b.ra, b.dec, {}), L = lb.l * DEG, B = lb.b * DEG, cb = Math.cos(B), d = b.d_pc || 0; out.x = d * cb * Math.cos(L); out.y = d * cb * Math.sin(L); out.z = d * Math.sin(B); return out;
+  };
+  /** The sky frame of a direction (ra, dec in degrees), as unit vectors in heliocentric galactic coordinates: n (north on the sky),
+   *  e (east), u (away from the Sun along the line of sight). Orbits given in the sky frame (x north, y east, z away) are turned into
+   *  the galactic frame with skyToGal. */
+  G.skyFrame = function (ra, dec, out) {
+    out = out || {}; const r = ra * DEG, dc = dec * DEG, sr = Math.sin(r), cr = Math.cos(r), sd = Math.sin(dc), cd = Math.cos(dc), m = EG;
+    const rot = (x, y, z) => ({ x: m[0][0] * x + m[0][1] * y + m[0][2] * z, y: m[1][0] * x + m[1][1] * y + m[1][2] * z, z: m[2][0] * x + m[2][1] * y + m[2][2] * z });
+    out.u = rot(cd * cr, cd * sr, sd); out.e = rot(-sr, cr, 0); out.n = rot(-sd * cr, -sd * sr, cd); return out;
+  };
+  G.skyToGal = function (F, xn, ye, zu, out) { out = out || {}; out.x = F.n.x * xn + F.e.x * ye + F.u.x * zu; out.y = F.n.y * xn + F.e.y * ye + F.u.y * zu; out.z = F.n.z * xn + F.e.z * ye + F.u.z * zu; return out; };
+  /** Solve Kepler's equation E − e sin E = M (radians), robust to e → 1. */
+  function keplerE(Mm, e) { let M = Mm % (2 * Math.PI); if (M < -Math.PI) M += 2 * Math.PI; else if (M > Math.PI) M -= 2 * Math.PI; let E = e > .8 ? (M < 0 ? -Math.PI * .5 : Math.PI * .5) + M * .5 : M + e * Math.sin(M);
+    for (let k = 0; k < 60; k++) { const f = E - e * Math.sin(E) - M, d = 1 - e * Math.cos(E), dE = -f / d; E += Math.max(-.5, Math.min(.5, dE)); if (Math.abs(dE) < 1e-13) break; } return E; }
+  G.keplerE = keplerE;
+  /** A body on a Keplerian orbit in the sky frame at time jd. el: {a (au), e, i, Om (position angle of the ascending node), om
+   *  (argument of pericentre), deg; tp (decimal year) or Tp_jd; P (yr) or P_d}. The visual-binary convention (Thiele–Innes): x north,
+   *  y east, z away from the Sun, so dz/dt is the radial velocity (+ receding) and the ascending node is where the body recedes.
+   *  Returns {x, y, z (au), vx, vy, vz (km/s), r (au), v (km/s), nu (true anomaly, rad), ph (mean-anomaly phase 0..1)}. */
+  G.kepler = function (el, jd, out) {
+    out = out || {}; const P = el.P_d ? el.P_d / 365.25 : el.P, t0 = el.Tp_jd != null ? el.Tp_jd : BHK.JD2000 + (el.tp - 2000) * 365.25, e = el.e, a = el.a;
+    const ph = ((((jd - t0) / 365.25) / P) % 1 + 1) % 1, E = keplerE(2 * Math.PI * ph, e), n = 2 * Math.PI / P, cE = Math.cos(E), sE = Math.sin(E), q = Math.sqrt(1 - e * e), dE = n / (1 - e * cE);
+    const X = cE - e, Y = q * sE, dX = -sE * dE, dY = q * cE * dE, i = el.i * DEG, O = el.Om * DEG, w = el.om * DEG, cw = Math.cos(w), sw = Math.sin(w), cO = Math.cos(O), sO = Math.sin(O), ci = Math.cos(i), si = Math.sin(i);
+    const A = cw * cO - sw * sO * ci, B = cw * sO + sw * cO * ci, F = -sw * cO - cw * sO * ci, Gt = -sw * sO + cw * cO * ci, C = sw * si, H = cw * si, k = a * BHK.KMS_AUYR;
+    out.x = a * (A * X + F * Y); out.y = a * (B * X + Gt * Y); out.z = a * (C * X + H * Y); out.vx = k * (A * dX + F * dY); out.vy = k * (B * dX + Gt * dY); out.vz = k * (C * dX + H * dY);
+    out.r = a * (1 - e * cE); out.v = Math.hypot(out.vx, out.vy, out.vz); out.nu = 2 * Math.atan2(Math.sqrt(1 + e) * Math.sin(E / 2), Math.sqrt(1 - e) * Math.cos(E / 2)); out.ph = ph; return out;
+  };
+  /** The S-stars round Sgr A* at time jd: [{row, x, y, z (au, heliocentric-galactic offsets from Sgr A*), vx, vy, vz (km/s, galactic), r (au),
+   *  v (km/s), vr (km/s, as seen from the Sun: + receding), ph}] — reused array. */
+  const ssOut = [], ssPool = [], ssTmp = {}, ssV = {};
+  G.sStars = function (jd) {
+    const S = D.blackholes && D.blackholes.sgra; if (!S) return [];
+    const F = G.sStars._F || (G.sStars._F = G.skyFrame(S.ra, S.dec)); ssOut.length = 0;
+    S.sstars.forEach((s, k) => { const o = ssPool[k] || (ssPool[k] = {}), el = s.__el || (s.__el = { a: s.a_au, e: s.e, i: s.i, Om: s.Om, om: s.om, tp: s.tp, P: s.P });
+      G.kepler(el, jd, ssTmp); G.skyToGal(F, ssTmp.x, ssTmp.y, ssTmp.z, o); G.skyToGal(F, ssTmp.vx, ssTmp.vy, ssTmp.vz, ssV);
+      o.vx = ssV.x; o.vy = ssV.y; o.vz = ssV.z; o.r = ssTmp.r; o.v = ssTmp.v; o.vr = ssTmp.vz; o.ph = ssTmp.ph; o.row = s; ssOut.push(o); });
+    return ssOut;
+  };
+  /** A star's orbit sampled for drawing: n points [x, y, z, ph] (au, galactic offsets from the black hole) evenly in mean anomaly. */
+  G.sStarTrack = function (s, n) {
+    const S = D.blackholes.sgra, F = G.skyFrame(S.ra, S.dec), el = { a: s.a_au, e: s.e, i: s.i, Om: s.Om, om: s.om, tp: 0, Tp_jd: 0, P: s.P }, out = new Float32Array(n * 4), o = {}, g = {};
+    for (let j = 0; j < n; j++) { const jd = j / n * s.P * 365.25; G.kepler(el, jd, o); G.skyToGal(F, o.x, o.y, o.z, g); out[j * 4] = g.x; out[j * 4 + 1] = g.y; out[j * 4 + 2] = g.z; out[j * 4 + 3] = j / n; }
+    return out;
+  };
+  /** A binary with a black hole (Gaia BH1–3, Cygnus X-1, V404 Cyg, A0620−00) at time jd: the companion star's offset from the barycentre
+   *  (au, galactic) and velocity (km/s, galactic, without the systemic γ), the black hole's offset (opposite, scaled by the mass ratio),
+   *  and the radial velocity of the star as seen from the Sun (+ receding, with γ): {sx, sy, sz, svx, svy, svz, bx, by, bz, rv, ph, r}. */
+  G.bhBinary = function (b, jd, out) {
+    out = out || {}; const o = b.orb, c = b.comp, Mt = b.M + c.mass, aT = Math.pow(o.P_d / 365.25, 2 / 3) * Math.pow(Mt, 1 / 3), aS = aT * b.M / Mt;
+    const el = b.__el || (b.__el = { a: aS, e: o.e, i: o.i, Om: o.Om || 0, om: o.om || 0, Tp_jd: o.Tp_jd, P_d: o.P_d }), F = b.__F || (b.__F = G.skyFrame(b.ra, b.dec)), k = {}, g = {};
+    G.kepler(el, jd, k); G.skyToGal(F, k.x, k.y, k.z, g); out.sx = g.x; out.sy = g.y; out.sz = g.z; G.skyToGal(F, k.vx, k.vy, k.vz, g); out.svx = g.x; out.svy = g.y; out.svz = g.z;
+    const q = c.mass / b.M; out.bx = -out.sx * q; out.by = -out.sy * q; out.bz = -out.sz * q; out.rv = k.vz + (o.gamma || 0); out.ph = k.ph; out.r = k.r * (1 + q); out.aT = aT; return out;
+  };
+  /** The systemic space velocity of a black-hole system (km/s, galactic): its γ along the line of sight (proper motion not modelled). */
+  G.bhGammaVec = function (b, out) { out = out || {}; const F = b.__F || (b.__F = G.skyFrame(b.ra, b.dec)), gm = (b.orb && b.orb.gamma) || 0; out.x = F.u.x * gm; out.y = F.u.y * gm; out.z = F.u.z * gm; return out; };
+  /** Relativistic Doppler factor (multiply a frequency) for a source moving with velocity v (km/s vector) seen along the unit vector n̂ from the
+   *  listener to the source: 1 / (γ (1 + β·n̂)) — the longitudinal and the transverse (time-dilation) parts. exag scales the velocity (|β| ≤ 0.95). */
+  G.dopplerVec = function (vx, vy, vz, nx, ny, nz, exag) { const x = exag || 1; let bx = vx * x / K.C_KMS, by = vy * x / K.C_KMS, bz = vz * x / K.C_KMS, b2 = bx * bx + by * by + bz * bz;
+    if (b2 > .9025) { const s = .95 / Math.sqrt(b2); bx *= s; by *= s; bz *= s; b2 = .9025; } return Math.sqrt(1 - b2) / (1 + bx * nx + by * ny + bz * nz); };
+  /** Gravitational frequency shift of light from radius rE to radius rO (both in gravitational radii; Infinity for far away): √(1 − 2/rE) / √(1 − 2/rO). */
+  G.gravShift = (rE, rO) => Math.sqrt(1 - 2 / rE) / Math.sqrt(1 - 2 / (rO || Infinity));
+  /** A hot spot on a circular orbit at r gravitational radii (Schwarzschild): its speed v (c) as a static observer there measures it,
+   *  √(M/(r − 2M)), its Lorentz γ, the period at infinity for a mass M (s), and g(cosα, rO) — the frequency factor of its light reaching
+   *  a static listener at rO for an emission direction at angle α from its motion: √(1 − 2/r) / (γ (1 − v cos α)) / √(1 − 2/rO). */
+  G.hotSpot = function (M, r) { const v = Math.sqrt(1 / (r - 2)), gm = 1 / Math.sqrt(1 - v * v), base = Math.sqrt(1 - 2 / r) / gm;
+    return { r, v, gamma: gm, P_s: G.orbitPeriodS(M, r), g: (ca, rO) => base / (1 - v * ca) / Math.sqrt(1 - 2 / (rO || Infinity)), gmin: base / (1 + v), gmax: base / (1 - v), gperp: base }; };
+  /** The accretion flow's spectrum: flux density S(ν) (Jy) for Sgr A* (blackholes.json flow): a smooth broken power law rising as ν^0.3
+   *  to its peak at 230 GHz (2.4 Jy), falling as ν^−1.3 into the infrared. */
+  G.flowS = function (nu, fl) { const f = fl || D.blackholes.sgra.flow, x = nu / (f.nu_pk_GHz * 1e9); return f.S_pk_Jy * 2 / (Math.pow(x, -f.alpha_lo) + Math.pow(x, -f.alpha_hi)); };
+  /** The flow's spectrum lowered `oct` octaves (default the table's 28: 230 GHz → 857 Hz), as an audio power spectrum (relative). */
+  G.flowAudioPSD = function (fHz, fl) { const f = fl || D.blackholes.sgra.flow; return G.flowS(fHz * Math.pow(2, f.oct), f); };
+  /** In-place radix-2 complex FFT (inverse when inv). */
+  function fft(re, im, inv) { const n = re.length; for (let i = 1, j = 0; i < n; i++) { let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+    for (let len = 2; len <= n; len <<= 1) { const ang = (inv ? 2 : -2) * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang); for (let i = 0; i < n; i += len) { let cr = 1, ci = 0; for (let j = 0; j < len / 2; j++) { const a = i + j, b2 = a + len / 2, vr = re[b2] * cr - im[b2] * ci, vi = re[b2] * ci + im[b2] * cr; re[b2] = re[a] - vr; im[b2] = im[a] - vi; re[a] += vr; im[a] += vi; const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t; } } } }
+  G.fft = fft;
+  /** A loopable noise of n samples (n a power of two) at sample rate sr whose power spectrum is psd(f) (any function of Hz), random phases
+   *  from a seed; normalised to an RMS of `rms` (default 0.25). The loop joins seamlessly (it is periodic by construction). */
+  G.shapedNoise = function (seed, n, sr, psd, rms) { const r = G.rng(seed || 3), re = new Float64Array(n), im = new Float64Array(n);
+    for (let k = 1; k < n / 2; k++) { const f = k * sr / n, a = Math.sqrt(Math.max(0, psd(f))), ph = 2 * Math.PI * r(); re[k] = a * Math.cos(ph); im[k] = a * Math.sin(ph); re[n - k] = re[k]; im[n - k] = -im[k]; }
+    fft(re, im, true); let q = 0; for (let i = 0; i < n; i++) q += re[i] * re[i]; const s = (rms == null ? .25 : rms) / Math.sqrt(q / n || 1), out = new Float32Array(n); for (let i = 0; i < n; i++) out[i] = re[i] * s; return out; };
+  /** An X-ray binary's flicker as it is, in real time: a light curve 1 + x(t) of n samples at fs (Hz) whose fluctuations x have the
+   *  power spectrum of zero-centred Lorentzians Σ r_i² / (1 + (f/f_i)²) (Cygnus X-1's hard state: humps near 0.2 and 2 Hz) and the
+   *  total fractional rms `rms`; floored at 0.05. Periodic, so it loops. */
+  G.flickerCurve = function (seed, n, fs, lor, rms) { const x = G.shapedNoise(seed, n, fs, f => { let p = 0; lor.forEach(([f0, w]) => { p += w * w / (1 + (f / f0) * (f / f0)); }); return p; }, rms);
+    for (let i = 0; i < n; i++) x[i] = Math.max(.05, 1 + x[i]); return x; };
+  /** GW150914's chirp synthesised from its published parameters (not LIGO's data): the leading-order inspiral f(τ) = (1/π)(5/256τ)^{3/8}
+   *  (GM_c/c³)^{−5/8} with the detector-frame chirp mass, amplitude ∝ f^{2/3}, a smooth merger rising to the ringdown frequency (250 Hz)
+   *  and the ringdown's exponential decay (4 ms). opts: stretch (1 = as it arrived; 4 = each moment held four times as long at the same
+   *  frequencies), sr, fStart (30 Hz). Returns {sr, data (peak 1), f (Hz per sample), tMerge (s), dur (s), cycles35to150, f35 (s), fPeak}. */
+  G.gwChirp = function (opts) {
+    const o = opts || {}, gw = G.gwEvent() || { Mc_det: 30.2, f_ring: 250, tau_ring_ms: 4 }, sr = o.sr || 44100, k = o.stretch || 1, tc = gw.Mc_det * BHK.TG_S, c58 = Math.pow(tc, 5 / 8);
+    const tauOf = f => 5 / 256 / Math.pow(Math.PI * f * c58, 8 / 3), fOf = tau => Math.pow(5 / (256 * tau), 3 / 8) / c58 / Math.PI;
+    const f0 = o.fStart || 30, fm = 140, fr = gw.f_ring, tr = gw.tau_ring_ms / 1000, tau0 = tauOf(f0), taum = tauOf(fm), tm = tau0 - taum, tmr = (fr - fm) / (3 / 8 * fm / taum), tpk = tm + .0025;
+    const pre = .04, post = .06, durU = tm + .03 + post, n = Math.round((durU * k + pre) * sr), data = new Float32Array(n), fr2 = new Float32Array(n);
+    let ph = 0, pk = 0, c35 = null, cyc = 0, f35t = null, fPk = 0, aPk = 0;
+    for (let i = 0; i < n; i++) { const t = Math.max(0, (i / sr - pre) / k); let f, A;
+      if (t < tm) { f = fOf(tau0 - t); A = Math.pow(f / fm, 2 / 3); } else { f = fr - (fr - fm) * Math.exp(-(t - tm) / tmr); A = Math.pow(f / fm, 2 / 3) * (t > tpk ? Math.exp(-(t - tpk) / tr) : 1); }
+      const fade = Math.min(1, (i / sr) / (pre + .03 * k)); ph += 2 * Math.PI * f / sr; data[i] = A * fade * Math.sin(ph); fr2[i] = f; if (Math.abs(data[i]) > pk) pk = Math.abs(data[i]);
+      if (A * fade > aPk) { aPk = A * fade; fPk = f; } if (f >= 35 && f35t == null) { f35t = i / sr; c35 = ph; } if (f <= 150 && f35t != null && t < tm) cyc = (ph - c35) / (2 * Math.PI); }
+    for (let i = 0; i < n; i++) data[i] /= pk;
+    return { sr, data, f: fr2, tMerge: pre + tm * k, dur: n / sr, cycles35to150: cyc, f35: f35t, fPeak: fPk, stretch: k };
+  };
+  /** V404 Cygni's 2015 outburst replayed as its shape (schematic, from the account in blackholes.json): quiescence, the onset on 15 June
+   *  (day 0), rising activity, ~16 giant flares above 6 Crab between days ~5 and 12 (the brightest on day 10.93), the decline from day 12
+   *  back towards quiescence by day 25. Returns {days, n, perDay, flux: Float32Array (Crab-like units, log-ish dynamic range 1e-3…50)}. */
+  G.v404Outburst = function (seed, perDay) {
+    const b = G.blackhole('v404cyg'), ob = (b && b.outburst) || { days: 25, peak_day: 10.93, n_big: 16, decline_day: 12 }, pd = perDay || 48, n = Math.round(ob.days * pd), r = G.rng(seed || 2015), flux = new Float32Array(n);
+    const big = []; for (let j = 0; j < ob.n_big - 1; j++) big.push([4.5 + 7.3 * r(), 6 + 24 * Math.pow(r(), 2), .04 + .14 * r()]); big.push([ob.peak_day, 50, .12]);
+    for (let i = 0; i < n; i++) { const d = i / pd; let base = d < 0 ? 1e-3 : d < 5 ? .02 * Math.pow(50, d / 5) : d < ob.decline_day ? 1 + .8 * Math.sin(d * 2.1) * .5 : Math.max(1e-3, 1.4 * Math.exp(-(d - ob.decline_day) / 2.2));
+      base *= Math.exp(.6 * (r() - .5) * (d > 1 && d < 14 ? 1 : .3)); let fl = 0; big.forEach(([t0, a, w]) => { const u = (d - t0) / w; if (u > -1 && u < 3) fl = Math.max(fl, a * (u < 0 ? 1 + u : Math.exp(-u * 1.6))); });
+      if (d > 1 && d < 12.5 && r() < .06) fl = Math.max(fl, base * (2 + 6 * r())); flux[i] = Math.max(base, fl); }
+    return { days: ob.days, n, perDay: pd, flux };
+  };
 
   /* ───────── 5. gods ───────── */
   /** Who speaks for what. `choice` picks the settings option for the pulsars and the black hole: 'forge' (Hephaestus

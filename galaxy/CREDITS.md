@@ -318,11 +318,43 @@ own sources in the file. The main ones:
 
 The table is CC0; cite the papers above for the numbers.
 
+## The black holes (`blackholes.json`)
+
+A hand-curated table (step 4f of the extension); every row carries its own `ref`; `est` marks illustrative values.
+
+- Sagittarius A*: GRAVITY Collaboration 2022, A&A 657, L12, "Mass distribution in the Galactic Center based on
+  interferometric astrometry of multiple stellar orbits" (M = 4.297 × 10⁶ M☉, R₀ = 8 277 pc; Table 5: the orbits of S2,
+  S29, S38, S42, S55, S60); Event Horizon Telescope Collaboration 2022, ApJL 930, L12 (the 51.8 ± 2.3 µas ring);
+  GRAVITY Collaboration 2018, A&A 618, L10 (orbital motion of the near-infrared flares near the last stable orbit);
+  GRAVITY Collaboration 2020, A&A 636, L5 (S2's Schwarzschild precession) and 2018, A&A 615, L15 (S2's gravitational
+  redshift); Peißker, F. et al. 2022, ApJ 933, 49 (S4716, a 4-year orbit, B8/9 V, ~12 500 K); Habibi, M. et al. 2017,
+  ApJ 847, 120 (S2: B0–2.5 V, 28 500 K, 13.6 M☉, log g 4.1); Eisenhauer, F. et al. 2005, ApJ 628, 246 (the fainter
+  S-stars B4–B9 V); Fritz, T. K. et al. 2011, ApJ 737, 73 (A_K = 2.42); Falcke, H. et al. 1998, ApJ 499, 731 (the radio
+  spectrum ν^0.3 and the sub-mm bump); Do, T. et al. 2019, ApJL 882, L27 and Witzel, G. et al. 2018, ApJ 863, 15 (the
+  near-infrared flux distribution and red-noise power spectrum); Neilsen, J. et al. 2013, ApJ 774, 42 (X-ray flares);
+  Baganoff, F. K. et al. 2003, ApJ 591, 891 (the quiescent X-rays); Schödel, R. et al. 2018, A&A 609, A27 (the nuclear
+  star cluster's density profile, used statistically for the drawing).
+- Gaia BH1: El-Badry, K. et al. 2023, MNRAS 518, 1057. Gaia BH2: El-Badry, K. et al. 2023, MNRAS 521, 4323 (Table 2).
+  Gaia BH3: Gaia Collaboration, Panuzzo, P. et al. 2024, A&A 686, L2 (Table 2).
+- Cygnus X-1: Miller-Jones, J. C. A. et al. 2021, Science 371, 1046; Orosz, J. A. et al. 2011, ApJ 742, 84; Nowak,
+  M. A. 2000, MNRAS 318, 361 and Pottschmidt, K. et al. 2003, A&A 407, 1039 (the hard-state power spectrum); Stirling,
+  A. M. et al. 2001, MNRAS 327, 1273 (the jet).
+- V404 Cygni: Miller-Jones, J. C. A. et al. 2009, ApJL 706, L230 (distance); Khargharia, J. et al. 2010, ApJ 716, 1105
+  (mass); Casares, J. et al. 1992, Nature 355, 614 (orbit); Radhika, D. et al. 2016, MNRAS 462, 1834 and Rodriguez, J.
+  et al. 2015, A&A 581, L9 (the 2015 outburst).
+- A0620−00: Cantrell, A. G. et al. 2010, ApJ 710, 1127; Neilsen, J. et al. 2008, ApJ 673, 1110.
+- M31*: Bender, R. et al. 2005, ApJ 631, 280; Garcia, M. R. et al. 2010, ApJ 710, 755; Li, Z. et al. 2011, ApJ 728, L10.
+  M32: van den Bosch, R. C. E. & de Zeeuw, P. T. 2010, MNRAS 401, 1770. M33: Gebhardt, K. et al. 2001, AJ 122, 2469;
+  Merritt, D. et al. 2001, Science 293, 1116.
+- GW150914: Abbott, B. P. et al. (LIGO Scientific and Virgo Collaborations) 2016, PRL 116, 061102. The app synthesises a
+  waveform of the published shape (no LIGO audio or data is used); ringdown frequency and damping from the Berti et al.
+  2006 fits for the final mass and spin.
+
 ## Software
 
 Python 3.13, numpy 2.5, pandas 3.0, galpy 1.12.0 (Bovy 2015), curl. No Astropy. Build scripts: `common.py`,
 `build_stars.py`, `build_stars_large.py`, `build_pulsars.py`, `build_radio.py`, `build_rotation.py`, `build_sunorbit.py`,
-`build_seismo.py`, `build_localgroup.py`, `build_names.py`, `build_starradio.py`, `build_bodyspectra.py`, `tests.py`, `build_all.sh`. SciPy 1.18 for the Bessel functions of the galaxies' disc models.
+`build_seismo.py`, `build_localgroup.py`, `build_names.py`, `build_starradio.py`, `build_bodyspectra.py`, `build_blackholes.py`, `tests.py`, `build_all.sh`. SciPy 1.18 for the Bessel functions of the galaxies' disc models.
 
 ## Short credits for the app
 
@@ -337,6 +369,11 @@ Python 3.13, numpy 2.5, pandas 3.0, galpy 1.12.0 (Bovy 2015), curl. No Astropy. 
 > listed under starradio.json (Zic et al. 2020; Lynch et al. 2017; Lim et al. 1998; Peterson et al. 2010; Pardo et al. 2004…).
 > Planets', moons' and comets' spectra: Karkoschka 1994, 1998; Clark & McCord 1979, 1980; Fink & Larson 1979; Turnbull et
 > al. 2006; Grundy & Fink 1996; DeMeo et al. 2009; Cochran & Cochran 2002; the Kurucz et al. 1984 solar atlas; USGS and RELAB.
+>
+> Black holes: GRAVITY Collaboration 2018–2022; EHT Collaboration 2022; Peißker et al. 2022; El-Badry et al. 2023 (Gaia
+> BH1, BH2); Gaia Collaboration, Panuzzo et al. 2024 (Gaia BH3); Miller-Jones et al. 2021 (Cygnus X-1); Radhika et al. 2016
+> (V404 Cygni); Cantrell et al. 2010 (A0620−00); Bender et al. 2005 (M31*); van den Bosch & de Zeeuw 2010 (M32); Gebhardt
+> et al. 2001 (M33); Abbott et al. 2016 (GW150914, synthesised from its parameters).
 >
 > Large star pack (optional download): Gaia DR3, ESA/Gaia/DPAC (Gaia Collaboration, Vallenari et al. 2023), with
 > HYG v4.4 names (CC BY-SA 4.0); show the full ESA acknowledgement above with it.
