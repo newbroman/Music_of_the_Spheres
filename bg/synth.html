@@ -3598,7 +3598,7 @@ window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,t
     placeSystems();
     bud.reset();
     G.filters.cache.clear();
-    G.starVoice.cache.clear(); G.spectrum.cache.clear(); G.starRGB.cache.clear();
+    G.starVoice.cache.clear(); G.spectrum.cache.clear(); G.starRGB.cache.clear(); if (G.lineChord) G.lineChord.cache.clear();
     srch.index = null;
   }
   /** The members of a catalogued system placed with their primary (step 5, interstellar Flight at close range). The rows of a
@@ -3828,6 +3828,60 @@ window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,t
     const out = { T, cls, sub: cl.sub, peak_nm: G.wienPeak(T), f0, lo, hi, n, planck, trans, lines }; m[key] = out; return out;
   };
   G.spectrum.cache = new Map();
+
+  /* the extra lines of the line chord (step 4d: "Hear its lines"), beyond the drawing table LINES: the Balmer series to high orders converging
+     on the Balmer limit (364.6 nm) for the hot stars, the He I lines of the B stars, Na D split into D1/D2, the Mg b triplet, more Fe I
+     for the Sun's kind, the C₂ Swan bands of carbon stars. Wavelengths in air (nm), widths wn (nm) as drawn, strengths per class 0..1 (APPROX,
+     as LINES). The Balmer members n = 7… come from the Rydberg formula (vacuum → air /1.000284) with a decrement of 0.84 per order. */
+  const BALMER_LIMIT_NM = 364.6;
+  function balmerNm(n) { return 1 / (1.0967758e7 * (1 / 4 - 1 / (n * n))) * 1e9 / 1.000284; }
+  const CHORD_EXTRA = [
+    { n: 'Hε', nm: 397.01, q: 25, wn: 2.5, w: { O: .25, B: .35, A: .7, F: .4, G: .15 } },
+    { n: 'He I 402.6', nm: 402.62, q: 30, wn: 1, w: { O: .3, B: .45 } }, { n: 'He I 471.3', nm: 471.31, q: 30, wn: 1, w: { O: .25, B: .4 } },
+    { n: 'He I 492.2', nm: 492.19, q: 30, wn: 1, w: { O: .3, B: .45 } }, { n: 'He I 501.6', nm: 501.57, q: 30, wn: 1, w: { O: .35, B: .5 } }, { n: 'He I 667.8', nm: 667.82, q: 30, wn: 1, w: { O: .3, B: .45 } },
+    { n: 'He II 541.1', nm: 541.1, q: 30, wn: 1, w: { O: .7 } }, { n: 'He II 420.0', nm: 420.0, q: 30, wn: 1, w: { O: .5 } },
+    { n: 'Na D2 589.0', nm: 588.995, q: 20, wn: 1, w: { F: .2, G: .6, K: .9, M: 1 } }, { n: 'Na D1 589.6', nm: 589.592, q: 20, wn: 1, w: { F: .15, G: .5, K: .8, M: .9 } },
+    { n: 'Mg b1 518.4', nm: 518.36, q: 15, wn: 1, w: { F: .3, G: .7, K: .8, M: .4 } }, { n: 'Mg b2 517.3', nm: 517.27, q: 15, wn: 1, w: { F: .3, G: .65, K: .75, M: .35 } }, { n: 'Mg b4 516.7', nm: 516.73, q: 15, wn: 1, w: { F: .25, G: .55, K: .65, M: .3 } },
+    { n: 'Fe I 404.6', nm: 404.58, q: 30, wn: .8, w: { F: .3, G: .5, K: .5 } }, { n: 'Fe I 440.5', nm: 440.48, q: 30, wn: .8, w: { F: .3, G: .45, K: .45 } }, { n: 'Fe I 495.8', nm: 495.76, q: 30, wn: .8, w: { G: .35, K: .4 } },
+    { n: 'MgH 521', nm: 521.0, q: 8, wn: 12, dir: -1, w: { K: .5, M: .35 } },
+    { n: 'C₂ Swan 563.5', nm: 563.5, q: 8, wn: 10, w: { C: .7 } }, { n: 'C₂ Swan 438.3', nm: 438.3, q: 8, wn: 10, w: { C: .5 } }, { n: 'CN 421.6', nm: 421.6, q: 10, wn: 8, w: { C: .6 } }
+  ];
+  for (let n = 8; n <= 18; n++) CHORD_EXTRA.push({ n: 'H' + n, nm: +balmerNm(n).toFixed(2), q: 25, wn: 1.6, balmer: n, w: { O: .25 * Math.pow(.84, n - 6), B: .35 * Math.pow(.84, n - 6), A: .75 * Math.pow(.84, n - 6), F: .45 * Math.pow(.84, n - 6), G: .12 * Math.pow(.84, n - 6) } });
+  G.CHORD_EXTRA = CHORD_EXTRA; G.BALMER_LIMIT_NM = BALMER_LIMIT_NM; G.balmerNm = balmerNm;
+  /* the chord's finer rules by subtype (APPROX, beyond rampOf): in B stars He I peaks at B2 and fades to B9 while the Balmer lines grow
+     toward A0; in K stars the Balmer lines fade toward K9 while Ca I, the MgH and CN bands grow, and the first TiO bands appear from K5 */
+  function chordWeight(L, cls, sub) {
+    let w = L.w[cls] || 0; const s = sub == null ? 5 : sub;
+    if (cls === 'B') { if (/^He/.test(L.n)) w *= Math.max(.15, 1 - Math.abs(s - 2) / 8); else if (/^H(α|β|γ|δ|ε|\d)/.test(L.n)) w *= .5 + s / 18; }
+    else if (cls === 'K') { if (/^H(α|β|γ|δ|ε|\d)/.test(L.n)) w *= Math.max(.2, 1 - s / 6); else if (/^(Ca I |MgH|CN)/.test(L.n)) w *= .7 + s / 15; else if (/^TiO/.test(L.n) && !w) w = .3 * Math.pow(Math.max(0, s - 4) / 5, 1.5); }
+    return w;
+  }
+  G.chordWeight = chordWeight;
+  /** The line chord of a star ("Hear its lines"): every absorption line of its class as a sustained note at its wavelength lowered forty
+   *  octaves — unfolded, so the same element sings the same note in every star (Hα 656.28 nm → 415.5 Hz; the Balmer limit 364.6 nm → 747.8 Hz).
+   *  Returns {T, cls, sub, f0 (the Wien tone), lines: [{n, nm, w (strength 0..1, by class and subtype, as spectrum()), wn (width nm), f (Hz),
+   *  cents (the line's width in cents: 1200 log2 of its wavelength span), broad (wn ≥ 5 nm: a band, played as a cluster or band-limited noise),
+   *  dir (+1: a band degrading to the red, as TiO and C₂; −1: to the violet, as MgH),
+   *  amp (0..1 relative amplitude, w^opts.gamma), balmer (n, when it is a Balmer member)}] strongest first, at most opts.max (24),
+   *  rms (the RMS one gets from amplitudes amp·opts.level as sines: opts.level √(Σ amp²/2)), level (opts.level, default 0.09), dop (the
+   *  Doppler factor for opts.rv km/s × opts.exag, applied to f when given), bed: {f0, amp (the continuum bed at the Wien tone, −22 dB)}}.
+   *  Stars of one class and subtype share their lines; only their motion (and the Wien bed) tells them apart. Cached per star and options. */
+  G.lineChord = function (star, opts) {
+    const o = opts || {}, mx = o.max || 24, gamma = o.gamma == null ? 1 : o.gamma, level = o.level == null ? .09 : o.level, exag = o.exag || 1, rv = o.rv != null ? o.rv : (star.rv || 0);
+    const key = mx + ':' + gamma + ':' + level + ':' + exag + ':' + rv, c = G.lineChord.cache; let m = c.get(star); if (m && m[key]) return m[key]; if (!m) c.set(star, m = {});
+    const T = star.T || 5772, cl = classOf(star), cls = star.lc === 'WD' || /^D/.test(String(star.sp || '').trim()) ? (cl.cls === 'WD' ? 'A' : cl.cls) : cl.cls, ramp = rampOf(cls, cl.sub), f0 = G.starTone(T);
+    const dop = G.doppler(rv, exag), lines = [];
+    const add = L => { const w = chordWeight(L, cls, cl.sub); if (!(w > 0)) return; const wn = L.wn, span = Math.max(.05, wn), fs = K.C_KMS * 1e12 / L.nm / Math.pow(2, K.OCT_LIGHT);
+      lines.push({ n: L.n, nm: L.nm, w: Math.min(1, w * ramp), wn, dir: L.dir || 1, f: fs * dop, f0: fs, cents: 1200 * Math.log2((L.nm + span / 2) / (L.nm - span / 2)), broad: wn >= 5, main: !!L.main, balmer: L.balmer || (/^H[αβγδε]$/.test(L.n) ? { 'Hα': 3, 'Hβ': 4, 'Hγ': 5, 'Hδ': 6, 'Hε': 7 }[L.n] : 0) }); };
+    LINES.forEach(add); CHORD_EXTRA.forEach(add);
+    // Na D and Mg b appear in both tables (a single line for the drawing, split for the chord): keep the split ones
+    const out = lines.filter(L => !(L.n === 'Na D 589.3' || L.n === 'Mg b 517.5'));
+    out.sort((a, b) => b.w - a.w); out.length = Math.min(out.length, mx);
+    let q = 0; out.forEach(L => { L.amp = Math.pow(L.w, gamma); q += L.amp * L.amp; });
+    const res = { T, cls, sub: cl.sub, f0, lines: out, rms: level * Math.sqrt(q / 2), level, dop, rv, exag, bed: { f0: f0 * dop, amp: level * Math.pow(10, -22 / 20) }, limitHz: K.C_KMS * 1e12 / BALMER_LIMIT_NM / Math.pow(2, K.OCT_LIGHT) * dop };
+    m[key] = res; return res;
+  };
+  G.lineChord.cache = new Map();
 
   /* typical equatorial rotation speeds (km/s) by class — dwarfs (Glebocki & Gnacinski 2005; Royer 2009 for A stars), giants and
      supergiants (de Medeiros & Mayor 1999; Zorec 2023) — used when a star has no measured v sin i (APPROX; stated as "typical") */

@@ -199,6 +199,7 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
 .gsheet .gsh{margin-bottom:.4rem;flex-wrap:wrap}
 .gsheet .gsh small{color:var(--vellum-dim);font-family:var(--f-mono);font-size:.72rem;margin-right:auto}
 .gsheet canvas{display:block;width:100%;height:11rem;border-radius:8px;background:#030409;border:1px solid rgba(201,152,79,.18)}
+.gsheet .gsb .chip[data-a="chord"]{border-color:rgba(201,152,79,.6);color:#f3d9a4}.gsheet .gsb .chip[data-a="chord"].on{background:rgba(201,152,79,.22)}
 .gsheet .gst{margin:.45rem 0 .2rem;color:var(--vellum)}
 .gsheet .gsr2{margin:0 0 .3rem;color:var(--vellum-dim);font-size:.74rem;font-family:var(--f-mono);line-height:1.35}
 .gsheet .gsb{margin-top:.35rem}
@@ -2252,7 +2253,7 @@ MOTS.score.start=start;MOTS.score.stop=stop;MOTS.score.xml=musicXML;MOTS.score.m
     placeSystems();
     bud.reset();
     G.filters.cache.clear();
-    G.starVoice.cache.clear(); G.spectrum.cache.clear(); G.starRGB.cache.clear();
+    G.starVoice.cache.clear(); G.spectrum.cache.clear(); G.starRGB.cache.clear(); if (G.lineChord) G.lineChord.cache.clear();
     srch.index = null;
   }
   /** The members of a catalogued system placed with their primary (step 5, interstellar Flight at close range). The rows of a
@@ -2482,6 +2483,60 @@ MOTS.score.start=start;MOTS.score.stop=stop;MOTS.score.xml=musicXML;MOTS.score.m
     const out = { T, cls, sub: cl.sub, peak_nm: G.wienPeak(T), f0, lo, hi, n, planck, trans, lines }; m[key] = out; return out;
   };
   G.spectrum.cache = new Map();
+
+  /* the extra lines of the line chord (step 4d: "Hear its lines"), beyond the drawing table LINES: the Balmer series to high orders converging
+     on the Balmer limit (364.6 nm) for the hot stars, the He I lines of the B stars, Na D split into D1/D2, the Mg b triplet, more Fe I
+     for the Sun's kind, the C₂ Swan bands of carbon stars. Wavelengths in air (nm), widths wn (nm) as drawn, strengths per class 0..1 (APPROX,
+     as LINES). The Balmer members n = 7… come from the Rydberg formula (vacuum → air /1.000284) with a decrement of 0.84 per order. */
+  const BALMER_LIMIT_NM = 364.6;
+  function balmerNm(n) { return 1 / (1.0967758e7 * (1 / 4 - 1 / (n * n))) * 1e9 / 1.000284; }
+  const CHORD_EXTRA = [
+    { n: 'Hε', nm: 397.01, q: 25, wn: 2.5, w: { O: .25, B: .35, A: .7, F: .4, G: .15 } },
+    { n: 'He I 402.6', nm: 402.62, q: 30, wn: 1, w: { O: .3, B: .45 } }, { n: 'He I 471.3', nm: 471.31, q: 30, wn: 1, w: { O: .25, B: .4 } },
+    { n: 'He I 492.2', nm: 492.19, q: 30, wn: 1, w: { O: .3, B: .45 } }, { n: 'He I 501.6', nm: 501.57, q: 30, wn: 1, w: { O: .35, B: .5 } }, { n: 'He I 667.8', nm: 667.82, q: 30, wn: 1, w: { O: .3, B: .45 } },
+    { n: 'He II 541.1', nm: 541.1, q: 30, wn: 1, w: { O: .7 } }, { n: 'He II 420.0', nm: 420.0, q: 30, wn: 1, w: { O: .5 } },
+    { n: 'Na D2 589.0', nm: 588.995, q: 20, wn: 1, w: { F: .2, G: .6, K: .9, M: 1 } }, { n: 'Na D1 589.6', nm: 589.592, q: 20, wn: 1, w: { F: .15, G: .5, K: .8, M: .9 } },
+    { n: 'Mg b1 518.4', nm: 518.36, q: 15, wn: 1, w: { F: .3, G: .7, K: .8, M: .4 } }, { n: 'Mg b2 517.3', nm: 517.27, q: 15, wn: 1, w: { F: .3, G: .65, K: .75, M: .35 } }, { n: 'Mg b4 516.7', nm: 516.73, q: 15, wn: 1, w: { F: .25, G: .55, K: .65, M: .3 } },
+    { n: 'Fe I 404.6', nm: 404.58, q: 30, wn: .8, w: { F: .3, G: .5, K: .5 } }, { n: 'Fe I 440.5', nm: 440.48, q: 30, wn: .8, w: { F: .3, G: .45, K: .45 } }, { n: 'Fe I 495.8', nm: 495.76, q: 30, wn: .8, w: { G: .35, K: .4 } },
+    { n: 'MgH 521', nm: 521.0, q: 8, wn: 12, dir: -1, w: { K: .5, M: .35 } },
+    { n: 'C₂ Swan 563.5', nm: 563.5, q: 8, wn: 10, w: { C: .7 } }, { n: 'C₂ Swan 438.3', nm: 438.3, q: 8, wn: 10, w: { C: .5 } }, { n: 'CN 421.6', nm: 421.6, q: 10, wn: 8, w: { C: .6 } }
+  ];
+  for (let n = 8; n <= 18; n++) CHORD_EXTRA.push({ n: 'H' + n, nm: +balmerNm(n).toFixed(2), q: 25, wn: 1.6, balmer: n, w: { O: .25 * Math.pow(.84, n - 6), B: .35 * Math.pow(.84, n - 6), A: .75 * Math.pow(.84, n - 6), F: .45 * Math.pow(.84, n - 6), G: .12 * Math.pow(.84, n - 6) } });
+  G.CHORD_EXTRA = CHORD_EXTRA; G.BALMER_LIMIT_NM = BALMER_LIMIT_NM; G.balmerNm = balmerNm;
+  /* the chord's finer rules by subtype (APPROX, beyond rampOf): in B stars He I peaks at B2 and fades to B9 while the Balmer lines grow
+     toward A0; in K stars the Balmer lines fade toward K9 while Ca I, the MgH and CN bands grow, and the first TiO bands appear from K5 */
+  function chordWeight(L, cls, sub) {
+    let w = L.w[cls] || 0; const s = sub == null ? 5 : sub;
+    if (cls === 'B') { if (/^He/.test(L.n)) w *= Math.max(.15, 1 - Math.abs(s - 2) / 8); else if (/^H(α|β|γ|δ|ε|\d)/.test(L.n)) w *= .5 + s / 18; }
+    else if (cls === 'K') { if (/^H(α|β|γ|δ|ε|\d)/.test(L.n)) w *= Math.max(.2, 1 - s / 6); else if (/^(Ca I |MgH|CN)/.test(L.n)) w *= .7 + s / 15; else if (/^TiO/.test(L.n) && !w) w = .3 * Math.pow(Math.max(0, s - 4) / 5, 1.5); }
+    return w;
+  }
+  G.chordWeight = chordWeight;
+  /** The line chord of a star ("Hear its lines"): every absorption line of its class as a sustained note at its wavelength lowered forty
+   *  octaves — unfolded, so the same element sings the same note in every star (Hα 656.28 nm → 415.5 Hz; the Balmer limit 364.6 nm → 747.8 Hz).
+   *  Returns {T, cls, sub, f0 (the Wien tone), lines: [{n, nm, w (strength 0..1, by class and subtype, as spectrum()), wn (width nm), f (Hz),
+   *  cents (the line's width in cents: 1200 log2 of its wavelength span), broad (wn ≥ 5 nm: a band, played as a cluster or band-limited noise),
+   *  dir (+1: a band degrading to the red, as TiO and C₂; −1: to the violet, as MgH),
+   *  amp (0..1 relative amplitude, w^opts.gamma), balmer (n, when it is a Balmer member)}] strongest first, at most opts.max (24),
+   *  rms (the RMS one gets from amplitudes amp·opts.level as sines: opts.level √(Σ amp²/2)), level (opts.level, default 0.09), dop (the
+   *  Doppler factor for opts.rv km/s × opts.exag, applied to f when given), bed: {f0, amp (the continuum bed at the Wien tone, −22 dB)}}.
+   *  Stars of one class and subtype share their lines; only their motion (and the Wien bed) tells them apart. Cached per star and options. */
+  G.lineChord = function (star, opts) {
+    const o = opts || {}, mx = o.max || 24, gamma = o.gamma == null ? 1 : o.gamma, level = o.level == null ? .09 : o.level, exag = o.exag || 1, rv = o.rv != null ? o.rv : (star.rv || 0);
+    const key = mx + ':' + gamma + ':' + level + ':' + exag + ':' + rv, c = G.lineChord.cache; let m = c.get(star); if (m && m[key]) return m[key]; if (!m) c.set(star, m = {});
+    const T = star.T || 5772, cl = classOf(star), cls = star.lc === 'WD' || /^D/.test(String(star.sp || '').trim()) ? (cl.cls === 'WD' ? 'A' : cl.cls) : cl.cls, ramp = rampOf(cls, cl.sub), f0 = G.starTone(T);
+    const dop = G.doppler(rv, exag), lines = [];
+    const add = L => { const w = chordWeight(L, cls, cl.sub); if (!(w > 0)) return; const wn = L.wn, span = Math.max(.05, wn), fs = K.C_KMS * 1e12 / L.nm / Math.pow(2, K.OCT_LIGHT);
+      lines.push({ n: L.n, nm: L.nm, w: Math.min(1, w * ramp), wn, dir: L.dir || 1, f: fs * dop, f0: fs, cents: 1200 * Math.log2((L.nm + span / 2) / (L.nm - span / 2)), broad: wn >= 5, main: !!L.main, balmer: L.balmer || (/^H[αβγδε]$/.test(L.n) ? { 'Hα': 3, 'Hβ': 4, 'Hγ': 5, 'Hδ': 6, 'Hε': 7 }[L.n] : 0) }); };
+    LINES.forEach(add); CHORD_EXTRA.forEach(add);
+    // Na D and Mg b appear in both tables (a single line for the drawing, split for the chord): keep the split ones
+    const out = lines.filter(L => !(L.n === 'Na D 589.3' || L.n === 'Mg b 517.5'));
+    out.sort((a, b) => b.w - a.w); out.length = Math.min(out.length, mx);
+    let q = 0; out.forEach(L => { L.amp = Math.pow(L.w, gamma); q += L.amp * L.amp; });
+    const res = { T, cls, sub: cl.sub, f0, lines: out, rms: level * Math.sqrt(q / 2), level, dop, rv, exag, bed: { f0: f0 * dop, amp: level * Math.pow(10, -22 / 20) }, limitHz: K.C_KMS * 1e12 / BALMER_LIMIT_NM / Math.pow(2, K.OCT_LIGHT) * dop };
+    m[key] = res; return res;
+  };
+  G.lineChord.cache = new Map();
 
   /* typical equatorial rotation speeds (km/s) by class — dwarfs (Glebocki & Gnacinski 2005; Royer 2009 for A stars), giants and
      supergiants (de Medeiros & Mayor 1999; Zorec 2023) — used when a star has no measured v sin i (APPROX; stated as "typical") */
@@ -4713,10 +4768,10 @@ const fmtN=(n,d)=>Number(n).toLocaleString(LOCALE,{maximumFractionDigits:d,minim
 /* ---------- texts, twelve languages ---------- */
 /*FLYG-TEXTS*/const TX_ALL={
 en:{inter:'Interstellar',helio:'Heliopause',oort:'Oort cloud',acen:'Alpha Centauri',sirius:'Sirius',vela:'Vela pulsar',gc:'Galactic centre',above:'Above the Milky Way',home:'Home',beyond:'Interstellar ▶',
- st:{h:'Stars',vol:'Star volume',snd:'Star sound',tone:'Tone',shim:'Shimmer',pulse:'Pulse',pulseT:'Pulse with its light',off:'Off',
+ st:{h:'Stars',vol:'Star volume',snd:'Star sound',tone:'Tone',shim:'Shimmer',pulse:'Pulse',pulseT:'Pulse with its light',off:'Off',lines:'Lines (chord)',linesT:'The nearest star’s absorption lines as a sustained chord',
   name:'A star sings its name when you arrive',quake:'Starquake: a sun-like star’s own oscillations, sped up, while you are parked beside it',dmVol:'Dark-matter chord volume',
   orbit:'Orbit it',orbiting:'Stop orbiting',next:'Next star',home:'Home',close:'Close',fromHome:'{d} from home',
-  hear:{tone:'You hear its Wien note with the lines of its class, from its true direction.',shim:'You hear its note as a soft shimmer of grains.',pulse:'Its note swells and fades with its light (long periods sped up).',off:'The stars are silent; the pulsars, the radio sky and the rotation chord remain.',quake:'Its own oscillations, raised {oct} octaves: a starquake.',pulsar:'Its real pulses, {n} a second.',gc:'The black hole’s radio flicker as coloured noise, and the stars of the bulge.'},
+  hear:{lines:'Its absorption lines as a sustained chord by the forty-octave rule, from its true direction; the other stars keep their tones, quieter.',tone:'You hear its Wien note with the lines of its class, from its true direction.',shim:'You hear its note as a soft shimmer of grains.',pulse:'Its note swells and fades with its light (long periods sped up).',off:'The stars are silent; the pulsars, the radio sky and the rotation chord remain.',quake:'Its own oscillations, raised {oct} octaves: a starquake.',pulsar:'Its real pulses, {n} a second.',gc:'The black hole’s radio flicker as coloured noise, and the stars of the bulge.'},
   kind:{V:'dwarf',III:'giant',I:'supergiant',S:'star',D:'white dwarf',P:'neutron star · pulsar',BH:'supermassive black hole'},col:{O:'blue',B:'blue-white',A:'white',F:'yellow-white',G:'yellow',K:'orange',M:'red'},tpl:'{c} {k}'},
  shipSpeed:'Ship speed',dop:'Doppler exaggeration',dm:'Dark matter (the flat rotation curve plays the harmonic series)',
  course:'Setting course for {n}',arrived:'Arrived: {n}',toward:'Travelling to <em>{n}</em>',nearest:'Nearest star: <em>{n}</em>',sun:'the Sun',
@@ -4736,10 +4791,10 @@ en:{inter:'Interstellar',helio:'Heliopause',oort:'Oort cloud',acen:'Alpha Centau
  hera:'I am Hera. The milky circle across your sky is my spilled milk: a hundred thousand million suns, turning once in two hundred and thirty million years.',
  sgra:'Sagittarius A*',crab:'Crab pulsar',helioLbl:'Heliopause',lightOf:'light',away:'{d} away',chordOn:'The rotation chord · dark matter on: the harmonic series',chordOff:'The rotation chord · dark matter off: the chord sags'},
 pl:{inter:'Międzygwiezdne',helio:'Heliopauza',oort:'Obłok Oorta',acen:'Alfa Centauri',sirius:'Syriusz',vela:'Pulsar Vela',gc:'Centrum Galaktyki',above:'Nad Drogą Mleczną',home:'Dom',beyond:'Międzygwiezdne ▶',
- st:{h:'Gwiazdy',vol:'Głośność gwiazd',snd:'Dźwięk gwiazd',tone:'Ton',shim:'Migotanie',pulse:'Puls',pulseT:'Puls w rytm jej światła',off:'Wył.',
+ st:{h:'Gwiazdy',vol:'Głośność gwiazd',snd:'Dźwięk gwiazd',tone:'Ton',shim:'Migotanie',pulse:'Puls',pulseT:'Puls w rytm jej światła',off:'Wył.',lines:'Linie (akord)',linesT:'Linie absorpcyjne najbliższej gwiazdy jako wytrzymany akord',
   name:'Gwiazda śpiewa swoje imię, gdy do niej dotrzesz',quake:'Trzęsienie gwiazdy: własne drgania gwiazdy podobnej do Słońca, przyspieszone, gdy stoisz obok niej',dmVol:'Głośność akordu ciemnej materii',
   orbit:'Okrąż ją',orbiting:'Przestań okrążać',next:'Następna gwiazda',home:'Dom',close:'Zamknij',fromHome:'{d} od domu',
-  hear:{tone:'Słyszysz jej nutę Wiena z liniami jej klasy, z jej prawdziwego kierunku.',shim:'Słyszysz jej nutę jako miękkie migotanie ziaren.',pulse:'Jej nuta wzbiera i cichnie w rytm jej światła (długie okresy przyspieszone).',off:'Gwiazdy milczą; zostają pulsary, radiowe niebo i akord rotacji.',quake:'Jej własne drgania, podniesione o {oct} oktaw: trzęsienie gwiazdy.',pulsar:'Jej prawdziwe impulsy, {n} na sekundę.',gc:'Radiowe migotanie czarnej dziury jako kolorowy szum i gwiazdy zgrubienia.'},
+  hear:{lines:'Jej linie absorpcyjne jako wytrzymany akord według reguły czterdziestu oktaw, z jej prawdziwego kierunku; pozostałe gwiazdy zachowują swoje tony, ciszej.',tone:'Słyszysz jej nutę Wiena z liniami jej klasy, z jej prawdziwego kierunku.',shim:'Słyszysz jej nutę jako miękkie migotanie ziaren.',pulse:'Jej nuta wzbiera i cichnie w rytm jej światła (długie okresy przyspieszone).',off:'Gwiazdy milczą; zostają pulsary, radiowe niebo i akord rotacji.',quake:'Jej własne drgania, podniesione o {oct} oktaw: trzęsienie gwiazdy.',pulsar:'Jej prawdziwe impulsy, {n} na sekundę.',gc:'Radiowe migotanie czarnej dziury jako kolorowy szum i gwiazdy zgrubienia.'},
   kind:{V:'karzeł|m',III:'olbrzym|m',I:'nadolbrzym|m',S:'gwiazda|f',D:'biały karzeł',P:'gwiazda neutronowa · pulsar',BH:'supermasywna czarna dziura'},col:{O:{m:'niebieski',f:'niebieska'},B:{m:'niebiesko-biały',f:'niebiesko-biała'},A:{m:'biały',f:'biała'},F:{m:'żółto-biały',f:'żółto-biała'},G:{m:'żółty',f:'żółta'},K:{m:'pomarańczowy',f:'pomarańczowa'},M:{m:'czerwony',f:'czerwona'}},tpl:'{c} {k}'},
  shipSpeed:'Prędkość statku',dop:'Wyolbrzymienie Dopplera',dm:'Ciemna materia (płaska krzywa rotacji gra szereg harmoniczny)',
  course:'Kurs na: {n}',arrived:'Dotarliśmy: {n}',toward:'Lot do: <em>{n}</em>',nearest:'Najbliższa gwiazda: <em>{n}</em>',sun:'Słońce',
@@ -4759,10 +4814,10 @@ pl:{inter:'Międzygwiezdne',helio:'Heliopauza',oort:'Obłok Oorta',acen:'Alfa Ce
  hera:'Jestem Hera. Mleczny krąg na twoim niebie to moje rozlane mleko: sto tysięcy milionów słońc, obracających się raz na dwieście trzydzieści milionów lat.',
  sgra:'Sagittarius A*',crab:'Pulsar w Krabie',helioLbl:'Heliopauza',lightOf:'światło',away:'{d} stąd',chordOn:'Akord rotacji · ciemna materia włączona: szereg harmoniczny',chordOff:'Akord rotacji · ciemna materia wyłączona: akord opada'},
 cy:{inter:'Rhyngserol',helio:'Heliopaws',oort:'Cwmwl Oort',acen:'Alffa Centauri',sirius:'Sirius',vela:'Pwlsar Vela',gc:'Canol y Galaeth',above:'Uwchlaw’r Llwybr Llaethog',home:'Adref',beyond:'Rhyngserol ▶',
- st:{h:'Sêr',vol:'Cyfaint y sêr',snd:'Sain y sêr',tone:'Tôn',shim:'Pefrio',pulse:'Curiad',pulseT:'Curo gyda’i golau',off:'I ffwrdd',
+ st:{h:'Sêr',vol:'Cyfaint y sêr',snd:'Sain y sêr',tone:'Tôn',shim:'Pefrio',pulse:'Curiad',pulseT:'Curo gyda’i golau',off:'I ffwrdd',lines:'Llinellau (cord)',linesT:'Llinellau amsugno’r seren agosaf fel cord parhaus',
   name:'Mae seren yn canu ei henw pan gyrhaeddwch',quake:'Serengryn: dirgryniadau seren debyg i’r Haul, wedi’u cyflymu, tra byddwch wedi parcio wrth ei hymyl',dmVol:'Cyfaint cord y mater tywyll',
   orbit:'Cylchu o’i chwmpas',orbiting:'Stopio cylchu',next:'Y seren nesaf',home:'Adref',close:'Cau',fromHome:'{d} o adref',
-  hear:{tone:'Rydych yn clywed ei nodyn Wien gyda llinellau ei dosbarth, o’i chyfeiriad go iawn.',shim:'Rydych yn clywed ei nodyn fel pefrio meddal o ronynnau.',pulse:'Mae ei nodyn yn chwyddo ac yn pylu gyda’i golau (cyfnodau hir wedi’u cyflymu).',off:'Mae’r sêr yn fud; erys y pylsarau, yr awyr radio a chord y cylchdro.',quake:'Ei dirgryniadau ei hun, wedi’u codi {oct} wythfed: serengryn.',pulsar:'Ei phylsau go iawn, {n} yr eiliad.',gc:'Fflachio radio’r twll du fel sŵn lliw, a sêr y chwydd.'},
+  hear:{lines:'Ei llinellau amsugno fel cord parhaus yn ôl rheol y deugain wythfed, o’i chyfeiriad go iawn; mae’r sêr eraill yn cadw eu tonau, yn dawelach.',tone:'Rydych yn clywed ei nodyn Wien gyda llinellau ei dosbarth, o’i chyfeiriad go iawn.',shim:'Rydych yn clywed ei nodyn fel pefrio meddal o ronynnau.',pulse:'Mae ei nodyn yn chwyddo ac yn pylu gyda’i golau (cyfnodau hir wedi’u cyflymu).',off:'Mae’r sêr yn fud; erys y pylsarau, yr awyr radio a chord y cylchdro.',quake:'Ei dirgryniadau ei hun, wedi’u codi {oct} wythfed: serengryn.',pulsar:'Ei phylsau go iawn, {n} yr eiliad.',gc:'Fflachio radio’r twll du fel sŵn lliw, a sêr y chwydd.'},
   kind:{V:'corrach|m',III:'cawr|m',I:'uwchgawr|m',S:'seren|f',D:'corrach gwyn',P:'seren niwtron · pwlsar',BH:'twll du goruwchenfawr'},col:{O:{m:'glas',f:'las'},B:{m:'glaswyn',f:'laswyn'},A:{m:'gwyn',f:'wen'},F:{m:'melynwyn',f:'felynwyn'},G:{m:'melyn',f:'felen'},K:'oren',M:{m:'coch',f:'goch'}},tpl:'{k} {c}'},
  shipSpeed:'Cyflymder y llong',dop:'Gorliwio Doppler',dm:'Mater tywyll (mae’r gromlin gylchdroi wastad yn chwarae’r gyfres harmonig)',
  course:'Gosod cwrs am {n}',arrived:'Wedi cyrraedd: {n}',toward:'Yn teithio i <em>{n}</em>',nearest:'Seren agosaf: <em>{n}</em>',sun:'yr Haul',
@@ -4782,10 +4837,10 @@ cy:{inter:'Rhyngserol',helio:'Heliopaws',oort:'Cwmwl Oort',acen:'Alffa Centauri'
  hera:'Hera ydw i. Y cylch llaethog ar draws eich awyr yw fy llaeth a gollwyd: can mil o filiynau o heuliau, yn troi unwaith bob dau gant tri deg miliwn o flynyddoedd.',
  sgra:'Sagittarius A*',crab:'Pwlsar y Cranc',helioLbl:'Heliopaws',lightOf:'golau',away:'{d} i ffwrdd',chordOn:'Cord y cylchdro · mater tywyll ymlaen: y gyfres harmonig',chordOff:'Cord y cylchdro · mater tywyll i ffwrdd: mae’r cord yn suddo'},
 de:{inter:'Interstellar',helio:'Heliopause',oort:'Oortsche Wolke',acen:'Alpha Centauri',sirius:'Sirius',vela:'Vela-Pulsar',gc:'Galaktisches Zentrum',above:'Über der Milchstraße',home:'Heimat',beyond:'Interstellar ▶',
- st:{h:'Sterne',vol:'Lautstärke der Sterne',snd:'Klang der Sterne',tone:'Ton',shim:'Schimmern',pulse:'Puls',pulseT:'Pulsieren mit seinem Licht',off:'Aus',
+ st:{h:'Sterne',vol:'Lautstärke der Sterne',snd:'Klang der Sterne',tone:'Ton',shim:'Schimmern',pulse:'Puls',pulseT:'Pulsieren mit seinem Licht',off:'Aus',lines:'Linien (Akkord)',linesT:'Die Absorptionslinien des nächsten Sterns als gehaltener Akkord',
   name:'Ein Stern singt seinen Namen, wenn du ankommst',quake:'Sternbeben: die eigenen Schwingungen eines sonnenähnlichen Sterns, beschleunigt, solange du neben ihm parkst',dmVol:'Lautstärke des Dunkle-Materie-Akkords',
   orbit:'Umkreisen',orbiting:'Umkreisen beenden',next:'Nächster Stern',home:'Heimat',close:'Schließen',fromHome:'{d} von zu Hause',
-  hear:{tone:'Du hörst seinen Wien-Ton mit den Linien seiner Klasse, aus seiner wahren Richtung.',shim:'Du hörst seinen Ton als weiches Schimmern aus Körnern.',pulse:'Sein Ton schwillt mit seinem Licht an und ab (lange Perioden beschleunigt).',off:'Die Sterne schweigen; die Pulsare, der Radiohimmel und der Rotationsakkord bleiben.',quake:'Seine eigenen Schwingungen, um {oct} Oktaven angehoben: ein Sternbeben.',pulsar:'Seine echten Pulse, {n} pro Sekunde.',gc:'Das Radioflackern des Schwarzen Lochs als gefärbtes Rauschen, und die Sterne des Bulge.'},
+  hear:{lines:'Seine Absorptionslinien als gehaltener Akkord nach der Vierzig-Oktaven-Regel, aus seiner wahren Richtung; die anderen Sterne behalten ihre Töne, leiser.',tone:'Du hörst seinen Wien-Ton mit den Linien seiner Klasse, aus seiner wahren Richtung.',shim:'Du hörst seinen Ton als weiches Schimmern aus Körnern.',pulse:'Sein Ton schwillt mit seinem Licht an und ab (lange Perioden beschleunigt).',off:'Die Sterne schweigen; die Pulsare, der Radiohimmel und der Rotationsakkord bleiben.',quake:'Seine eigenen Schwingungen, um {oct} Oktaven angehoben: ein Sternbeben.',pulsar:'Seine echten Pulse, {n} pro Sekunde.',gc:'Das Radioflackern des Schwarzen Lochs als gefärbtes Rauschen, und die Sterne des Bulge.'},
   kind:{V:'Zwerg',III:'Riese',I:'Überriese',S:'Stern',D:'Weißer Zwerg',P:'Neutronenstern · Pulsar',BH:'supermassereiches Schwarzes Loch'},col:{O:'blauer',B:'blauweißer',A:'weißer',F:'gelbweißer',G:'gelber',K:'oranger',M:'roter'},tpl:'{c} {k}'},
  shipSpeed:'Schiffsgeschwindigkeit',dop:'Doppler-Übertreibung',dm:'Dunkle Materie (die flache Rotationskurve spielt die Obertonreihe)',
  course:'Kurs auf {n}',arrived:'Angekommen: {n}',toward:'Unterwegs nach <em>{n}</em>',nearest:'Nächster Stern: <em>{n}</em>',sun:'die Sonne',
@@ -4805,10 +4860,10 @@ de:{inter:'Interstellar',helio:'Heliopause',oort:'Oortsche Wolke',acen:'Alpha Ce
  hera:'Ich bin Hera. Der milchige Kreis über deinem Himmel ist meine verschüttete Milch: hunderttausend Millionen Sonnen, die sich einmal in zweihundertdreißig Millionen Jahren drehen.',
  sgra:'Sagittarius A*',crab:'Krebs-Pulsar',helioLbl:'Heliopause',lightOf:'Licht',away:'{d} entfernt',chordOn:'Der Rotationsakkord · Dunkle Materie an: die Obertonreihe',chordOff:'Der Rotationsakkord · Dunkle Materie aus: der Akkord sackt ab'},
 es:{inter:'Interestelar',helio:'Heliopausa',oort:'Nube de Oort',acen:'Alfa Centauri',sirius:'Sirio',vela:'Púlsar de Vela',gc:'Centro galáctico',above:'Sobre la Vía Láctea',home:'Casa',beyond:'Interestelar ▶',
- st:{h:'Estrellas',vol:'Volumen de las estrellas',snd:'Sonido de las estrellas',tone:'Tono',shim:'Centelleo',pulse:'Pulso',pulseT:'Pulsar con su luz',off:'Apagado',
+ st:{h:'Estrellas',vol:'Volumen de las estrellas',snd:'Sonido de las estrellas',tone:'Tono',shim:'Centelleo',pulse:'Pulso',pulseT:'Pulsar con su luz',off:'Apagado',lines:'Líneas (acorde)',linesT:'Las líneas de absorción de la estrella más cercana como un acorde sostenido',
   name:'La estrella canta su nombre al llegar',quake:'Terremoto estelar: las oscilaciones propias de una estrella similar al Sol, aceleradas, mientras estás detenido junto a ella',dmVol:'Volumen del acorde de materia oscura',
   orbit:'Orbitarla',orbiting:'Dejar de orbitar',next:'Siguiente estrella',home:'Casa',close:'Cerrar',fromHome:'a {d} de casa',
-  hear:{tone:'Oyes su nota de Wien con las líneas de su clase, desde su dirección real.',shim:'Oyes su nota como un suave centelleo de granos.',pulse:'Su nota crece y se apaga con su luz (los periodos largos, acelerados).',off:'Las estrellas callan; quedan los púlsares, el cielo de radio y el acorde de rotación.',quake:'Sus propias oscilaciones, elevadas {oct} octavas: un terremoto estelar.',pulsar:'Sus pulsos reales, {n} por segundo.',gc:'El parpadeo de radio del agujero negro como ruido coloreado, y las estrellas del bulbo.'},
+  hear:{lines:'Sus líneas de absorción como un acorde sostenido según la regla de las cuarenta octavas, desde su dirección real; las demás estrellas conservan sus tonos, más bajos.',tone:'Oyes su nota de Wien con las líneas de su clase, desde su dirección real.',shim:'Oyes su nota como un suave centelleo de granos.',pulse:'Su nota crece y se apaga con su luz (los periodos largos, acelerados).',off:'Las estrellas callan; quedan los púlsares, el cielo de radio y el acorde de rotación.',quake:'Sus propias oscilaciones, elevadas {oct} octavas: un terremoto estelar.',pulsar:'Sus pulsos reales, {n} por segundo.',gc:'El parpadeo de radio del agujero negro como ruido coloreado, y las estrellas del bulbo.'},
   kind:{V:'enana',III:'gigante',I:'supergigante',S:'estrella',D:'enana blanca',P:'estrella de neutrones · púlsar',BH:'agujero negro supermasivo'},col:{O:'azul',B:'blanca azulada',A:'blanca',F:'blanca amarillenta',G:'amarilla',K:'naranja',M:'roja'},tpl:'{k} {c}'},
  shipSpeed:'Velocidad de la nave',dop:'Exageración Doppler',dm:'Materia oscura (la curva de rotación plana toca la serie armónica)',
  course:'Rumbo a {n}',arrived:'Llegada: {n}',toward:'Viajando a <em>{n}</em>',nearest:'Estrella más cercana: <em>{n}</em>',sun:'el Sol',
@@ -4828,10 +4883,10 @@ es:{inter:'Interestelar',helio:'Heliopausa',oort:'Nube de Oort',acen:'Alfa Centa
  hera:'Soy Hera. El círculo lechoso que cruza tu cielo es mi leche derramada: cien mil millones de soles, que giran una vez cada doscientos treinta millones de años.',
  sgra:'Sagitario A*',crab:'Púlsar del Cangrejo',helioLbl:'Heliopausa',lightOf:'luz',away:'a {d}',chordOn:'El acorde de rotación · materia oscura activada: la serie armónica',chordOff:'El acorde de rotación · materia oscura desactivada: el acorde se hunde'},
 fr:{inter:'Interstellaire',helio:'Héliopause',oort:'Nuage de Oort',acen:'Alpha du Centaure',sirius:'Sirius',vela:'Pulsar des Voiles',gc:'Centre galactique',above:'Au-dessus de la Voie lactée',home:'Maison',beyond:'Interstellaire ▶',
- st:{h:'Étoiles',vol:'Volume des étoiles',snd:'Son des étoiles',tone:'Ton',shim:'Scintillement',pulse:'Pulsation',pulseT:'Pulser avec sa lumière',off:'Éteint',
+ st:{h:'Étoiles',vol:'Volume des étoiles',snd:'Son des étoiles',tone:'Ton',shim:'Scintillement',pulse:'Pulsation',pulseT:'Pulser avec sa lumière',off:'Éteint',lines:'Raies (accord)',linesT:'Les raies d’absorption de l’étoile la plus proche en accord tenu',
   name:'L’étoile chante son nom à votre arrivée',quake:'Séisme stellaire : les oscillations propres d’une étoile semblable au Soleil, accélérées, tant que vous êtes arrêté à côté d’elle',dmVol:'Volume de l’accord de matière noire',
   orbit:'Orbiter autour',orbiting:'Arrêter l’orbite',next:'Étoile suivante',home:'Maison',close:'Fermer',fromHome:'à {d} de la maison',
-  hear:{tone:'Vous entendez sa note de Wien avec les raies de sa classe, depuis sa vraie direction.',shim:'Vous entendez sa note comme un doux scintillement de grains.',pulse:'Sa note enfle et s’éteint avec sa lumière (périodes longues accélérées).',off:'Les étoiles se taisent ; restent les pulsars, le ciel radio et l’accord de rotation.',quake:'Ses propres oscillations, élevées de {oct} octaves : un séisme stellaire.',pulsar:'Ses vraies impulsions, {n} par seconde.',gc:'Le scintillement radio du trou noir en bruit coloré, et les étoiles du bulbe.'},
+  hear:{lines:'Ses raies d’absorption en accord tenu selon la règle des quarante octaves, depuis sa vraie direction ; les autres étoiles gardent leurs notes, plus doucement.',tone:'Vous entendez sa note de Wien avec les raies de sa classe, depuis sa vraie direction.',shim:'Vous entendez sa note comme un doux scintillement de grains.',pulse:'Sa note enfle et s’éteint avec sa lumière (périodes longues accélérées).',off:'Les étoiles se taisent ; restent les pulsars, le ciel radio et l’accord de rotation.',quake:'Ses propres oscillations, élevées de {oct} octaves : un séisme stellaire.',pulsar:'Ses vraies impulsions, {n} par seconde.',gc:'Le scintillement radio du trou noir en bruit coloré, et les étoiles du bulbe.'},
   kind:{V:'naine',III:'géante',I:'supergéante',S:'étoile',D:'naine blanche',P:'étoile à neutrons · pulsar',BH:'trou noir supermassif'},col:{O:'bleue',B:'bleu-blanc',A:'blanche',F:'blanc-jaune',G:'jaune',K:'orange',M:'rouge'},tpl:'{k} {c}'},
  shipSpeed:'Vitesse du vaisseau',dop:'Exagération Doppler',dm:'Matière noire (la courbe de rotation plate joue la série harmonique)',
  course:'Cap sur {n}',arrived:'Arrivée : {n}',toward:'En route vers <em>{n}</em>',nearest:'Étoile la plus proche : <em>{n}</em>',sun:'le Soleil',
@@ -4851,10 +4906,10 @@ fr:{inter:'Interstellaire',helio:'Héliopause',oort:'Nuage de Oort',acen:'Alpha 
  hera:'Je suis Héra. Le cercle laiteux qui traverse votre ciel est mon lait répandu : cent mille millions de soleils, qui tournent une fois en deux cent trente millions d’années.',
  sgra:'Sagittarius A*',crab:'Pulsar du Crabe',helioLbl:'Héliopause',lightOf:'lumière',away:'à {d}',chordOn:'L’accord de rotation · matière noire activée : la série harmonique',chordOff:'L’accord de rotation · matière noire désactivée : l’accord s’affaisse'},
 it:{inter:'Interstellare',helio:'Eliopausa',oort:'Nube di Oort',acen:'Alfa Centauri',sirius:'Sirio',vela:'Pulsar delle Vele',gc:'Centro galattico',above:'Sopra la Via Lattea',home:'Casa',beyond:'Interstellare ▶',
- st:{h:'Stelle',vol:'Volume delle stelle',snd:'Suono delle stelle',tone:'Tono',shim:'Scintillio',pulse:'Pulsazione',pulseT:'Pulsare con la sua luce',off:'Spento',
+ st:{h:'Stelle',vol:'Volume delle stelle',snd:'Suono delle stelle',tone:'Tono',shim:'Scintillio',pulse:'Pulsazione',pulseT:'Pulsare con la sua luce',off:'Spento',lines:'Righe (accordo)',linesT:'Le righe di assorbimento della stella più vicina come accordo tenuto',
   name:'La stella canta il suo nome all’arrivo',quake:'Terremoto stellare: le oscillazioni proprie di una stella simile al Sole, accelerate, mentre sei fermo accanto a lei',dmVol:'Volume dell’accordo di materia oscura',
   orbit:'Orbitarle intorno',orbiting:'Smetti di orbitare',next:'Prossima stella',home:'Casa',close:'Chiudi',fromHome:'a {d} da casa',
-  hear:{tone:'Senti la sua nota di Wien con le righe della sua classe, dalla sua vera direzione.',shim:'Senti la sua nota come un morbido scintillio di grani.',pulse:'La sua nota cresce e si spegne con la sua luce (i periodi lunghi sono accelerati).',off:'Le stelle tacciono; restano le pulsar, il cielo radio e l’accordo di rotazione.',quake:'Le sue stesse oscillazioni, alzate di {oct} ottave: un terremoto stellare.',pulsar:'I suoi impulsi reali, {n} al secondo.',gc:'Il tremolio radio del buco nero come rumore colorato, e le stelle del bulge.'},
+  hear:{lines:'Le sue righe di assorbimento come accordo tenuto secondo la regola delle quaranta ottave, dalla sua vera direzione; le altre stelle tengono i loro toni, più piano.',tone:'Senti la sua nota di Wien con le righe della sua classe, dalla sua vera direzione.',shim:'Senti la sua nota come un morbido scintillio di grani.',pulse:'La sua nota cresce e si spegne con la sua luce (i periodi lunghi sono accelerati).',off:'Le stelle tacciono; restano le pulsar, il cielo radio e l’accordo di rotazione.',quake:'Le sue stesse oscillazioni, alzate di {oct} ottave: un terremoto stellare.',pulsar:'I suoi impulsi reali, {n} al secondo.',gc:'Il tremolio radio del buco nero come rumore colorato, e le stelle del bulge.'},
   kind:{V:'nana',III:'gigante',I:'supergigante',S:'stella',D:'nana bianca',P:'stella di neutroni · pulsar',BH:'buco nero supermassiccio'},col:{O:'blu',B:'bianco-azzurra',A:'bianca',F:'bianco-gialla',G:'gialla',K:'arancione',M:'rossa'},tpl:'{k} {c}'},
  shipSpeed:'Velocità della nave',dop:'Esagerazione Doppler',dm:'Materia oscura (la curva di rotazione piatta suona la serie armonica)',
  course:'Rotta verso {n}',arrived:'Arrivo: {n}',toward:'In viaggio verso <em>{n}</em>',nearest:'Stella più vicina: <em>{n}</em>',sun:'il Sole',
@@ -4874,10 +4929,10 @@ it:{inter:'Interstellare',helio:'Eliopausa',oort:'Nube di Oort',acen:'Alfa Centa
  hera:'Sono Era. Il cerchio latteo che attraversa il tuo cielo è il mio latte versato: centomila milioni di soli, che girano una volta ogni duecentotrenta milioni di anni.',
  sgra:'Sagittarius A*',crab:'Pulsar del Granchio',helioLbl:'Eliopausa',lightOf:'luce',away:'a {d}',chordOn:'L’accordo di rotazione · materia oscura attiva: la serie armonica',chordOff:'L’accordo di rotazione · materia oscura spenta: l’accordo si affloscia'},
 zh:{inter:'星际',helio:'日球层顶',oort:'奥尔特云',acen:'半人马座α',sirius:'天狼星',vela:'船帆座脉冲星',gc:'银河系中心',above:'银河系上方',home:'回家',beyond:'星际 ▶',
- st:{h:'恒星',vol:'恒星音量',snd:'恒星之声',tone:'音调',shim:'闪烁',pulse:'脉动',pulseT:'随其光变脉动',off:'关',
+ st:{h:'恒星',vol:'恒星音量',snd:'恒星之声',tone:'音调',shim:'闪烁',pulse:'脉动',pulseT:'随其光变脉动',off:'关',lines:'谱线（和弦）',linesT:'最近恒星的吸收线化作持续和弦',
   name:'到达时恒星唱出自己的名字',quake:'星震：停靠在类太阳恒星旁时，听它加速后的自身振荡',dmVol:'暗物质和弦音量',
   orbit:'绕它飞行',orbiting:'停止环绕',next:'下一颗恒星',home:'回家',close:'关闭',fromHome:'距家 {d}',
-  hear:{tone:'你听到的是它的维恩音，带着其光谱型的谱线，来自真实方向。',shim:'你听到它的音化作柔和的颗粒闪烁。',pulse:'它的音随其光变起伏（长周期已加速）。',off:'恒星静默；脉冲星、射电天空和自转和弦仍在。',quake:'它自身的振荡，升高 {oct} 个八度：一场星震。',pulsar:'它真实的脉冲，每秒 {n} 次。',gc:'黑洞的射电闪烁化作有色噪声，还有核球的恒星。'},
+  hear:{lines:'它的吸收线按四十八度规则化作持续和弦，来自真实方向；其他恒星保留各自的音，更轻。',tone:'你听到的是它的维恩音，带着其光谱型的谱线，来自真实方向。',shim:'你听到它的音化作柔和的颗粒闪烁。',pulse:'它的音随其光变起伏（长周期已加速）。',off:'恒星静默；脉冲星、射电天空和自转和弦仍在。',quake:'它自身的振荡，升高 {oct} 个八度：一场星震。',pulsar:'它真实的脉冲，每秒 {n} 次。',gc:'黑洞的射电闪烁化作有色噪声，还有核球的恒星。'},
   kind:{V:'矮星',III:'巨星',I:'超巨星',S:'恒星',D:'白矮星',P:'中子星 · 脉冲星',BH:'超大质量黑洞'},col:{O:'蓝色',B:'蓝白色',A:'白色',F:'黄白色',G:'黄色',K:'橙色',M:'红色'},tpl:'{c}{k}'},
  shipSpeed:'飞船速度',dop:'多普勒放大',dm:'暗物质（平坦的自转曲线奏出泛音列）',
  course:'设定航向：{n}',arrived:'到达：{n}',toward:'正飞往 <em>{n}</em>',nearest:'最近的恒星：<em>{n}</em>',sun:'太阳',
@@ -4897,10 +4952,10 @@ zh:{inter:'星际',helio:'日球层顶',oort:'奥尔特云',acen:'半人马座α
  hera:'我是赫拉。横过你天空的乳白圆环，是我洒落的乳汁：一千亿颗太阳，每两亿三千万年转一圈。',
  sgra:'人马座A*',crab:'蟹状星云脉冲星',helioLbl:'日球层顶',lightOf:'光',away:'距离 {d}',chordOn:'自转和弦 · 暗物质开启：泛音列',chordOff:'自转和弦 · 暗物质关闭：和弦下沉'},
 ja:{inter:'恒星間',helio:'太陽圏界面',oort:'オールトの雲',acen:'アルファ・ケンタウリ',sirius:'シリウス',vela:'ほ座パルサー',gc:'銀河中心',above:'天の川の上空',home:'帰還',beyond:'恒星間 ▶',
- st:{h:'恒星',vol:'恒星の音量',snd:'恒星の音',tone:'トーン',shim:'きらめき',pulse:'脈動',pulseT:'光とともに脈動',off:'オフ',
+ st:{h:'恒星',vol:'恒星の音量',snd:'恒星の音',tone:'トーン',shim:'きらめき',pulse:'脈動',pulseT:'光とともに脈動',off:'オフ',lines:'線（和音）',linesT:'最も近い星の吸収線を持続する和音として',
   name:'到着時に星が自分の名前を歌う',quake:'星震：太陽に似た星のそばに停まると、その星自身の振動を早回しで聴く',dmVol:'暗黒物質の和音の音量',
   orbit:'周回する',orbiting:'周回をやめる',next:'次の星',home:'帰還',close:'閉じる',fromHome:'故郷から {d}',
-  hear:{tone:'そのスペクトル型の線を帯びたウィーンの音が、本当の方向から聞こえます。',shim:'その音が、粒のやわらかなきらめきとして聞こえます。',pulse:'その音が光とともに強まり、弱まります（長い周期は早回し）。',off:'星は沈黙し、パルサー、電波の空、回転の和音が残ります。',quake:'その星自身の振動を {oct} オクターブ上げた音：星震です。',pulsar:'本物のパルス、毎秒 {n} 回。',gc:'ブラックホールの電波のゆらぎを色付きノイズとして、そしてバルジの星々。'},
+  hear:{lines:'その吸収線を四十オクターブ則の持続する和音として、本当の方向から。他の星は自分の音を保ち、小さめに。',tone:'そのスペクトル型の線を帯びたウィーンの音が、本当の方向から聞こえます。',shim:'その音が、粒のやわらかなきらめきとして聞こえます。',pulse:'その音が光とともに強まり、弱まります（長い周期は早回し）。',off:'星は沈黙し、パルサー、電波の空、回転の和音が残ります。',quake:'その星自身の振動を {oct} オクターブ上げた音：星震です。',pulsar:'本物のパルス、毎秒 {n} 回。',gc:'ブラックホールの電波のゆらぎを色付きノイズとして、そしてバルジの星々。'},
   kind:{V:'矮星',III:'巨星',I:'超巨星',S:'星',D:'白色矮星',P:'中性子星 · パルサー',BH:'超大質量ブラックホール'},col:{O:'青色',B:'青白色',A:'白色',F:'黄白色',G:'黄色',K:'橙色',M:'赤色'},tpl:'{c}{k}'},
  shipSpeed:'船の速さ',dop:'ドップラー誇張',dm:'暗黒物質（平坦な回転曲線が倍音列を奏でる）',
  course:'{n}へ針路を設定',arrived:'到着：{n}',toward:'<em>{n}</em>へ向かっています',nearest:'最も近い恒星：<em>{n}</em>',sun:'太陽',
@@ -4920,10 +4975,10 @@ ja:{inter:'恒星間',helio:'太陽圏界面',oort:'オールトの雲',acen:'�
  hera:'私はヘラ。あなたの空を横切る乳白の環は、私がこぼした乳です。千億の太陽が、二億三千万年に一度めぐります。',
  sgra:'いて座A*',crab:'かにパルサー',helioLbl:'太陽圏界面',lightOf:'光',away:'{d} 先',chordOn:'回転の和音 · 暗黒物質オン：倍音列',chordOff:'回転の和音 · 暗黒物質オフ：和音が沈む'},
 vi:{inter:'Liên sao',helio:'Nhật quyển',oort:'Đám mây Oort',acen:'Alpha Centauri',sirius:'Sirius',vela:'Sao xung Vela',gc:'Tâm Ngân Hà',above:'Trên Ngân Hà',home:'Về nhà',beyond:'Liên sao ▶',
- st:{h:'Các ngôi sao',vol:'Âm lượng của sao',snd:'Âm thanh của sao',tone:'Âm',shim:'Lấp lánh',pulse:'Nhịp',pulseT:'Nhịp theo ánh sáng của nó',off:'Tắt',
+ st:{h:'Các ngôi sao',vol:'Âm lượng của sao',snd:'Âm thanh của sao',tone:'Âm',shim:'Lấp lánh',pulse:'Nhịp',pulseT:'Nhịp theo ánh sáng của nó',off:'Tắt',lines:'Vạch (hợp âm)',linesT:'Các vạch hấp thụ của sao gần nhất như một hợp âm ngân dài',
   name:'Ngôi sao hát tên mình khi bạn tới',quake:'Động sao: dao động riêng của một ngôi sao giống Mặt Trời, được tăng tốc, khi bạn dừng bên cạnh nó',dmVol:'Âm lượng hợp âm vật chất tối',
   orbit:'Bay quanh nó',orbiting:'Ngừng bay quanh',next:'Ngôi sao tiếp theo',home:'Về nhà',close:'Đóng',fromHome:'cách nhà {d}',
-  hear:{tone:'Bạn nghe nốt Wien của nó với các vạch của lớp quang phổ, từ đúng hướng của nó.',shim:'Bạn nghe nốt của nó như một màn lấp lánh dịu của những hạt âm.',pulse:'Nốt của nó dâng lên và lắng xuống theo ánh sáng của nó (chu kỳ dài được tăng tốc).',off:'Các ngôi sao im lặng; còn lại sao xung, bầu trời vô tuyến và hợp âm quay.',quake:'Dao động riêng của nó, nâng lên {oct} quãng tám: một trận động sao.',pulsar:'Các xung thật của nó, {n} lần mỗi giây.',gc:'Ánh vô tuyến chớp của hố đen thành tiếng ồn có màu, cùng các ngôi sao vùng phình.'},
+  hear:{lines:'Các vạch hấp thụ của nó như một hợp âm ngân dài theo quy tắc bốn mươi quãng tám, từ đúng hướng của nó; các sao khác giữ âm của mình, nhỏ hơn.',tone:'Bạn nghe nốt Wien của nó với các vạch của lớp quang phổ, từ đúng hướng của nó.',shim:'Bạn nghe nốt của nó như một màn lấp lánh dịu của những hạt âm.',pulse:'Nốt của nó dâng lên và lắng xuống theo ánh sáng của nó (chu kỳ dài được tăng tốc).',off:'Các ngôi sao im lặng; còn lại sao xung, bầu trời vô tuyến và hợp âm quay.',quake:'Dao động riêng của nó, nâng lên {oct} quãng tám: một trận động sao.',pulsar:'Các xung thật của nó, {n} lần mỗi giây.',gc:'Ánh vô tuyến chớp của hố đen thành tiếng ồn có màu, cùng các ngôi sao vùng phình.'},
   kind:{V:'sao lùn',III:'sao khổng lồ',I:'sao siêu khổng lồ',S:'ngôi sao',D:'sao lùn trắng',P:'sao neutron · sao xung',BH:'hố đen siêu khối lượng'},col:{O:'xanh lam',B:'trắng xanh',A:'trắng',F:'trắng vàng',G:'vàng',K:'cam',M:'đỏ'},tpl:'{k} {c}'},
  shipSpeed:'Tốc độ tàu',dop:'Phóng đại Doppler',dm:'Vật chất tối (đường cong quay phẳng chơi chuỗi họa âm)',
  course:'Đặt hành trình tới {n}',arrived:'Đã tới: {n}',toward:'Đang bay tới <em>{n}</em>',nearest:'Ngôi sao gần nhất: <em>{n}</em>',sun:'Mặt Trời',
@@ -4943,10 +4998,10 @@ vi:{inter:'Liên sao',helio:'Nhật quyển',oort:'Đám mây Oort',acen:'Alpha 
  hera:'Ta là Hera. Vòng tròn trắng sữa vắt ngang bầu trời của ngươi là dòng sữa ta làm đổ: một trăm nghìn triệu mặt trời, quay một vòng trong hai trăm ba mươi triệu năm.',
  sgra:'Sagittarius A*',crab:'Sao xung Con Cua',helioLbl:'Nhật quyển',lightOf:'ánh sáng',away:'cách {d}',chordOn:'Hợp âm quay · vật chất tối bật: chuỗi họa âm',chordOff:'Hợp âm quay · vật chất tối tắt: hợp âm chùng xuống'},
 bg:{inter:'Междузвездно',helio:'Хелиопауза',oort:'Облак на Оорт',acen:'Алфа Кентавър',sirius:'Сириус',vela:'Пулсарът Вела',gc:'Център на Галактиката',above:'Над Млечния път',home:'У дома',beyond:'Междузвездно ▶',
- st:{h:'Звезди',vol:'Сила на звездите',snd:'Звук на звездите',tone:'Тон',shim:'Трептене',pulse:'Пулс',pulseT:'Пулсира със светлината си',off:'Изкл.',
+ st:{h:'Звезди',vol:'Сила на звездите',snd:'Звук на звездите',tone:'Тон',shim:'Трептене',pulse:'Пулс',pulseT:'Пулсира със светлината си',off:'Изкл.',lines:'Линии (акорд)',linesT:'Абсорбционните линии на най-близката звезда като задържан акорд',
   name:'Звездата пее името си, когато пристигнеш',quake:'Звездотресение: собствените трептения на звезда като Слънцето, ускорени, докато си спрял до нея',dmVol:'Сила на акорда на тъмната материя',
   orbit:'Обиколи я',orbiting:'Спри обикалянето',next:'Следваща звезда',home:'У дома',close:'Затвори',fromHome:'на {d} от дома',
-  hear:{tone:'Чуваш нейната нота на Вин с линиите на нейния клас, от истинската ѝ посока.',shim:'Чуваш нотата ѝ като меко трептене от зърна.',pulse:'Нотата ѝ се усилва и затихва със светлината ѝ (дългите периоди са ускорени).',off:'Звездите мълчат; остават пулсарите, радионебето и акордът на въртенето.',quake:'Собствените ѝ трептения, вдигнати с {oct} октави: звездотресение.',pulsar:'Истинските ѝ импулси, {n} в секунда.',gc:'Радиотрептенето на черната дупка като цветен шум и звездите на балджа.'},
+  hear:{lines:'Абсорбционните ѝ линии като задържан акорд по правилото на четиридесетте октави, от истинската ѝ посока; другите звезди пазят тоновете си, по-тихо.',tone:'Чуваш нейната нота на Вин с линиите на нейния клас, от истинската ѝ посока.',shim:'Чуваш нотата ѝ като меко трептене от зърна.',pulse:'Нотата ѝ се усилва и затихва със светлината ѝ (дългите периоди са ускорени).',off:'Звездите мълчат; остават пулсарите, радионебето и акордът на въртенето.',quake:'Собствените ѝ трептения, вдигнати с {oct} октави: звездотресение.',pulsar:'Истинските ѝ импулси, {n} в секунда.',gc:'Радиотрептенето на черната дупка като цветен шум и звездите на балджа.'},
   kind:{V:'джудже|n',III:'гигант|m',I:'свръхгигант|m',S:'звезда|f',D:'бяло джудже',P:'неутронна звезда · пулсар',BH:'свръхмасивна черна дупка'},col:{O:{m:'син',f:'синя',n:'синьо'},B:{m:'синьо-бял',f:'синьо-бяла',n:'синьо-бяло'},A:{m:'бял',f:'бяла',n:'бяло'},F:{m:'жълто-бял',f:'жълто-бяла',n:'жълто-бяло'},G:{m:'жълт',f:'жълта',n:'жълто'},K:{m:'оранжев',f:'оранжева',n:'оранжево'},M:{m:'червен',f:'червена',n:'червено'}},tpl:'{c} {k}'},
  shipSpeed:'Скорост на кораба',dop:'Преувеличен Доплер',dm:'Тъмна материя (плоската крива на въртене свири хармоничния ред)',
  course:'Курс към {n}',arrived:'Пристигнахме: {n}',toward:'Пътуване към <em>{n}</em>',nearest:'Най-близка звезда: <em>{n}</em>',sun:'Слънцето',
@@ -4966,10 +5021,10 @@ bg:{inter:'Междузвездно',helio:'Хелиопауза',oort:'Обла
  hera:'Аз съм Хера. Млечният кръг през твоето небе е моето разлято мляко: сто хиляди милиона слънца, които се завъртат веднъж на двеста и тридесет милиона години.',
  sgra:'Стрелец A*',crab:'Пулсарът в Рака',helioLbl:'Хелиопауза',lightOf:'светлина',away:'на {d}',chordOn:'Акордът на въртенето · тъмна материя включена: хармоничният ред',chordOff:'Акордът на въртенето · тъмна материя изключена: акордът провисва'},
 pt:{inter:'Interestelar',helio:'Heliopausa',oort:'Nuvem de Oort',acen:'Alfa Centauri',sirius:'Sirius',vela:'Pulsar de Vela',gc:'Centro galáctico',above:'Acima da Via Láctea',home:'Casa',beyond:'Interestelar ▶',
- st:{h:'Estrelas',vol:'Volume das estrelas',snd:'Som das estrelas',tone:'Tom',shim:'Cintilação',pulse:'Pulso',pulseT:'Pulsar com a sua luz',off:'Desligado',
+ st:{h:'Estrelas',vol:'Volume das estrelas',snd:'Som das estrelas',tone:'Tom',shim:'Cintilação',pulse:'Pulso',pulseT:'Pulsar com a sua luz',off:'Desligado',lines:'Linhas (acorde)',linesT:'As linhas de absorção da estrela mais próxima como um acorde sustentado',
   name:'A estrela canta o seu nome quando você chega',quake:'Terremoto estelar: as oscilações próprias de uma estrela parecida com o Sol, aceleradas, enquanto você está parado ao lado dela',dmVol:'Volume do acorde de matéria escura',
   orbit:'Orbitá-la',orbiting:'Parar de orbitar',next:'Próxima estrela',home:'Casa',close:'Fechar',fromHome:'a {d} de casa',
-  hear:{tone:'Você ouve sua nota de Wien com as linhas de sua classe, vinda de sua direção real.',shim:'Você ouve sua nota como uma suave cintilação de grãos.',pulse:'Sua nota cresce e se apaga com a sua luz (períodos longos acelerados).',off:'As estrelas se calam; ficam os pulsares, o céu de rádio e o acorde de rotação.',quake:'Suas próprias oscilações, elevadas {oct} oitavas: um terremoto estelar.',pulsar:'Seus pulsos reais, {n} por segundo.',gc:'O tremular de rádio do buraco negro como ruído colorido, e as estrelas do bojo.'},
+  hear:{lines:'As suas linhas de absorção como um acorde sustentado pela regra das quarenta oitavas, vindas da sua direção real; as outras estrelas mantêm os seus tons, mais baixos.',tone:'Você ouve sua nota de Wien com as linhas de sua classe, vinda de sua direção real.',shim:'Você ouve sua nota como uma suave cintilação de grãos.',pulse:'Sua nota cresce e se apaga com a sua luz (períodos longos acelerados).',off:'As estrelas se calam; ficam os pulsares, o céu de rádio e o acorde de rotação.',quake:'Suas próprias oscilações, elevadas {oct} oitavas: um terremoto estelar.',pulsar:'Seus pulsos reais, {n} por segundo.',gc:'O tremular de rádio do buraco negro como ruído colorido, e as estrelas do bojo.'},
   kind:{V:'anã',III:'gigante',I:'supergigante',S:'estrela',D:'anã branca',P:'estrela de nêutrons · pulsar',BH:'buraco negro supermassivo'},col:{O:'azul',B:'branco-azulada',A:'branca',F:'branco-amarelada',G:'amarela',K:'laranja',M:'vermelha'},tpl:'{k} {c}'},
  shipSpeed:'Velocidade da nave',dop:'Exagero Doppler',dm:'Matéria escura (a curva de rotação plana toca a série harmônica)',
  course:'Rumo a {n}',arrived:'Chegada: {n}',toward:'Viajando para <em>{n}</em>',nearest:'Estrela mais próxima: <em>{n}</em>',sun:'o Sol',
@@ -5151,7 +5206,7 @@ pt:{mag:'Nuvens de Magalhães',m31:'Andrômeda',m33:'Triângulo',lg:'Acima do Gr
 };/*FLYG-LG-TEXTS-END*/
 const TL=deep(TX_LG.en,TX_LG[LANG]||{});   // step 4b: the Local Group and the star search
 /*FLYG-SV-TEXTS*/const TX_SV={
-en:{go:'Go there',jump:'Jump',solo:'Hear it alone',spec:'Spectrum',radio:'Radio',hearSpec:'Hear the spectrum',hearRadio:'Hear the radio',stop:'Stop',voice:'Its voice',about:'About {n}',nearestA:'the nearest star: open its card',sun:'the Sun',
+en:{go:'Go there',jump:'Jump',solo:'Hear it alone',spec:'Spectrum',radio:'Radio',hearSpec:'Hear the spectrum',hearRadio:'Hear the radio',hearChord:'Hear its lines',hearSweep:'Hear the sweep',stop:'Stop',voice:'Its voice',about:'About {n}',nearestA:'the nearest star: open its card',sun:'the Sun',
  fromShip:'{d} from the ship',fromHome:'{d} from home',sweeping:'violet → red',
  r:{tone:'Wien tone {f} Hz: the peak of its light at {nm} nm, lowered forty octaves',
   reg:{wd:'a white dwarf ({R} R☉): tiny, glassy and high — odd partials, an open filter',I:'a supergiant ({R} R☉): deep and broad — the octaves below, slow breathing',III:'a giant ({R} R☉): the octave below it, broad',IV:'a subgiant ({R} R☉): a little body under the tone',V:'a dwarf ({R} R☉): thin and bright',VI:'a subdwarf ({R} R☉): thin and bright'},
@@ -5162,7 +5217,7 @@ en:{go:'Go there',jump:'Jump',solo:'Hear it alone',spec:'Spectrum',radio:'Radio'
   comp:'companion {n} ({sp}): its own note {f} Hz, {i} {dir}{orb}',orb:'; its {P} orbit turns the pair about you once in 20 s',above:'above',below:'below',
   mel:'its own micro-melody of its strongest lines: {l}',loud:'as loud as it looks from here, from its true direction, with its real Doppler shift'},
  d:{d:'{n} d',h:'{n} h',min:'{n} min',yr:'{n} yr',s:'{n} s'},
- sp:{title:'Visible spectrum 380–750 nm',bb:'black body at {T} K · peak {nm} nm → {f} Hz',lines:'the absorption lines of {a} {c} star',rule:'The sweep plays the spectrum by the forty-octave rule, violet (717 Hz) to red (363 Hz); the lines are heard as dips.',none:'no strong lines in this range',nm:'nm'},
+ sp:{title:'Visible spectrum 380–750 nm',bb:'black body at {T} K · peak {nm} nm → {f} Hz',lines:'the absorption lines of {a} {c} star',rule:'The sweep plays the spectrum by the forty-octave rule, violet (717 Hz) to red (363 Hz); the lines are heard as dips.',none:'no strong lines in this range',nm:'nm',chord:'Hear its lines holds every absorption line as a note by the forty-octave rule, the deepest lines loudest, the broad bands as clusters, over a faint bed of its continuum: the same element sings the same note in every star (Hα 656 nm → 416 Hz), so stars of the same kind share their lines; their motion shifts the chord ({dop}).',dop:'radial velocity {rv} km/s ×{x}: {c} cents',dopNone:'radial velocity unknown',limit:'Balmer limit'},
  rd:{title:'Radio 10 MHz – 100 GHz',quiet:'Radio-quiet: below detection (upper limit {l} mJy). You hear only the noise floor.',quietDef:'Radio-quiet, like most stars: a normal photosphere a few parsecs away is far below any survey’s sensitivity. You hear only the noise floor.',
   flare:'Flare star: quiescent {S} mJy at {G} GHz; bursts to {p} mJy about {r}× a day — heard as crackling bursts, a day passing in 20 s.',
   maser:'Masers in its wind — {l} — heard as whistling lines, each lowered by a whole number of octaves.',wind:'Hot wind: thermal free-free emission, {S} mJy at {G} GHz, rising with frequency — a faint hiss.',
@@ -5170,7 +5225,7 @@ en:{go:'Go there',jump:'Jump',solo:'Hear it alone',spec:'Spectrum',radio:'Radio'
   sun:'The Sun: quiet flux 60–250 sfu at 2.8 GHz; type III bursts drift from hundreds of MHz to a few MHz in seconds — heard as falling whistles.',
   est:' (typical for its class, not measured)',ref:'Source: {r}',pulsar:'Pulsar: {n} pulses a second, dispersion measure {dm} pc cm⁻³ — heard as they are.',src:'Radio source: synchrotron, {S} Jy at 1.4 GHz, spectral index {a} — coloured noise.',
   oct:'−{o} oct → {f} Hz',limit:'< {l} mJy',cont:'continuum',flares:'flares',perDay:'{n}× a day',hi:'H I 1420 MHz'}},
-pl:{go:'Leć tam',jump:'Skok',solo:'Posłuchaj jej samej',spec:'Widmo',radio:'Radio',hearSpec:'Posłuchaj widma',hearRadio:'Posłuchaj radia',stop:'Stop',voice:'Jej głos',about:'O: {n}',nearestA:'najbliższa gwiazda: otwórz jej kartę',sun:'Słońce',
+pl:{go:'Leć tam',jump:'Skok',solo:'Posłuchaj jej samej',spec:'Widmo',radio:'Radio',hearSpec:'Posłuchaj widma',hearRadio:'Posłuchaj radia',hearChord:'Posłuchaj jej linii',hearSweep:'Posłuchaj przebiegu',stop:'Stop',voice:'Jej głos',about:'O: {n}',nearestA:'najbliższa gwiazda: otwórz jej kartę',sun:'Słońce',
  fromShip:'{d} od statku',fromHome:'{d} od domu',sweeping:'fiolet → czerwień',
  r:{tone:'Ton Wiena {f} Hz: maksimum jej światła przy {nm} nm, obniżone o czterdzieści oktaw',
   reg:{wd:'biały karzeł ({R} R☉): maleńki, szklisty i wysoki — nieparzyste składowe, otwarty filtr',I:'nadolbrzym ({R} R☉): głęboki i szeroki — oktawy poniżej, wolny oddech',III:'olbrzym ({R} R☉): oktawa poniżej, szeroko',IV:'podolbrzym ({R} R☉): trochę ciała pod tonem',V:'karzeł ({R} R☉): cienki i jasny',VI:'podkarzeł ({R} R☉): cienki i jasny'},
@@ -5181,7 +5236,7 @@ pl:{go:'Leć tam',jump:'Skok',solo:'Posłuchaj jej samej',spec:'Widmo',radio:'Ra
   comp:'towarzysz {n} ({sp}): własna nuta {f} Hz, {i} {dir}{orb}',orb:'; orbita {P} obraca parę wokół ciebie raz na 20 s',above:'wyżej',below:'niżej',
   mel:'własna mikromelodia jej najsilniejszych linii: {l}',loud:'tak głośna, jak jasna wygląda stąd, z prawdziwego kierunku, z prawdziwym przesunięciem Dopplera'},
  d:{d:'{n} d',h:'{n} h',min:'{n} min',yr:'{n} lat',s:'{n} s'},
- sp:{title:'Widmo widzialne 380–750 nm',bb:'ciało doskonale czarne {T} K · maksimum {nm} nm → {f} Hz',lines:'linie absorpcyjne gwiazdy typu {c}',rule:'Przebieg gra widmo według reguły czterdziestu oktaw, od fioletu (717 Hz) do czerwieni (363 Hz); linie słychać jako zapadnięcia.',none:'brak silnych linii w tym zakresie',nm:'nm'},
+ sp:{title:'Widmo widzialne 380–750 nm',bb:'ciało doskonale czarne {T} K · maksimum {nm} nm → {f} Hz',lines:'linie absorpcyjne gwiazdy typu {c}',rule:'Przebieg gra widmo według reguły czterdziestu oktaw, od fioletu (717 Hz) do czerwieni (363 Hz); linie słychać jako zapadnięcia.',none:'brak silnych linii w tym zakresie',nm:'nm',chord:'Posłuchaj jej linii trzyma każdą linię absorpcyjną jako nutę według reguły czterdziestu oktaw, najgłębsze linie najgłośniej, szerokie pasma jako skupiska, nad cichym tłem jej kontinuum: ten sam pierwiastek śpiewa tę samą nutę w każdej gwieździe (Hα 656 nm → 416 Hz), więc gwiazdy tego samego rodzaju dzielą swoje linie; ich ruch przesuwa akord ({dop}).',dop:'prędkość radialna {rv} km/s ×{x}: {c} centów',dopNone:'prędkość radialna nieznana',limit:'granica Balmera'},
  rd:{title:'Radio 10 MHz – 100 GHz',quiet:'Radiowo cicha: poniżej progu detekcji (górna granica {l} mJy). Słyszysz tylko tło szumu.',quietDef:'Radiowo cicha, jak większość gwiazd: zwykła fotosfera o kilka parseków stąd leży daleko poniżej czułości każdego przeglądu. Słyszysz tylko tło szumu.',
   flare:'Gwiazda rozbłyskowa: w spoczynku {S} mJy przy {G} GHz; wybuchy do {p} mJy około {r}× dziennie — słyszane jako trzaskające wybuchy, dzień mija w 20 s.',
   maser:'Masery w jej wietrze — {l} — słyszane jako gwiżdżące linie, każda obniżona o całkowitą liczbę oktaw.',wind:'Gorący wiatr: termiczne promieniowanie swobodno-swobodne, {S} mJy przy {G} GHz, rosnące z częstotliwością — słaby szum.',
@@ -5189,7 +5244,7 @@ pl:{go:'Leć tam',jump:'Skok',solo:'Posłuchaj jej samej',spec:'Widmo',radio:'Ra
   sun:'Słońce: spokojny strumień 60–250 sfu przy 2,8 GHz; wybuchy typu III dryfują od setek MHz do kilku MHz w sekundy — słyszane jako opadające gwizdy.',
   est:' (typowe dla jej klasy, nie zmierzone)',ref:'Źródło: {r}',pulsar:'Pulsar: {n} impulsów na sekundę, miara dyspersji {dm} pc cm⁻³ — słyszane takimi, jakie są.',src:'Źródło radiowe: synchrotron, {S} Jy przy 1,4 GHz, indeks widmowy {a} — kolorowy szum.',
   oct:'−{o} okt → {f} Hz',limit:'< {l} mJy',cont:'kontinuum',flares:'rozbłyski',perDay:'{n}× dziennie',hi:'H I 1420 MHz'}},
-cy:{go:'Mynd yno',jump:'Neidio',solo:'Ei chlywed ar ei phen ei hun',spec:'Sbectrwm',radio:'Radio',hearSpec:'Clywed y sbectrwm',hearRadio:'Clywed y radio',stop:'Stopio',voice:'Ei llais',about:'Am {n}',nearestA:'y seren agosaf: agor ei cherdyn',sun:'yr Haul',
+cy:{go:'Mynd yno',jump:'Neidio',solo:'Ei chlywed ar ei phen ei hun',spec:'Sbectrwm',radio:'Radio',hearSpec:'Clywed y sbectrwm',hearRadio:'Clywed y radio',hearChord:'Clywed ei llinellau',hearSweep:'Clywed yr ysgubiad',stop:'Stopio',voice:'Ei llais',about:'Am {n}',nearestA:'y seren agosaf: agor ei cherdyn',sun:'yr Haul',
  fromShip:'{d} o’r llong',fromHome:'{d} o adref',sweeping:'fioled → coch',
  r:{tone:'Tôn Wien {f} Hz: brig ei golau ar {nm} nm, wedi’i ostwng ddeugain wythfed',
   reg:{wd:'corrach gwyn ({R} R☉): bychan, gwydrog ac uchel — rhannau odrif, hidlydd agored',I:'uwchgawr ({R} R☉): dwfn a llydan — yr wythfedau oddi tano, anadlu araf',III:'cawr ({R} R☉): yr wythfed oddi tano, llydan',IV:'is-gawr ({R} R☉): ychydig o gorff dan y dôn',V:'corrach ({R} R☉): tenau a llachar',VI:'is-gorrach ({R} R☉): tenau a llachar'},
@@ -5200,7 +5255,7 @@ cy:{go:'Mynd yno',jump:'Neidio',solo:'Ei chlywed ar ei phen ei hun',spec:'Sbectr
   comp:'cymar {n} ({sp}): ei nodyn ei hun {f} Hz, {i} {dir}{orb}',orb:'; mae ei orbit {P} yn troi’r pâr o’ch cwmpas unwaith mewn 20 s',above:'uwchlaw',below:'islaw',
   mel:'ei micro-alaw ei hun o’i llinellau cryfaf: {l}',loud:'mor uchel ag y mae’n edrych oddi yma, o’i chyfeiriad go iawn, gyda’i shifft Doppler go iawn'},
  d:{d:'{n} d',h:'{n} awr',min:'{n} mun',yr:'{n} bl',s:'{n} e'},
- sp:{title:'Sbectrwm gweladwy 380–750 nm',bb:'corff du ar {T} K · brig {nm} nm → {f} Hz',lines:'llinellau amsugno seren {c}',rule:'Mae’r ysgubiad yn chwarae’r sbectrwm yn ôl rheol y deugain wythfed, o fioled (717 Hz) i goch (363 Hz); clywir y llinellau fel pantiau.',none:'dim llinellau cryf yn yr ystod hon',nm:'nm'},
+ sp:{title:'Sbectrwm gweladwy 380–750 nm',bb:'corff du ar {T} K · brig {nm} nm → {f} Hz',lines:'llinellau amsugno seren {c}',rule:'Mae’r ysgubiad yn chwarae’r sbectrwm yn ôl rheol y deugain wythfed, o fioled (717 Hz) i goch (363 Hz); clywir y llinellau fel pantiau.',none:'dim llinellau cryf yn yr ystod hon',nm:'nm',chord:'Mae Clywed ei llinellau yn dal pob llinell amsugno fel nodyn yn ôl rheol y deugain wythfed, y llinellau dyfnaf uchaf, y bandiau llydan fel clystyrau, dros wely tawel o’i chontinwwm: mae’r un elfen yn canu’r un nodyn ym mhob seren (Hα 656 nm → 416 Hz), felly mae sêr o’r un math yn rhannu eu llinellau; mae eu symudiad yn symud y cord ({dop}).',dop:'cyflymder rheiddiol {rv} km/s ×{x}: {c} cant',dopNone:'cyflymder rheiddiol anhysbys',limit:'terfyn Balmer'},
  rd:{title:'Radio 10 MHz – 100 GHz',quiet:'Radio-dawel: o dan y terfyn canfod (terfyn uchaf {l} mJy). Dim ond llawr y sŵn a glywch.',quietDef:'Radio-dawel, fel y rhan fwyaf o sêr: mae ffotosffer arferol ychydig barsec i ffwrdd ymhell o dan sensitifrwydd unrhyw arolwg. Dim ond llawr y sŵn a glywch.',
   flare:'Seren fflêr: {S} mJy yn dawel ar {G} GHz; ffrwydradau hyd at {p} mJy tua {r}× y dydd — clywir fel ffrwydradau cracio, diwrnod yn pasio mewn 20 s.',
   maser:'Maserau yn ei gwynt — {l} — clywir fel llinellau chwibanu, pob un wedi’i gostwng rif cyfan o wythfedau.',wind:'Gwynt poeth: allyriad thermol rhydd-rhydd, {S} mJy ar {G} GHz, yn codi gyda’r amledd — hisian gwan.',
@@ -5208,7 +5263,7 @@ cy:{go:'Mynd yno',jump:'Neidio',solo:'Ei chlywed ar ei phen ei hun',spec:'Sbectr
   sun:'Yr Haul: fflwcs tawel 60–250 sfu ar 2.8 GHz; mae ffrwydradau math III yn drifftio o gannoedd o MHz i ychydig MHz mewn eiliadau — clywir fel chwibanau’n disgyn.',
   est:' (nodweddiadol o’i dosbarth, heb ei fesur)',ref:'Ffynhonnell: {r}',pulsar:'Pwlsar: {n} pwls yr eiliad, mesur gwasgariad {dm} pc cm⁻³ — clywir fel y maent.',src:'Ffynhonnell radio: syncrotron, {S} Jy ar 1.4 GHz, indecs sbectrol {a} — sŵn lliw.',
   oct:'−{o} wythfed → {f} Hz',limit:'< {l} mJy',cont:'continwwm',flares:'fflerau',perDay:'{n}× y dydd',hi:'H I 1420 MHz'}},
-de:{go:'Dorthin',jump:'Springen',solo:'Allein anhören',spec:'Spektrum',radio:'Radio',hearSpec:'Spektrum anhören',hearRadio:'Radio anhören',stop:'Stopp',voice:'Seine Stimme',about:'Über {n}',nearestA:'der nächste Stern: seine Karte öffnen',sun:'die Sonne',
+de:{go:'Dorthin',jump:'Springen',solo:'Allein anhören',spec:'Spektrum',radio:'Radio',hearSpec:'Spektrum anhören',hearRadio:'Radio anhören',hearChord:'Seine Linien hören',hearSweep:'Den Durchlauf hören',stop:'Stopp',voice:'Seine Stimme',about:'Über {n}',nearestA:'der nächste Stern: seine Karte öffnen',sun:'die Sonne',
  fromShip:'{d} vom Schiff',fromHome:'{d} von zu Hause',sweeping:'Violett → Rot',
  r:{tone:'Wien-Ton {f} Hz: das Maximum seines Lichts bei {nm} nm, um vierzig Oktaven gesenkt',
   reg:{wd:'ein Weißer Zwerg ({R} R☉): winzig, gläsern und hoch — ungerade Teiltöne, offenes Filter',I:'ein Überriese ({R} R☉): tief und breit — die Oktaven darunter, langsames Atmen',III:'ein Riese ({R} R☉): die Oktave darunter, breit',IV:'ein Unterriese ({R} R☉): etwas Körper unter dem Ton',V:'ein Zwerg ({R} R☉): dünn und hell',VI:'ein Unterzwerg ({R} R☉): dünn und hell'},
@@ -5219,7 +5274,7 @@ de:{go:'Dorthin',jump:'Springen',solo:'Allein anhören',spec:'Spektrum',radio:'R
   comp:'Begleiter {n} ({sp}): eigener Ton {f} Hz, {i} {dir}{orb}',orb:'; seine Bahn von {P} dreht das Paar in 20 s einmal um dich',above:'darüber',below:'darunter',
   mel:'seine eigene Mikromelodie aus seinen stärksten Linien: {l}',loud:'so laut, wie er von hier aussieht, aus seiner wahren Richtung, mit seiner echten Dopplerverschiebung'},
  d:{d:'{n} d',h:'{n} h',min:'{n} min',yr:'{n} J.',s:'{n} s'},
- sp:{title:'Sichtbares Spektrum 380–750 nm',bb:'Schwarzer Körper bei {T} K · Maximum {nm} nm → {f} Hz',lines:'die Absorptionslinien eines {c}-Sterns',rule:'Der Durchlauf spielt das Spektrum nach der Vierzig-Oktaven-Regel, von Violett (717 Hz) bis Rot (363 Hz); die Linien sind als Einbrüche zu hören.',none:'keine starken Linien in diesem Bereich',nm:'nm'},
+ sp:{title:'Sichtbares Spektrum 380–750 nm',bb:'Schwarzer Körper bei {T} K · Maximum {nm} nm → {f} Hz',lines:'die Absorptionslinien eines {c}-Sterns',rule:'Der Durchlauf spielt das Spektrum nach der Vierzig-Oktaven-Regel, von Violett (717 Hz) bis Rot (363 Hz); die Linien sind als Einbrüche zu hören.',none:'keine starken Linien in diesem Bereich',nm:'nm',chord:'Seine Linien hören hält jede Absorptionslinie als Ton nach der Vierzig-Oktaven-Regel, die tiefsten Linien am lautesten, die breiten Banden als Cluster, über einem leisen Bett seines Kontinuums: dasselbe Element singt in jedem Stern denselben Ton (Hα 656 nm → 416 Hz), Sterne derselben Art teilen also ihre Linien; ihre Bewegung verschiebt den Akkord ({dop}).',dop:'Radialgeschwindigkeit {rv} km/s ×{x}: {c} Cent',dopNone:'Radialgeschwindigkeit unbekannt',limit:'Balmer-Grenze'},
  rd:{title:'Radio 10 MHz – 100 GHz',quiet:'Radioleise: unter der Nachweisgrenze (obere Grenze {l} mJy). Du hörst nur das Grundrauschen.',quietDef:'Radioleise wie die meisten Sterne: eine normale Photosphäre in einigen Parsec Entfernung liegt weit unter der Empfindlichkeit jeder Durchmusterung. Du hörst nur das Grundrauschen.',
   flare:'Flarestern: ruhend {S} mJy bei {G} GHz; Ausbrüche bis {p} mJy etwa {r}× am Tag — als knisternde Ausbrüche zu hören, ein Tag vergeht in 20 s.',
   maser:'Maser in seinem Wind — {l} — als pfeifende Linien zu hören, jede um eine ganze Zahl von Oktaven gesenkt.',wind:'Heißer Wind: thermische Frei-frei-Strahlung, {S} mJy bei {G} GHz, mit der Frequenz steigend — ein leises Zischen.',
@@ -5227,7 +5282,7 @@ de:{go:'Dorthin',jump:'Springen',solo:'Allein anhören',spec:'Spektrum',radio:'R
   sun:'Die Sonne: ruhiger Fluss 60–250 sfu bei 2,8 GHz; Typ-III-Bursts driften in Sekunden von Hunderten MHz auf wenige MHz — als fallende Pfeiftöne zu hören.',
   est:' (typisch für seine Klasse, nicht gemessen)',ref:'Quelle: {r}',pulsar:'Pulsar: {n} Pulse pro Sekunde, Dispersionsmaß {dm} pc cm⁻³ — zu hören, wie sie sind.',src:'Radioquelle: Synchrotron, {S} Jy bei 1,4 GHz, Spektralindex {a} — gefärbtes Rauschen.',
   oct:'−{o} Okt → {f} Hz',limit:'< {l} mJy',cont:'Kontinuum',flares:'Flares',perDay:'{n}× am Tag',hi:'H I 1420 MHz'}},
-es:{go:'Ir allí',jump:'Saltar',solo:'Oírla sola',spec:'Espectro',radio:'Radio',hearSpec:'Oír el espectro',hearRadio:'Oír la radio',stop:'Parar',voice:'Su voz',about:'Sobre {n}',nearestA:'la estrella más cercana: abrir su ficha',sun:'el Sol',
+es:{go:'Ir allí',jump:'Saltar',solo:'Oírla sola',spec:'Espectro',radio:'Radio',hearSpec:'Oír el espectro',hearRadio:'Oír la radio',hearChord:'Oír sus líneas',hearSweep:'Oír el barrido',stop:'Parar',voice:'Su voz',about:'Sobre {n}',nearestA:'la estrella más cercana: abrir su ficha',sun:'el Sol',
  fromShip:'a {d} de la nave',fromHome:'a {d} de casa',sweeping:'violeta → rojo',
  r:{tone:'Tono de Wien {f} Hz: el máximo de su luz a {nm} nm, bajado cuarenta octavas',
   reg:{wd:'una enana blanca ({R} R☉): diminuta, vidriosa y aguda — parciales impares, filtro abierto',I:'una supergigante ({R} R☉): grave y ancha — las octavas inferiores, respiración lenta',III:'una gigante ({R} R☉): la octava inferior, ancha',IV:'una subgigante ({R} R☉): un poco de cuerpo bajo el tono',V:'una enana ({R} R☉): fina y brillante',VI:'una subenana ({R} R☉): fina y brillante'},
@@ -5238,7 +5293,7 @@ es:{go:'Ir allí',jump:'Saltar',solo:'Oírla sola',spec:'Espectro',radio:'Radio'
   comp:'compañera {n} ({sp}): su propia nota {f} Hz, {i} {dir}{orb}',orb:'; su órbita de {P} hace girar el par a tu alrededor una vez cada 20 s',above:'por encima',below:'por debajo',
   mel:'su propia micromelodía de sus líneas más fuertes: {l}',loud:'tan fuerte como brilla desde aquí, desde su dirección real, con su desplazamiento Doppler real'},
  d:{d:'{n} d',h:'{n} h',min:'{n} min',yr:'{n} años',s:'{n} s'},
- sp:{title:'Espectro visible 380–750 nm',bb:'cuerpo negro a {T} K · máximo {nm} nm → {f} Hz',lines:'las líneas de absorción de una estrella {c}',rule:'El barrido toca el espectro según la regla de las cuarenta octavas, del violeta (717 Hz) al rojo (363 Hz); las líneas se oyen como caídas.',none:'sin líneas fuertes en este rango',nm:'nm'},
+ sp:{title:'Espectro visible 380–750 nm',bb:'cuerpo negro a {T} K · máximo {nm} nm → {f} Hz',lines:'las líneas de absorción de una estrella {c}',rule:'El barrido toca el espectro según la regla de las cuarenta octavas, del violeta (717 Hz) al rojo (363 Hz); las líneas se oyen como caídas.',none:'sin líneas fuertes en este rango',nm:'nm',chord:'Oír sus líneas sostiene cada línea de absorción como una nota según la regla de las cuarenta octavas, las líneas más profundas más fuertes, las bandas anchas como racimos, sobre un fondo tenue de su continuo: el mismo elemento canta la misma nota en todas las estrellas (Hα 656 nm → 416 Hz), así que las estrellas de la misma clase comparten sus líneas; su movimiento desplaza el acorde ({dop}).',dop:'velocidad radial {rv} km/s ×{x}: {c} cents',dopNone:'velocidad radial desconocida',limit:'límite de Balmer'},
  rd:{title:'Radio 10 MHz – 100 GHz',quiet:'Silenciosa en radio: por debajo de la detección (límite superior {l} mJy). Solo oyes el suelo de ruido.',quietDef:'Silenciosa en radio, como casi todas las estrellas: una fotosfera normal a unos pársecs queda muy por debajo de la sensibilidad de cualquier sondeo. Solo oyes el suelo de ruido.',
   flare:'Estrella fulgurante: en reposo {S} mJy a {G} GHz; estallidos hasta {p} mJy unas {r}× al día — oídos como ráfagas crepitantes, un día pasa en 20 s.',
   maser:'Máseres en su viento — {l} — oídos como líneas silbantes, cada una bajada un número entero de octavas.',wind:'Viento caliente: emisión térmica libre-libre, {S} mJy a {G} GHz, creciente con la frecuencia — un siseo tenue.',
@@ -5246,7 +5301,7 @@ es:{go:'Ir allí',jump:'Saltar',solo:'Oírla sola',spec:'Espectro',radio:'Radio'
   sun:'El Sol: flujo en calma 60–250 sfu a 2,8 GHz; los estallidos de tipo III derivan de cientos de MHz a unos pocos MHz en segundos — oídos como silbidos descendentes.',
   est:' (típico de su clase, no medido)',ref:'Fuente: {r}',pulsar:'Púlsar: {n} pulsos por segundo, medida de dispersión {dm} pc cm⁻³ — oídos tal como son.',src:'Fuente de radio: sincrotrón, {S} Jy a 1,4 GHz, índice espectral {a} — ruido coloreado.',
   oct:'−{o} oct → {f} Hz',limit:'< {l} mJy',cont:'continuo',flares:'fulguraciones',perDay:'{n}× al día',hi:'H I 1420 MHz'}},
-fr:{go:'Y aller',jump:'Sauter',solo:'L’entendre seule',spec:'Spectre',radio:'Radio',hearSpec:'Entendre le spectre',hearRadio:'Entendre la radio',stop:'Arrêter',voice:'Sa voix',about:'À propos de {n}',nearestA:'l’étoile la plus proche : ouvrir sa fiche',sun:'le Soleil',
+fr:{go:'Y aller',jump:'Sauter',solo:'L’entendre seule',spec:'Spectre',radio:'Radio',hearSpec:'Entendre le spectre',hearRadio:'Entendre la radio',hearChord:'Entendre ses raies',hearSweep:'Entendre le balayage',stop:'Arrêter',voice:'Sa voix',about:'À propos de {n}',nearestA:'l’étoile la plus proche : ouvrir sa fiche',sun:'le Soleil',
  fromShip:'à {d} du vaisseau',fromHome:'à {d} de la maison',sweeping:'violet → rouge',
  r:{tone:'Note de Wien {f} Hz : le maximum de sa lumière à {nm} nm, abaissé de quarante octaves',
   reg:{wd:'une naine blanche ({R} R☉) : minuscule, vitreuse et aiguë — partiels impairs, filtre ouvert',I:'une supergéante ({R} R☉) : grave et large — les octaves inférieures, une respiration lente',III:'une géante ({R} R☉) : l’octave inférieure, large',IV:'une sous-géante ({R} R☉) : un peu de corps sous la note',V:'une naine ({R} R☉) : fine et brillante',VI:'une sous-naine ({R} R☉) : fine et brillante'},
@@ -5257,7 +5312,7 @@ fr:{go:'Y aller',jump:'Sauter',solo:'L’entendre seule',spec:'Spectre',radio:'R
   comp:'compagne {n} ({sp}) : sa propre note {f} Hz, {i} {dir}{orb}',orb:' ; son orbite de {P} fait tourner la paire autour de vous en 20 s',above:'au-dessus',below:'au-dessous',
   mel:'sa propre micro-mélodie de ses raies les plus fortes : {l}',loud:'aussi forte qu’elle paraît d’ici, depuis sa vraie direction, avec son vrai décalage Doppler'},
  d:{d:'{n} j',h:'{n} h',min:'{n} min',yr:'{n} ans',s:'{n} s'},
- sp:{title:'Spectre visible 380–750 nm',bb:'corps noir à {T} K · maximum {nm} nm → {f} Hz',lines:'les raies d’absorption d’une étoile {c}',rule:'Le balayage joue le spectre selon la règle des quarante octaves, du violet (717 Hz) au rouge (363 Hz) ; les raies s’entendent comme des creux.',none:'pas de raie forte dans cet intervalle',nm:'nm'},
+ sp:{title:'Spectre visible 380–750 nm',bb:'corps noir à {T} K · maximum {nm} nm → {f} Hz',lines:'les raies d’absorption d’une étoile {c}',rule:'Le balayage joue le spectre selon la règle des quarante octaves, du violet (717 Hz) au rouge (363 Hz) ; les raies s’entendent comme des creux.',none:'pas de raie forte dans cet intervalle',nm:'nm',chord:'Entendre ses raies tient chaque raie d’absorption comme une note selon la règle des quarante octaves, les raies les plus profondes le plus fort, les bandes larges en grappes, sur un fond discret de son continu : le même élément chante la même note dans chaque étoile (Hα 656 nm → 416 Hz), si bien que les étoiles d’une même sorte partagent leurs raies ; leur mouvement décale l’accord ({dop}).',dop:'vitesse radiale {rv} km/s ×{x} : {c} cents',dopNone:'vitesse radiale inconnue',limit:'limite de Balmer'},
  rd:{title:'Radio 10 MHz – 100 GHz',quiet:'Silencieuse en radio : sous le seuil de détection (limite supérieure {l} mJy). Vous n’entendez que le bruit de fond.',quietDef:'Silencieuse en radio, comme presque toutes les étoiles : une photosphère ordinaire à quelques parsecs est bien au-dessous de la sensibilité de tout relevé. Vous n’entendez que le bruit de fond.',
   flare:'Étoile éruptive : au repos {S} mJy à {G} GHz ; sursauts jusqu’à {p} mJy environ {r}× par jour — entendus comme des crépitements, une journée passant en 20 s.',
   maser:'Des masers dans son vent — {l} — entendus comme des raies sifflantes, chacune abaissée d’un nombre entier d’octaves.',wind:'Vent chaud : émission thermique libre-libre, {S} mJy à {G} GHz, croissante avec la fréquence — un léger souffle.',
@@ -5265,7 +5320,7 @@ fr:{go:'Y aller',jump:'Sauter',solo:'L’entendre seule',spec:'Spectre',radio:'R
   sun:'Le Soleil : flux calme 60–250 sfu à 2,8 GHz ; les sursauts de type III dérivent de centaines de MHz à quelques MHz en quelques secondes — entendus comme des sifflements descendants.',
   est:' (typique de sa classe, non mesuré)',ref:'Source : {r}',pulsar:'Pulsar : {n} impulsions par seconde, mesure de dispersion {dm} pc cm⁻³ — entendues telles qu’elles sont.',src:'Source radio : synchrotron, {S} Jy à 1,4 GHz, indice spectral {a} — bruit coloré.',
   oct:'−{o} oct → {f} Hz',limit:'< {l} mJy',cont:'continuum',flares:'éruptions',perDay:'{n}× par jour',hi:'H I 1420 MHz'}},
-it:{go:'Vai lì',jump:'Salta',solo:'Ascoltala da sola',spec:'Spettro',radio:'Radio',hearSpec:'Ascolta lo spettro',hearRadio:'Ascolta la radio',stop:'Ferma',voice:'La sua voce',about:'Su {n}',nearestA:'la stella più vicina: apri la sua scheda',sun:'il Sole',
+it:{go:'Vai lì',jump:'Salta',solo:'Ascoltala da sola',spec:'Spettro',radio:'Radio',hearSpec:'Ascolta lo spettro',hearRadio:'Ascolta la radio',hearChord:'Ascolta le sue righe',hearSweep:'Ascolta la scansione',stop:'Ferma',voice:'La sua voce',about:'Su {n}',nearestA:'la stella più vicina: apri la sua scheda',sun:'il Sole',
  fromShip:'a {d} dalla nave',fromHome:'a {d} da casa',sweeping:'violetto → rosso',
  r:{tone:'Tono di Wien {f} Hz: il massimo della sua luce a {nm} nm, abbassato di quaranta ottave',
   reg:{wd:'una nana bianca ({R} R☉): minuscola, vetrosa e acuta — parziali impari, filtro aperto',I:'una supergigante ({R} R☉): grave e ampia — le ottave sotto, respiro lento',III:'una gigante ({R} R☉): l’ottava sotto, ampia',IV:'una subgigante ({R} R☉): un po’ di corpo sotto il tono',V:'una nana ({R} R☉): sottile e brillante',VI:'una subnana ({R} R☉): sottile e brillante'},
@@ -5276,7 +5331,7 @@ it:{go:'Vai lì',jump:'Salta',solo:'Ascoltala da sola',spec:'Spettro',radio:'Rad
   comp:'compagna {n} ({sp}): la sua nota {f} Hz, {i} {dir}{orb}',orb:'; la sua orbita di {P} fa girare la coppia intorno a te una volta ogni 20 s',above:'sopra',below:'sotto',
   mel:'la sua micromelodia delle righe più forti: {l}',loud:'forte quanto appare da qui, dalla sua vera direzione, con il suo vero spostamento Doppler'},
  d:{d:'{n} g',h:'{n} h',min:'{n} min',yr:'{n} anni',s:'{n} s'},
- sp:{title:'Spettro visibile 380–750 nm',bb:'corpo nero a {T} K · massimo {nm} nm → {f} Hz',lines:'le righe di assorbimento di una stella {c}',rule:'La scansione suona lo spettro con la regola delle quaranta ottave, dal violetto (717 Hz) al rosso (363 Hz); le righe si sentono come cali.',none:'nessuna riga forte in questo intervallo',nm:'nm'},
+ sp:{title:'Spettro visibile 380–750 nm',bb:'corpo nero a {T} K · massimo {nm} nm → {f} Hz',lines:'le righe di assorbimento di una stella {c}',rule:'La scansione suona lo spettro con la regola delle quaranta ottave, dal violetto (717 Hz) al rosso (363 Hz); le righe si sentono come cali.',none:'nessuna riga forte in questo intervallo',nm:'nm',chord:'Ascolta le sue righe tiene ogni riga di assorbimento come una nota secondo la regola delle quaranta ottave, le righe più profonde più forti, le bande larghe come grappoli, su un fondo tenue del suo continuo: lo stesso elemento canta la stessa nota in ogni stella (Hα 656 nm → 416 Hz), così le stelle dello stesso tipo condividono le loro righe; il loro moto sposta l’accordo ({dop}).',dop:'velocità radiale {rv} km/s ×{x}: {c} cent',dopNone:'velocità radiale sconosciuta',limit:'limite di Balmer'},
  rd:{title:'Radio 10 MHz – 100 GHz',quiet:'Radio-silenziosa: sotto la soglia di rilevazione (limite superiore {l} mJy). Senti solo il rumore di fondo.',quietDef:'Radio-silenziosa, come quasi tutte le stelle: una fotosfera normale a qualche parsec è molto al di sotto della sensibilità di ogni survey. Senti solo il rumore di fondo.',
   flare:'Stella a brillamenti: a riposo {S} mJy a {G} GHz; esplosioni fino a {p} mJy circa {r}× al giorno — udite come raffiche crepitanti, un giorno passa in 20 s.',
   maser:'Maser nel suo vento — {l} — uditi come righe sibilanti, ciascuna abbassata di un numero intero di ottave.',wind:'Vento caldo: emissione termica libera-libera, {S} mJy a {G} GHz, crescente con la frequenza — un lieve sibilo.',
@@ -5284,7 +5339,7 @@ it:{go:'Vai lì',jump:'Salta',solo:'Ascoltala da sola',spec:'Spettro',radio:'Rad
   sun:'Il Sole: flusso quieto 60–250 sfu a 2,8 GHz; i burst di tipo III derivano da centinaia di MHz a pochi MHz in secondi — uditi come fischi discendenti.',
   est:' (tipico della sua classe, non misurato)',ref:'Fonte: {r}',pulsar:'Pulsar: {n} impulsi al secondo, misura di dispersione {dm} pc cm⁻³ — uditi come sono.',src:'Radiosorgente: sincrotrone, {S} Jy a 1,4 GHz, indice spettrale {a} — rumore colorato.',
   oct:'−{o} ott → {f} Hz',limit:'< {l} mJy',cont:'continuo',flares:'brillamenti',perDay:'{n}× al giorno',hi:'H I 1420 MHz'}},
-zh:{go:'前往',jump:'跳跃',solo:'单独聆听',spec:'光谱',radio:'射电',hearSpec:'聆听光谱',hearRadio:'聆听射电',stop:'停止',voice:'它的声音',about:'关于{n}',nearestA:'最近的恒星：打开它的卡片',sun:'太阳',
+zh:{go:'前往',jump:'跳跃',solo:'单独聆听',spec:'光谱',radio:'射电',hearSpec:'聆听光谱',hearRadio:'聆听射电',hearChord:'聆听它的谱线',hearSweep:'聆听扫描',stop:'停止',voice:'它的声音',about:'关于{n}',nearestA:'最近的恒星：打开它的卡片',sun:'太阳',
  fromShip:'距飞船 {d}',fromHome:'距家 {d}',sweeping:'紫 → 红',
  r:{tone:'维恩音 {f} Hz：其光的峰值在 {nm} nm，降低四十个八度',
   reg:{wd:'白矮星（{R} R☉）：微小、玻璃般清亮而高——奇次分音，开放的滤波',I:'超巨星（{R} R☉）：深沉而宽广——低八度叠加，缓慢的呼吸',III:'巨星（{R} R☉）：低一个八度，宽广',IV:'亚巨星（{R} R☉）：音下略有厚度',V:'矮星（{R} R☉）：纤细而明亮',VI:'亚矮星（{R} R☉）：纤细而明亮'},
@@ -5295,7 +5350,7 @@ zh:{go:'前往',jump:'跳跃',solo:'单独聆听',spec:'光谱',radio:'射电',h
   comp:'伴星 {n}（{sp}）：自己的音 {f} Hz，{i}{dir}{orb}',orb:'；其 {P} 的轨道使这一对每 20 秒绕你一周',above:'在上',below:'在下',
   mel:'由其最强谱线构成的专属微旋律：{l}',loud:'从这里看有多亮就有多响，来自其真实方向，带有真实的多普勒频移'},
  d:{d:'{n} 天',h:'{n} 小时',min:'{n} 分',yr:'{n} 年',s:'{n} 秒'},
- sp:{title:'可见光谱 380–750 nm',bb:'{T} K 黑体 · 峰值 {nm} nm → {f} Hz',lines:'{c} 型恒星的吸收线',rule:'扫描按四十八度规则演奏光谱，从紫（717 Hz）到红（363 Hz）；谱线听起来是凹陷。',none:'此范围内无强谱线',nm:'nm'},
+ sp:{title:'可见光谱 380–750 nm',bb:'{T} K 黑体 · 峰值 {nm} nm → {f} Hz',lines:'{c} 型恒星的吸收线',rule:'扫描按四十八度规则演奏光谱，从紫（717 Hz）到红（363 Hz）；谱线听起来是凹陷。',none:'此范围内无强谱线',nm:'nm',chord:'聆听它的谱线按四十八度规则把每条吸收线持续为一个音，最深的线最响，宽带化作音簇，衬以其连续谱的微弱底音：同一元素在每颗星里唱同一个音（Hα 656 nm → 416 Hz），所以同类恒星共享谱线；它们的运动使和弦移调（{dop}）。',dop:'视向速度 {rv} km/s ×{x}：{c} 音分',dopNone:'视向速度未知',limit:'巴耳末极限'},
  rd:{title:'射电 10 MHz – 100 GHz',quiet:'射电宁静：低于探测极限（上限 {l} mJy）。你只听到噪声底。',quietDef:'射电宁静，如同大多数恒星：几秒差距外的普通光球远低于任何巡天的灵敏度。你只听到噪声底。',
   flare:'耀星：宁静态 {S} mJy（{G} GHz）；爆发可达 {p} mJy，约每天 {r} 次——听作噼啪的爆发，一天在 20 秒内过去。',
   maser:'星风中的脉泽——{l}——听作呼啸的谱线，各降低整数个八度。',wind:'炽热星风：热自由-自由辐射，{S} mJy（{G} GHz），随频率上升——微弱的嘶声。',
@@ -5303,7 +5358,7 @@ zh:{go:'前往',jump:'跳跃',solo:'单独聆听',spec:'光谱',radio:'射电',h
   sun:'太阳：宁静流量 60–250 sfu（2.8 GHz）；III 型爆发在数秒内从数百 MHz 漂移到几 MHz——听作下降的哨音。',
   est:'（其类型的典型值，非实测）',ref:'来源：{r}',pulsar:'脉冲星：每秒 {n} 个脉冲，色散量 {dm} pc cm⁻³——如其本来地听见。',src:'射电源：同步辐射，1.4 GHz 处 {S} Jy，谱指数 {a}——有色噪声。',
   oct:'−{o} 八度 → {f} Hz',limit:'< {l} mJy',cont:'连续谱',flares:'耀发',perDay:'每天 {n} 次',hi:'H I 1420 MHz'}},
-ja:{go:'そこへ行く',jump:'ジャンプ',solo:'単独で聴く',spec:'スペクトル',radio:'電波',hearSpec:'スペクトルを聴く',hearRadio:'電波を聴く',stop:'停止',voice:'その声',about:'{n}について',nearestA:'最も近い星：カードを開く',sun:'太陽',
+ja:{go:'そこへ行く',jump:'ジャンプ',solo:'単独で聴く',spec:'スペクトル',radio:'電波',hearSpec:'スペクトルを聴く',hearRadio:'電波を聴く',hearChord:'その線を聴く',hearSweep:'掃引を聴く',stop:'停止',voice:'その声',about:'{n}について',nearestA:'最も近い星：カードを開く',sun:'太陽',
  fromShip:'船から {d}',fromHome:'家から {d}',sweeping:'紫 → 赤',
  r:{tone:'ウィーン音 {f} Hz：光のピーク {nm} nm を四十オクターブ下げたもの',
   reg:{wd:'白色矮星（{R} R☉）：小さく、ガラスのように高い——奇数次の部分音、開いたフィルター',I:'超巨星（{R} R☉）：深く広い——下のオクターブ、ゆっくりした呼吸',III:'巨星（{R} R☉）：一オクターブ下、広い',IV:'準巨星（{R} R☉）：音の下に少し厚み',V:'矮星（{R} R☉）：細く明るい',VI:'準矮星（{R} R☉）：細く明るい'},
@@ -5314,7 +5369,7 @@ ja:{go:'そこへ行く',jump:'ジャンプ',solo:'単独で聴く',spec:'スペ
   comp:'伴星 {n}（{sp}）：固有の音 {f} Hz、{i}{dir}{orb}',orb:'；{P} の軌道で、二つの星は 20 秒であなたの周りを一周する',above:'上',below:'下',
   mel:'最も強い線による固有のミクロ旋律：{l}',loud:'ここから見える明るさの大きさで、真の方向から、実際のドップラー偏移とともに'},
  d:{d:'{n} 日',h:'{n} 時間',min:'{n} 分',yr:'{n} 年',s:'{n} 秒'},
- sp:{title:'可視スペクトル 380–750 nm',bb:'{T} K の黒体 · ピーク {nm} nm → {f} Hz',lines:'{c} 型星の吸収線',rule:'スイープは四十オクターブ則でスペクトルを奏でる：紫（717 Hz）から赤（363 Hz）へ。吸収線は落ち込みとして聞こえる。',none:'この範囲に強い線はない',nm:'nm'},
+ sp:{title:'可視スペクトル 380–750 nm',bb:'{T} K の黒体 · ピーク {nm} nm → {f} Hz',lines:'{c} 型星の吸収線',rule:'スイープは四十オクターブ則でスペクトルを奏でる：紫（717 Hz）から赤（363 Hz）へ。吸収線は落ち込みとして聞こえる。',none:'この範囲に強い線はない',nm:'nm',chord:'その線を聴くは、四十オクターブ則で各吸収線を一つの音として持続させます。深い線ほど大きく、幅広い帯は音の束として、連続光のかすかな下地の上に。同じ元素はどの星でも同じ音を歌い（Hα 656 nm → 416 Hz）、同じ種類の星は線を共有します。星の運動が和音をずらします（{dop}）。',dop:'視線速度 {rv} km/s ×{x}：{c} セント',dopNone:'視線速度は不明',limit:'バルマー限界'},
  rd:{title:'電波 10 MHz – 100 GHz',quiet:'電波で静か：検出限界以下（上限 {l} mJy）。聞こえるのはノイズフロアだけ。',quietDef:'ほとんどの星と同じく電波で静か：数パーセク先の普通の光球は、どんなサーベイの感度よりはるかに下にある。聞こえるのはノイズフロアだけ。',
   flare:'フレア星：静穏時 {S} mJy（{G} GHz）；バーストは {p} mJy まで、一日に約 {r} 回——パチパチと弾けるバーストとして、一日が 20 秒で過ぎる。',
   maser:'星風の中のメーザー——{l}——口笛のような線として聞こえ、それぞれ整数オクターブ下げてある。',wind:'高温の星風：熱的自由-自由放射、{S} mJy（{G} GHz）、周波数とともに増す——かすかなヒス。',
@@ -5322,7 +5377,7 @@ ja:{go:'そこへ行く',jump:'ジャンプ',solo:'単独で聴く',spec:'スペ
   sun:'太陽：静穏時 60–250 sfu（2.8 GHz）；III 型バーストは数秒で数百 MHz から数 MHz へ漂う——下降する口笛として聞こえる。',
   est:'（その型の典型値、実測ではない）',ref:'出典：{r}',pulsar:'パルサー：毎秒 {n} パルス、分散量 {dm} pc cm⁻³——そのままに聞こえる。',src:'電波源：シンクロトロン、1.4 GHz で {S} Jy、スペクトル指数 {a}——有色ノイズ。',
   oct:'−{o} oct → {f} Hz',limit:'< {l} mJy',cont:'連続波',flares:'フレア',perDay:'一日 {n} 回',hi:'H I 1420 MHz'}},
-vi:{go:'Đến đó',jump:'Nhảy tới',solo:'Nghe riêng nó',spec:'Quang phổ',radio:'Vô tuyến',hearSpec:'Nghe quang phổ',hearRadio:'Nghe vô tuyến',stop:'Dừng',voice:'Giọng của nó',about:'Về {n}',nearestA:'ngôi sao gần nhất: mở thẻ của nó',sun:'Mặt Trời',
+vi:{go:'Đến đó',jump:'Nhảy tới',solo:'Nghe riêng nó',spec:'Quang phổ',radio:'Vô tuyến',hearSpec:'Nghe quang phổ',hearRadio:'Nghe vô tuyến',hearChord:'Nghe các vạch của nó',hearSweep:'Nghe lượt quét',stop:'Dừng',voice:'Giọng của nó',about:'Về {n}',nearestA:'ngôi sao gần nhất: mở thẻ của nó',sun:'Mặt Trời',
  fromShip:'cách tàu {d}',fromHome:'cách nhà {d}',sweeping:'tím → đỏ',
  r:{tone:'Âm Wien {f} Hz: đỉnh ánh sáng của nó ở {nm} nm, hạ bốn mươi quãng tám',
   reg:{wd:'sao lùn trắng ({R} R☉): bé nhỏ, trong như thủy tinh và cao — các bội âm lẻ, bộ lọc mở',I:'sao siêu khổng lồ ({R} R☉): trầm và rộng — các quãng tám bên dưới, nhịp thở chậm',III:'sao khổng lồ ({R} R☉): quãng tám bên dưới, rộng',IV:'sao cận khổng lồ ({R} R☉): một chút độ dày dưới âm',V:'sao lùn ({R} R☉): mảnh và sáng',VI:'sao cận lùn ({R} R☉): mảnh và sáng'},
@@ -5333,7 +5388,7 @@ vi:{go:'Đến đó',jump:'Nhảy tới',solo:'Nghe riêng nó',spec:'Quang ph�
   comp:'sao đồng hành {n} ({sp}): nốt riêng {f} Hz, {i} {dir}{orb}',orb:'; quỹ đạo {P} xoay cặp sao quanh bạn một vòng mỗi 20 s',above:'cao hơn',below:'thấp hơn',
   mel:'giai điệu nhỏ riêng từ các vạch mạnh nhất của nó: {l}',loud:'to như độ sáng nhìn từ đây, từ hướng thật của nó, với dịch chuyển Doppler thật'},
  d:{d:'{n} ngày',h:'{n} giờ',min:'{n} phút',yr:'{n} năm',s:'{n} s'},
- sp:{title:'Quang phổ khả kiến 380–750 nm',bb:'vật đen ở {T} K · đỉnh {nm} nm → {f} Hz',lines:'các vạch hấp thụ của sao loại {c}',rule:'Dải quét chơi quang phổ theo quy tắc bốn mươi quãng tám, từ tím (717 Hz) đến đỏ (363 Hz); các vạch nghe như những chỗ hụt.',none:'không có vạch mạnh trong khoảng này',nm:'nm'},
+ sp:{title:'Quang phổ khả kiến 380–750 nm',bb:'vật đen ở {T} K · đỉnh {nm} nm → {f} Hz',lines:'các vạch hấp thụ của sao loại {c}',rule:'Dải quét chơi quang phổ theo quy tắc bốn mươi quãng tám, từ tím (717 Hz) đến đỏ (363 Hz); các vạch nghe như những chỗ hụt.',none:'không có vạch mạnh trong khoảng này',nm:'nm',chord:'Nghe các vạch của nó giữ mỗi vạch hấp thụ như một nốt theo quy tắc bốn mươi quãng tám, vạch sâu nhất to nhất, các dải rộng thành cụm, trên nền mờ của phổ liên tục: cùng một nguyên tố hát cùng một nốt ở mọi ngôi sao (Hα 656 nm → 416 Hz), nên các sao cùng loại chia sẻ các vạch; chuyển động của chúng làm dịch hợp âm ({dop}).',dop:'vận tốc xuyên tâm {rv} km/s ×{x}: {c} cent',dopNone:'vận tốc xuyên tâm chưa biết',limit:'giới hạn Balmer'},
  rd:{title:'Vô tuyến 10 MHz – 100 GHz',quiet:'Yên lặng vô tuyến: dưới ngưỡng phát hiện (giới hạn trên {l} mJy). Bạn chỉ nghe nền nhiễu.',quietDef:'Yên lặng vô tuyến, như hầu hết các sao: một quang cầu bình thường cách vài parsec nằm xa dưới độ nhạy của mọi khảo sát. Bạn chỉ nghe nền nhiễu.',
   flare:'Sao bùng phát: lúc yên {S} mJy ở {G} GHz; bùng phát tới {p} mJy khoảng {r}× mỗi ngày — nghe như những đợt nổ lách tách, một ngày trôi trong 20 s.',
   maser:'Maser trong gió sao — {l} — nghe như những vạch huýt sáo, mỗi vạch hạ một số nguyên quãng tám.',wind:'Gió nóng: bức xạ nhiệt tự do-tự do, {S} mJy ở {G} GHz, tăng theo tần số — tiếng xì nhẹ.',
@@ -5341,7 +5396,7 @@ vi:{go:'Đến đó',jump:'Nhảy tới',solo:'Nghe riêng nó',spec:'Quang ph�
   sun:'Mặt Trời: thông lượng yên tĩnh 60–250 sfu ở 2,8 GHz; các bùng phát loại III trôi từ hàng trăm MHz xuống vài MHz trong vài giây — nghe như tiếng huýt rơi.',
   est:' (điển hình cho lớp của nó, không phải đo)',ref:'Nguồn: {r}',pulsar:'Sao xung: {n} xung mỗi giây, độ tán sắc {dm} pc cm⁻³ — nghe đúng như vốn có.',src:'Nguồn vô tuyến: synchrotron, {S} Jy ở 1,4 GHz, chỉ số phổ {a} — nhiễu màu.',
   oct:'−{o} q8 → {f} Hz',limit:'< {l} mJy',cont:'phổ liên tục',flares:'bùng phát',perDay:'{n}× mỗi ngày',hi:'H I 1420 MHz'}},
-bg:{go:'Отиди там',jump:'Скок',solo:'Чуй я сама',spec:'Спектър',radio:'Радио',hearSpec:'Чуй спектъра',hearRadio:'Чуй радиото',stop:'Стоп',voice:'Нейният глас',about:'За {n}',nearestA:'най-близката звезда: отвори картата ѝ',sun:'Слънцето',
+bg:{go:'Отиди там',jump:'Скок',solo:'Чуй я сама',spec:'Спектър',radio:'Радио',hearSpec:'Чуй спектъра',hearRadio:'Чуй радиото',hearChord:'Чуй линиите ѝ',hearSweep:'Чуй преминаването',stop:'Стоп',voice:'Нейният глас',about:'За {n}',nearestA:'най-близката звезда: отвори картата ѝ',sun:'Слънцето',
  fromShip:'{d} от кораба',fromHome:'{d} от дома',sweeping:'виолетово → червено',
  r:{tone:'Тон на Вин {f} Hz: максимумът на светлината ѝ при {nm} nm, понижен с четиридесет октави',
   reg:{wd:'бяло джудже ({R} R☉): мъничко, стъклено и високо — нечетни обертонове, отворен филтър',I:'свръхгигант ({R} R☉): дълбок и широк — октавите отдолу, бавно дишане',III:'гигант ({R} R☉): октавата отдолу, широко',IV:'субгигант ({R} R☉): малко тяло под тона',V:'джудже ({R} R☉): тънко и ярко',VI:'субджудже ({R} R☉): тънко и ярко'},
@@ -5352,7 +5407,7 @@ bg:{go:'Отиди там',jump:'Скок',solo:'Чуй я сама',spec:'Сп�
   comp:'спътник {n} ({sp}): собствен тон {f} Hz, {i} {dir}{orb}',orb:'; орбитата ѝ от {P} върти двойката около тебе веднъж на 20 s',above:'над',below:'под',
   mel:'собствена микромелодия от най-силните ѝ линии: {l}',loud:'толкова силна, колкото ярка изглежда оттук, от истинската ѝ посока, с истинското ѝ доплерово отместване'},
  d:{d:'{n} д',h:'{n} ч',min:'{n} мин',yr:'{n} г.',s:'{n} s'},
- sp:{title:'Видим спектър 380–750 nm',bb:'черно тяло при {T} K · максимум {nm} nm → {f} Hz',lines:'абсорбционните линии на звезда от клас {c}',rule:'Преминаването свири спектъра по правилото на четиридесетте октави, от виолетово (717 Hz) до червено (363 Hz); линиите се чуват като спадове.',none:'няма силни линии в този диапазон',nm:'nm'},
+ sp:{title:'Видим спектър 380–750 nm',bb:'черно тяло при {T} K · максимум {nm} nm → {f} Hz',lines:'абсорбционните линии на звезда от клас {c}',rule:'Преминаването свири спектъра по правилото на четиридесетте октави, от виолетово (717 Hz) до червено (363 Hz); линиите се чуват като спадове.',none:'няма силни линии в този диапазон',nm:'nm',chord:'Чуй линиите ѝ задържа всяка абсорбционна линия като нота по правилото на четиридесетте октави, най-дълбоките линии най-силно, широките ивици като гроздове, върху тих фон от континуума ѝ: един и същ елемент пее една и съща нота във всяка звезда (Hα 656 nm → 416 Hz), така че звездите от един вид споделят линиите си; движението им измества акорда ({dop}).',dop:'лъчева скорост {rv} km/s ×{x}: {c} цента',dopNone:'лъчева скорост неизвестна',limit:'граница на Балмер'},
  rd:{title:'Радио 10 MHz – 100 GHz',quiet:'Радиотиха: под прага на откриване (горна граница {l} mJy). Чуваш само шумовия фон.',quietDef:'Радиотиха, като повечето звезди: обикновена фотосфера на няколко парсека е далеч под чувствителността на всеки обзор. Чуваш само шумовия фон.',
   flare:'Избухваща звезда: в покой {S} mJy при {G} GHz; изблици до {p} mJy около {r}× на ден — чуват се като пукащи изблици, един ден минава за 20 s.',
   maser:'Мазери във вятъра ѝ — {l} — чуват се като свирещи линии, всяка понижена с цяло число октави.',wind:'Горещ вятър: топлинно свободно-свободно излъчване, {S} mJy при {G} GHz, нарастващо с честотата — слабо шумолене.',
@@ -5360,7 +5415,7 @@ bg:{go:'Отиди там',jump:'Скок',solo:'Чуй я сама',spec:'Сп�
   sun:'Слънцето: спокоен поток 60–250 sfu при 2,8 GHz; изблиците тип III се плъзгат от стотици MHz до няколко MHz за секунди — чуват се като падащи свирки.',
   est:' (типично за класа ѝ, не измерено)',ref:'Източник: {r}',pulsar:'Пулсар: {n} импулса в секунда, мярка на дисперсия {dm} pc cm⁻³ — чуват се такива, каквито са.',src:'Радиоизточник: синхротрон, {S} Jy при 1,4 GHz, спектрален индекс {a} — оцветен шум.',
   oct:'−{o} окт → {f} Hz',limit:'< {l} mJy',cont:'континуум',flares:'избухвания',perDay:'{n}× на ден',hi:'H I 1420 MHz'}},
-pt:{go:'Ir até lá',jump:'Saltar',solo:'Ouvi-la sozinha',spec:'Espectro',radio:'Rádio',hearSpec:'Ouvir o espectro',hearRadio:'Ouvir o rádio',stop:'Parar',voice:'A sua voz',about:'Sobre {n}',nearestA:'a estrela mais próxima: abrir a sua ficha',sun:'o Sol',
+pt:{go:'Ir até lá',jump:'Saltar',solo:'Ouvi-la sozinha',spec:'Espectro',radio:'Rádio',hearSpec:'Ouvir o espectro',hearRadio:'Ouvir o rádio',hearChord:'Ouvir as suas linhas',hearSweep:'Ouvir a varredura',stop:'Parar',voice:'A sua voz',about:'Sobre {n}',nearestA:'a estrela mais próxima: abrir a sua ficha',sun:'o Sol',
  fromShip:'a {d} da nave',fromHome:'a {d} de casa',sweeping:'violeta → vermelho',
  r:{tone:'Tom de Wien {f} Hz: o pico da sua luz em {nm} nm, baixado quarenta oitavas',
   reg:{wd:'uma anã branca ({R} R☉): minúscula, vítrea e aguda — parciais ímpares, filtro aberto',I:'uma supergigante ({R} R☉): grave e larga — as oitavas abaixo, respiração lenta',III:'uma gigante ({R} R☉): a oitava abaixo, larga',IV:'uma subgigante ({R} R☉): um pouco de corpo sob o tom',V:'uma anã ({R} R☉): fina e brilhante',VI:'uma subanã ({R} R☉): fina e brilhante'},
@@ -5371,7 +5426,7 @@ pt:{go:'Ir até lá',jump:'Saltar',solo:'Ouvi-la sozinha',spec:'Espectro',radio:
   comp:'companheira {n} ({sp}): a sua própria nota {f} Hz, {i} {dir}{orb}',orb:'; a sua órbita de {P} gira o par à sua volta uma vez a cada 20 s',above:'acima',below:'abaixo',
   mel:'a sua micromelodia própria das suas linhas mais fortes: {l}',loud:'tão forte quanto parece daqui, da sua direção real, com o seu desvio Doppler real'},
  d:{d:'{n} d',h:'{n} h',min:'{n} min',yr:'{n} anos',s:'{n} s'},
- sp:{title:'Espectro visível 380–750 nm',bb:'corpo negro a {T} K · pico {nm} nm → {f} Hz',lines:'as linhas de absorção de uma estrela {c}',rule:'A varredura toca o espectro pela regra das quarenta oitavas, do violeta (717 Hz) ao vermelho (363 Hz); as linhas ouvem-se como quedas.',none:'sem linhas fortes nesta faixa',nm:'nm'},
+ sp:{title:'Espectro visível 380–750 nm',bb:'corpo negro a {T} K · pico {nm} nm → {f} Hz',lines:'as linhas de absorção de uma estrela {c}',rule:'A varredura toca o espectro pela regra das quarenta oitavas, do violeta (717 Hz) ao vermelho (363 Hz); as linhas ouvem-se como quedas.',none:'sem linhas fortes nesta faixa',nm:'nm',chord:'Ouvir as suas linhas sustenta cada linha de absorção como uma nota pela regra das quarenta oitavas, as linhas mais profundas mais altas, as bandas largas como cachos, sobre um fundo ténue do seu contínuo: o mesmo elemento canta a mesma nota em todas as estrelas (Hα 656 nm → 416 Hz), por isso estrelas do mesmo tipo partilham as suas linhas; o seu movimento desloca o acorde ({dop}).',dop:'velocidade radial {rv} km/s ×{x}: {c} cents',dopNone:'velocidade radial desconhecida',limit:'limite de Balmer'},
  rd:{title:'Rádio 10 MHz – 100 GHz',quiet:'Silenciosa em rádio: abaixo da deteção (limite superior {l} mJy). Ouve apenas o ruído de fundo.',quietDef:'Silenciosa em rádio, como quase todas as estrelas: uma fotosfera normal a alguns parsecs fica muito abaixo da sensibilidade de qualquer levantamento. Ouve apenas o ruído de fundo.',
   flare:'Estrela eruptiva: em repouso {S} mJy a {G} GHz; explosões até {p} mJy cerca de {r}× por dia — ouvidas como rajadas crepitantes, um dia passa em 20 s.',
   maser:'Masers no seu vento — {l} — ouvidos como linhas sibilantes, cada uma baixada um número inteiro de oitavas.',wind:'Vento quente: emissão térmica livre-livre, {S} mJy a {G} GHz, crescente com a frequência — um silvo tênue.',
@@ -5391,7 +5446,7 @@ try{const t=+LS.get('mots.fly.throttle');if(t>0)ST.throttle=t;const x=+LS.get('m
 // the Stars options (the navigation panel's Stars group), remembered: the stars' own volume, how a star sounds, whether it sings its name
 // on arrival, the starquake voice when parked beside a sun-like star, and the rotation chord's volume. Calm defaults.
 const OPT={vol:.75,mode:'tone',name:true,quake:false,dmVol:.6};
-try{const o=JSON.parse(LS.get('mots.fly.stars')||'{}');if(o&&typeof o==='object'){if(o.vol>=0&&o.vol<=1)OPT.vol=+o.vol;if(['tone','shim','pulse','off'].includes(o.mode))OPT.mode=o.mode;if(typeof o.name==='boolean')OPT.name=o.name;if(typeof o.quake==='boolean')OPT.quake=o.quake;if(o.dmVol>=0&&o.dmVol<=1)OPT.dmVol=+o.dmVol}}catch(e){}
+try{const o=JSON.parse(LS.get('mots.fly.stars')||'{}');if(o&&typeof o==='object'){if(o.vol>=0&&o.vol<=1)OPT.vol=+o.vol;if(['tone','shim','pulse','lines','off'].includes(o.mode))OPT.mode=o.mode;if(typeof o.name==='boolean')OPT.name=o.name;if(typeof o.quake==='boolean')OPT.quake=o.quake;if(o.dmVol>=0&&o.dmVol<=1)OPT.dmVol=+o.dmVol}}catch(e){}
 const saveOpt=()=>LS.set('mots.fly.stars',JSON.stringify(OPT));
 const QUAL=()=>{try{return window.MOTS&&MOTS.quality?MOTS.quality():''}catch(e){return ''}};
 const LOW=MOBILE||(typeof LOWPOWER!=='undefined'&&LOWPOWER);
@@ -5878,7 +5933,7 @@ function buildPanel(){const dest=$('dest');if(!dest||$('gdest'))return;
   const S2=TX.st,pc=v=>Math.round(v*100)+'%';
   const sg=document.createElement('div');sg.className='gstars';sg.id='gStars';sg.innerHTML=`<h3>${ESC(S2.h)}</h3>
     <div class="field"><label for="gStarVol">${ESC(S2.vol)} <output id="gStarVolOut">${pc(OPT.vol)}</output></label><input id="gStarVol" type="range" min="0" max="100" value="${Math.round(OPT.vol*100)}"></div>
-    <h3>${ESC(S2.snd)}</h3><div class="seg" id="gMode">${[['tone',S2.tone,S2.tone],['shim',S2.shim,S2.shim],['pulse',S2.pulse,S2.pulseT],['off',S2.off,S2.off]].map(([m,l,t])=>`<button data-m="${m}" title="${ESC(t)}" aria-pressed="${OPT.mode===m}">${ESC(l)}</button>`).join('')}</div>
+    <h3>${ESC(S2.snd)}</h3><div class="seg" id="gMode">${[['tone',S2.tone,S2.tone],['shim',S2.shim,S2.shim],['pulse',S2.pulse,S2.pulseT],['lines',S2.lines,S2.linesT],['off',S2.off,S2.off]].map(([m,l,t])=>`<button data-m="${m}" title="${ESC(t)}" aria-pressed="${OPT.mode===m}">${ESC(l)}</button>`).join('')}</div>
     <label class="check"><input type="checkbox" id="gName"${OPT.name?' checked':''}> ${ESC(S2.name)}</label>
     <label class="check"><input type="checkbox" id="gQuake"${OPT.quake?' checked':''}> ${ESC(S2.quake)}</label>`;
   f.after(sg);
@@ -5966,14 +6021,14 @@ const budget=()=>{const q=QUAL();if(LOW)return q==='eco'?4:q==='high'?8:6;return
 const NLINES=()=>QUAL()==='eco'?0:LOW?2:3;
 const KR=p=>{try{p.automationRate='k-rate'}catch(e){}};const krBiq=f=>{KR(f.frequency);KR(f.Q);KR(f.gain);KR(f.detune);return f};
 function mkPan(to){const p=AC.createPanner();p.panningModel='equalpower';p.distanceModel='linear';p.refDistance=1;p.maxDistance=10000;p.rolloffFactor=0;p.coneInnerAngle=360;p.coneOuterAngle=360;if(p.positionX){KR(p.positionX);KR(p.positionY);KR(p.positionZ)}p.connect(to);return p}
-function audioInit(){if(GA||!AC)return;GA={bus:mkGain(1,bus),starG:null,chordG:null,star:[],pulsar:[],radio:[],chord:[],gal:[],quake:null,hiss:null,pulseWaves:new Map(),churn:0,swaps:0};
+function audioInit(){if(GA||!AC)return;GA={bus:mkGain(1,bus),starG:null,chordG:null,star:[],pulsar:[],radio:[],chord:[],gal:[],quake:null,lines:null,hiss:null,pulseWaves:new Map(),churn:0,swaps:0};
   GA.starG=mkGain(OPT.vol,GA.bus);GA.chordG=mkGain(OPT.dmVol,GA.bus);
   // the solar wind: a hiss that grows toward the heliopause and stops there
   const h={};h.hp=krBiq(AC.createBiquadFilter());h.hp.type='highpass';h.hp.frequency.value=180;h.lp=krBiq(AC.createBiquadFilter());h.lp.type='lowpass';h.lp.frequency.value=1500;h.lp.Q.value=.5;
   h.g=mkGain(0,GA.bus);h.tap=mkGain(.6,h.hp);noiseBus.connect(h.tap);h.hp.connect(h.lp);h.lp.connect(h.g);GA.hiss=h}
 function pulseWave(duty){const d=Math.round(clamp(duty,.02,.5)*50)/50;let w=GA.pulseWaves.get(d);if(w)return w;const N=64,re=new Float32Array(N),im=new Float32Array(N);for(let n=1;n<N;n++)re[n]=2*Math.sin(n*Math.PI*d)/(n*Math.PI);w=AC.createPeriodicWave(re,im,{disableNormalization:true});GA.pulseWaves.set(d,w);return w}
 // the star sound's three characters: tone (the Wien note, tamed), shimmer (a soft cloud of grains: strong granulation, a chorus of detuned partners), pulse (the tone, breathing left to the light curve)
-const MODEP={gal:{g2:.04,det2:7,vib:5,vibR:.23,lp:1200,nf:22,nd:14,am:.6,b1:.12,b2:.08},tone:{g2:.15,det2:0,vib:2.2,vibR:0,lp:2000,nf:6,nd:5,am:.84,b1:.1,b2:.06},shim:{g2:.05,det2:9,vib:7,vibR:.3,lp:1400,nf:28,nd:16,am:.62,b1:.1,b2:.08},pulse:{g2:.12,det2:0,vib:2.2,vibR:0,lp:2000,nf:5,nd:4,am:.92,b1:0,b2:0},off:{g2:0,det2:0,vib:0,vibR:0,lp:2000,nf:6,nd:0,am:1,b1:0,b2:0}};
+const MODEP={gal:{g2:.04,det2:7,vib:5,vibR:.23,lp:1200,nf:22,nd:14,am:.6,b1:.12,b2:.08},tone:{g2:.15,det2:0,vib:2.2,vibR:0,lp:2000,nf:6,nd:5,am:.84,b1:.1,b2:.06},shim:{g2:.05,det2:9,vib:7,vibR:.3,lp:1400,nf:28,nd:16,am:.62,b1:.1,b2:.08},pulse:{g2:.12,det2:0,vib:2.2,vibR:0,lp:2000,nf:5,nd:4,am:.92,b1:0,b2:0},lines:{g2:.1,det2:0,vib:2.2,vibR:0,lp:1800,nf:6,nd:5,am:.84,b1:.1,b2:.06},off:{g2:0,det2:0,vib:0,vibR:0,lp:2000,nf:6,nd:0,am:1,b1:0,b2:0}};
 function applyMode(sl,mode,t0){const I=sl.I,m=mode||OPT.mode,P=MODEP[m]||MODEP.tone,t=t0!=null?t0:AC.currentTime,tc=.3;sl.mode=m;sl.P=P;
   I.o2.detune.setTargetAtTime(P.det2,t,tc);I.vd.gain.setTargetAtTime(P.vib,t,tc);I.vib.frequency.setTargetAtTime(P.vibR||(.11+sl.k*.017),t,tc);
   I.nf.frequency.setTargetAtTime(P.nf,t,tc);I.nd.gain.setTargetAtTime(P.nd,t,tc);I.am.gain.setTargetAtTime(P.am,t,tc);I.bd1.gain.setTargetAtTime(P.b1,t,tc);I.bd2.gain.setTargetAtTime(P.b2,t,tc);
@@ -6073,7 +6128,7 @@ let flares=null;const seedT0=performance.now();const W=[],WG=[];
 function audio(){if(!AC||!ST.ready)return;audioInit();const t=AC.currentTime,g=G(),gf=ST.gf,r=ST.r,now=performance.now()/1000;
   // the solar wind
   const hz=sm(30,100,r)*(1-sm(119,127,r));tgt(GA.hiss.g.gain,.022*hz,hz>0?.4:.12);
-  if(gf<=0){if(GA.star.length||GA.chord.length||GA.pulsar.length||GA.gal.length){ensure(GA.star,'star',0);ensure(GA.pulsar,'pulse',0);ensure(GA.radio,'noise',0);ensure(GA.chord,'chord',0);ensure(GA.gal,'star',0)}if(GA.quake){quakeKill(GA.quake);GA.quake=null}return}
+  if(gf<=0){if(GA.star.length||GA.chord.length||GA.pulsar.length||GA.gal.length){ensure(GA.star,'star',0);ensure(GA.pulsar,'pulse',0);ensure(GA.radio,'noise',0);ensure(GA.chord,'chord',0);ensure(GA.gal,'star',0)}if(GA.quake){quakeKill(GA.quake);GA.quake=null}if(GA.lines){linesKill(GA.lines);GA.lines=null}return}
   assign(now);const N=budget();ensure(GA.star,'star',OPT.mode==='off'?0:N);ensure(GA.pulsar,'pulse',LOW?1:2);ensure(GA.radio,'noise',LOW?1:2);ensure(GA.gal,'star',OPT.mode==='off'?0:NGAL());
   // the chord's owner changes in two steps: fade down, switch the frequencies and the directions, fade up
   if(AS.chordPending!==AS.chordOwner&&now>AS.chordXf+.4){AS.chordOwner=AS.chordPending;AS.chordKey='';AS.chordIn=now;GA.chord.forEach(sl=>{sl.pannedK=false});AS.dirty=true;refreshHear()}
@@ -6086,6 +6141,10 @@ function audio(){if(!AC||!ST.ready)return;audioInit();const t=AC.currentTime,g=G
   if(GA.quake&&GA.quake.row!==want){quakeKill(GA.quake);GA.quake=null;refreshHear()}
   if(want&&!GA.quake){const Q=quakeModes(want);if(Q){GA.quake=quakeBuild(want,Q);refreshHear()}else ST.noQuake=want}
   if(GA.quake){const q=GA.quake;q.on=true;g.posAt(q.row,tYr(),TMPG);panTo(q,TMPG.x,TMPG.y,TMPG.z);tgt(q.vg.gain,.085*gf,1.2)}
+  // the "Lines (chord)" voice: the nearest star as its sustained line chord, from its direction, retuned when the Doppler switch changes
+  const lw=linesWant();if(GA.lines&&GA.lines.row!==lw){linesKill(GA.lines);GA.lines=null;refreshHear()}
+  if(lw&&!GA.lines){GA.lines=linesBuild(lw);refreshHear()}
+  if(GA.lines){const q=GA.lines;if(q.exag!==ST.exag){q.exag=ST.exag;q.gr.retune(chordOf(q.row).dop,t)}g.posAt(q.row,tYr(),TMPG);panTo(q,TMPG.x,TMPG.y,TMPG.z);tgt(q.vg.gain,1.1*gf*(GA.quake&&GA.quake.row===q.row?.4:1),.6)}
   // stars: the weights first (loudness squared, the high-pitch tilt), then the cap on their sum
   let tot=0;for(let k=0;k<GA.star.length;k++){const e=AS.star[k];if(!e||!e.row){W[k]=0;continue}let w=e.loud*e.loud;const f0=g.starTone(e.row.T||5772);if(f0>800)w*=Math.sqrt(800/f0);W[k]=w;tot+=w}
   for(let k=0;k<GA.gal.length;k++){const e=AS.gal[k];if(!e||!e.row){WG[k]=0;continue}const w=e.loud*e.loud*.9;WG[k]=w;tot+=w}
@@ -6099,7 +6158,7 @@ function audio(){if(!AC||!ST.ready)return;audioInit();const t=AC.currentTime,g=G
     const V=sl.V;sl.rv=g.radialVelocity(row,POS,L,TMPRV);let f=V.f0*g.doppler(sl.rv,ST.exag);
     // the slow life: pulse mode follows the light curve deeply; otherwise a real variable follows it subtly at its own stated cycle, an irregular one wanders
     let env=1;if(OPT.mode==='pulse')env=pulseEnv(row,k,now);else env=varEnv(V,now,k);
-    if(GA.quake&&GA.quake.row===row)env*=.25;
+    if(GA.quake&&GA.quake.row===row)env*=.25;if(OPT.mode==='lines')env*=GA.lines&&GA.lines.row===row?.12:.4;
     const sm=soloMul(row,now);let gain=G0*W[k]*scale*gf*env*sm*(V.kind==='I'?1.3:V.kind==='III'?1.2:V.kind==='wd'?.9:1);if(sm>1)gain=Math.max(gain,G0*2.2*gf*env);/* alone: louder than a full voice in the mix (the others are far down) */tgt(sl.vg.gain,gain,t<sl.rise+.8?.35:OPT.mode==='pulse'?.06:.12);
     tgt(I.o1.frequency,f,.08);tgt(I.o2.frequency,f,.08);tgt(I.o3.frequency,f*sl.m3,.08);
     const bright=V.bright,g3=sl.g3*(1-bright*.35)/(1+sl.g3);tgt(I.g1.gain,(1-bright*.35)/(1+sl.g3),.15);tgt(I.g3.gain,g3,.15);tgt(I.g2.gain,(sl.P.g2*(.4+bright*1.2))*(V.body.saw/.15),.15);tgt(I.lp.frequency,clamp(f*V.body.lp,400,Math.max(sl.P.lp*(V.body.odd?2.5:1),f*1.4)),.15);
@@ -6230,28 +6289,36 @@ document.addEventListener('click',e=>{const b=e.target.closest('.glink');if(!b)r
 /* ---------- the spectrum and radio views: a sheet with a drawing, the stated rule, and Hear / Stop ---------- */
 let sheetEl=null,sheetCv=null,HEAR=null;
 function ensureSheet(){if(sheetEl)return;sheetEl=document.createElement('div');sheetEl.className='gsheet';sheetEl.id='galSheet';sheetEl.hidden=true;sheetEl.setAttribute('role','dialog');document.body.appendChild(sheetEl);
-  sheetEl.onclick=e=>{const b=e.target.closest('button');if(!b)return;if(typeof resumeAudio==='function')resumeAudio();const a=b.dataset.a;if(a==='x')closeSheet();else if(a==='hear'){if(HEAR)stopHear();else hear()}else if(a==='other'){openSheet(ST.sheet.kind==='spec'?'radio':'spec',ST.sheet.body)}};
+  sheetEl.onclick=e=>{const b=e.target.closest('button');if(!b)return;if(typeof resumeAudio==='function')resumeAudio();const a=b.dataset.a;if(a==='x')closeSheet();else if(a==='chord'){if(HEAR&&HEAR.kind==='chord')stopHear();else hearChord()}else if(a==='hear'){if(HEAR&&HEAR.kind!=='chord')stopHear();else hear()}else if(a==='other'){openSheet(ST.sheet.kind==='spec'?'radio':'spec',ST.sheet.body)}};
   addEventListener('resize',()=>{if(sheetEl&&!sheetEl.hidden)drawSheet()})}
-function openSheet(kind,body){ensureSheet();stopHear();ST.sheet={kind,body};const nm=bodyName(body),isStar=body.kind==='star';
-  let txt='',ref='';
-  if(kind==='spec'){if(isStar){const sp=G().spectrum(body.row);txt=uf(TV.sp.bb,{T:fmtN(sp.T,0),nm:fmtN(sp.peak_nm,0),f:fmtN(sp.f0,0)})+' · '+uf(TV.sp.lines,{c:sp.cls,a:/^[AFMO]/.test(sp.cls)?'an':'a'})+'. '+TV.sp.rule}else txt=TV.sp.rule}
+// the sheet's stated rule: for a star's spectrum the black body, its class, the line chord (with its Doppler shift) and the sweep
+function sheetText(kind,body){const isStar=body.kind==='star';let txt='',ref='';
+  if(kind==='spec'){if(isStar){const sp=G().spectrum(body.row);txt=uf(TV.sp.bb,{T:fmtN(sp.T,0),nm:fmtN(sp.peak_nm,0),f:fmtN(sp.f0,0)})+' · '+uf(TV.sp.lines,{c:sp.cls,a:/^[AFMO]/.test(sp.cls)?'an':'a'})+'. '+(chordOf(body.row).lines.length?ESC(uf(TV.sp.chord,{dop:dopWord(body.row)}))+' ':'')+TV.sp.rule}else txt=TV.sp.rule}
   else{const r=radioText(body);txt=r.txt;ref=r.ref}
-  sheetEl.innerHTML=`<div class="gsh"><b>${ESC(nm)}</b><small>${ESC(kind==='spec'?TV.sp.title:TV.rd.title)}</small><button class="gx" data-a="x" aria-label="${ESC(TX.st.close)}">×</button></div><canvas id="galSheetCv" aria-label="${ESC(kind==='spec'?TV.sp.title:TV.rd.title)}"></canvas><p class="gst">${txt}</p>${ref?`<p class="gsr2">${ESC(ref)}</p>`:''}`+
-    `<div class="gsb"><button class="chip" data-a="hear">${ESC(kind==='spec'?TV.hearSpec:TV.hearRadio)}</button><button class="chip" data-a="other">${ESC(kind==='spec'?TV.radio:TV.spec)}</button><button class="chip" data-a="x">${ESC(TX.st.close)}</button></div>`;
+  return {txt,ref}}
+// the drawn range of a star's spectrum: 380–750 nm, opened down to the Balmer limit when its chord has lines below 380 nm (the hot stars)
+function specRange(body){let lo=380;if(body.kind==='star'){const C=chordOf(body.row);let mn=1e9;C.lines.forEach(L=>{if(L.nm<mn)mn=L.nm});if(mn<380)lo=Math.min(lo,Math.floor(G().BALMER_LIMIT_NM-3))}return {lo,hi:750}}
+function openSheet(kind,body){ensureSheet();stopHear();ST.sheet={kind,body};const nm=bodyName(body),isStar=body.kind==='star';
+  const {txt,ref}=sheetText(kind,body),hasChord=kind==='spec'&&isStar&&chordOf(body.row).lines.length>0,title=kind==='spec'?TV.sp.title.replace('380',String(specRange(body).lo)):TV.rd.title;
+  sheetEl.innerHTML=`<div class="gsh"><b>${ESC(nm)}</b><small>${ESC(title)}</small><button class="gx" data-a="x" aria-label="${ESC(TX.st.close)}">×</button></div><canvas id="galSheetCv" aria-label="${ESC(title)}"></canvas><p class="gst">${txt}</p>${ref?`<p class="gsr2">${ESC(ref)}</p>`:''}`+
+    `<div class="gsb">${hasChord?`<button class="chip" data-a="chord">${ESC(TV.hearChord)}</button>`:''}<button class="chip" data-a="hear">${ESC(kind==='spec'?(hasChord?TV.hearSweep:TV.hearSpec):TV.hearRadio)}</button><button class="chip" data-a="other">${ESC(kind==='spec'?TV.radio:TV.spec)}</button><button class="chip" data-a="x">${ESC(TX.st.close)}</button></div>`;
   sheetCv=sheetEl.querySelector('canvas');sheetEl.hidden=false;hidePop();if(cardEl&&!cardEl.hidden)cardEl.style.visibility='hidden';drawSheet()}
 function closeSheet(){stopHear();if(sheetEl)sheetEl.hidden=true;ST.sheet=null;if(cardEl)cardEl.style.visibility=''}
 function drawSheet(){if(!sheetEl||sheetEl.hidden||!ST.sheet||!sheetCv)return;const dpr=Math.min(2,devicePixelRatio||1),W=sheetCv.clientWidth||320,H=sheetCv.clientHeight||176;if(sheetCv.width!==Math.round(W*dpr)){sheetCv.width=Math.round(W*dpr);sheetCv.height=Math.round(H*dpr)}
   const c=sheetCv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,H);c.fillStyle='#030409';c.fillRect(0,0,W,H);
   if(ST.sheet.kind==='spec')drawSpectrum(c,W,H,ST.sheet.body);else drawRadio(c,W,H,ST.sheet.body)}
 const MONO='500 10px "IBM Plex Mono",ui-monospace,monospace',SANS='12px "Alegreya Sans","Gill Sans",system-ui,sans-serif';
-function drawSpectrum(c,W,H,body){const g=G();const star=body.kind==='star'?body.row:{T:body.row.T||5000,sp:'',id:0},sp=g.spectrum(star,{n:Math.max(128,Math.min(1024,Math.round(W)))}),lo=sp.lo,hi=sp.hi,xOf=nm=>(nm-lo)/(hi-lo)*W;
-  const stripY=H*.62,stripH=H*.19,curveH=stripY-44,n=sp.n;
+function drawSpectrum(c,W,H,body){const g=G();const star=body.kind==='star'?body.row:{T:body.row.T||5000,sp:'',id:0},rng=specRange(body),sp=g.spectrum(star,{n:Math.max(128,Math.min(1024,Math.round(W))),lo:rng.lo,hi:rng.hi}),lo=sp.lo,hi=sp.hi,xOf=nm=>(nm-lo)/(hi-lo)*W;
+  const stripY=H*.62,stripH=H*.19,curveH=stripY-44,n=sp.n,C=body.kind==='star'?chordOf(body.row):null;
   // the strip: the colour of each wavelength, dimmed by the black body and the lines
   const cols=Math.round(W);for(let x=0;x<cols;x++){const nm=lo+(hi-lo)*x/(cols-1),i=Math.min(n-1,Math.round((nm-lo)/(hi-lo)*(n-1))),rgb=g.wavelengthRGB(nm),v=Math.pow(sp.planck[i],.6)*sp.trans[i];c.fillStyle=`rgb(${Math.round(rgb[0]*255*v)},${Math.round(rgb[1]*255*v)},${Math.round(rgb[2]*255*v)})`;c.fillRect(x,stripY,1.5,stripH)}
   // the lines as dark bands with labels for the main ones
   c.font=MONO;c.textAlign='center';let up=true;const placed=[];
   sp.lines.forEach(L=>{const x=xOf(L.nm);if(x<0||x>W)return;const w=Math.max(1.2,L.wn/(hi-lo)*W*.6);c.fillStyle=`rgba(0,0,0,${(.92*L.w).toFixed(2)})`;c.fillRect(x-w/2,stripY,w,stripH);
     if(L.main&&L.w>=.3&&!placed.some(p=>Math.abs(p-x)<22)){placed.push(x);const row=up?0:1,ty=stripY-5-row*11;c.fillStyle='rgba(233,225,204,.55)';c.fillRect(x-.5,ty+2,1,stripY-ty-2);c.fillStyle='rgba(233,225,204,.92)';c.textAlign=x<22?'left':x>W-22?'right':'center';c.fillText(L.n.replace(/ \d.*$/,''),x<22?2:x>W-22?W-2:x,ty);c.textAlign='center';up=!up}});
+  // the chord's further lines (the high Balmer orders, the split Na D and Mg b, more Fe I) as dark bands too, and the Balmer limit when in range
+  if(C){C.lines.forEach(L=>{if(sp.lines.some(q=>q.n===L.n))return;const x=xOf(L.nm);if(x<0||x>W)return;const w=Math.max(1,L.wn/(hi-lo)*W*.6);c.fillStyle=`rgba(0,0,0,${(.92*L.w).toFixed(2)})`;c.fillRect(x-w/2,stripY,w,stripH)});
+    if(lo<g.BALMER_LIMIT_NM){const x=xOf(g.BALMER_LIMIT_NM);c.strokeStyle='rgba(160,190,255,.55)';c.setLineDash([2,3]);c.beginPath();c.moveTo(x,stripY-14);c.lineTo(x,stripY+stripH);c.stroke();c.setLineDash([]);c.fillStyle='rgba(190,210,255,.9)';c.font=MONO;c.textAlign='left';c.fillText('H∞ '+TV.sp.limit,x+3,stripY+stripH-4)}}
   // the black-body curve, filled in the star's colour, with the peak marked
   const col=g.starRGB(sp.T),rgb=`rgb(${Math.round(col[0]*255)},${Math.round(col[1]*255)},${Math.round(col[2]*255)})`;c.beginPath();c.moveTo(0,curveH+16);for(let i=0;i<n;i++)c.lineTo(xOf(lo+(hi-lo)*i/(n-1)),16+curveH*(1-sp.planck[i]));c.lineTo(W,curveH+16);c.closePath();
   const grd=c.createLinearGradient(0,16,0,curveH+16);grd.addColorStop(0,rgb.replace('rgb','rgba').replace(')',',.55)'));grd.addColorStop(1,rgb.replace('rgb','rgba').replace(')',',.06)'));c.fillStyle=grd;c.fill();
@@ -6260,6 +6327,13 @@ function drawSpectrum(c,W,H,body){const g=G();const star=body.kind==='star'?body
   // axis
   c.fillStyle='rgba(174,167,145,.9)';c.font=MONO;c.textAlign='center';[400,450,500,550,600,650,700].forEach(nm=>{const x=xOf(nm);c.fillRect(x-.5,stripY+stripH,1,4);c.fillText(nm+(nm===400?' '+TV.sp.nm:''),x,stripY+stripH+15)});
   if(!sp.lines.length){c.fillStyle='rgba(174,167,145,.9)';c.font=SANS;c.textAlign='center';c.fillText(TV.sp.none,W/2,stripY-6)}
+  // the chord: each line lights as it sounds (its soft attack), the strongest labelled with their pitch; the Doppler rule along the bottom
+  if(HEAR&&HEAR.kind==='chord'&&C){const now=AC.currentTime,h=HEAR,CC=h.C||C,dop=CC.dop,lab=[];c.font=MONO;
+    CC.lines.forEach((L,i)=>{const lv=chordLevel(h,i,now);if(lv<=0)return;const x=xOf(L.nm);if(x<0||x>W)return;const w=Math.max(2,L.wn/(hi-lo)*W*.6),a=lv*(.25+.75*L.w);
+      c.fillStyle=`rgba(255,250,235,${(a*.85).toFixed(2)})`;c.fillRect(x-w/2,stripY-2,w,stripH+4);c.fillStyle=`rgba(255,250,235,${(a*.5).toFixed(2)})`;c.fillRect(x-.5,stripY-12*lv,1,12*lv);
+      if(L.w>=.3&&lab.length<10){const txt=`${L.n.replace(/ \d.*$/,'')} ${fmtN(L.f,0)}`,tw=c.measureText(txt).width+8;let row=-1;for(let r=0;r<2&&row<0;r++)if(!lab.some(p=>p.r===r&&Math.abs(p.x-x)<(p.w+tw)/2))row=r;
+        if(row>=0){lab.push({x,r:row,w:tw});c.fillStyle=`rgba(201,152,79,${(.35+.65*lv).toFixed(2)})`;c.textAlign=x<tw/2?'left':x>W-tw/2?'right':'center';c.fillText(txt,x<tw/2?2:x>W-tw/2?W-2:x,stripY-28-row*11)}}});
+    c.fillStyle='#e9e1cc';c.textAlign='left';c.font=MONO;c.fillText(`${CC.lines.length} · ${dopWord(body.row)}`,4,H-4)}
   // the sweep cursor
   if(HEAR&&HEAR.kind==='spec'){const u=clamp((AC.currentTime-HEAR.t0)/HEAR.dur,0,1),x=u*W;c.fillStyle='rgba(255,255,255,.9)';c.fillRect(x-1,10,2,stripY+stripH-10);c.font=MONO;c.textAlign=x>W*.6?'right':'left';c.fillStyle='#e9e1cc';const nm=lo+(hi-lo)*u;c.fillText(`${fmtN(nm,0)} nm · ${fmtN(HEAR.fOf(u),0)} Hz`,x+(x>W*.6?-5:5),H-4)}}
 function radioText(body){const g=G(),R=TV.rd,row=body.row;
@@ -6307,6 +6381,47 @@ function drawRadio(c,W,H,body){const g=G(),R=TV.rd,lo=Math.log10(10),hi=Math.log
 /* hearing: the spectrum as a sweep by the forty-octave rule (lines as dips); the radio as the stated sonification — masers as whistling
    lines lowered whole octaves, flares as crackling bursts of noise, the continuum as faint coloured noise, quiet stars the noise floor */
 function hearBus(){if(!AC)return null;if(!GA)audioInit();if(!GA.hearG){GA.hearG=mkGain(1,bus)}return GA.hearG}
+/* ---------- "Hear its lines" (step 4d): the star's absorption lines as a sustained chord ----------
+   Each line of GALAXY.lineChord(row) sounds at its wavelength lowered forty octaves (unfolded: Hα is 415.5 Hz in every star), its loudness
+   its strength for the star's class and subtype. A narrow line (width < 2.5 nm) is a sine with a whisper of its second harmonic and a soft
+   attack; a pressure-broadened line (2.5–5 nm, the Balmer lines of A stars) is a pair detuned by its real width in cents, so it beats slowly;
+   a band (≥ 5 nm, TiO, C₂ Swan, the G band) is three sines spread down from the band head over its real width plus band-limited noise of
+   that width. Under it all a very quiet bed of the continuum: noise at the Wien tone (−22 dB). The whole chord is Doppler-shifted by the
+   star's radial velocity × the exaggeration switch, and retuned live when the switch changes. The lines enter strongest first, 60 ms apart
+   (so their phases never pile up), the level normalised so the sum of the sines gives an RMS near 0.08 whatever their number. The same graph
+   serves the Spectrum sheet (held ~7 s) and the "Lines (chord)" star voice (held while the star is near), and the offline measurement. */
+const CHORD_RMS=.09,CHORD_STAG=.06,CHORD_ATT=.5;
+function chordGraph(ac,noise,C,t0,opts){const o=opts||{},gn=(v,to)=>{const g=ac.createGain();g.gain.value=v;if(to)g.connect(to);return g};
+  const master=gn(0),nodes=[master],srcs=[],taps=[],parts=[];let q=0;C.lines.forEach(L=>{q+=L.amp*L.amp});const A=(o.rms||CHORD_RMS)/Math.sqrt(Math.max(q,1e-9)/2);
+  const tcA=o.att||CHORD_ATT,stag=o.stag==null?CHORD_STAG:o.stag;
+  C.lines.forEach((L,i)=>{const t=t0+i*stag,amp=A*L.amp,g=gn(0,master);nodes.push(g);const oscs=[];
+    const osc=(f,type,lvl)=>{const x=ac.createOscillator();x.type=type||'sine';x.frequency.value=f;const xg=gn(lvl,g);x.connect(xg);x.start(t);srcs.push(x);oscs.push({o:x,r:f/L.f});return x};
+    if(!L.broad&&L.wn<2.5){osc(L.f,'sine',1);osc(L.f*2,'sine',.1)}
+    else if(!L.broad){const d=Math.pow(2,L.cents/2400);osc(L.f*d,'sine',.55);osc(L.f/d,'sine',.55);osc(L.f*2,'sine',.06)}
+    else{const d=Math.pow(2,-(L.dir||1)*L.cents/1200);[1,Math.pow(d,.5),d].forEach((r,j)=>osc(L.f*r,'sine',j?.32:.45));
+      if(noise){const bp=krBiq(ac.createBiquadFilter());bp.type='bandpass';bp.frequency.value=L.f*Math.pow(d,.5);bp.Q.value=Math.max(4,Math.min(60,1200/Math.max(L.cents,8)));const ng=gn(.9,g);noise.connect(bp);bp.connect(ng);taps.push([noise,bp]);parts.push({L,bp,rbp:Math.pow(d,.5)})}}
+    g.gain.setValueAtTime(0,t);g.gain.setTargetAtTime(amp,t,tcA/3);parts.push({L,g,oscs,t,amp})});
+  // the continuum bed: noise at the Wien tone, very quiet
+  let bed=null;if(noise&&C.bed){const bp=krBiq(ac.createBiquadFilter());bp.type='bandpass';bp.frequency.value=C.bed.f0;bp.Q.value=1.2;const bg=gn(A*C.bed.amp/Math.max(.01,CHORD_RMS)*.8,master);noise.connect(bp);bp.connect(bg);taps.push([noise,bp]);nodes.push(bg);bed={bp,bg}}
+  const retune=(dop,t)=>{const r=dop/C.dop;parts.forEach(p=>{if(p.oscs)p.oscs.forEach(x=>x.o.frequency.setTargetAtTime(p.L.f*r*x.r,t,.05));if(p.bp)p.bp.frequency.setTargetAtTime(p.L.f*r*p.rbp,t,.05)});if(bed)bed.bp.frequency.setTargetAtTime(C.bed.f0*r,t,.05)};
+  return {master,nodes,srcs,taps,parts:parts.filter(p=>p.g),allParts:parts,bed,C,t0,A,retune}}
+function chordKill(gr,ac,fade){const t=ac.currentTime;try{gr.master.gain.cancelScheduledValues(t);gr.master.gain.setTargetAtTime(0,t,fade||.25)}catch(e){}
+  setTimeout(()=>{gr.srcs.forEach(s=>{try{s.stop()}catch(e){}});gr.taps.forEach(([a,b])=>{try{a.disconnect(b)}catch(e){}});gr.nodes.forEach(n=>{try{n.disconnect()}catch(e){}})},(fade||.25)*4000+200)}
+// the recipe for a row at the current exaggeration (its catalogued heliocentric radial velocity)
+function chordOf(row,exag){return G().lineChord(row,{exag:exag||ST.exag,rv:row.rv||0,gamma:1.25})}
+// the words for the Doppler part of the sheet's rule
+function dopWord(row){if(row.rv==null)return TV.sp.dopNone;const d=G().doppler(row.rv,ST.exag),c=1200*Math.log2(d);return uf(TV.sp.dop,{rv:fmtN(row.rv,1).replace('-','−'),x:ST.exag,c:(c>0?'+':'')+fmtN(c,Math.abs(c)<10?1:0).replace('-','−')})}
+function hearChord(){const sh=ST.sheet;if(!sh||!AC||sh.body.kind!=='star')return;const out=hearBus();if(!out)return;stopHear();const t=AC.currentTime,row=sh.body.row,C=chordOf(row),dur=7.5;
+  const gr=chordGraph(AC,noiseBus,C,t+.02);gr.master.connect(out);gr.master.gain.setValueAtTime(0,t);gr.master.gain.linearRampToValueAtTime(1,t+.5);gr.master.gain.setTargetAtTime(0,t+dur-.9,.3);
+  HEAR={kind:'chord',t0:t,dur,srcs:gr.srcs,nodes:gr.nodes,gr,C,exag:ST.exag,end:setTimeout(stopHear,(dur+.6)*1000)};GA.hearTaps=(GA.hearTaps||[]).concat(gr.taps);AS.solo={body:null,row:null,until:performance.now()/1000+dur};
+  const b=sheetEl.querySelector('[data-a="chord"]');if(b){b.textContent=TV.stop;b.classList.add('on')}
+  const tick=()=>{if(!HEAR||HEAR.kind!=='chord')return;if(ST.exag!==HEAR.exag){HEAR.exag=ST.exag;const C2=chordOf(row);HEAR.gr.retune(C2.dop,AC.currentTime);HEAR.C=C2;const p=sheetEl.querySelector('.gst');if(p)p.innerHTML=sheetText(ST.sheet.kind,ST.sheet.body).txt}drawSheet();HEAR.raf=requestAnimationFrame(tick)};tick()}
+// the level 0..1 of chord line i at audio time now (its soft attack, the chord's fade), for the drawing
+function chordLevel(h,i,now){const p=h.gr.parts[i];if(!p)return 0;const a=clamp((now-p.t)/CHORD_ATT,0,1),o=clamp((h.t0+h.dur-.4-now)/.9,0,1);return a*o}
+/* the live "Lines (chord)" star voice: the nearest star (within 20 000 AU) as its sustained chord, from its direction, under the Stars volume */
+function linesWant(){if(OPT.mode!=='lines'||!ST.nearStar||ST.nearStarAU>20000)return null;return ST.nearStar}
+function linesBuild(row){const pan=mkPan(GA.starG),vg=mkGain(0,pan),C=chordOf(row),gr=chordGraph(AC,noiseBus,C,AC.currentTime+.05,{rms:CHORD_RMS});gr.master.connect(vg);gr.master.gain.setValueAtTime(1,AC.currentTime);return {row,pan,vg,gr,exag:ST.exag}}
+function linesKill(q){try{q.vg.gain.setTargetAtTime(0,AC.currentTime,.3)}catch(e){}setTimeout(()=>{chordKill(q.gr,AC,.1);try{q.pan.disconnect()}catch(e){}},1400)}
 function hear(){const sh=ST.sheet;if(!sh||!AC)return;const out=hearBus();if(!out)return;stopHear();const t=AC.currentTime,nodes=[],srcs=[];
   if(sh.kind==='spec'){const star=sh.body.kind==='star'?sh.body.row:{T:sh.body.row.T||5000,sp:'',id:0},sp=G().spectrum(star,{n:256}),dur=7.5,n=sp.n,F=new Float32Array(n),A=new Float32Array(n);
     for(let i=0;i<n;i++){const nm=sp.lo+(sp.hi-sp.lo)*i/(n-1);F[i]=C_KMS*1e12/nm/Math.pow(2,40);A[i]=.15*Math.pow(sp.planck[i],.7)*Math.pow(sp.trans[i],1.6)}
@@ -6336,7 +6451,7 @@ function hear(){const sh=ST.sheet;if(!sh||!AC)return;const out=hearBus();if(!out
 let HEAR_FLASH=null;
 function stopHear(){if(!HEAR)return;const h=HEAR;HEAR=null;HEAR_FLASH=null;clearTimeout(h.end);cancelAnimationFrame(h.raf);const t=AC.currentTime;h.nodes.forEach(n=>{try{n.gain.cancelScheduledValues(t);n.gain.setTargetAtTime(0,t,.04)}catch(e){}});
   setTimeout(()=>{h.srcs.forEach(s=>{try{s.stop()}catch(e){}});(GA.hearTaps||[]).forEach(([a,b])=>{try{a.disconnect(b)}catch(e){}});GA.hearTaps=[];h.nodes.forEach(n=>{try{n.disconnect()}catch(e){}})},300);
-  if(AS.solo&&!AS.solo.row)AS.solo=null;if(sheetEl){const b=sheetEl.querySelector('[data-a="hear"]');if(b&&ST.sheet){b.textContent=ST.sheet.kind==='spec'?TV.hearSpec:TV.hearRadio;b.classList.remove('on')}}if(sheetEl&&!sheetEl.hidden)drawSheet()}
+  if(AS.solo&&!AS.solo.row)AS.solo=null;if(sheetEl){const b=sheetEl.querySelector('[data-a="hear"]'),bc=sheetEl.querySelector('[data-a="chord"]');if(b&&ST.sheet){b.textContent=ST.sheet.kind==='spec'?(bc?TV.hearSweep:TV.hearSpec):TV.hearRadio;b.classList.remove('on')}if(bc){bc.textContent=TV.hearChord;bc.classList.remove('on')}}if(sheetEl&&!sheetEl.hidden)drawSheet()}
 // the gods' recorded lines (voice/<lang>/<id>.mp3, as the dial page plays them), with the device's speech as the fall-back
 function playClip(id,onFail,opts){if(!AC||!S.speak){onFail&&onFail();return}const url=BASE+'voice/'+LANG+'/'+id+'.mp3',cache=typeof clipBuf!=='undefined'?clipBuf:(playClip.c||(playClip.c=new Map()));
   const go=buf=>{if(!S.speak)return;try{if(typeof stopSpeech==='function')stopSpeech()}catch(e){}const src=AC.createBufferSource(),g=AC.createGain();g.gain.value=opts&&opts.gain||.95;src.buffer=buf;src.connect(g);g.connect(AC.destination);S.speaking=true;
@@ -6372,6 +6487,21 @@ function renderVoice(row,secs){const g=G(),sr=44100,n=Math.round(sr*(secs||4)),a
     const hop=Math.round(sr/50),ne=Math.floor(N/hop),env=new Float64Array(ne);for(let e=0;e<ne;e++){let qq=0;for(let j=0;j<hop;j++){const v=x[e*hop+j];qq+=v*v}env[e]=Math.sqrt(qq/hop)}let me=0;for(let e=0;e<ne;e++)me+=env[e];me/=ne||1;let mn=1e9,mx=0;for(let e=0;e<ne;e++){if(env[e]<mn)mn=env[e];if(env[e]>mx)mx=env[e]}
     const E=512,er=new Float64Array(E),ei=new Float64Array(E);for(let e=0;e<Math.min(E,ne);e++)er[e]=env[e]-me;fft(er,ei);let bm=0,bj=0;for(let j=1;j<E/2;j++){const fj=j*50/E;if(fj<.1||fj>15)continue;const m=Math.hypot(er[j],ei[j]);if(m>bm){bm=m;bj=j}}
     return {name:row.n||row.bf||row.gl||('HYG '+row.id),sp:row.sp||'',T:row.T,kind:V.kind,rms:Math.sqrt(q/N),peak:pk,centroid:cen,spread,f0,wien:V.f0,modHz:bj*50/512,modDepth:me?(mx-mn)/me:0,rot:V.rot.rate,breath:V.breath.rate,comps:V.companions.length,variable:!!V.variable,melody:V.melody.steps.map(s=>Math.round(s.f))}})}
+/* the chord's measurement window: one star's line chord rendered offline for `secs` seconds exactly as the sheet plays it (fade in 0.5 s,
+   held, fade out), with its RMS, peak, the largest sample-to-sample step (a click would be > 0.1), its spectral peaks (Hz, strongest first) and
+   a 1/12-octave log-magnitude profile 300–1600 Hz for comparing stars */
+function renderChord(row,secs,exag){const g=G(),sr=44100,dur=secs||8,n=Math.round(sr*(dur+.5)),ac=new OfflineAudioContext(1,n,sr);
+  const nb=ac.createBuffer(1,sr*2,sr),d=nb.getChannelData(0);const rnd=g.rng(99);for(let i=0;i<d.length;i++)d[i]=rnd()*2-1;const ns=ac.createBufferSource();ns.buffer=nb;ns.loop=true;const noise=ac.createGain();ns.connect(noise);ns.start();
+  const C=g.lineChord(row,{exag:exag||1,rv:row.rv||0,gamma:1.25}),gr=chordGraph(ac,noise,C,.02);gr.master.connect(ac.destination);gr.master.gain.setValueAtTime(0,0);gr.master.gain.linearRampToValueAtTime(1,.5);gr.master.gain.setTargetAtTime(0,dur-.9,.3);
+  return ac.startRendering().then(buf=>{const x=buf.getChannelData(0),N=x.length;let q=0,pk=0,step=0;for(let j=0;j<N;j++){const v=x[j],a=v<0?-v:v;q+=v*v;if(a>pk)pk=a;if(j){const dd=Math.abs(v-x[j-1]);if(dd>step)step=dd}}
+    // the held part only (1.5 s … dur−1.5 s) for the RMS of the sustain
+    const h0=Math.round(sr*1.5),h1=Math.round(sr*(dur-1.5));let qh=0;for(let j=h0;j<h1;j++)qh+=x[j]*x[j];
+    const W=32768,win=new Float32Array(W);for(let j=0;j<W;j++)win[j]=.5-.5*Math.cos(2*Math.PI*j/W);const mag=new Float64Array(W/2);let nw=0;
+    for(let s0=h0;s0+W<=h1;s0+=W/2){const re=new Float64Array(W),im=new Float64Array(W);for(let j=0;j<W;j++)re[j]=x[s0+j]*win[j];fft(re,im);for(let j=0;j<W/2;j++)mag[j]+=Math.hypot(re[j],im[j]);nw++}
+    let mx=0;for(let j=0;j<W/2;j++)if(mag[j]>mx)mx=mag[j];const peaks=[];for(let j=2;j<W/2-2;j++){const fj=j*sr/W;if(fj<200||fj>2000)continue;if(mag[j]>mag[j-1]&&mag[j]>=mag[j+1]&&mag[j]>mx*.04)peaks.push({f:+fj.toFixed(1),db:+(20*Math.log10(mag[j]/mx)).toFixed(1)})}
+    peaks.sort((a,b)=>b.db-a.db);
+    const prof=[];for(let k=0;k<29;k++){const fa=300*Math.pow(2,k/12),fb=300*Math.pow(2,(k+1)/12);let e=0;for(let j=Math.floor(fa*W/sr);j<fb*W/sr;j++)e+=mag[j]*mag[j];prof.push(e)}const pe=Math.sqrt(prof.reduce((a,b)=>a+b,0))||1;
+    return {name:row.n||row.bf||row.gl||('HYG '+row.id),sp:row.sp||'',cls:C.cls,n:C.lines.length,rms:Math.sqrt(q/N),rmsHeld:Math.sqrt(qh/(h1-h0)),peak:pk,peakDb:20*Math.log10(pk),step,dop:C.dop,peaks:peaks.slice(0,24),prof:prof.map(v=>Math.sqrt(v)/pe),lines:C.lines.map(L=>({n:L.n,f:+L.f.toFixed(1),w:+L.w.toFixed(2),broad:L.broad}))}})}
 function fft(re,im){const n=re.length;for(let i=1,j=0;i<n;i++){let bit=n>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t}}
   for(let len=2;len<=n;len<<=1){const ang=-2*Math.PI/len,wr=Math.cos(ang),wi=Math.sin(ang);for(let i=0;i<n;i+=len){let cr=1,ci=0;for(let j=0;j<len/2;j++){const ur=re[i+j],ui=im[i+j],vr=re[i+j+len/2]*cr-im[i+j+len/2]*ci,vi=re[i+j+len/2]*ci+im[i+j+len/2]*cr;re[i+j]=ur+vr;im[i+j]=ui+vi;re[i+j+len/2]=ur-vr;im[i+j+len/2]=ui-vi;const t=cr*wr-ci*wi;ci=cr*wi+ci*wr;cr=t}}}}
 
@@ -6382,7 +6512,7 @@ const api={base,frame,render,audio,readout,labels,travel:travelG,caption,ST,AS,O
   warp:x=>{ST.warp=x},adapt:b=>{ST.adapt=b},jump:id=>{const gp=goalOf(id);if(!gp)return;ship.gap=null;ship.ap=null;ship.drift=null;ship.vel.set(0,0,0);ST.orbit=null;ship.pos.copy(gp.goal);camera.position.copy(ship.pos);aimQ(gp,null,camera.quaternion);ST.lastScan=0;AS.dirty=true},jumpTo,
   stats:()=>({churn:GA?GA.churn:0,swaps:GA?GA.swaps:0,quake:!!(GA&&GA.quake&&GA.quake.on),orbit:!!ST.orbit,card:!!(cardEl&&!cardEl.hidden),mode:OPT.mode,vol:OPT.vol,stars:GA?GA.star.filter(s=>s.row).length:0,pulsars:GA?GA.pulsar.filter(s=>s.row).length:0,radio:GA?GA.radio.filter(s=>s.row).length:0,chord:GA?GA.chord.length:0,gal:GA?GA.gal.filter(s=>s.row).length:0,galVoices:AS.gal.filter(e=>e&&e.row).map(e=>e.row.id),chordOwner:AS.chordOwner,chordScore:AS.chordScore,galN:ST.galN,nearGal:ST.nearGal&&ST.nearGal.id,nearGalAU:ST.nearGalAU,gf:ST.gf,sf:ST.sf,gv:ST.gv,r:ST.r,dSunPc:ST.dSunPc,zPc:ST.zPc,ready:ST.ready,large:ST.large,caps:ST.caps.slice(),nearStar:ST.nearStar&&(ST.nearStar.n||ST.nearStar.id)}),
   // step 4c
-  pop:(body,x,y)=>openPop(body,x,y),hidePop,pick:(x,y,r)=>pickAt(x,y,r||16),sheet:(k,body)=>openSheet(k,body),closeSheet,hear:()=>hear(),stopHear,solo:(b,s)=>solo(b,s),voice:row=>G().starVoice(row),rules:row=>voiceRules(row),popEl:()=>popEl,sheetEl:()=>sheetEl,hearing:()=>!!HEAR,renderVoice,
+  pop:(body,x,y)=>openPop(body,x,y),hidePop,pick:(x,y,r)=>pickAt(x,y,r||16),sheet:(k,body)=>openSheet(k,body),closeSheet,hear:()=>hear(),stopHear,solo:(b,s)=>solo(b,s),voice:row=>G().starVoice(row),rules:row=>voiceRules(row),popEl:()=>popEl,sheetEl:()=>sheetEl,hearing:()=>!!HEAR,renderVoice,renderChord,hearChord:()=>hearChord(),chord:(row,exag)=>chordOf(row,exag),lines:()=>GA&&GA.lines?GA.lines.row:null,
   ready:()=>loading,tYr,near:NEAR,shipPos:()=>ship.pos,starScene:(row)=>starScene(row,{x:0,y:0,z:0}),goalOf};
 window.FLYG=api;return api;
 })();
