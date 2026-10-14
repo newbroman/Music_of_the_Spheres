@@ -440,7 +440,9 @@ let quality=LS.get('mots.quality');if(!['eco','std','high'].includes(quality))qu
 const qFns=[];
 MOTS.quality=()=>quality;
 MOTS.onQuality=fn=>{qFns.push(fn)};
-MOTS.setQuality=q=>{if(!QT.en[q]||q===quality)return;quality=q;LS.set('mots.quality',q);qFns.forEach(f=>{try{f(q)}catch(e){}});syncQ()};
+// (BG-STUTTER) tmp: a passing change (Eco while the screen is off) is not remembered, so a page closed while hidden keeps the user's quality
+MOTS.setQuality=(q,tmp)=>{if(!QT.en[q]||q===quality)return;quality=q;if(!tmp)LS.set('mots.quality',q);qFns.forEach(f=>{try{f(q)}catch(e){}});syncQ()};
+let VIS_T=0;document.addEventListener('visibilitychange',()=>{VIS_T=performance.now()});
 /* --- a watchdog for slower phones: when the audio clock falls behind the wall clock (the device dropping sound, heard as crackle or
    clipping), the quality steps down once, to Standard then Eco, and says so. A quality chosen by hand in Stage is left alone. --- */
 {const QD={en:'Lighter sound for this device, so it plays smoothly (Stage → Quality: ',pl:'Lżejszy dźwięk dla tego urządzenia, żeby grało płynnie (Scena → Jakość: ',cy:'Sain ysgafnach i’r ddyfais hon, er mwyn iddi chwarae’n llyfn (Llwyfan → Ansawdd: ',de:'Leichterer Klang für dieses Gerät, damit es flüssig spielt (Bühne → Qualität: ',es:'Sonido más ligero para este dispositivo, para que suene fluido (Escenario → Calidad: ',fr:'Son allégé pour cet appareil, pour une lecture fluide (Scène → Qualité : ',it:'Suono più leggero per questo dispositivo, perché suoni fluido (Palco → Qualità: ',zh:'为此设备减轻声音负载，让播放更流畅（舞台 → 音质：',ja:'この端末向けに音を軽くして、なめらかに再生します（ステージ → 音質：',vi:'Âm thanh nhẹ hơn cho thiết bị này để phát mượt mà (Sân khấu → Chất lượng: ',bg:'По-лек звук за това устройство, за да свири гладко (Сцена → Качество: ',pt:'Som mais leve para este aparelho, para tocar sem travar (Palco → Qualidade: '};
@@ -449,7 +451,8 @@ MOTS.setQuality=q=>{if(!QT.en[q]||q===quality)return;quality=q;LS.set('mots.qual
     const zh=LANG==='zh'||LANG==='ja';t.textContent=(QD[LANG]||QD.en)+(QT[LANG]||QT.en)[q]+(zh?'）':')');document.body.appendChild(t);setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),700)},7000)};
   let seen=null;
   setInterval(()=>{const c=ctx;if(c&&c!==seen){seen=c;c.addEventListener('statechange',()=>{last=null})}   // a pause or resume is not a dropout
-    if(!c||c.state!=='running'||document.hidden||MOTS.projPaused||LS.get('mots.quality.manual')==='1'){last=null;return}
+    // (BG-STUTTER) nor is the first few seconds after the screen goes off or on (the output is re-routed and voices rebuilt then)
+    if(!c||c.state!=='running'||document.hidden||performance.now()-VIS_T<8000||MOTS.projPaused||LS.get('mots.quality.manual')==='1'){last=null;return}
     const now={w:performance.now()/1000,a:c.currentTime,u:c.playoutStats?c.playoutStats.fallbackFramesEvents||0:null};
     if(last){const lag=(now.w-last.w)-(now.a-last.a),under=now.u!=null&&last.u!=null&&now.u>last.u;
       if(lag>.05||under)bad++;else bad=Math.max(0,bad-1)}
@@ -475,7 +478,8 @@ function build(c){
   GUARD=c.createWaveShaper();GUARD.curve=softCurve();GUARD.oversample=guardOS();_c.call(mg,GUARD);_c.call(GUARD,c.destination);
   an=c.createAnalyser();an.fftSize=1024;_c.call(GUARD,an);setWidth(true);
 }
-let GUARD=null;const guardOS=()=>quality==='eco'?'none':quality==='high'?'4x':'2x';qFns.push(()=>{if(GUARD)GUARD.oversample=guardOS()});
+// (BG-STUTTER) the guard keeps the user's oversampling through the passing Eco of a hidden page: changing it mid-play shifts the signal by a few samples (a click)
+let GUARD=null;const guardOS=()=>{const q=BG.q0||quality;return q==='eco'?'none':q==='high'?'4x':'2x'};qFns.push(()=>{if(GUARD)GUARD.oversample=guardOS()});
 const WIDTH={hrtf:1,stereo:1,pa:.55,mono:0};
 function setWidth(now){if(!G)return;const w=WIDTH[mode]??1,a=(1+w)/2,b=(1-w)/2,t=ctx.currentTime,tc=now?.001:.08;
   G.ll.gain.setTargetAtTime(a,t,tc);G.rr.gain.setTargetAtTime(a,t,tc);G.lr.gain.setTargetAtTime(b,t,tc);G.rl.gain.setTargetAtTime(b,t,tc)}
@@ -488,10 +492,21 @@ MOTS.setOut=m=>{if(m==='5.1'&&!surOK()){msgOut(T.s51No.replace('{n}',MOTS.surrou
 MOTS.outMode=()=>mode;MOTS.audioCtx=()=>ctx;
 MOTS.defaultOut=m=>{if(!mode)mode=m;syncOut()};
 /* ---------- background play: a phone stops a web page's sound when the screen goes off unless the page is playing media. While the page
-   is hidden the output therefore goes through an <audio> element (a MediaStream from the same graph), the page's animation loops, which
-   schedule the music, are kept turning by a worker clock (the browser stops requestAnimationFrame in the background), and the lock screen
-   gets the title and play/pause controls. When the page is seen again everything goes back to the direct output. ---------- */
-const BG={el:null,msd:null,on:false,q:[],w:null,ms:false};
+   is hidden an <audio> element therefore plays a MediaStream from the same graph, the page's animation loops, which schedule the music,
+   are kept turning by a worker clock (the browser stops requestAnimationFrame in the background), and the lock screen gets the title and
+   play/pause controls. When the page is seen again everything goes back to the direct output.
+   (BG-STUTTER) Two ways, chosen per device (?bg=mix or ?bg=stream picks one and is remembered; ?bgdiag shows a report on coming back):
+   - mix (Android, the default): the music keeps its own direct output, the AudioContext's real-time path that also plays it in the
+     foreground; the <audio> element plays a quiet copy (−40 dB, masked by the music) only so that the browser treats the page as
+     playing media and keeps it running. No second clock and no jitter buffer between the music and the speaker.
+   - stream (iPhone, and the earlier way): the output itself is cross-faded over to the <audio> element. The MediaStream crosses from the
+     audio context's clock to the element's through a jitter buffer, which on some phones is heard as choppy sound. The direct path is
+     kept at −80 dB rather than silent, so the browser does not swap the audio device for a timer-driven fake one after 30 s of silence.
+   If, in mix, the sound clock stood still while the page was hidden (the phone stopped it), the next time uses stream. ---------- */
+const BG={el:null,msd:null,on:false,q:[],w:null,ms:false,gD:null,gS:null,c:null,mode:null,
+  st:{n:0,hid:0,w0:0,a0:0,lastW:0,gaps:0,max:0,agc:0,state:false}};
+{const m=(location.search.match(/[?&]bg=(mix|stream)\b/)||[])[1];if(m)LS.set('mots.bg',m)}
+const bgMode=()=>BG.mode||(BG.mode=LS.get('mots.bg')||(/iPhone|iPad|Macintosh/i.test(navigator.userAgent)&&!/Android/i.test(navigator.userAgent)?'stream':'mix'));
 function bgIcon(){const l=document.querySelector('link[rel~="icon"],link[rel="apple-touch-icon"]');return l?l.href:''}
 function bgSession(state){
   const ms=navigator.mediaSession;if(!ms)return;
@@ -504,12 +519,15 @@ function bgSession(state){
 }
 function bgClock(){
   if(BG.w)return;try{BG.w=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),40)'],{type:'text/javascript'})));
-    BG.w.onmessage=()=>{if(!BG.q.length)return;const q=BG.q;BG.q=[];const now=performance.now();
-      if(document.hidden&&(BG.on||BG.dk))q.forEach(cb=>{try{cb(now)}catch(e){}});else q.forEach(cb=>_raf(cb))}}catch(e){}
+    BG.w.onmessage=()=>{const now=performance.now(),hid=document.hidden&&(BG.on||BG.dk);
+      // (BG-STUTTER) while hidden the level control is stepped from this clock too: the page's own timers may run only once a second
+      if(hid){const s=BG.st;if(s.lastW){const g=now-s.lastW;if(g>250)s.gaps++;if(g>s.max)s.max=g}s.lastW=now;try{agcTick()}catch(e){}}
+      if(!BG.q.length)return;const q=BG.q;BG.q=[];
+      if(hid)q.forEach(cb=>{try{cb(now)}catch(e){}});else q.forEach(cb=>_raf(cb))}}catch(e){}
 }
 const _raf=window.requestAnimationFrame.bind(window);
-// phones need the sound re-routed through an <audio> element to keep playing with the screen off; a desktop browser keeps the
-// AudioContext running in the background by itself, and the extra stream only adds latency and crackle there
+// phones need help to keep playing with the screen off; a desktop browser keeps the AudioContext running in the background by itself,
+// and an extra stream only adds latency and crackle there
 const BG_PHONE=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
 // a desktop window in the background (not focused): draw at about 20 frames a second, so the sound keeps the processor it needs
 const BLUR={q:[],t:0};
@@ -518,6 +536,26 @@ window.requestAnimationFrame=cb=>{if(document.hidden&&(BG.on||BG.dk)){BG.q.push(
   if(blurred()){BLUR.q.push(cb);if(!BLUR.t)BLUR.t=setTimeout(()=>{BLUR.t=0;const q=BLUR.q;BLUR.q=[];q.forEach(f=>_raf(f))},45);return -1}
   return _raf(cb)};
 MOTS.background=()=>document.hidden||blurred();
+/* (BG-STUTTER) smooth motion while hidden: the pages move their voices (pitch glides, panning, filters) by re-targeting an AudioParam
+   from each frame with a short time constant. Hidden, the frames come from the worker clock and can arrive hundreds of milliseconds late;
+   a short glide then finishes and waits, and the motion is heard in steps. So while hidden, a param re-targeted "now" again and again gets
+   a time constant of about 0.6 of its recent longest gap (at most 0.4 s): the glide is still moving when the next update arrives.
+   Fades to or from silence and large jumps keep their own time constants (a voice stopped after its fade must be silent by then). */
+const ST0=AudioParam.prototype.setTargetAtTime;
+{const ST=ST0,CH=new WeakMap();
+  AudioParam.prototype.setTargetAtTime=function(v,t,tc){
+    if((BG.on||BG.dk)&&ctx)try{if(t-ctx.currentTime<.03){const w=performance.now(),p=CH.get(this);
+      if(p&&w-p.w<1500){const g=(w-p.w)/1000;p.pk=Math.max(g,p.pk*.97);
+        if(v!==0&&p.v!==0&&Math.abs(v-p.v)<=Math.abs(p.v)*.5)tc=Math.max(tc,Math.min(.4,.6*p.pk));p.w=w;p.v=v}
+      else CH.set(this,{w,v,pk:0})}}catch(e){}
+    return ST.call(this,v,t,tc)}}
+function bgWire(){
+  // the guard feeds two gains: gD to the speakers, gS to the stream for the <audio> element (built once per audio context)
+  if(BG.c===ctx&&BG.gD)return;
+  BG.c=ctx;BG.msd=ctx.createMediaStreamDestination();BG.gD=ctx.createGain();BG.gS=ctx.createGain();BG.gS.gain.value=0;
+  try{GUARD.disconnect(ctx.destination)}catch(e){}_c.call(GUARD,BG.gD);_c.call(BG.gD,ctx.destination);_c.call(GUARD,BG.gS);_c.call(BG.gS,BG.msd);
+  if(BG.el)BG.el.srcObject=BG.msd.stream}
+function bgSet(p,v,t,tc){p.cancelScheduledValues(t);p.setValueAtTime(p.value,t);ST0.call(p,v,t,tc)}
 function bgRoute(hidden){
   try{
     if(!ctx||!GUARD||(typeof SUR!=='undefined'&&SUR.on))return;
@@ -528,27 +566,40 @@ function bgRoute(hidden){
       return}
     if(hidden&&!BG.on){
       if(ctx.state!=='running'||MOTS.projPaused)return;
-      if(!BG.msd)BG.msd=ctx.createMediaStreamDestination();
-      if(!BG.el){BG.el=new Audio();BG.el.setAttribute('playsinline','')}
-      BG.el.srcObject=BG.msd.stream;_c.call(GUARD,BG.msd);try{GUARD.disconnect(ctx.destination)}catch(e){}
+      bgWire();
+      if(!BG.el){BG.el=new Audio();BG.el.setAttribute('playsinline','');BG.el.srcObject=BG.msd.stream}
       BG.on=true;bgClock();
-      // nobody sees the screen: stop drawing the sky, and run on Eco quality (put back afterwards) so a phone has its strength for the sound
+      const s=BG.st;s.n++;s.w0=performance.now();s.a0=ctx.currentTime;s.lastW=0;s.gaps=0;s.max=0;s.state=false;s.mode=bgMode();
+      if(!s.watch){s.watch=true;ctx.addEventListener('statechange',()=>{if(BG.on)s.state=true})}
+      // nobody sees the screen: stop drawing the sky, and run on Eco quality (put back afterwards, never saved) so a phone has its strength for the sound
       BG.sky=MOTS.skyHidden;MOTS.skyHidden=()=>true;
-      BG.q0=null;try{if(typeof quality!=='undefined'&&quality!=='eco'&&LS.get('mots.quality.manual')!=='1'&&MOTS.setQuality){BG.q0=quality;MOTS.setQuality('eco')}}catch(e){}
-      BG.el.play().then(()=>bgSession('playing')).catch(()=>bgRoute(false));
+      BG.q0=null;try{if(quality!=='eco'&&LS.get('mots.quality.manual')!=='1'){BG.q0=quality;MOTS.setQuality('eco',true)}}catch(e){}
+      const t=ctx.currentTime,stream=s.mode==='stream';
+      // mix: a quiet copy for the element straight away; stream: the element takes over once it plays (the direct path fades a moment
+      // later, covering the element's own delay, so the hand-over overlaps rather than drops out)
+      bgSet(BG.gS.gain,stream?0:.01,t,.02);
+      BG.el.play().then(()=>{bgSession('playing');if(stream&&BG.on){const t=ctx.currentTime;bgSet(BG.gS.gain,1,t,.03);BG.gD.gain.cancelScheduledValues(t);ST0.call(BG.gD.gain,1e-4,t+.15,.04)}}).catch(()=>bgRoute(false));
     }else if(!hidden&&BG.on){
-      _c.call(GUARD,ctx.destination);try{GUARD.disconnect(BG.msd)}catch(e){}
-      if(BG.el)BG.el.pause();BG.on=false;
-      MOTS.skyHidden=BG.sky;BG.sky=undefined;if(BG.q0&&MOTS.setQuality){MOTS.setQuality(BG.q0);BG.q0=null}
+      const t=ctx.currentTime,s=BG.st;BG.on=false;
+      bgSet(BG.gD.gain,1,t,.03);BG.gS.gain.cancelScheduledValues(t);ST0.call(BG.gS.gain,0,t+(s.mode==='stream'?.15:0),.04);
+      setTimeout(()=>{if(!BG.on&&BG.el)BG.el.pause()},500);
+      MOTS.skyHidden=BG.sky;BG.sky=undefined;if(BG.q0){const q=BG.q0;BG.q0=null;MOTS.setQuality(q,true)}
       const q=BG.q;BG.q=[];q.forEach(cb=>_raf(cb));
+      // how the hidden spell went: wall time, sound-clock time, late worker ticks
+      s.hid=(performance.now()-s.w0)/1000;s.aud=ctx.currentTime-s.a0;
+      if(s.mode==='mix'&&s.hid>20&&!s.state&&!MOTS.projPaused&&s.aud<s.hid*.5&&!LS.get('mots.bg')){LS.set('mots.bg','stream');BG.mode='stream';s.fell=true}
+      if(/[?&]bgdiag\b/.test(location.search))bgDiag(s);
     }
   }catch(e){}
 }
+function bgDiag(s){const d=document.createElement('div');d.setAttribute('role','status');d.style.cssText='position:fixed;left:8px;right:8px;top:8px;z-index:9600;background:#13162a;color:#e9e1cc;border:1px solid #c9984f;border-radius:10px;padding:8px 10px;font:13px/1.4 "IBM Plex Mono",monospace;white-space:pre-wrap';
+  d.textContent=`background ${s.mode}${s.fell?' → stream next time':''}\nhidden ${s.hid.toFixed(1)} s · sound clock ${s.aud.toFixed(1)} s (${Math.round(100*s.aud/Math.max(.1,s.hid))}%)\nworker gaps >250 ms: ${s.gaps}, longest ${Math.round(s.max)} ms\nstate changed: ${s.state} · quality ${quality}`;
+  document.body.appendChild(d);setTimeout(()=>d.remove(),15000);d.onclick=()=>d.remove()}
 document.addEventListener('visibilitychange',()=>bgRoute(document.visibilityState==='hidden'));
 addEventListener('pagehide',()=>bgRoute(true));
 // the lock screen shows the app as soon as it plays
 setInterval(()=>{if(ctx&&ctx.state==='running'&&!MOTS.projPaused&&navigator.mediaSession&&navigator.mediaSession.playbackState!=='playing')bgSession('playing')},3000);
-MOTS.bg=()=>({on:BG.on,desk:!!BG.dk,phone:BG_PHONE,queued:BG.q.length,el:!!BG.el,blurred:blurred()});
+MOTS.bg=()=>({on:BG.on,desk:!!BG.dk,phone:BG_PHONE,queued:BG.q.length,el:!!BG.el,blurred:blurred(),mode:bgMode(),st:Object.assign({},BG.st,{watch:undefined}),gD:BG.gD?BG.gD.gain.value:null,gS:BG.gS?BG.gS.gain.value:null});
 
 /* --- 5.1 surround: each registered voice is placed among five speakers by its direction from the listener --- */
 // channel order (Web Audio 5.1): 0 L, 1 R, 2 C, 3 LFE, 4 Ls, 5 Rs. Speaker angles, left positive: C 0, L 30, Ls 110, Rs -110, R -30
@@ -637,15 +688,19 @@ function masterAttach(C){const c=C.ctx;if(!C.master||!C.lim||C.agc)return;
   AGC.buf=new Float32Array(2048);clearInterval(AGC.timer);AGC.timer=setInterval(agcTick,50);
 }
 function levelOf(an){const b=AGC.buf;an.getFloatTimeDomainData(b);let q=0,pk=0;for(let i=0;i<b.length;i++){const x=b[i],a=x<0?-x:x;q+=x*x;if(a>pk)pk=a}return [Math.sqrt(q/b.length),pk]}
+// (BG-STUTTER) the steps are scaled by the time since the last one (k = 1 every 50 ms, as in the foreground), so the control keeps its
+// speed when a hidden page's timer runs late or only once a second; calls closer than 40 ms (the worker clock as well as the timer) are skipped
+const agcK=(a,k)=>1-Math.pow(1-a,k);
 function agcTick(){const C=SUR.cfg;if(!C||!C.agc||C.ctx.state!=='running')return;const t=C.ctx.currentTime;
+  const wn=performance.now();if(AGC.lw&&wn-AGC.lw<40)return;const k=AGC.lw?Math.min(20,(wn-AGC.lw)/50):1;AGC.lw=wn;
   if(C.anPre){const [r]=levelOf(C.anPre);
-    if(r>2e-4){AGC.envPre+=(r-AGC.envPre)*(r>AGC.envPre?.18:.02);                       // ~0.25 s up, ~2.5 s down
+    if(r>2e-4){AGC.envPre+=(r-AGC.envPre)*agcK(r>AGC.envPre?.18:.02,k);                       // ~0.25 s up, ~2.5 s down
       const g=Math.max(.2,Math.min(1,C.preRef/Math.max(AGC.envPre,1e-6))),g0=AGC.curPre;
       if(Math.abs(g-g0)>g0*.01){AGC.curPre=g;C.agcPre.gain.setTargetAtTime(g,t,g<g0?.15:1.5)}}}
   const [rms,peak]=levelOf(C.an2),g0=AGC.cur;                                             // what the master carries, before the output gain
   if(rms<2e-4)return;                                                                     // silence or a pause: hold the gains where they are
-  AGC.envR+=(rms-AGC.envR)*(rms>AGC.envR?.12:.0125);                                       // ~0.4 s up, ~4 s down
-  AGC.envP=Math.max(peak,AGC.envP*.98);                                                     // peaks held, decaying over ~2.5 s
+  AGC.envR+=(rms-AGC.envR)*agcK(rms>AGC.envR?.12:.0125,k);                                       // ~0.4 s up, ~4 s down
+  AGC.envP=Math.max(peak,AGC.envP*Math.pow(.98,k));                                                     // peaks held, decaying over ~2.5 s
   let g=Math.min(C.trim,AGC.ref/Math.max(AGC.envR,1e-6),AGC.refP/Math.max(AGC.envP,1e-6));g=Math.max(C.trim*AGC.floor,g);
   if(Math.abs(g-g0)>g0*.01){AGC.cur=g;C.agc.gain.setTargetAtTime(g,t,g<g0?.12:1.2)}
 }
@@ -6550,7 +6605,8 @@ function frame(t){
     while(beltAcc>1){beltAcc-=Math.random()*1.4+.3;const p=BELT[(Math.random()*BELT.length)|0];p.flash=1;beltPing(p,beltPos(p,S.jd))}
   }
   if(!(window.MOTS&&MOTS.skyHidden&&MOTS.skyHidden()))draw(t);   // the score may stand in for the sky
-  if(AC&&audioOn&&t-lastAudio>45){updateAudio();lastAudio=t}
+  // (BG-STUTTER) hidden (screen off): the voices are moved about 9 times a second, not 20; the stage lengthens their glides to match
+  if(AC&&audioOn&&t-lastAudio>(document.hidden?110:45)){updateAudio();lastAudio=t}
   if(t-lastUI>250){lastUI=t;computeAspects();$('zodTxt').innerHTML=zodiacLine();
     // watchdog: phones can suspend web audio (for example while a spoken line plays); bring it back
     if(audioOn&&AC&&AC.state!=='running'&&!(window.MOTS&&MOTS.projPaused))AC.resume().catch(()=>{});
