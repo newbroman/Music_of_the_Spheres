@@ -278,11 +278,51 @@ limits of 0.1–1 mJy are typical). The main sources:
 
 The table is CC0; cite the papers above for the numbers.
 
+## The planets', moons', minor bodies' and comets' spectra (`bodyspectra.json`)
+
+A hand-curated table (step 4e): the reflected-light spectrum of every body of the app from 350 nm to 2.5 µm, read from
+published spectra and rounded (APPROX: band depths and widths ±30 %; centres the literature values). Each body lists its
+own sources in the file. The main ones:
+
+- The Sun's lines: Kurucz, R. L., Furenlid, I., Brault, J. & Testerman, L. 1984, *Solar Flux Atlas from 296 to 1300 nm*,
+  NSO Atlas No. 1; Livingston, W. & Wallace, L. 1991, *An Atlas of the Solar Spectrum in the Infrared from 1850 to 9000
+  cm⁻¹ (1.1 to 5.4 µm)*, NSO Technical Report 91-001.
+- Giant planets and Titan: Karkoschka, E. 1994, Icarus 111, 174 and 1998, Icarus 133, 134 (full-disc albedo spectra
+  300–1000 nm and methane absorption); Clark, R. N. & McCord, T. B. 1979, Icarus 40, 180 (Jupiter and Saturn,
+  0.65–2.5 µm); Fink, U. & Larson, H. P. 1979, ApJ 233, 1021 (Uranus, Neptune and Titan, 0.8–2.5 µm).
+- Earth: Woolf, N. J. et al. 2002, ApJ 574, 430 and Turnbull, M. C. et al. 2006, ApJ 644, 551 (earthshine).
+- Mars: McCord, T. B. & Westphal, J. A. 1971, ApJ 168, 141; Mustard, J. F. & Bell, J. F. 1994, GRL 21, 353; Erard, S. &
+  Calvin, W. 1997, Icarus 130, 449.
+- Venus: Barker, E. S. 1979, GRL 6, 117 (SO₂ and the ultraviolet); Pollack, J. B. et al. 1993, Icarus 103, 1; Mallama, A., Krobusek, B. &
+  Pavlov, H. 2017, Icarus 282, 19.
+- Mercury and the Moon: Warell, J. 2003, Icarus 161, 199; McClintock, W. E. et al. 2008, Science 321, 62; Lane, A. P. &
+  Irvine, W. M. 1973, AJ 78, 267; Pieters, C. M. 1986, Rev. Geophys. 24, 557.
+- Io and the icy moons: Carlson, R. W. et al. 2007, in *Io After Galileo* (Springer); Clark, R. N. & McCord, T. B. 1980,
+  Icarus 41, 323; Calvin, W. M. et al. 1995, JGR 100, 19041; Clark, R. N. et al. 1984, Icarus 58, 265; Grundy, W. M. et al. 2006, Icarus 184, 543 (CO₂ ice on the Uranian moons).
+- Triton, Pluto, Charon, Nix and Hydra: Cruikshank, D. P. et al. 1993, Science 261, 742; Quirico, E. et al. 1999, Icarus
+  139, 159; Owen, T. C. et al. 1993, Science 261, 745; Grundy, W. M. & Fink, U. 1996, Icarus 124, 329; Protopapa, S. et
+  al. 2017, Icarus 287, 218; Brown, M. E. & Calvin, W. M. 2000, Science 287, 107; Cook, J. C. et al. 2018, Icarus 315, 30.
+- Dwarf planets: Brown, M. E., Trujillo, C. A. & Rabinowitz, D. L. 2005, ApJ 635, L97 (Eris); Trujillo, C. A. et al. 2007,
+  ApJ 655, 1172 (Haumea); Licandro, J. et al. 2006, A&A 445, L35 (Makemake); Barucci, M. A. et al. 2005, A&A 439, L1 and
+  Emery, J. P. et al. 2007, A&A 466, 395 (Sedna); Brown, M. E. & Butler, B. J. 2018, AJ 156, 164 (Dysnomia).
+- Asteroids: DeMeo, F. E. et al. 2009, Icarus 202, 160 (the Bus–DeMeo taxonomy, 0.45–2.45 µm); McCord, T. B., Adams,
+  J. B. & Johnson, T. V. 1970, Science 168, 1445 (Vesta); Gaffey, M. J. 1997, Icarus 127, 130 (Vesta's pyroxene); Rivkin, A. S. et
+  al. 2002, Icarus 156, 64; Murchie, S. & Erard, S. 1996, Icarus 123, 63 (Phobos); Takato, N. et al. 2004, Science 306,
+  2224 (Amalthea).
+- Comets: Cochran, A. L. & Cochran, W. D. 2002, Icarus 157, 297 (an atlas of cometary emission lines); A’Hearn, M. F. et
+  al. 1995, Icarus 118, 223; Feldman, P. D., Cochran, A. L. & Combi, M. R. 2004, in *Comets II*; Lamy, P. L. et al. 2004,
+  in *Comets II* (nuclei); Cremonese, G. et al. 1997, ApJ 490, L199 (Hale–Bopp's sodium tail); Capaccioni, F. et al. 2015,
+  Science 347, aaa0628 (67P).
+- Band shapes of ices and minerals: the USGS Spectral Library version 7 (Kokaly, R. F. et al. 2017, USGS Data Series 1035)
+  and the RELAB spectral library (Brown University).
+
+The table is CC0; cite the papers above for the numbers.
+
 ## Software
 
 Python 3.13, numpy 2.5, pandas 3.0, galpy 1.12.0 (Bovy 2015), curl. No Astropy. Build scripts: `common.py`,
 `build_stars.py`, `build_stars_large.py`, `build_pulsars.py`, `build_radio.py`, `build_rotation.py`, `build_sunorbit.py`,
-`build_seismo.py`, `build_localgroup.py`, `build_names.py`, `build_starradio.py`, `tests.py`, `build_all.sh`. SciPy 1.18 for the Bessel functions of the galaxies' disc models.
+`build_seismo.py`, `build_localgroup.py`, `build_names.py`, `build_starradio.py`, `build_bodyspectra.py`, `tests.py`, `build_all.sh`. SciPy 1.18 for the Bessel functions of the galaxies' disc models.
 
 ## Short credits for the app
 
@@ -295,6 +335,8 @@ Python 3.13, numpy 2.5, pandas 3.0, galpy 1.12.0 (Bovy 2015), curl. No Astropy. 
 > et al. 2023 (M33), Pietrzyński et al. 2019 (LMC), Graczyk et al. 2020 (SMC); rotation curves Corbelli et al. 2010 and
 > 2014, van der Marel & Kallivayalil 2014, Di Teodoro et al. 2019. Stellar radio emission: Güdel 2002 and the papers
 > listed under starradio.json (Zic et al. 2020; Lynch et al. 2017; Lim et al. 1998; Peterson et al. 2010; Pardo et al. 2004…).
+> Planets', moons' and comets' spectra: Karkoschka 1994, 1998; Clark & McCord 1979, 1980; Fink & Larson 1979; Turnbull et
+> al. 2006; Grundy & Fink 1996; DeMeo et al. 2009; Cochran & Cochran 2002; the Kurucz et al. 1984 solar atlas; USGS and RELAB.
 >
 > Large star pack (optional download): Gaia DR3, ESA/Gaia/DPAC (Gaia Collaboration, Vallenari et al. 2023), with
 > HYG v4.4 names (CC BY-SA 4.0); show the full ESA acknowledgement above with it.

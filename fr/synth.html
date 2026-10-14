@@ -3475,10 +3475,10 @@ window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,t
   };
 
   /* ───────── 1. data ───────── */
-  const D = { stars: null, pulsars: null, radio: null, frb: null, rotation: null, sunorbit: null, seismo: null, localgroup: null, names: null, starradio: null };
+  const D = { stars: null, pulsars: null, radio: null, frb: null, rotation: null, sunorbit: null, seismo: null, localgroup: null, names: null, starradio: null, bodyspectra: null };
   const G = { version: '0.4.0', K, data: D, ready: false, large: false };
   const FILES = ['stars', 'pulsars', 'radio', 'frb', 'rotation', 'sunorbit', 'seismo'];
-  const OPTIONAL = ['localgroup', 'names', 'starradio'];   // steps 4b/4c: the Local Group, the search names, the stars' radio table; a page without them still works
+  const OPTIONAL = ['localgroup', 'names', 'starradio', 'bodyspectra'];   // steps 4b/4c: the Local Group, the search names, the stars' radio table, the bodies' spectra; a page without them still works
   let fetchFn = (u) => fetch(u).then(r => { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); });
   G.setFetch = (f) => { fetchFn = f; };  // tests supply a file-reading shim
   let baseUrl = '';
@@ -3880,6 +3880,39 @@ window.SYNTH={tourOpen,tourClose,tourAt:()=>TR?TR.i:-1,walkStart,walkStop,WALK,t
     m[key] = res; return res;
   };
   G.lineChord.cache = new Map();
+
+  /*BODYCHORD-START*/
+  /* A body's light (bodyspectra.json): sunlight reflected, so the Sun's lines (D.sun) at the Sun's own depth, times its reflectance with
+     its own bands (b: [label, nm, depth | strength, FWHM nm, 'a' absorption | 'e' emission (a comet's coma) | 's' an edge already in the
+     continuum c]). One rule, visible or infrared: f = c/λ/2⁴⁰ unfolded, so an infrared band is a lower note (2 µm → 136 Hz). This region
+     is copied into light.js for the dial (which has no galaxy.js) by build_bodyspectra.py; tests.py checks the copies match. */
+  const BODYSPEC = (function () {
+    const fOf = nm => 299792458e9 / nm / 1099511627776, rec = (D, id) => (D && D.bodies && D.bodies[(D.alias && D.alias[id]) || id]) || null;
+    function cont(b, nm) { const t = b.c; if (nm <= t[0][0]) return t[0][1]; for (let i = 1; i < t.length; i++) if (nm <= t[i][0]) { const p = t[i - 1], q = t[i]; return p[1] + (q[1] - p[1]) * (nm - p[0]) / (q[0] - p[0]); } return t[t.length - 1][1]; }
+    /** reflectance (geometric albedo) at nm; a comet's emission multiplies its dust continuum by 1 + strength */
+    function refl(b, nm) { let r = cont(b, nm), e = 0; for (const B of b.b) { if (B[4] === 's') continue; const x = (nm - B[1]) / (B[3] / 2.3548); if (x > -5 && x < 5) { const g = Math.exp(-.5 * x * x); if (B[4] === 'e') e += B[2] * g; else r *= 1 - B[2] * g; } } return r * (1 + e); }
+    /** the Sun's lines as a transmission 0..1 at nm (drawn widths) */
+    function sunT(D, nm) { let t = 1; for (const L of D.sun) { const x = (nm - L[1]) / (L[3] * .6); if (x > -4 && x < 4) t *= 1 - L[2] * Math.exp(-.5 * x * x); } return t; }
+    /** for drawing: {b, n, lo, hi, nm, R (reflectance), T (the Sun's lines), Rmax}, n samples evenly spaced in log λ (= in pitch) */
+    function spectrum(D, id, o) { const b = rec(D, id); if (!b) return null; o = o || {}; const n = o.n || 400, lo = o.lo || D.meta.lo, hi = o.hi || D.meta.hi, nm = new Float32Array(n), R = new Float32Array(n), T = new Float32Array(n); let mx = 0;
+      for (let i = 0; i < n; i++) { const w = lo * Math.pow(hi / lo, i / (n - 1)); nm[i] = w; R[i] = refl(b, w); T[i] = sunT(D, w); if (R[i] > mx) mx = R[i]; }
+      return { b, n, lo, hi, nm, R, T, Rmax: mx }; }
+    /** "Hear its lines" for a body: {id, kind, typical, cls, refs, lines (its own bands, strongest first), sun (the Sun's lines, the bed), rms, level,
+     *  dop, abs: true, hiHz, loHz}; each line {n, nm, w (depth, or emission strength / 2, 0..1), wn, f0, f (× Doppler), cents (its width, ≤ 700),
+     *  broad (≥ 5 nm: a cluster), sym, em, edge, amp (w^gamma), a (absolute amplitude)}. The own bands sum as sines to an RMS of opts.level
+     *  (0.09); the Sun's lines opts.bed dB (−16) under them, or −6 dB when a body has none of its own. opts.rv km/s × opts.exag: Doppler. */
+    function chord(D, id, o) { const b = rec(D, id); if (!b) return null; o = o || {}; const gam = o.gamma == null ? 1.25 : o.gamma, lv = o.level == null ? .09 : o.level;
+      const be = Math.max(-.95, Math.min(.95, (o.rv || 0) * (o.exag || 1) / 299792.458)), dop = Math.sqrt((1 - be) / (1 + be));
+      const mk = (n, nm, w, wn, k) => { const f0 = fOf(nm), h = Math.max(.05, wn) / 2; return { n, nm, w, wn, f0, f: f0 * dop, cents: Math.min(700, 1200 * Math.log2((nm + h) / (nm - h))), broad: wn >= 5, sym: 1, dir: 1, em: k === 'e', edge: k === 's', amp: Math.pow(w, gam) }; };
+      const own = b.b.map(B => mk(B[0], B[1], Math.min(1, B[4] === 'e' ? B[2] / 2 : B[2]), B[3], B[4])).filter(L => L.w > 0).sort((x, y) => y.w - x.w).slice(0, o.max || 24);
+      const sun = D.sun.map(L => mk(L[0], L[1], L[2], L[3], 'a')).sort((x, y) => y.w - x.w).slice(0, o.maxSun || 21), sq = a => a.reduce((s, L) => s + L.amp * L.amp, 0);
+      const q = sq(own), bl = lv * Math.pow(10, (q ? (o.bed == null ? -16 : o.bed) : -6) / 20), A = q ? lv / Math.sqrt(q / 2) : 0, As = bl / Math.sqrt(sq(sun) / 2);
+      own.forEach(L => { L.a = A * L.amp; }); sun.forEach(L => { L.a = As * L.amp; });
+      return { id, kind: b.k, typical: !!b.t, cls: b.cls || null, refs: b.r, lines: own, sun, rms: Math.sqrt((q ? lv * lv : 0) + bl * bl), level: lv, dop, abs: true, hiHz: fOf(D.meta.lo) * dop, loHz: fOf(D.meta.hi) * dop }; }
+    return { spectrum, chord, refl, sunT, fOf, rec };
+  })();
+  /*BODYCHORD-END*/
+  G.BODYSPEC = BODYSPEC; G.bodyChord = (id, o) => BODYSPEC.chord(D.bodyspectra, id, o); G.bodySpectrum = (id, o) => BODYSPEC.spectrum(D.bodyspectra, id, o);
 
   /* typical equatorial rotation speeds (km/s) by class — dwarfs (Glebocki & Gnacinski 2005; Royer 2009 for A stars), giants and
      supergiants (de Medeiros & Mayor 1999; Zorec 2023) — used when a star has no measured v sin i (APPROX; stated as "typical") */

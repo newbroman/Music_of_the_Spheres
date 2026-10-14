@@ -1246,14 +1246,317 @@ function mount(){
 if(document.readyState==='loading')addEventListener('DOMContentLoaded',mount);else mount();
 // the dial's info card: a row for this body's light
 function info(b,dl){if(!dl)return;let row=dl.querySelector('#i_light');if(!row){row=document.createElement('div');row.style.gridColumn='1/-1';row.innerHTML='<dt></dt><dd id="i_light" style="font-family:var(--f-body)"></dd>';row.querySelector('dt').textContent=T.light;dl.appendChild(row)}
-  const dd=row.querySelector('dd')||row;dd.textContent=readout(b)}
+  const dd=row.querySelector('dd')||row;dd.textContent=readout(b);cardButton(b)}
 // the flight's readout line: the body the ship is with, or nearest to
 let nearLast='';
-function near(id){const el=document.getElementById('lightTxt');if(!el)return;const b=id&&H&&H.byId[id];const txt=b&&b.kind!=='comet'?((b.god||b.name)+' · '+readout(b)):'';if(txt!==nearLast){nearLast=txt;el.textContent=txt}}
+// id: a body ('jupiter') or a moon ('jupiter:2'); the line ends with a Spectrum link that opens the body's sheet
+function near(id){const el=document.getElementById('lightTxt');if(!el)return;let h='';
+  if(id&&H){const pk=String(id).split(':'),b=H.byId[pk[0]],m=b&&pk.length>1&&b.moons?b.moons[+pk[1]]:null;
+    if(m||b){const nm=m?m.name.split(' ')[0]:b.kind==='comet'?b.name.split(' ')[0]:(b.god||b.name),full=m?nm:b.kind==='comet'?b.name:(b.god&&b.god!==b.name?b.god+' · '+b.name:b.name),txt=!m&&b.kind!=='comet'?nm+' · '+readout(b):nm;
+      h=ESCH(txt)+`<button class="bslink" type="button" data-bs="${ESCH(m?m.k:b.id)}" data-nm="${ESCH(full)}">${ESCH(SP.spec)}</button>`}}
+  if(h!==nearLast){nearLast=h;el.innerHTML=h}}
+
+/* ---------- the spectrum of a planet, moon, minor body or comet: "Spectrum" on the dial's info card, the flight's readout and tap card.
+   A sheet like the stars’ (fly_galaxy.js): its reflected light from 350 nm to 2.5 µm (a log-wavelength axis, so equal widths are equal
+   musical intervals), the Sun’s lines faint, its own bands bold and labelled; "Hear its lines" holds its own bands as a chord with the
+   Sun’s lines as a quiet bed, "Hear the sweep" plays its light from ultraviolet to infrared. The data are galaxy/bodyspectra.json,
+   the engine the BODYSPEC region below (copied from galaxy.js by build_bodyspectra.py, so the dial, which has no galaxy.js, has it too).
+   The chord graph is shared with the stars’ sheet and their "Lines (chord)" voice in the flight (MOTS.light.chordGraph). ---------- */
+/*BODYCHORD-START*/
+  /* A body's light (bodyspectra.json): sunlight reflected, so the Sun's lines (D.sun) at the Sun's own depth, times its reflectance with
+     its own bands (b: [label, nm, depth | strength, FWHM nm, 'a' absorption | 'e' emission (a comet's coma) | 's' an edge already in the
+     continuum c]). One rule, visible or infrared: f = c/λ/2⁴⁰ unfolded, so an infrared band is a lower note (2 µm → 136 Hz). This region
+     is copied into light.js for the dial (which has no galaxy.js) by build_bodyspectra.py; tests.py checks the copies match. */
+  const BODYSPEC = (function () {
+    const fOf = nm => 299792458e9 / nm / 1099511627776, rec = (D, id) => (D && D.bodies && D.bodies[(D.alias && D.alias[id]) || id]) || null;
+    function cont(b, nm) { const t = b.c; if (nm <= t[0][0]) return t[0][1]; for (let i = 1; i < t.length; i++) if (nm <= t[i][0]) { const p = t[i - 1], q = t[i]; return p[1] + (q[1] - p[1]) * (nm - p[0]) / (q[0] - p[0]); } return t[t.length - 1][1]; }
+    /** reflectance (geometric albedo) at nm; a comet's emission multiplies its dust continuum by 1 + strength */
+    function refl(b, nm) { let r = cont(b, nm), e = 0; for (const B of b.b) { if (B[4] === 's') continue; const x = (nm - B[1]) / (B[3] / 2.3548); if (x > -5 && x < 5) { const g = Math.exp(-.5 * x * x); if (B[4] === 'e') e += B[2] * g; else r *= 1 - B[2] * g; } } return r * (1 + e); }
+    /** the Sun's lines as a transmission 0..1 at nm (drawn widths) */
+    function sunT(D, nm) { let t = 1; for (const L of D.sun) { const x = (nm - L[1]) / (L[3] * .6); if (x > -4 && x < 4) t *= 1 - L[2] * Math.exp(-.5 * x * x); } return t; }
+    /** for drawing: {b, n, lo, hi, nm, R (reflectance), T (the Sun's lines), Rmax}, n samples evenly spaced in log λ (= in pitch) */
+    function spectrum(D, id, o) { const b = rec(D, id); if (!b) return null; o = o || {}; const n = o.n || 400, lo = o.lo || D.meta.lo, hi = o.hi || D.meta.hi, nm = new Float32Array(n), R = new Float32Array(n), T = new Float32Array(n); let mx = 0;
+      for (let i = 0; i < n; i++) { const w = lo * Math.pow(hi / lo, i / (n - 1)); nm[i] = w; R[i] = refl(b, w); T[i] = sunT(D, w); if (R[i] > mx) mx = R[i]; }
+      return { b, n, lo, hi, nm, R, T, Rmax: mx }; }
+    /** "Hear its lines" for a body: {id, kind, typical, cls, refs, lines (its own bands, strongest first), sun (the Sun's lines, the bed), rms, level,
+     *  dop, abs: true, hiHz, loHz}; each line {n, nm, w (depth, or emission strength / 2, 0..1), wn, f0, f (× Doppler), cents (its width, ≤ 700),
+     *  broad (≥ 5 nm: a cluster), sym, em, edge, amp (w^gamma), a (absolute amplitude)}. The own bands sum as sines to an RMS of opts.level
+     *  (0.09); the Sun's lines opts.bed dB (−16) under them, or −6 dB when a body has none of its own. opts.rv km/s × opts.exag: Doppler. */
+    function chord(D, id, o) { const b = rec(D, id); if (!b) return null; o = o || {}; const gam = o.gamma == null ? 1.25 : o.gamma, lv = o.level == null ? .09 : o.level;
+      const be = Math.max(-.95, Math.min(.95, (o.rv || 0) * (o.exag || 1) / 299792.458)), dop = Math.sqrt((1 - be) / (1 + be));
+      const mk = (n, nm, w, wn, k) => { const f0 = fOf(nm), h = Math.max(.05, wn) / 2; return { n, nm, w, wn, f0, f: f0 * dop, cents: Math.min(700, 1200 * Math.log2((nm + h) / (nm - h))), broad: wn >= 5, sym: 1, dir: 1, em: k === 'e', edge: k === 's', amp: Math.pow(w, gam) }; };
+      const own = b.b.map(B => mk(B[0], B[1], Math.min(1, B[4] === 'e' ? B[2] / 2 : B[2]), B[3], B[4])).filter(L => L.w > 0).sort((x, y) => y.w - x.w).slice(0, o.max || 24);
+      const sun = D.sun.map(L => mk(L[0], L[1], L[2], L[3], 'a')).sort((x, y) => y.w - x.w).slice(0, o.maxSun || 21), sq = a => a.reduce((s, L) => s + L.amp * L.amp, 0);
+      const q = sq(own), bl = lv * Math.pow(10, (q ? (o.bed == null ? -16 : o.bed) : -6) / 20), A = q ? lv / Math.sqrt(q / 2) : 0, As = bl / Math.sqrt(sq(sun) / 2);
+      own.forEach(L => { L.a = A * L.amp; }); sun.forEach(L => { L.a = As * L.amp; });
+      return { id, kind: b.k, typical: !!b.t, cls: b.cls || null, refs: b.r, lines: own, sun, rms: Math.sqrt((q ? lv * lv : 0) + bl * bl), level: lv, dop, abs: true, hiHz: fOf(D.meta.lo) * dop, loHz: fOf(D.meta.hi) * dop }; }
+    return { spectrum, chord, refl, sunT, fOf, rec };
+  })();
+  /*BODYCHORD-END*/
+const SPX={
+ en:{spec:'Spectrum',title:'Reflected sunlight · 350–2500 nm',uv:'UV',vis:'visible',ir:'infrared',refl:'reflectance',sunL:'the Sun’s lines',own:'its own bands',hearChord:'Hear its lines',hearSweep:'Hear the sweep',stop:'Stop',close:'Close',go:'Go there',load:'Loading the spectra…',fail:'The spectra could not be loaded.',
+  t1:'{n} shines by the sunlight it reflects: the Sun’s own dark lines are in its light (drawn faint), and what it is made of cuts bands of its own (drawn bold): {list}.',
+  t1c:'{n} shines by the sunlight its dust reflects, and near the Sun its gas glows in bright emission bands, heard as added notes: {list}.',
+  t1n:'{n} shines by the sunlight it reflects and shows no bands of its own in this range: what is heard are the Sun’s lines in that light.',
+  rule:'Hear its lines holds each band as a note at its wavelength lowered forty octaves, the rule of the stars’ lines, so an infrared band is simply a lower note (1 µm → 273 Hz, 2 µm → 136 Hz). Deeper bands sound louder, broad ones as clusters, over a quiet bed of the Sun’s lines. The sweep plays its light from ultraviolet ({hi} Hz) to infrared ({lo} Hz).',
+  typ:'A class-typical spectrum ({c}): no spectrum of this body itself is used.',dop:'Its motion, tens of km/s, would shift the notes by less than a cent, so there is no Doppler shift here.',
+  w:{ice:'ice',px:'pyroxene',ol:'olivine–pyroxene',chrom:'blue absorber',ray:'Rayleigh blue',fe:'Fe³⁺ edge',sul:'sulphur edge',veg:'chlorophyll',haze:'haze',thol:'tholins',uva:'UV absorber',hyd:'hydration',slope:'red slope'},
+  cls:{S:'S-type asteroid',B:'B-type asteroid',C:'C-type asteroid',ice:'icy moon',dark:'dark body',comet:'comet'}},
+ pl:{spec:'Widmo',title:'Odbite światło słoneczne · 350–2500 nm',uv:'UV',vis:'widzialne',ir:'podczerwień',refl:'współczynnik odbicia',sunL:'linie Słońca',own:'własne pasma',hearChord:'Posłuchaj linii',hearSweep:'Posłuchaj przebiegu',stop:'Stop',close:'Zamknij',go:'Leć tam',load:'Wczytywanie widm…',fail:'Nie udało się wczytać widm.',
+  t1:'{n} świeci odbitym światłem Słońca: są w nim ciemne linie samego Słońca (narysowane blado), a to, z czego się składa, wycina własne pasma (narysowane wyraźnie): {list}.',
+  t1c:'{n} świeci światłem Słońca odbitym od pyłu, a blisko Słońca jej gaz jarzy się jasnymi pasmami emisyjnymi, słyszalnymi jako dodatkowe nuty: {list}.',
+  t1n:'{n} świeci odbitym światłem Słońca i nie ma w tym zakresie własnych pasm: słychać linie Słońca zawarte w tym świetle.',
+  rule:'„Posłuchaj linii” trzyma każde pasmo jako nutę – jego długość fali obniżoną o czterdzieści oktaw, jak linie gwiazd – więc pasmo w podczerwieni to po prostu niższa nuta (1 µm → 273 Hz, 2 µm → 136 Hz). Głębsze pasma brzmią głośniej, szerokie jako klastry, nad cichym tłem linii Słońca. Przebieg gra to światło od ultrafioletu ({hi} Hz) do podczerwieni ({lo} Hz).',
+  typ:'Widmo typowe dla klasy ({c}): nie korzystamy z widma samego tego ciała.',dop:'Ruch z prędkością dziesiątek km/s przesunąłby nuty o mniej niż cent, więc pomijamy efekt Dopplera.',
+  w:{ice:'lód',px:'piroksen',ol:'oliwin–piroksen',chrom:'pochłaniacz błękitu',ray:'błękit Rayleigha',fe:'krawędź Fe³⁺',sul:'krawędź siarki',veg:'chlorofil',haze:'mgiełka',thol:'toliny',uva:'pochłaniacz UV',hyd:'hydratacja',slope:'nachylenie ku czerwieni'},
+  cls:{S:'planetoida typu S',B:'planetoida typu B',C:'planetoida typu C',ice:'lodowy księżyc',dark:'ciemne ciało',comet:'kometa'}},
+ cy:{spec:'Sbectrwm',title:'Golau’r Haul wedi’i adlewyrchu · 350–2500 nm',uv:'UV',vis:'gweladwy',ir:'isgoch',refl:'adlewyrchedd',sunL:'llinellau’r Haul',own:'ei fandiau ei hun',hearChord:'Clywed y llinellau',hearSweep:'Clywed yr ysgubiad',stop:'Stopio',close:'Cau',go:'Mynd yno',load:'Wrthi’n llwytho’r sbectra…',fail:'Methwyd llwytho’r sbectra.',
+  t1:'Mae {n} yn disgleirio gyda golau’r Haul y mae’n ei adlewyrchu: mae llinellau tywyll yr Haul ei hun yn ei olau (wedi’u lluniadu’n wan), ac mae’r hyn y mae wedi’i wneud ohono yn torri bandiau ei hun (wedi’u lluniadu’n drwm): {list}.',
+  t1c:'Mae {n} yn disgleirio gyda golau’r Haul y mae ei llwch yn ei adlewyrchu, ac yn agos at yr Haul mae ei nwy yn tywynnu mewn bandiau allyrru llachar, a glywir fel nodau ychwanegol: {list}.',
+  t1n:'Mae {n} yn disgleirio gyda golau’r Haul y mae’n ei adlewyrchu, heb fandiau ei hun yn yr ystod hon: llinellau’r Haul yn y golau hwnnw yw’r hyn a glywir.',
+  rule:'Mae ‘Clywed y llinellau’ yn dal pob band fel nodyn ar ei donfedd wedi’i gostwng ddeugain wythfed, rheol llinellau’r sêr, felly nodyn is yn unig yw band isgoch (1 µm → 273 Hz, 2 µm → 136 Hz). Mae bandiau dyfnach yn uwch, a rhai llydan yn glystyrau, dros wely tawel o linellau’r Haul. Mae’r ysgubiad yn chwarae ei olau o’r uwchfioled ({hi} Hz) i’r isgoch ({lo} Hz).',
+  typ:'Sbectrwm nodweddiadol o’r dosbarth ({c}): ni ddefnyddir sbectrwm o’r corff hwn ei hun.',dop:'Byddai ei symudiad, degau o km/s, yn symud y nodau lai na sent, felly does dim effaith Doppler yma.',
+  w:{ice:'iâ',px:'pyrocsen',ol:'olifin–pyrocsen',chrom:'amsugnydd glas',ray:'glas Rayleigh',fe:'ymyl Fe³⁺',sul:'ymyl sylffwr',veg:'cloroffyl',haze:'tarth',thol:'tholinau',uva:'amsugnydd UV',hyd:'hydradiad',slope:'goledd coch'},
+  cls:{S:'asteroid math S',B:'asteroid math B',C:'asteroid math C',ice:'lleuad rewllyd',dark:'corff tywyll',comet:'comed'}},
+ de:{spec:'Spektrum',title:'Reflektiertes Sonnenlicht · 350–2500 nm',uv:'UV',vis:'sichtbar',ir:'Infrarot',refl:'Reflexionsgrad',sunL:'Linien der Sonne',own:'eigene Banden',hearChord:'Die Linien hören',hearSweep:'Den Durchlauf hören',stop:'Stopp',close:'Schließen',go:'Dorthin',load:'Spektren werden geladen…',fail:'Die Spektren ließen sich nicht laden.',
+  t1:'{n} leuchtet im zurückgeworfenen Sonnenlicht: Die dunklen Linien der Sonne selbst stecken darin (blass gezeichnet), und woraus der Körper besteht, schneidet eigene Banden hinein (kräftig gezeichnet): {list}.',
+  t1c:'{n} leuchtet im Sonnenlicht, das sein Staub zurückwirft, und nahe der Sonne leuchtet sein Gas in hellen Emissionsbanden, die als zusätzliche Töne erklingen: {list}.',
+  t1n:'{n} leuchtet im zurückgeworfenen Sonnenlicht und zeigt in diesem Bereich keine eigenen Banden: Zu hören sind die Linien der Sonne in diesem Licht.',
+  rule:'„Die Linien hören“ hält jede Bande als Ton auf ihrer um vierzig Oktaven abgesenkten Wellenlänge, nach der Regel der Sternlinien; eine Infrarotbande ist also einfach ein tieferer Ton (1 µm → 273 Hz, 2 µm → 136 Hz). Tiefere Banden klingen lauter, breite als Cluster, über einem leisen Teppich aus den Linien der Sonne. Der Durchlauf spielt das Licht vom Ultraviolett ({hi} Hz) bis ins Infrarot ({lo} Hz).',
+  typ:'Ein klassentypisches Spektrum ({c}): Ein Spektrum dieses Körpers selbst wird nicht verwendet.',dop:'Seine Bewegung von einigen zehn km/s würde die Töne um weniger als ein Cent verschieben, darum gibt es hier keine Dopplerverschiebung.',
+  w:{ice:'Eis',px:'Pyroxen',ol:'Olivin–Pyroxen',chrom:'Blauabsorber',ray:'Rayleigh-Blau',fe:'Fe³⁺-Kante',sul:'Schwefelkante',veg:'Chlorophyll',haze:'Dunst',thol:'Tholine',uva:'UV-Absorber',hyd:'Hydratation',slope:'roter Anstieg'},
+  cls:{S:'S-Asteroid',B:'B-Asteroid',C:'C-Asteroid',ice:'Eismond',dark:'dunkler Körper',comet:'Komet'}},
+ es:{spec:'Espectro',title:'Luz solar reflejada · 350–2500 nm',uv:'UV',vis:'visible',ir:'infrarrojo',refl:'reflectancia',sunL:'líneas del Sol',own:'bandas propias',hearChord:'Oír sus líneas',hearSweep:'Oír el barrido',stop:'Parar',close:'Cerrar',go:'Ir allí',load:'Cargando los espectros…',fail:'No se pudieron cargar los espectros.',
+  t1:'{n} brilla con la luz del Sol que refleja: en ella están las propias líneas oscuras del Sol (dibujadas tenues), y aquello de lo que está hecho recorta bandas propias (dibujadas en negrita): {list}.',
+  t1c:'{n} brilla con la luz del Sol que refleja su polvo, y cerca del Sol su gas resplandece en brillantes bandas de emisión, que se oyen como notas añadidas: {list}.',
+  t1n:'{n} brilla con la luz del Sol que refleja y no muestra bandas propias en este rango: lo que se oye son las líneas del Sol en esa luz.',
+  rule:'«Oír sus líneas» sostiene cada banda como una nota en su longitud de onda bajada cuarenta octavas, la regla de las líneas de las estrellas, así que una banda infrarroja es simplemente una nota más grave (1 µm → 273 Hz, 2 µm → 136 Hz). Las bandas más profundas suenan más fuerte, las anchas como racimos, sobre un lecho suave de líneas del Sol. El barrido toca su luz del ultravioleta ({hi} Hz) al infrarrojo ({lo} Hz).',
+  typ:'Un espectro típico de su clase ({c}): no se usa un espectro de este cuerpo en sí.',dop:'Su movimiento, de decenas de km/s, desplazaría las notas menos de un cent, así que aquí no hay efecto Doppler.',
+  w:{ice:'hielo',px:'piroxeno',ol:'olivino–piroxeno',chrom:'absorbente azul',ray:'azul de Rayleigh',fe:'borde del Fe³⁺',sul:'borde del azufre',veg:'clorofila',haze:'bruma',thol:'tolinas',uva:'absorbente UV',hyd:'hidratación',slope:'pendiente roja'},
+  cls:{S:'asteroide de tipo S',B:'asteroide de tipo B',C:'asteroide de tipo C',ice:'luna helada',dark:'cuerpo oscuro',comet:'cometa'}},
+ fr:{spec:'Spectre',title:'Lumière solaire réfléchie · 350–2500 nm',uv:'UV',vis:'visible',ir:'infrarouge',refl:'réflectance',sunL:'raies du Soleil',own:'bandes propres',hearChord:'Entendre ses raies',hearSweep:'Entendre le balayage',stop:'Arrêter',close:'Fermer',go:'Y aller',load:'Chargement des spectres…',fail:'Impossible de charger les spectres.',
+  t1:'{n} brille de la lumière solaire réfléchie : les raies sombres du Soleil lui-même s’y trouvent (tracées en pâle), et ce dont l’astre est fait y découpe ses propres bandes (tracées en gras) : {list}.',
+  t1c:'{n} brille de la lumière solaire que réfléchit sa poussière, et près du Soleil son gaz luit en bandes d’émission brillantes, entendues comme des notes ajoutées : {list}.',
+  t1n:'{n} brille de la lumière solaire réfléchie et ne montre aucune bande propre dans ce domaine : ce qu’on entend, ce sont les raies du Soleil dans cette lumière.',
+  rule:'« Entendre ses raies » tient chaque bande comme une note à sa longueur d’onde abaissée de quarante octaves, la règle des raies des étoiles : une bande infrarouge est donc simplement une note plus grave (1 µm → 273 Hz, 2 µm → 136 Hz). Les bandes plus profondes sonnent plus fort, les larges en grappes, sur un lit discret de raies du Soleil. Le balayage joue sa lumière de l’ultraviolet ({hi} Hz) à l’infrarouge ({lo} Hz).',
+  typ:'Un spectre typique de sa classe ({c}) : aucun spectre de cet astre lui-même n’est utilisé.',dop:'Son mouvement, des dizaines de km/s, décalerait les notes de moins d’un cent : il n’y a donc pas d’effet Doppler ici.',
+  w:{ice:'glace',px:'pyroxène',ol:'olivine–pyroxène',chrom:'absorbant bleu',ray:'bleu de Rayleigh',fe:'front Fe³⁺',sul:'front du soufre',veg:'chlorophylle',haze:'brume',thol:'tholins',uva:'absorbant UV',hyd:'hydratation',slope:'pente rouge'},
+  cls:{S:'astéroïde de type S',B:'astéroïde de type B',C:'astéroïde de type C',ice:'lune glacée',dark:'corps sombre',comet:'comète'}},
+ it:{spec:'Spettro',title:'Luce solare riflessa · 350–2500 nm',uv:'UV',vis:'visibile',ir:'infrarosso',refl:'riflettanza',sunL:'righe del Sole',own:'bande proprie',hearChord:'Ascolta le sue righe',hearSweep:'Ascolta la scansione',stop:'Ferma',close:'Chiudi',go:'Vai lì',load:'Caricamento degli spettri…',fail:'Impossibile caricare gli spettri.',
+  t1:'{n} brilla della luce solare riflessa: vi si trovano le righe scure del Sole stesso (disegnate tenui), e ciò di cui è fatto vi incide bande proprie (disegnate in grassetto): {list}.',
+  t1c:'{n} brilla della luce solare riflessa dalla sua polvere, e vicino al Sole il suo gas risplende in brillanti bande di emissione, udite come note aggiunte: {list}.',
+  t1n:'{n} brilla della luce solare riflessa e non mostra bande proprie in questo intervallo: ciò che si sente sono le righe del Sole in quella luce.',
+  rule:'«Ascolta le sue righe» tiene ogni banda come una nota alla sua lunghezza d’onda abbassata di quaranta ottave, la regola delle righe delle stelle, così una banda infrarossa è semplicemente una nota più grave (1 µm → 273 Hz, 2 µm → 136 Hz). Le bande più profonde suonano più forti, quelle larghe come cluster, su un tappeto lieve di righe del Sole. La scansione suona la sua luce dall’ultravioletto ({hi} Hz) all’infrarosso ({lo} Hz).',
+  typ:'Uno spettro tipico della sua classe ({c}): non si usa uno spettro di questo corpo in sé.',dop:'Il suo moto, decine di km/s, sposterebbe le note di meno di un cent, quindi qui non c’è effetto Doppler.',
+  w:{ice:'ghiaccio',px:'pirosseno',ol:'olivina–pirosseno',chrom:'assorbitore blu',ray:'blu di Rayleigh',fe:'bordo Fe³⁺',sul:'bordo dello zolfo',veg:'clorofilla',haze:'foschia',thol:'tholin',uva:'assorbitore UV',hyd:'idratazione',slope:'pendenza rossa'},
+  cls:{S:'asteroide di tipo S',B:'asteroide di tipo B',C:'asteroide di tipo C',ice:'luna ghiacciata',dark:'corpo scuro',comet:'cometa'}},
+ zh:{spec:'光谱',title:'反射的太阳光 · 350–2500 nm',uv:'紫外',vis:'可见光',ir:'红外',refl:'反射率',sunL:'太阳谱线',own:'自身谱带',hearChord:'聆听它的谱线',hearSweep:'聆听扫描',stop:'停止',close:'关闭',go:'前往',load:'正在载入光谱…',fail:'无法载入光谱。',
+  t1:'{n}靠反射太阳光发亮：光中带着太阳自己的暗线（淡色绘出），而构成它的物质又刻下自身的谱带（粗体绘出）：{list}。',
+  t1c:'{n}靠尘埃反射太阳光发亮；靠近太阳时，它的气体在明亮的发射带中发光，听起来是额外加入的音：{list}。',
+  t1n:'{n}靠反射太阳光发亮，在此波段没有自身的谱带：听到的是这道光中太阳的谱线。',
+  rule:'“聆听它的谱线”把每条谱带按其波长降低四十个八度，作为一个持续的音，与恒星谱线的规则相同，所以红外谱带只是更低的音（1 µm → 273 Hz，2 µm → 136 Hz）。越深的谱带越响，宽谱带化为音簇，下面是一层轻柔的太阳谱线。扫描从紫外（{hi} Hz）到红外（{lo} Hz）演奏它的光。',
+  typ:'按类别给出的典型光谱（{c}）：并未使用这个天体自身的光谱。',dop:'它每秒数十公里的运动只会让音高偏移不到一音分，因此这里不计多普勒效应。',
+  w:{ice:'冰',px:'辉石',ol:'橄榄石–辉石',chrom:'蓝光吸收体',ray:'瑞利蓝',fe:'Fe³⁺ 吸收边',sul:'硫吸收边',veg:'叶绿素',haze:'霾',thol:'托林',uva:'紫外吸收体',hyd:'水合',slope:'红色斜坡'},
+  cls:{S:'S 型小行星',B:'B 型小行星',C:'C 型小行星',ice:'冰卫星',dark:'暗天体',comet:'彗星'}},
+ ja:{spec:'スペクトル',title:'反射された太陽光 · 350–2500 nm',uv:'紫外',vis:'可視光',ir:'赤外',refl:'反射率',sunL:'太陽の線',own:'固有の帯',hearChord:'その線を聴く',hearSweep:'掃引を聴く',stop:'停止',close:'閉じる',go:'そこへ行く',load:'スペクトルを読み込み中…',fail:'スペクトルを読み込めませんでした。',
+  t1:'{n}は反射した太陽光で輝きます。その光には太陽自身の暗線が含まれ（淡く描画）、それを形づくる物質が固有の帯を刻みます（太く描画）：{list}。',
+  t1c:'{n}は塵が反射する太陽光で輝き、太陽に近づくとガスが明るい輝線帯で光ります。これは加わった音として聞こえます：{list}。',
+  t1n:'{n}は反射した太陽光で輝き、この範囲に固有の帯はありません。聞こえるのはその光に含まれる太陽の線です。',
+  rule:'「その線を聴く」は、それぞれの帯を波長から40オクターブ下げた音として鳴らし続けます。恒星の線と同じ規則なので、赤外の帯は単に低い音になります（1 µm → 273 Hz、2 µm → 136 Hz）。深い帯ほど大きく、幅の広い帯はクラスターとして、太陽の線の静かな響きの上で鳴ります。掃引はその光を紫外（{hi} Hz）から赤外（{lo} Hz）まで演奏します。',
+  typ:'分類に典型的なスペクトル（{c}）：この天体自身のスペクトルは使っていません。',dop:'秒速数十 km の運動による音の変化は1セント未満なので、ここではドップラー効果を省いています。',
+  w:{ice:'氷',px:'輝石',ol:'かんらん石–輝石',chrom:'青色吸収体',ray:'レイリーの青',fe:'Fe³⁺ の吸収端',sul:'硫黄の吸収端',veg:'クロロフィル',haze:'もや',thol:'ソリン',uva:'紫外線吸収体',hyd:'水和',slope:'赤い傾斜'},
+  cls:{S:'S型小惑星',B:'B型小惑星',C:'C型小惑星',ice:'氷の衛星',dark:'暗い天体',comet:'彗星'}},
+ vi:{spec:'Quang phổ',title:'Ánh Mặt Trời phản xạ · 350–2500 nm',uv:'UV',vis:'khả kiến',ir:'hồng ngoại',refl:'hệ số phản xạ',sunL:'vạch của Mặt Trời',own:'dải riêng',hearChord:'Nghe các vạch',hearSweep:'Nghe lượt quét',stop:'Dừng',close:'Đóng',go:'Đến đó',load:'Đang tải quang phổ…',fail:'Không tải được quang phổ.',
+  t1:'{n} sáng nhờ ánh Mặt Trời mà nó phản xạ: trong ánh sáng ấy có các vạch tối của chính Mặt Trời (vẽ mờ), và vật chất cấu thành nó khắc thêm những dải riêng (vẽ đậm): {list}.',
+  t1c:'{n} sáng nhờ ánh Mặt Trời do bụi của nó phản xạ, và khi ở gần Mặt Trời, khí của nó phát sáng thành những dải phát xạ rực rỡ, nghe như những nốt được thêm vào: {list}.',
+  t1n:'{n} sáng nhờ ánh Mặt Trời mà nó phản xạ và không có dải riêng nào trong khoảng này: điều nghe thấy là các vạch của Mặt Trời trong ánh sáng ấy.',
+  rule:'“Nghe các vạch” giữ mỗi dải thành một nốt ở bước sóng của nó hạ xuống bốn mươi quãng tám, theo cùng quy tắc với vạch của các ngôi sao, nên một dải hồng ngoại chỉ đơn giản là một nốt trầm hơn (1 µm → 273 Hz, 2 µm → 136 Hz). Dải càng sâu càng vang to, dải rộng thành chùm nốt, trên một nền êm của các vạch Mặt Trời. Lượt quét chơi ánh sáng của nó từ tử ngoại ({hi} Hz) đến hồng ngoại ({lo} Hz).',
+  typ:'Quang phổ điển hình của nhóm ({c}): không dùng quang phổ của chính thiên thể này.',dop:'Chuyển động hàng chục km/s của nó chỉ dịch các nốt chưa tới một cent, nên ở đây không tính hiệu ứng Doppler.',
+  w:{ice:'băng',px:'pyroxen',ol:'olivin–pyroxen',chrom:'chất hấp thụ lam',ray:'màu lam Rayleigh',fe:'bờ hấp thụ Fe³⁺',sul:'bờ hấp thụ lưu huỳnh',veg:'diệp lục',haze:'sương mù',thol:'tholin',uva:'chất hấp thụ UV',hyd:'hydrat hóa',slope:'độ dốc đỏ'},
+  cls:{S:'tiểu hành tinh kiểu S',B:'tiểu hành tinh kiểu B',C:'tiểu hành tinh kiểu C',ice:'vệ tinh băng',dark:'thiên thể tối',comet:'sao chổi'}},
+ bg:{spec:'Спектър',title:'Отразена слънчева светлина · 350–2500 nm',uv:'UV',vis:'видима',ir:'инфрачервена',refl:'отражателна способност',sunL:'линиите на Слънцето',own:'собствени ивици',hearChord:'Чуй линиите',hearSweep:'Чуй преминаването',stop:'Стоп',close:'Затвори',go:'Отиди там',load:'Спектрите се зареждат…',fail:'Спектрите не можаха да се заредят.',
+  t1:'{n} свети с отразена слънчева светлина: в нея са тъмните линии на самото Слънце (начертани бледо), а веществото, от което е изградено тялото, изрязва свои ивици (начертани плътно): {list}.',
+  t1c:'{n} свети със слънчевата светлина, отразена от праха ѝ, а близо до Слънцето газът ѝ сияе в ярки емисионни ивици, които се чуват като добавени тонове: {list}.',
+  t1n:'{n} свети с отразена слънчева светлина и няма свои ивици в този обхват: чуват се линиите на Слънцето в тази светлина.',
+  rule:'„Чуй линиите“ задържа всяка ивица като тон на дължината ѝ на вълната, понижена с четиридесет октави – правилото на линиите на звездите, – така че инфрачервената ивица е просто по-нисък тон (1 µm → 273 Hz, 2 µm → 136 Hz). По-дълбоките ивици звучат по-силно, широките – като клъстери, над тих фон от линиите на Слънцето. Преминаването свири светлината от ултравиолетовото ({hi} Hz) до инфрачервеното ({lo} Hz).',
+  typ:'Спектър, типичен за класа ({c}): не се използва спектър на самото тяло.',dop:'Движението му с десетки km/s би отместило тоновете с по-малко от цент, затова тук няма доплеров ефект.',
+  w:{ice:'лед',px:'пироксен',ol:'оливин–пироксен',chrom:'поглътител на синьото',ray:'Рейлиево синьо',fe:'ръб на Fe³⁺',sul:'ръб на сярата',veg:'хлорофил',haze:'мъгла',thol:'толини',uva:'UV поглътител',hyd:'хидратация',slope:'червен наклон'},
+  cls:{S:'астероид от тип S',B:'астероид от тип B',C:'астероид от тип C',ice:'леден спътник',dark:'тъмно тяло',comet:'комета'}},
+ pt:{spec:'Espectro',title:'Luz do Sol refletida · 350–2500 nm',uv:'UV',vis:'visível',ir:'infravermelho',refl:'refletância',sunL:'linhas do Sol',own:'bandas próprias',hearChord:'Ouvir as suas linhas',hearSweep:'Ouvir a varredura',stop:'Parar',close:'Fechar',go:'Ir até lá',load:'Carregando os espectros…',fail:'Não foi possível carregar os espectros.',
+  t1:'{n} brilha com a luz do Sol que reflete: nela estão as próprias linhas escuras do Sol (desenhadas em tom fraco), e aquilo de que é feito recorta bandas próprias (desenhadas em negrito): {list}.',
+  t1c:'{n} brilha com a luz do Sol refletida pela sua poeira, e perto do Sol o seu gás brilha em bandas de emissão intensas, ouvidas como notas acrescentadas: {list}.',
+  t1n:'{n} brilha com a luz do Sol que reflete e não mostra bandas próprias nesta faixa: o que se ouve são as linhas do Sol nessa luz.',
+  rule:'“Ouvir as suas linhas” sustenta cada banda como uma nota no seu comprimento de onda rebaixado quarenta oitavas, a regra das linhas das estrelas; assim, uma banda infravermelha é simplesmente uma nota mais grave (1 µm → 273 Hz, 2 µm → 136 Hz). Bandas mais profundas soam mais forte, as largas como clusters, sobre um fundo suave de linhas do Sol. A varredura toca a sua luz do ultravioleta ({hi} Hz) ao infravermelho ({lo} Hz).',
+  typ:'Um espectro típico da sua classe ({c}): não se usa um espectro deste corpo em si.',dop:'Seu movimento, de dezenas de km/s, deslocaria as notas em menos de um cent; por isso aqui não há efeito Doppler.',
+  w:{ice:'gelo',px:'piroxênio',ol:'olivina–piroxênio',chrom:'absorvedor azul',ray:'azul de Rayleigh',fe:'borda do Fe³⁺',sul:'borda do enxofre',veg:'clorofila',haze:'névoa',thol:'tolinas',uva:'absorvedor UV',hyd:'hidratação',slope:'inclinação vermelha'},
+  cls:{S:'asteroide do tipo S',B:'asteroide do tipo B',C:'asteroide do tipo C',ice:'lua gelada',dark:'corpo escuro',comet:'cometa'}}
+};
+const SP=Object.assign({},SPX.en,SPX[LANG]||{});SP.w=Object.assign({},SPX.en.w,(SPX[LANG]||{}).w||{});SP.cls=Object.assign({},SPX.en.cls,(SPX[LANG]||{}).cls||{});
+const BS_BASE=LANG==='en'||!/\/(pl|cy|de|es|fr|it|zh|ja|vi|bg|pt)\/[^/]*$/.test(location.pathname)?'./':'../';
+let BSD=null,BSP=null;
+// the chord's nominal level: the bands' clusters (three sines and a little noise) come out ~3 dB under single sines, so 0.125 gives a held RMS near 0.08
+const BS_LEVEL=.125;
+// the data: the galaxy engine's copy when the page has it (the flight), else fetched once (the dial; precached by the service worker)
+function bsData(){if(BSD)return Promise.resolve(BSD);const g=window.GALAXY;if(g&&g.data&&g.data.bodyspectra){BSD=g.data.bodyspectra;return Promise.resolve(BSD)}
+  if(!BSP)BSP=fetch(BS_BASE+'galaxy/bodyspectra.json').then(r=>{if(!r.ok)throw new Error('bodyspectra '+r.status);return r.json()}).then(d=>BSD=d).catch(e=>{BSP=null;throw e});return BSP}
+const ESCH=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+const uf=(t,o)=>String(t).replace(/\{(\w+)\}/g,(m,k)=>o[k]!==undefined?o[k]:m);
+// a band's label in this language ({ice} → ice …) and its wavelength, nm below 1 µm and µm above
+const bandName=s=>String(s).replace(/\{(\w+)\}/g,(m,k)=>SP.w[k]||k);
+const wl=nm=>nm<1000?fmt(nm,0)+' nm':fmt(nm/1000,2)+' µm';
+const wlShort=nm=>nm<1000?fmt(nm,0):fmt(nm/1000,2)+' µm';
+// the sheet's list: its own bands grouped by label, strongest group first, at most five groups and four wavelengths each
+function bandList(C){const g=new Map();C.lines.forEach(L=>{const k=bandName(L.n);if(!g.has(k))g.set(k,[]);g.get(k).push(L)});
+  return [...g.entries()].slice(0,5).map(([k,a])=>{const s=a.slice(0,4).sort((x,y)=>x.nm-y.nm),nm=s.filter(L=>L.nm<1000).map(L=>fmt(L.nm,0)),um=s.filter(L=>L.nm>=1000).map(L=>fmt(L.nm/1000,2));
+    return k+' '+[nm.length?nm.join(', ')+' nm':'',um.length?um.join(', ')+' µm':''].filter(Boolean).join(', ')+(a.length>4?' …':'')}).join(' · ')}
+
+/* --- the shared chord graph: each line a sustained voice (fly_galaxy.js's stars use it unchanged; a body's chord C has abs: true, absolute
+   amplitudes L.a, symmetric clusters for its bands, emission bands a little brighter, and the Sun's lines C.sun as a quiet bed) --- */
+const KRp=p=>{try{p.automationRate='k-rate'}catch(e){}};const krB=f=>{KRp(f.frequency);KRp(f.Q);KRp(f.gain);KRp(f.detune);return f};
+const CHORD_RMS=.09,CHORD_STAG=.06,CHORD_ATT=.5;
+function chordGraph(ac,noise,C,t0,opts){const o=opts||{},gn=(v,to)=>{const g=ac.createGain();g.gain.value=v;if(to)g.connect(to);return g};
+  const master=gn(0),nodes=[master],srcs=[],taps=[],parts=[],sparts=[];let q=0;C.lines.forEach(L=>{q+=L.amp*L.amp});const A=C.abs?1:(o.rms||CHORD_RMS)/Math.sqrt(Math.max(q,1e-9)/2);
+  const tcA=o.att||CHORD_ATT,stag=o.stag==null?CHORD_STAG:o.stag;
+  const voice=(L,t,amp,list)=>{const g=gn(0,master);nodes.push(g);const oscs=[];
+    const osc=(f,type,lvl)=>{const x=ac.createOscillator();x.type=type||'sine';x.frequency.value=f;const xg=gn(lvl,g);x.connect(xg);x.start(t);srcs.push(x);oscs.push({o:x,r:f/L.f});return x};
+    if(!L.broad&&L.wn<2.5){osc(L.f,'sine',1);if(L.em){osc(L.f*2,'sine',.22);osc(L.f*3,'sine',.07)}else osc(L.f*2,'sine',.1)}
+    else if(!L.broad){const d=Math.pow(2,L.cents/2400);osc(L.f*d,'sine',.55);osc(L.f/d,'sine',.55);osc(L.f*2,'sine',L.em?.18:.06)}
+    else{const d=Math.pow(2,-(L.dir||1)*L.cents/1200),rs=L.sym?[Math.pow(2,-L.cents/2400),1,Math.pow(2,L.cents/2400)]:[1,Math.pow(d,.5),d];rs.forEach((r,j)=>osc(L.f*r,'sine',(L.sym?j===1:!j)?.45:.32));if(L.em)osc(L.f*2,'sine',.12);
+      if(noise){const rb=L.sym?1:Math.pow(d,.5),bp=krB(ac.createBiquadFilter());bp.type='bandpass';bp.frequency.value=L.f*rb;bp.Q.value=Math.max(L.sym?1.5:4,Math.min(60,1200/Math.max(L.cents,8)));const ng=gn(.9,g);noise.connect(bp);bp.connect(ng);taps.push([noise,bp]);list.push({L,bp,rbp:rb})}}
+    g.gain.setValueAtTime(0,t);g.gain.setTargetAtTime(amp,t,tcA/3);list.push({L,g,oscs,t,amp})};
+  C.lines.forEach((L,i)=>voice(L,t0+i*stag,C.abs?L.a:A*L.amp,parts));
+  if(C.sun)C.sun.forEach((L,i)=>voice(L,t0+(C.lines.length+i)*stag*.5,L.a,sparts));
+  // a star's continuum bed: noise at the Wien tone, very quiet
+  let bed=null;if(noise&&C.bed){const bp=krB(ac.createBiquadFilter());bp.type='bandpass';bp.frequency.value=C.bed.f0;bp.Q.value=1.2;const bg=gn(A*C.bed.amp/Math.max(.01,CHORD_RMS)*.8,master);noise.connect(bp);bp.connect(bg);taps.push([noise,bp]);nodes.push(bg);bed={bp,bg}}
+  const all=parts.concat(sparts),retune=(dop,t)=>{const r=dop/C.dop;all.forEach(p=>{if(p.oscs)p.oscs.forEach(x=>x.o.frequency.setTargetAtTime(p.L.f*r*x.r,t,.05));if(p.bp)p.bp.frequency.setTargetAtTime(p.L.f*r*p.rbp,t,.05)});if(bed)bed.bp.frequency.setTargetAtTime(C.bed.f0*r,t,.05)};
+  return {master,nodes,srcs,taps,parts:parts.filter(p=>p.g),sparts:sparts.filter(p=>p.g),allParts:all,bed,C,t0,A,retune}}
+function chordKill(gr,ac,fade){const t=ac.currentTime;try{gr.master.gain.cancelScheduledValues(t);gr.master.gain.setTargetAtTime(0,t,fade||.25)}catch(e){}
+  setTimeout(()=>{gr.srcs.forEach(s=>{try{s.stop()}catch(e){}});gr.taps.forEach(([a,b])=>{try{a.disconnect(b)}catch(e){}});gr.nodes.forEach(n=>{try{n.disconnect()}catch(e){}})},(fade||.25)*4000+200)}
+
+/* --- the sheet --- */
+const bcss=document.createElement('style');bcss.textContent=`
+.bsheet{position:fixed;z-index:70;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + .6rem);width:min(42rem,calc(100vw - 1.2rem));box-sizing:border-box;background:var(--glass,rgba(10,12,24,.94));border:1px solid var(--line,rgba(201,152,79,.4));border-radius:14px;padding:.6rem .9rem .7rem;color:var(--vellum,#e9e1cc);font-family:var(--f-body,system-ui,sans-serif);font-size:.84rem;line-height:1.4;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 10px 40px rgba(0,0,0,.6);max-height:calc(100vh - 1.5rem);max-height:calc(100dvh - 1.5rem);overflow:auto;overscroll-behavior:contain;text-align:left}
+.bsheet .bsh{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .6rem;margin-bottom:.4rem;position:relative;padding-right:2.2rem}
+.bsheet .bsh b{font-family:var(--f-display,Georgia,serif);font-weight:400;color:var(--bronze,#c9984f);font-size:1.25em}
+.bsheet .bsh small{color:var(--vellum-dim,#aea791);font-family:var(--f-mono,ui-monospace,monospace);font-size:.72rem}
+.bsheet .bsx{appearance:none;background:transparent;border:0;color:var(--vellum-dim,#aea791);font-size:1.3rem;line-height:1;cursor:pointer;min-width:var(--tap,2.75rem);min-height:var(--tap,2.75rem);position:absolute;right:-.7rem;top:-.55rem;display:inline-flex;align-items:center;justify-content:center}
+.bsheet .bsx:hover{color:var(--bronze,#c9984f)}
+.bsheet canvas{display:block;width:100%;height:12rem;border-radius:8px;background:#030409;border:1px solid rgba(201,152,79,.18)}
+.bsheet .bst{margin:.45rem 0 .2rem;overflow-wrap:anywhere}.bsheet .bst b{font-weight:600;color:#f3d9a4}
+.bsheet .bsr{margin:0 0 .3rem;color:var(--vellum-dim,#aea791);font-size:.72rem;font-family:var(--f-mono,ui-monospace,monospace);line-height:1.35;overflow-wrap:anywhere}
+.bsheet .bsb{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.35rem}
+.bsheet .bsb button,.bspop button{appearance:none;font:inherit;font-size:.85rem;color:var(--vellum,#e9e1cc);background:rgba(255,255,255,.04);border:1px solid var(--line,rgba(201,152,79,.4));border-radius:999px;padding:.35rem .9rem;min-height:var(--tap,2.75rem);cursor:pointer}
+.bsheet .bsb button:hover,.bspop button:hover{border-color:var(--bronze,#c9984f)}
+.bsheet .bsb button[data-a="chord"]{border-color:rgba(201,152,79,.65);color:#f3d9a4}
+.bsheet .bsb button.on{color:#f3d9a4;border-color:var(--bronze,#c9984f);background:rgba(201,152,79,.2)}
+.bslink{appearance:none;font:inherit;font-size:.92em;background:transparent;border:1px solid rgba(201,152,79,.45);border-radius:999px;color:var(--bronze,#c9984f);padding:0 .55em;margin-left:.45em;cursor:pointer;line-height:1.5;vertical-align:baseline;pointer-events:auto}
+.bslink:hover{border-color:var(--bronze,#c9984f);color:#f3d9a4}
+.bslam{appearance:none;background:transparent;border:1px solid rgba(201,152,79,.35);border-radius:6px;color:var(--bronze,#c9984f);font-family:var(--f-display,Georgia,serif);font-size:1rem;min-width:2.2rem;min-height:2.2rem;cursor:pointer;padding:0}
+.bslam:hover{border-color:var(--bronze,#c9984f)}
+@media (max-width:620px){.bsheet{font-size:.78rem;padding:.5rem .7rem .6rem}.bsheet canvas{height:10rem}.bsheet .bsr{display:none}.bsheet .bsb button{padding:.3rem .7rem}}
+@media (max-height:520px){.bsheet{bottom:.4rem;max-height:calc(100vh - .8rem);width:min(46rem,calc(100vw - 7rem))}.bsheet canvas{height:7.5rem}.bsheet .bsr{display:none}}
+@media (prefers-reduced-motion:reduce){.bsheet{transition:none}}`;document.head.appendChild(bcss);
+let BSH=null,BCV=null,BS=null,BH=null,SAC=null;   // the sheet element, its canvas, {ref, C, sp}, what is sounding, an own audio context
+const NB=new WeakMap();
+function sctx(){if(H&&H.ctx&&H.ctx.state==='running')return H.ctx;if(!SAC){const A=window.AudioContext||window.webkitAudioContext;if(!A)return null;SAC=new A()}if(SAC.state!=='running')SAC.resume().catch(()=>{});return SAC}
+function noiseOf(ac){let n=NB.get(ac);if(n)return n;const b=ac.createBuffer(1,ac.sampleRate*2,ac.sampleRate),d=b.getChannelData(0);let s=7;for(let i=0;i<d.length;i++){s=(s*16807)%2147483647;d[i]=s/1073741823.5-1}const src=ac.createBufferSource();src.buffer=b;src.loop=true;n=ac.createGain();src.connect(n);src.start();NB.set(ac,n);return n}
+function ensureSheet(){if(BSH)return;BSH=document.createElement('div');BSH.className='bsheet';BSH.id='bodySheet';BSH.hidden=true;BSH.setAttribute('role','dialog');document.body.appendChild(BSH);
+  BSH.onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;if(a==='x')close();else if(a==='chord'){if(BH&&BH.kind==='chord')stopHear();else hearChord()}else if(a==='sweep'){if(BH&&BH.kind==='sweep')stopHear();else hearSweep()}};
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&BSH&&!BSH.hidden){e.stopPropagation();close()}},true);
+  addEventListener('resize',()=>{if(BSH&&!BSH.hidden)draw()})}
+/** open the sheet for a body: ref = {id (bodyspectra key: 'jupiter', 'io', 'selene' …), name (as the page writes it), sub (optional)} */
+function open(ref){if(!ref||!ref.id)return;ensureSheet();stopHear();BS={ref,C:null,sp:null};
+  BSH.innerHTML=`<div class="bsh"><b>${ESCH(ref.name||ref.id)}</b><small>${ESCH(SP.title)}</small><button class="bsx" data-a="x" aria-label="${ESCH(SP.close)}">×</button></div><canvas aria-label="${ESCH(SP.title)}"></canvas><p class="bst">${ESCH(SP.load)}</p>`;
+  BSH.setAttribute('aria-label',SP.spec+': '+(ref.name||ref.id));BCV=BSH.querySelector('canvas');BSH.hidden=false;draw();
+  bsData().then(D=>{if(!BS||BS.ref!==ref)return;const C=BODYSPEC.chord(D,ref.id,{gamma:1.25,level:BS_LEVEL}),sp=BODYSPEC.spectrum(D,ref.id,{n:Math.max(240,Math.min(900,Math.round((BCV&&BCV.clientWidth)||600)))});
+    if(!C){BSH.querySelector('.bst').textContent=SP.fail;return}BS.C=C;BS.sp=sp;BS.D=D;render()}).catch(()=>{if(BSH)BSH.querySelector('.bst').textContent=SP.fail})}
+function render(){const {ref,C}=BS,nm=ESCH(ref.name||ref.id),comet=C.lines.some(L=>L.em),list=ESCH(bandList(C));
+  const t1=C.lines.length?uf(comet?SP.t1c:SP.t1,{n:'<b>'+nm+'</b>',list}):uf(SP.t1n,{n:'<b>'+nm+'</b>'});
+  const txt=(t1+' '+ESCH(uf(SP.rule,{hi:fmt(C.hiHz,0),lo:fmt(C.loHz,0)}))+' '+ESCH(SP.dop)+(C.typical?' '+ESCH(uf(SP.typ,{c:SP.cls[C.cls]||C.cls})):'')).replace(/(\d) (µm|nm|Hz)/g,'$1\u00a0$2');
+  BSH.innerHTML=`<div class="bsh"><b>${nm}</b><small>${ESCH(SP.title)}</small><button class="bsx" data-a="x" aria-label="${ESCH(SP.close)}">×</button></div><canvas aria-label="${ESCH(SP.title)}"></canvas><p class="bst">${txt}</p><p class="bsr">${ESCH(C.refs.join(' · '))}</p>`+
+    `<div class="bsb"><button data-a="chord">${ESCH(SP.hearChord)}</button><button data-a="sweep">${ESCH(SP.hearSweep)}</button><button data-a="x">${ESCH(SP.close)}</button></div>`;
+  BCV=BSH.querySelector('canvas');draw()}
+function close(){stopHear();if(BSH)BSH.hidden=true;BS=null}
+const MONO='500 10px "IBM Plex Mono",ui-monospace,monospace',BOLD='600 10.5px "IBM Plex Mono",ui-monospace,monospace';
+// the colour of a wavelength (an approximation of the CIE hue, after D. Bruton), dimmed toward the ends of sight; beyond it a muted false colour
+function wlRGB(nm){let r=0,g=0,b=0;if(nm<440){r=-(nm-440)/60;b=1}else if(nm<490){g=(nm-440)/50;b=1}else if(nm<510){g=1;b=-(nm-510)/20}else if(nm<580){r=(nm-510)/70;g=1}else if(nm<645){r=1;g=-(nm-645)/65}else r=1;
+  const k=nm<420?.3+.7*(nm-380)/40:nm>700?.3+.7*(750-nm)/50:1;return [r*k,g*k,b*k]}
+function draw(){if(!BSH||BSH.hidden||!BCV)return;const dpr=Math.min(2,devicePixelRatio||1),W=BCV.clientWidth||320,Hh=BCV.clientHeight||176;if(BCV.width!==Math.round(W*dpr)||BCV.height!==Math.round(Hh*dpr)){BCV.width=Math.round(W*dpr);BCV.height=Math.round(Hh*dpr)}
+  const c=BCV.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,Hh);c.fillStyle='#030409';c.fillRect(0,0,W,Hh);if(!BS||!BS.sp)return;
+  const {sp,C,D}=BS,lo=sp.lo,hi=sp.hi,L2=Math.log(hi/lo),xOf=nm=>Math.log(nm/lo)/L2*W,nmOf=x=>lo*Math.exp(x/W*L2),n=sp.n,stripY=Math.round(Hh*.6),stripH=Math.round(Hh*.16),top=30,curveH=stripY-top-8;
+  const iOf=nm=>Math.max(0,Math.min(n-1,Math.round(Math.log(nm/lo)/L2*(n-1))));
+  // the edges and slopes: shaded across their width over the curve
+  C.lines.forEach(L=>{if(!L.edge)return;const x0=xOf(L.nm-L.wn/2),x1=xOf(L.nm+L.wn/2);c.fillStyle='rgba(201,152,79,.08)';c.fillRect(x0,top-6,x1-x0,stripY-top+6)});
+  // the strip: each wavelength's colour (visible), a muted violet below it and a dull ember beyond it, brightness by reflectance and the Sun's lines
+  for(let x=0;x<W;x++){const nm=nmOf(x+.5),i=iOf(nm),v=Math.pow(Math.min(1,sp.R[i]/sp.Rmax),.55)*sp.T[i];let rgb;if(nm<380)rgb=[.38,.2,.55];else if(nm>750){const u=Math.min(1,(nm-750)/1750);rgb=[.42-.12*u,.16+.04*u,.14+.12*u]}else rgb=wlRGB(nm);
+    c.fillStyle=`rgb(${Math.round(rgb[0]*255*v)},${Math.round(rgb[1]*255*v)},${Math.round(rgb[2]*255*v)})`;c.fillRect(x,stripY,1.5,stripH)}
+  // the Sun's lines: faint, thin, unlabelled
+  D.sun.forEach(L=>{const x=xOf(L[1]);c.fillStyle=`rgba(0,0,0,${(.45*L[2]).toFixed(2)})`;c.fillRect(x-.6,stripY,1.2,stripH);c.fillStyle='rgba(233,225,204,.22)';c.fillRect(x-.5,stripY-4,1,3)});
+  // its own bands: dark (absorption) or bright (emission) across their real width
+  C.lines.forEach(L=>{if(L.edge)return;const x0=xOf(L.nm-L.wn/2),x1=xOf(L.nm+L.wn/2),w=Math.max(1.6,x1-x0),xm=(x0+x1)/2;c.fillStyle=L.em?`rgba(255,248,225,${(.25+.6*L.w).toFixed(2)})`:`rgba(0,0,0,${(.25+.65*L.w).toFixed(2)})`;c.fillRect(xm-w/2,stripY,w,stripH)});
+  // the reflectance curve (relative), its fill, the Sun's lines dimming it a little
+  const yOf=r=>top+curveH*(1-Math.min(1.05,r/sp.Rmax));c.beginPath();c.moveTo(0,top+curveH);for(let i=0;i<n;i++)c.lineTo(xOf(sp.nm[i]),yOf(sp.R[i]));c.lineTo(W,top+curveH);c.closePath();
+  const grd=c.createLinearGradient(0,top,0,top+curveH);grd.addColorStop(0,'rgba(201,152,79,.38)');grd.addColorStop(1,'rgba(201,152,79,.04)');c.fillStyle=grd;c.fill();
+  c.beginPath();for(let i=0;i<n;i++){const x=xOf(sp.nm[i]),y=yOf(sp.R[i]*(.85+.15*sp.T[i]));i?c.lineTo(x,y):c.moveTo(x,y)}c.strokeStyle='rgba(233,225,204,.85)';c.lineWidth=1.2;c.stroke();
+  // the visible / infrared boundary and the region names
+  c.font=MONO;c.fillStyle='rgba(174,167,145,.75)';const xv0=xOf(380),xv1=xOf(750);c.fillRect(xv0,stripY-2,1,stripH+4);c.fillRect(xv1,stripY-2,1,stripH+4);
+  c.textAlign='left';c.fillText(SP.ir,Math.min(W-c.measureText(SP.ir).width-3,xv1+4),stripY+stripH-4);c.textAlign='center';if(xv1-xv0>60)c.fillText(SP.vis,(xv0+xv1)/2,stripY+stripH-4);c.textAlign='left';c.fillText(SP.uv,2,stripY+stripH-4);
+  // labels for its strongest bands (bold), in three rows above the strip, clear of each other
+  c.font=BOLD;const lab=[];const playing=BH&&BH.kind==='chord';
+  // (a narrow sheet drops the µm after the infrared ones: a three-digit label is nm, a decimal one µm)
+  const narrow=W<520,short=nm=>narrow&&nm>=1000?fmt(nm/1000,2):wlShort(nm),free=(x,tw,row)=>!lab.some(p=>p.r===row&&Math.abs(p.x-x)<(p.w+tw)/2+2);
+  if(!playing)C.lines.slice(0,narrow?8:12).forEach(L=>{const x=xOf(L.nm),t=bandName(L.n)+' '+short(L.nm),tw=c.measureText(t).width,tx=Math.max(tw/2+1,Math.min(W-tw/2-1,x));let row=-1;for(let r=0;r<3&&row<0;r++)if(free(tx,tw,r))row=r;if(row<0)return;lab.push({x:tx,r:row,w:tw});
+    const ty=stripY-6-row*12;c.fillStyle='rgba(233,225,204,.4)';c.fillRect(x-.5,ty+2,1,stripY-ty-2);c.fillStyle=L.em?'#fff3d6':'#f3d9a4';c.textAlign='center';c.fillText(t,tx,ty)});
+  // the axis: wavelengths (a log scale: equal widths are equal intervals)
+  c.font=MONO;c.fillStyle='rgba(174,167,145,.9)';c.textAlign='center';let axR=-1e9;[[400,'400'],[500,'500'],[700,'700 nm'],[1000,'1 µm'],[1500,fmt(1.5,1)],[2000,'2'],[2500,fmt(2.5,1)+' µm']].forEach(([nm,t])=>{const x=xOf(nm),tw=c.measureText(t).width,cx=Math.max(tw/2+1,Math.min(W-tw/2-1,x));c.fillRect(x-.5,stripY+stripH,1,4);if(cx-tw/2<axR+6)return;axR=cx+tw/2;c.fillText(t,cx,stripY+stripH+15)});
+  // the legend (top): reflectance on the left, the Sun's lines and its own bands on the right, as many as fit
+  c.font=BOLD;const wOwn=c.measureText('▮ '+SP.own).width;c.font=MONO;const wSun=c.measureText('— '+SP.sunL).width,wRef=c.measureText(SP.refl).width;
+  c.textAlign='right';c.fillStyle='#f3d9a4';c.font=BOLD;c.fillText('▮ '+SP.own,W-3,12);c.font=MONO;
+  if(wOwn+wSun+16<W-6){c.fillStyle='rgba(233,225,204,.5)';c.fillText('— '+SP.sunL,W-wOwn-14,12)}
+  if(wOwn+wSun+wRef+28<W-6){c.textAlign='left';c.fillStyle='rgba(174,167,145,.75)';c.fillText(SP.refl,3,12)}
+  // the chord: each band lights as it sounds, the strongest labelled with their pitch
+  if(playing&&BH.gr){const now=BH.ac.currentTime;c.font=BOLD;BH.gr.parts.forEach(p=>{const L=p.L,lv=Math.max(0,Math.min(1,(now-p.t)/CHORD_ATT))*Math.max(0,Math.min(1,(BH.t0+BH.dur-.4-now)/.9));if(lv<=0)return;
+      const x0=xOf(L.edge?L.nm-L.wn/2:L.nm-L.wn/2),x1=xOf(L.nm+L.wn/2),w=Math.max(2,x1-x0),xm=(x0+x1)/2,a=lv*(.3+.7*L.w);c.fillStyle=`rgba(255,250,235,${(a*.6).toFixed(2)})`;c.fillRect(xm-w/2,stripY-2,w,stripH+4);
+      const t=bandName(L.n)+' '+fmt(L.f,0)+' Hz',tw=c.measureText(t).width,tx=Math.max(tw/2+1,Math.min(W-tw/2-1,xm));let row=-1;for(let r=0;r<3&&row<0;r++)if(free(tx,tw,r))row=r;
+      if(row>=0&&L.w>=.05){lab.push({x:tx,r:row,w:tw});c.fillStyle=`rgba(243,217,164,${(.35+.65*lv).toFixed(2)})`;c.textAlign='center';c.fillText(t,tx,stripY-6-row*12)}});
+    c.font=MONO;c.fillStyle='#e9e1cc';c.textAlign='left';c.fillText(`${C.lines.length} + ${C.sun.length} (${SP.sunL})`,3,Hh-3)}
+  // the sweep cursor
+  if(BH&&BH.kind==='sweep'){const u=Math.max(0,Math.min(1,(BH.ac.currentTime-BH.t0)/BH.dur)),x=u*W,nm=nmOf(x);c.fillStyle='rgba(255,255,255,.9)';c.fillRect(x-1,top-6,2,stripY+stripH-top+6);c.font=MONO;c.textAlign=x>W*.6?'right':'left';c.fillStyle='#e9e1cc';c.fillText(`${wl(nm)} · ${fmt(BODYSPEC.fOf(nm),0)} Hz`,x+(x>W*.6?-5:5),Hh-3)}}
+function setBtn(a,on){if(!BSH)return;const b=BSH.querySelector(`[data-a="${a}"]`);if(b){b.textContent=on?SP.stop:(a==='chord'?SP.hearChord:SP.hearSweep);b.classList.toggle('on',on)}}
+function hearChord(){if(!BS||!BS.C)return;const ac=sctx();if(!ac)return;stopHear();const t=ac.currentTime,dur=8,out=ac.createGain();out.gain.value=1;out.connect(ac.destination);
+  const gr=chordGraph(ac,noiseOf(ac),BS.C,t+.02);gr.master.connect(out);gr.master.gain.setValueAtTime(0,t);gr.master.gain.linearRampToValueAtTime(1,t+.5);gr.master.gain.setTargetAtTime(0,t+dur-.9,.3);
+  BH={kind:'chord',ac,t0:t,dur,gr,out,end:setTimeout(stopHear,(dur+.6)*1000)};setBtn('chord',true);const tick=()=>{if(!BH||BH.kind!=='chord')return;draw();BH.raf=requestAnimationFrame(tick)};tick()}
+function sweepCurves(D,id,n){const b=BODYSPEC.rec(D,id),sp=BODYSPEC.spectrum(D,id,{n}),F=new Float32Array(n),A=new Float32Array(n);let ref=0;b.c.forEach(p=>{if(p[1]>ref)ref=p[1]});
+  for(let i=0;i<n;i++){F[i]=BODYSPEC.fOf(sp.nm[i]);A[i]=.15*Math.min(1.35,Math.pow(sp.R[i]/ref,.7))*Math.pow(sp.T[i],1.6)}return {F,A}}
+function hearSweep(){if(!BS||!BS.C)return;const ac=sctx();if(!ac)return;stopHear();const t=ac.currentTime,dur=9,n=512,{F,A}=sweepCurves(BS.D,BS.ref.id,n),out=ac.createGain();out.connect(ac.destination);
+  const o=ac.createOscillator();o.type='sine';const o2=ac.createOscillator();o2.type='triangle';const g=ac.createGain(),g2=ac.createGain();g.gain.value=0;g2.gain.value=.08;o.connect(g);o2.connect(g2);g2.connect(g);g.connect(out);
+  o.frequency.setValueAtTime(F[0],t);o.frequency.setValueCurveAtTime(F,t+.02,dur-.04);o2.frequency.setValueAtTime(F[0]*2,t);o2.frequency.setValueCurveAtTime(F.map(x=>x*2),t+.02,dur-.04);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(A[0],t+.02);g.gain.setValueCurveAtTime(A,t+.02,dur-.04);g.gain.setTargetAtTime(0,t+dur,.05);o.start(t);o2.start(t);o.stop(t+dur+.4);o2.stop(t+dur+.4);
+  BH={kind:'sweep',ac,t0:t,dur,srcs:[o,o2],out,end:setTimeout(stopHear,(dur+.5)*1000)};setBtn('sweep',true);const tick=()=>{if(!BH||BH.kind!=='sweep')return;draw();BH.raf=requestAnimationFrame(tick)};tick()}
+function stopHear(){if(!BH)return;const h=BH;BH=null;clearTimeout(h.end);cancelAnimationFrame(h.raf);const t=h.ac.currentTime;try{h.out.gain.cancelScheduledValues(t);h.out.gain.setTargetAtTime(0,t,.04)}catch(e){}
+  setTimeout(()=>{if(h.gr)chordKill(h.gr,h.ac,.02);if(h.srcs)h.srcs.forEach(s=>{try{s.stop()}catch(e){}});try{h.out.disconnect()}catch(e){}},300);setBtn('chord',false);setBtn('sweep',false);draw()}
+/* the measurement window: a body's chord rendered offline as the sheet plays it (8 s, fade in 0.5 s, held, fade out), with its RMS (all and held),
+   peak, the largest sample-to-sample step (a click would be > 0.1), its spectral peaks (Hz) and a 1/6-octave profile 100–1000 Hz */
+function renderBody(id,secs){return bsData().then(D=>{const C=BODYSPEC.chord(D,id,{gamma:1.25,level:BS_LEVEL}),sr=44100,dur=secs||8,ac=new OfflineAudioContext(1,Math.round(sr*(dur+.5)),sr);
+  const gr=chordGraph(ac,noiseOf(ac),C,.02);gr.master.connect(ac.destination);gr.master.gain.setValueAtTime(0,0);gr.master.gain.linearRampToValueAtTime(1,.5);gr.master.gain.setTargetAtTime(0,dur-.9,.3);
+  return ac.startRendering().then(buf=>{const x=buf.getChannelData(0),N=x.length;let q=0,pk=0,step=0;for(let j=0;j<N;j++){const v=x[j],a=v<0?-v:v;q+=v*v;if(a>pk)pk=a;if(j){const dd=Math.abs(v-x[j-1]);if(dd>step)step=dd}}
+    const h0=Math.round(sr*1.5),h1=Math.round(sr*(dur-1.5));let qh=0;for(let j=h0;j<h1;j++)qh+=x[j]*x[j];
+    const M=32768,re=new Float64Array(M),im=new Float64Array(M);for(let j=0;j<M;j++)re[j]=x[h0+j]*(.5-.5*Math.cos(2*Math.PI*j/M));fft(re,im,false);const mag=new Float64Array(M/2);let mx=0;for(let j=0;j<M/2;j++){mag[j]=Math.hypot(re[j],im[j]);if(mag[j]>mx)mx=mag[j]}
+    const peaks=[];for(let j=2;j<M/2-2;j++){const f=j*sr/M;if(f<80||f>1800)continue;if(mag[j]>mag[j-1]&&mag[j]>=mag[j+1]&&mag[j]>mx*.05)peaks.push({f:+f.toFixed(1),db:+(20*Math.log10(mag[j]/mx)).toFixed(1)})}peaks.sort((a,b)=>b.db-a.db);
+    const prof=[];for(let k=0;k<20;k++){const fa=100*Math.pow(2,k/6),fb=100*Math.pow(2,(k+1)/6);let e=0;for(let j=Math.floor(fa*M/sr);j<fb*M/sr;j++)e+=mag[j]*mag[j];prof.push(e)}const pe=Math.sqrt(prof.reduce((a,b)=>a+b,0))||1;
+    return {id,n:C.lines.length,nSun:C.sun.length,rms:Math.sqrt(q/N),rmsHeld:Math.sqrt(qh/(h1-h0)),peak:pk,peakDb:20*Math.log10(pk),step,peaks:peaks.slice(0,30),prof:prof.map(v=>Math.sqrt(v)/pe),lines:C.lines.map(L=>({n:L.n,nm:L.nm,f:+L.f.toFixed(1),w:+L.w.toFixed(2),broad:L.broad,em:L.em}))}})})}
+// the hosts' hooks: a Spectrum button on the dial's info card, λ buttons on the moons of the dial's system view, a link on the flight's readout line
+function cardButton(b){const acts=document.querySelector('#info .acts');if(!acts||acts.querySelector('[data-bs]'))return;const bt=document.createElement('button');bt.className='btn';bt.dataset.bs=b.id;bt.textContent=SP.spec;
+  bt.onclick=()=>open({id:b.id,name:b.kind==='comet'?b.name:(b.god&&b.god!==b.name?b.god+' · '+b.name:b.name)});acts.appendChild(bt)}
+function sysRows(roster,planet){if(!roster||!planet)return;roster.querySelectorAll('.vrow[data-moon]').forEach(row=>{const m=planet.moons[+row.dataset.moon];if(!m||row.querySelector('.bslam'))return;const slot=row.lastElementChild&&row.lastElementChild.tagName==='SPAN'&&!row.lastElementChild.textContent?row.lastElementChild:row;
+  const bt=document.createElement('button');bt.className='bslam';bt.type='button';bt.textContent='λ';const nm=m.name.split(' ')[0];bt.title=bt.ariaLabel=SP.spec+': '+nm;bt.setAttribute('aria-label',SP.spec+': '+nm);bt.onclick=e=>{e.stopPropagation();open({id:m.k,name:nm})};slot.appendChild(bt)})}
+document.addEventListener('click',e=>{const b=e.target.closest('.bslink');if(!b)return;e.preventDefault();e.stopPropagation();open({id:b.dataset.bs,name:b.dataset.nm})});
 
 MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
+  // the bodies' spectra (step 4e) and the chord graph shared with the stars' sheet
+  spectrum:{open,close,render:renderBody,data:bsData,engine:BODYSPEC,isOpen:()=>!!(BSH&&!BSH.hidden),hearing:()=>BH?BH.kind:null,words:SP},chordGraph,chordKill,sysRows,
   // a window for tests
-  _probe:{nmToHz,hzToNm,umToHz,heatOf,colourCurve,gainAt,albedoOf,jupiterRadio:()=>H?jupiterRadio(H):null,earthRadio:()=>H?earthRadio(H):null,entries:()=>E,colourIR:b=>H?colourIR(H.ctx,b):null,win,ALB,HEAT}};
+  _probe:{nmToHz,hzToNm,umToHz,heatOf,colourCurve,gainAt,albedoOf,jupiterRadio:()=>H?jupiterRadio(H):null,earthRadio:()=>H?earthRadio(H):null,entries:()=>E,colourIR:b=>H?colourIR(H.ctx,b):null,win,ALB,HEAT,BODYSPEC}};
 })();
 /*LIGHT-END*/
 </script>
@@ -4699,6 +5002,8 @@ function wireSysInfo(){
   $('sysLeave').onclick=leaveSystem;
   $('sysCentre').onclick=()=>{SYS.vp='centre';renderInfo()};
   $('sysRoster').onclick=e=>{const row=e.target.closest('.vrow');if(!row)return;const k=+row.dataset.moon;SYS.vp=SYS.vp===k?'centre':k;renderInfo()};
+  // each moon's spectrum (a λ button in the row's last cell; light.js)
+  if(window.MOTS&&MOTS.light&&MOTS.light.sysRows)MOTS.light.sysRows($('sysRoster'),byId[SYS.id]);
 }
 function tickSysInfo(){
   SYS.moons.forEach(sm=>{const el=$('sm_'+sm.k),v=SYS.voices[sm.k];if(!el||!v)return;el.textContent=v.part?noteName(P[v.body.id].f)+' · '+((x=>(x>=0?'+':'−')+Math.abs(x))(Math.round(20*Math.log10(Math.max(1e-4,v.gRel)))))+' dB':'かすか'});
