@@ -166,6 +166,20 @@ if(APm&&APm.setValueCurveAtTime){var svc=APm.setValueCurveAtTime;
       try{var n=v.length,k=Math.min(n-1,64);this.setValueAtTime(v[0],t);for(var i=1;i<=k;i++){var j=Math.round(i*(n-1)/k);this.linearRampToValueAtTime(v[j],t+d*j/(n-1))}
         log('setValueCurveAtTime → ramps ('+(e.name||'')+': '+e.message+')');return this}catch(e3){throw e}}}}
 
+/* ---------- 3a. self-repair state (SELF-REPAIR). A phone whose sound will not start is repaired without the listener doing anything but tap:
+   level 1 asks for a larger output buffer (latencyHint 'playback'); level 2 also forces the other common sample rate (44.1 ↔ 48 kHz);
+   'lite' takes the soft-clip shaper out of the output stage (stage.js). A level that works is kept on that phone. Each step is logged
+   on the phone (localStorage mots.alog, shown in the Sound check) so the owner can read later what happened. ?afix=0 resets it. ---------- */
+var LSg=function(k){try{return localStorage.getItem(k)}catch(e){return null}},LSs=function(k,v){try{if(v==null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){}};
+var SSg=function(k){try{return sessionStorage.getItem(k)}catch(e){return null}},SSs=function(k,v){try{if(v==null)sessionStorage.removeItem(k);else sessionStorage.setItem(k,v)}catch(e){}};
+if(/[?&]afix=0\b/.test(location.search)){LSs('mots.afix');LSs('mots.afix.lite');LSs('mots.alog');SSs('mots.afix.n');SSs('mots.afix.try')}
+var FIX=C.fix={level:Math.min(2,+(LSg('mots.afix')||0)||0),lite:LSg('mots.afix.lite')==='1',log:[]};
+try{FIX.log=JSON.parse(LSg('mots.alog')||'[]')||[]}catch(e){FIX.log=[]}
+function flog(s){var line=new Date().toISOString().slice(0,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s;
+  FIX.log.push(line);if(FIX.log.length>30)FIX.log=FIX.log.slice(-30);LSs('mots.alog',JSON.stringify(FIX.log));C.notes.push(now()+' repair: '+s)}
+C.flog=flog;
+function fixOpts(o){var r={},k;if(o)for(k in o)r[k]=o[k];if(FIX.level>=1)r.latencyHint='playback';
+  if(FIX.level>=2){var sr=+(LSg('mots.afix.sr')||0);r.sampleRate=sr===44100?48000:44100}return r}
 /* ---------- 3. the start-up guard ---------- */
 var lastG=0,anyG=false,res0=AC0&&AC0.prototype.resume,sus0=AC0&&AC0.prototype.suspend;
 function isOffline(c){return OAC&&c instanceof OAC}
@@ -175,12 +189,15 @@ function track(c){if(!c||c.__mt||isOffline(c))return;var m=c.__mt={i:C.ctxs.leng
 function inGesture(){return Date.now()-lastG<1000}
 function watch(c){var m=c.__mt;if(!m||m.watching)return;m.watching=true;
   setTimeout(function(){m.watching=false;if(c.state==='closed'||m.appSus||D.hidden)return;
-    if(c.state!=='running'){fail(m.err?(m.err.name?m.err.name+': ':'')+m.err.message:S('stuck'));return}
-    var t1=c.currentTime;setTimeout(function(){if(c.state==='running'&&!m.appSus&&!D.hidden&&c.currentTime===t1)fail(S('clock'))},1200)},3000)}
+    if(c.state!=='running'){repair('stuck',m.err?(m.err.name?m.err.name+': ':'')+m.err.message:S('stuck'),c);return}
+    var t1=c.currentTime;setTimeout(function(){if(c.state!=='running'||m.appSus||D.hidden)return;
+      if(c.currentTime===t1)repair('clock',S('clock'),c);else listen(c)},1200)},3000)}
 if(AC0){
   var Wr=function AudioContext(o){var c=null;
-    if(o!==undefined){try{c=new AC0(o)}catch(e){log('AudioContext('+JSON.stringify(o)+') failed, plain constructor instead: '+e.message)}}
+    if(FIX.level){var fo=fixOpts(o);try{c=new AC0(fo)}catch(e){log('AudioContext('+JSON.stringify(fo)+') failed: '+e.message);if(FIX.level>=2){try{c=new AC0({latencyHint:'playback'})}catch(e2){}}}}
+    if(!c&&o!==undefined){try{c=new AC0(o)}catch(e){log('AudioContext('+JSON.stringify(o)+') failed, plain constructor instead: '+e.message)}}
     if(!c){try{c=new AC0()}catch(e){fail((e.name?e.name+': ':'')+e.message);throw e}}
+    if(!FIX.level&&c.sampleRate)LSs('mots.afix.sr',String(c.sampleRate));
     track(c);return c};
   Wr.prototype=AC0.prototype;try{Object.setPrototypeOf(Wr,AC0)}catch(e){}
   if(W.AudioContext)W.AudioContext=Wr;if(W.webkitAudioContext)W.webkitAudioContext=Wr;
@@ -196,6 +213,64 @@ function onGesture(e){if(e&&e.isTrusted===false)return;lastG=Date.now();anyG=tru
   // no Web Audio at all: say so at the first tap on a control (not on the help or privacy pages)
   if(!AC0&&!C.noWAsaid&&e&&e.type==='click'&&!/help|privacy/.test(location.pathname)){var t=e.target;while(t&&t!==D&&!/^(BUTTON|A|SUMMARY|INPUT|LABEL)$/.test(t.tagName))t=t.parentNode;if(t&&t!==D){C.noWAsaid=true;fail(S('noWA'))}}}
 ['pointerup','touchend','mousedown','click','keydown'].forEach(function(t){W.addEventListener(t,onGesture,true)});
+
+/* ---------- 3b. self-repair (SELF-REPAIR) ---------- */
+// what reaches the speakers: everything connected to a destination is also fed to a probe analyser (an analyser runs unconnected)
+var ANp=W.AudioNode&&AudioNode.prototype,cnx=ANp&&ANp.connect,ADN=W.AudioDestinationNode;
+function isDest(t){try{return !!t&&(ADN?t instanceof ADN:!!(t.context&&t===t.context.destination))}catch(e){return false}}
+function probe(c){var m=c.__mt;if(!m)return null;if(m.probe===undefined){try{m.probe=c.createAnalyser();m.probe.fftSize=2048;m.pbuf=new Float32Array(2048)}catch(e){m.probe=null}}return m.probe}
+if(cnx)ANp.connect=function(t){var r=cnx.apply(this,arguments);
+  try{if(isDest(t)){var c=this.context;if(c&&c.__mt){var p=probe(c);if(p&&this!==p&&!this.__mtP){this.__mtP=1;cnx.call(this,p)}}}}catch(e){}return r};
+// sound the page has started (oscillators, samples), so silence at the speakers can be told apart from a page that is quiet on purpose
+(function(){var P=[],A=W.AudioScheduledSourceNode;if(A)P.push(A.prototype);else[W.OscillatorNode,W.AudioBufferSourceNode,W.ConstantSourceNode].forEach(function(k){if(k)P.push(k.prototype)});
+  P.forEach(function(pr){var s0=pr.start;if(!s0)return;pr.start=function(){try{var m=this.context&&this.context.__mt;if(m)m.starts=(m.starts||0)+1}catch(e){}return s0.apply(this,arguments)}})})();
+function peakOf(m){var b=m.pbuf,pk=0,nan=false;m.probe.getFloatTimeDomainData(b);for(var i=0;i<b.length;i++){var x=b[i];if(x!==x){nan=true;break}if(x<0)x=-x;if(x>pk)pk=x}return {pk:pk,nan:nan}}
+// for 8 s after the sound started: did anything reach the speakers?
+function listen(c){var m=c.__mt;if(!m||m.listening)return;m.listening=true;var max=0,nan=false,n=0;
+  var iv=setInterval(function(){n++;if(c.state!=='running'||D.hidden||m.appSus){clearInterval(iv);m.listening=false;return}
+    if(m.probe){var r=peakOf(m);if(r.nan)nan=true;else if(r.pk>max)max=r.pk}
+    if(max>1e-4&&!nan){clearInterval(iv);m.listening=false;ok(c,max);return}
+    if(n<32)return;clearInterval(iv);m.listening=false;
+    var st=m.starts||0;
+    if(nan)repair('nan','the sound turned into invalid numbers',c);
+    else if(m.probe&&st>=2&&max<1e-6)repair('silent','sound was started but nothing reached the speakers',c);
+    else if(m.probe&&st>=2)ok(c,max)},250)}
+function ok(c,max){var m=c.__mt;if(m.okSaid)return;m.okSaid=true;SSs('mots.afix.n');
+  if(SSg('mots.afix.try')||FIX.pending){SSs('mots.afix.try');FIX.pending=false;flog('sound working (level '+FIX.level+(FIX.lite?', lite':'')+', '+c.sampleRate+' Hz, peak '+(20*Math.log(max)/Math.LN10).toFixed(0)+' dB)')}
+  hideTap()}
+function pageCtxs(){return C.ctxs.filter(function(c){return c.state!=='closed'&&c!==toneCtx})}
+function repair(kind,why,c){var m=c&&c.__mt;if(m){if(m.repaired===kind)return;m.repaired=kind}
+  flog(kind+': '+why+' (level '+FIX.level+(FIX.lite?', lite':'')+(c?', '+c.sampleRate+' Hz':'')+')');
+  if(kind==='stuck'){ // a context held back: one big button; a tap is what lets the phone start it
+    showTap(function retry(){var cs=pageCtxs();cs.forEach(function(x){var mm=x.__mt;if(mm)mm.repaired=null;try{var p=res0.call(x);if(p&&p.then)p.then(null,function(){})}catch(e){}});
+      setTimeout(function(){var good=cs.some(function(x){return x.state==='running'});
+        if(good){flog('started by the Tap for sound button');FIX.pending=true;cs.forEach(function(x){if(x.state==='running')watch(x)})}
+        else{FIX.taps=(FIX.taps||0)+1;if(FIX.taps>=2)escalate(why);else showTap(retry)}},1500)});return}
+  if(kind==='clock'){escalate(why);return}
+  // the sound starts but nothing (or NaN) reaches the speakers: next time without the output shaper; NaN never clears, so start afresh now
+  if(!FIX.lite){FIX.lite=true;LSs('mots.afix.lite','1');flog('output stage made lighter');reloadFix(why);return}
+  if(kind==='nan'){escalate(why);return}
+  flog('no repair left for this; tell Martin')}
+function escalate(why){if(FIX.level>=2){flog('all repairs tried');fail(why);return}
+  FIX.level++;LSs('mots.afix',String(FIX.level));flog('next time: sound settings '+FIX.level);reloadFix(why)}
+// reload with the new settings, at most three times a visit; the reloaded page shows the big button, whose tap starts the page's music
+function reloadFix(why){var n=+(SSg('mots.afix.n')||0);if(n>=3){flog('stopped retrying this visit');fail(why);return}
+  SSs('mots.afix.n',String(n+1));SSs('mots.afix.try','1');pageCtxs().forEach(function(x){try{x.close()}catch(e){}});setTimeout(function(){location.reload()},150)}
+var TAP=null,TAPF=null;
+function tapLabel(){var t={en:'Tap for sound',pl:'Dotknij, aby włączyć dźwięk',cy:'Tapiwch am sain',de:'Für Ton hier tippen',es:'Toca para activar el sonido',fr:'Touchez pour le son',
+  it:'Tocca per l’audio',zh:'点按开启声音',ja:'タップして音を出す',vi:'Chạm để bật âm thanh',bg:'Докосни за звук',pt:'Toque para ativar o som'};return t[lang()]||t.en}
+function showTap(f){TAPF=f;ready(function(){css();if(!D.getElementById('mc-tapcss')){var st=D.createElement('style');st.id='mc-tapcss';
+    st.textContent='.mc-tap{position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483002;display:flex;align-items:center;justify-content:center;background:rgba(5,8,20,.86);-webkit-tap-highlight-color:transparent}'+
+    '.mc-tap button{display:flex;flex-direction:column;align-items:center;justify-content:center;width:220px;height:220px;max-width:70vw;max-height:70vw;border-radius:50%;border:3px solid #e9d093;background:radial-gradient(circle,#2a2140,#0b1630);color:#f1e6cc;font:600 22px/1.25 "Alegreya Sans",system-ui,sans-serif;padding:20px;cursor:pointer;box-shadow:0 0 0 0 rgba(233,208,147,.6);animation:mcTapP 2s ease-out infinite}'+
+    '.mc-tap svg{width:64px;height:64px;margin-bottom:10px}@keyframes mcTapP{70%{box-shadow:0 0 0 22px rgba(233,208,147,0)}100%{box-shadow:0 0 0 0 rgba(233,208,147,0)}}';(D.head||D.documentElement).appendChild(st)}
+  if(!TAP){TAP=el('div','mc-tap');TAP.id='mc-tap';var b=el('button');b.type='button';
+    b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>';
+    b.appendChild(el('span',null,tapLabel()));b.onclick=function(){var g=TAPF;TAP.style.display='none';if(g)g()};TAP.appendChild(b)}
+  TAP.style.display='';if(!TAP.parentNode)D.body.appendChild(TAP);try{TAP.firstChild.focus()}catch(e){}})}
+function hideTap(){if(TAP)TAP.style.display='none'}
+// after a repair reload: the big button starts the page's music (its pulsing start button), inside the tap
+if(SSg('mots.afix.try'))showTap(function(){var b=D.querySelector('#begin[aria-pressed="false"],button.play[aria-pressed="false"],#begin,button.play');
+  flog('reloaded with level '+FIX.level+(FIX.lite?', lite':'')+'; starting the music');FIX.pending=true;if(b)b.click();else pageCtxs().forEach(function(x){try{res0.call(x)}catch(e){}})});
 
 /* ---------- 4. the error catcher ---------- */
 var BENIGN=/ResizeObserver loop|^Script error\.?$|Failed to fetch|NetworkError|Load failed|network error|play\(\) request|AbortError|NotAllowedError|The operation was aborted/i;
@@ -275,6 +350,7 @@ function report(){var L=[];
     L.push('audio #'+m.i+(c===app?' (page)':'')+': '+s+' · made '+m.born+(m.pre?' before':' after')+' the first tap'+(m.appSus?' · paused by the page':'')+(m.err?' · '+(m.err.name||'')+': '+m.err.message:''))});
   if(C.fails.length)L.push('could not start: '+C.fails.slice(-4).join(' | '));
   if(C.notes.length)L.push('notes: '+C.notes.slice(-4).join(' | '));
+  L.push('self-repair: level '+FIX.level+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
   L.push('errors ('+C.errs.length+'):'+(C.errs.length?'\n  '+C.errs.slice(-12).join('\n  '):' none'));
   return L.join('\n')}
 C.report=report;
@@ -749,9 +825,17 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
     _c.call(G.rl, mg, 0, 0);
     _c.call(G.lr, mg, 0, 1);
     _c.call(G.rr, mg, 0, 1);
-    GUARD = c.createWaveShaper();
-    GUARD.curve = softCurve();
-    GUARD.oversample = guardOS();
+    let lite = false;
+    try {
+      lite = localStorage.getItem("mots.afix.lite") === "1";
+    } catch (e) {
+    }
+    if (lite) GUARD = c.createGain();
+    else {
+      GUARD = c.createWaveShaper();
+      GUARD.curve = softCurve();
+      GUARD.oversample = guardOS();
+    }
     _c.call(mg, GUARD);
     _c.call(GUARD, c.destination);
     an = c.createAnalyser();
@@ -765,7 +849,7 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
     return q === "eco" ? "none" : q === "high" ? "4x" : "2x";
   };
   qFns.push(() => {
-    if (GUARD) GUARD.oversample = guardOS();
+    if (GUARD && "oversample" in GUARD) GUARD.oversample = guardOS();
   });
   const WIDTH = { hrtf: 1, stereo: 1, pa: 0.55, mono: 0 };
   function setWidth(now) {
