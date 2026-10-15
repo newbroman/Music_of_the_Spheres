@@ -2,6 +2,326 @@
 <html lang="cy">
 <head>
 <meta charset="utf-8">
+<script data-compat="chrome61">
+/* compat.js: the first script of every built page (injected by compat/transpile.mjs, after the page's own scripts have been transpiled for
+   Chrome 61 / Samsung Internet 8 / Safari 12). Plain ES5 on purpose: it has to run even in a browser that cannot run the rest of the page,
+   so that it can say so. It does five things:
+   1. small polyfills for the newer built-ins the pages call (Object.fromEntries, Array.prototype.flat/flatMap/at/findLast, String.prototype
+      replaceAll/at, Promise.allSettled/finally, globalThis, queueMicrotask, structuredClone, ResizeObserver, requestIdleCallback …);
+   2. Web Audio fallbacks: AudioContext options that the browser rejects → the plain constructor; no StereoPannerNode → an equal-power
+      PannerNode; setValueCurveAtTime that throws → a Float32Array copy, then linear ramps;
+   3. the start-up guard: a context made before the first tap is resumed inside the next tap, and a context that the user's tap tried to start
+      but that did not start (or whose clock does not move) says why, with a link to the help's troubleshooting and the Sound check;
+   4. a global error catcher: an uncaught error from the page shows a small "something went wrong, update Chrome / Android System WebView" note;
+   5. the Sound check panel (browser, versions, Web Audio features, the page's audio contexts, the errors so far, a test tone, Copy), opened
+      by ?diag on any page, by "Sound check" in the help's Tips, or from the two notes above. */
+(function(){
+'use strict';
+var W=window,D=document,N=navigator,T0=Date.now();
+if(W.MOTS_COMPAT)return;
+var C=W.MOTS_COMPAT={v:'2026-10-15',base:'chrome61',errs:[],ctxs:[],poly:[],fails:[],notes:[]};
+function now(){return ((Date.now()-T0)/1000).toFixed(1)+'s'}
+function def(o,k,v){if(!o||k in o)return;try{Object.defineProperty(o,k,{value:v,writable:true,configurable:true})}catch(e){try{o[k]=v}catch(e2){return}}C.poly.push(k)}
+
+/* ---------- 1. polyfills ---------- */
+def(W,'globalThis',W);
+def(Object,'fromEntries',function(it){var o={};Array.from(it,function(p){o[p[0]]=p[1]});return o});
+def(Object,'hasOwn',function(o,k){return Object.prototype.hasOwnProperty.call(Object(o),k)});
+function flat(a,d,out){for(var i=0;i<a.length;i++){if(!(i in a))continue;var x=a[i];if(d>0&&Array.isArray(x))flat(x,d-1,out);else out.push(x)}return out}
+def(Array.prototype,'flat',function(d){return flat(this,d===undefined?1:(Number(d)||0),[])});
+def(Array.prototype,'flatMap',function(f,t){return flat(Array.prototype.map.call(this,f,t),1,[])});
+function at(n){n=Math.trunc?Math.trunc(n)||0:(n|0);if(n<0)n+=this.length;return n<0||n>=this.length?undefined:this[n]}
+def(Array.prototype,'at',at);def(String.prototype,'at',function(n){return at.call(String(this),n)});
+try{var TA=Object.getPrototypeOf(Int8Array.prototype);def(TA,'at',at)}catch(e){}
+def(Array.prototype,'findLast',function(f,t){for(var i=this.length-1;i>=0;i--)if(f.call(t,this[i],i,this))return this[i]});
+def(Array.prototype,'findLastIndex',function(f,t){for(var i=this.length-1;i>=0;i--)if(f.call(t,this[i],i,this))return i;return -1});
+def(String.prototype,'replaceAll',function(s,r){
+  if(s instanceof RegExp){if(!s.global)throw new TypeError('replaceAll must be called with a global RegExp');return this.replace(s,r)}
+  return this.replace(new RegExp(String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'),r)});
+def(String.prototype,'trimStart',String.prototype.trimLeft||function(){return this.replace(/^\s+/,'')});
+def(String.prototype,'trimEnd',String.prototype.trimRight||function(){return this.replace(/\s+$/,'')});
+if(W.Promise){
+  def(Promise.prototype,'finally',function(f){var P=this.constructor||Promise;return this.then(function(v){return P.resolve(f()).then(function(){return v})},function(e){return P.resolve(f()).then(function(){throw e})})});
+  def(Promise,'allSettled',function(it){return Promise.all(Array.from(it,function(p){return Promise.resolve(p).then(function(v){return {status:'fulfilled',value:v}},function(e){return {status:'rejected',reason:e}})}))});
+  def(Promise,'any',function(it){var a=Array.from(it);return new Promise(function(ok,no){var n=a.length,errs=[];if(!n)no(new Error('All promises were rejected'));a.forEach(function(p,i){Promise.resolve(p).then(ok,function(e){errs[i]=e;if(--n===0)no(new Error('All promises were rejected'))})})})});
+  def(W,'queueMicrotask',function(f){Promise.resolve().then(f)});
+}
+def(W,'requestIdleCallback',function(f){var t=Date.now();return setTimeout(function(){f({didTimeout:false,timeRemaining:function(){return Math.max(0,50-(Date.now()-t))}})},1)});
+def(W,'cancelIdleCallback',function(id){clearTimeout(id)});
+def(W,'structuredClone',function sc(v,seen){seen=seen||[];if(v===null||typeof v!=='object')return v;
+  for(var i=0;i<seen.length;i++)if(seen[i][0]===v)return seen[i][1];
+  var o;if(v instanceof Date)return new Date(v.getTime());if(v instanceof RegExp)return new RegExp(v.source,v.flags);
+  if(ArrayBuffer.isView(v))return v.slice?v.slice():new v.constructor(v);if(v instanceof ArrayBuffer)return v.slice(0);
+  if(W.Map&&v instanceof Map){o=new Map();seen.push([v,o]);v.forEach(function(x,k){o.set(sc(k,seen),sc(x,seen))});return o}
+  if(W.Set&&v instanceof Set){o=new Set();seen.push([v,o]);v.forEach(function(x){o.add(sc(x,seen))});return o}
+  o=Array.isArray(v)?[]:{};seen.push([v,o]);Object.keys(v).forEach(function(k){o[k]=sc(v[k],seen)});return o});
+if(W.Element){var EP=Element.prototype;
+  def(EP,'toggleAttribute',function(n,f){var h=this.hasAttribute(n);if(f===undefined?!h:f){this.setAttribute(n,'');return true}this.removeAttribute(n);return false});
+  def(EP,'replaceChildren',function(){while(this.firstChild)this.removeChild(this.firstChild);this.append.apply(this,arguments)});
+}
+if(!W.ResizeObserver){C.poly.push('ResizeObserver');
+  // checks the observed elements' sizes on resize and twice a second; enough for the pages' layout code
+  W.ResizeObserver=function(cb){var self=this,els=[],tm=0;
+    function check(){var out=[];for(var i=0;i<els.length;i++){var e=els[i],r=e.el.getBoundingClientRect();if(r.width!==e.w||r.height!==e.h){e.w=r.width;e.h=r.height;
+      out.push({target:e.el,contentRect:{x:0,y:0,top:0,left:0,width:r.width,height:r.height,right:r.width,bottom:r.height},borderBoxSize:[{inlineSize:r.width,blockSize:r.height}],contentBoxSize:[{inlineSize:r.width,blockSize:r.height}]})}}
+      if(out.length)try{cb(out,self)}catch(err){setTimeout(function(){throw err})}}
+    function on(){if(!tm){tm=setInterval(check,500);W.addEventListener('resize',check)}}
+    function off(){if(tm&&!els.length){clearInterval(tm);tm=0;W.removeEventListener('resize',check)}}
+    this.observe=function(el){for(var i=0;i<els.length;i++)if(els[i].el===el)return;els.push({el:el,w:-1,h:-1});on();setTimeout(check,0)};
+    this.unobserve=function(el){els=els.filter(function(e){return e.el!==el});off()};
+    this.disconnect=function(){els=[];off()}}}
+
+/* ---------- 1b. CSS fallbacks, only in an engine that lacks env() (Chrome 69), min()/max()/clamp() (79) or inset (87) ----------
+   Such an engine drops the whole declaration, so a bar meant for the bottom of the screen lands at the top over Begin. Every <style> (those
+   in the page and those the scripts add later) gets each such value replaced by what it works out to at the current viewport (re-done on
+   resize), env(name, fallback) by its fallback, and inset/margin-inline/padding-inline/padding-block by their longhands. */
+var CSSok=function(p,v){try{return !!(W.CSS&&CSS.supports&&CSS.supports(p,v))}catch(e){return false}};
+// flex gap (Chrome 84) cannot be asked of CSS.supports (grid's gap answers yes): measure it
+function flexGap(){try{var d=D.createElement('div');d.style.cssText='display:flex;flex-direction:column;row-gap:1px;position:absolute;visibility:hidden';
+  d.appendChild(D.createElement('div'));d.appendChild(D.createElement('div'));D.documentElement.appendChild(d);var ok=d.scrollHeight===1;d.parentNode.removeChild(d);return ok}catch(e){return true}}
+var NEED={env:!CSSok('top','env(x, 1px)'),fn:!CSSok('top','max(1px, 2px)'),inset:!CSSok('inset','0px'),dvh:!CSSok('height','1dvh'),gap:!flexGap()};
+C.cssFix=NEED.env||NEED.fn||NEED.inset||NEED.gap;C.cssNeed=NEED;
+function cssPx(x,fs){x=x.trim();var vw=W.innerWidth/100,vh=W.innerHeight/100,ok=true;
+  var e=x.replace(/calc\(/g,'(').replace(/(-?\d*\.?\d+(?:e-?\d+)?)(px|rem|em|vw|vh|vmin|vmax|%|[a-z]+)?/gi,function(_,n,u){n=parseFloat(n);u=(u||'').toLowerCase();
+    if(!u)return '('+n+')';if(u==='px')return '('+n+')';if(u==='rem'||u==='em')return '('+n*fs+')';if(u==='vw')return '('+n*vw+')';if(u==='vh')return '('+n*vh+')';
+    if(u==='vmin')return '('+n*Math.min(vw,vh)+')';if(u==='vmax')return '('+n*Math.max(vw,vh)+')';ok=false;return '0'});
+  if(!ok||/[^\d\s.()+\-*\/e]/.test(e))return NaN;try{var v=Function('return ('+e+')')();return typeof v==='number'&&isFinite(v)?v:NaN}catch(er){return NaN}}
+function splitArgs(s){var a=[],d=0,st=0;for(var i=0;i<s.length;i++){var c=s[i];if(c==='(')d++;else if(c===')')d--;else if(c===','&&d===0){a.push(s.slice(st,i));st=i+1}}a.push(s.slice(st));return a}
+function cssVal(v,fs){var n=0;
+  if(NEED.env)v=v.replace(/env\(\s*[-a-z]+\s*(?:,\s*([^()]*(?:\([^()]*\))?[^()]*))?\)/gi,function(_,f){return (f||'0px').trim()});
+  if(NEED.dvh)v=v.replace(/(\d)[dsl]v([hw])\b/g,'$1v$2');
+  if(NEED.fn)while(n++<20){var m=/\b(min|max|clamp)\(/i.exec(v);if(!m)break;
+    var i=m.index+m[0].length,d=1,j=i;for(;j<v.length&&d;j++){if(v[j]==='(')d++;else if(v[j]===')')d--}
+    var inner=v.slice(i,j-1),args=splitArgs(inner).map(function(a){return a.trim()}),px=args.map(function(a){return cssPx(a,fs)}),f=m[1].toLowerCase(),out;
+    var known=px.filter(function(p){return !isNaN(p)});
+    if(known.length===px.length){var r=f==='min'?Math.min.apply(null,px):f==='max'?Math.max.apply(null,px):Math.max(px[0],Math.min(px[1],px[2]));out=(Math.round(r*100)/100)+'px'}
+    else{var pick=f==='clamp'?(isNaN(px[1])?args[1]:(isNaN(px[0])?args[0]:args[1])):args[px.findIndex?px.findIndex(function(p){return isNaN(p)}):0];out=/[+\-*\/]\s/.test(pick)&&!/^calc\(/.test(pick)?'calc('+pick+')':pick}
+    v=v.slice(0,m.index)+out+v.slice(j)}
+  return v}
+var LONG={inset:['top','right','bottom','left'],'inset-inline':['left','right'],'inset-block':['top','bottom'],'margin-inline':['margin-left','margin-right'],'margin-block':['margin-top','margin-bottom'],'padding-inline':['padding-left','padding-right'],'padding-block':['padding-top','padding-bottom']};
+function four(v,n){var p=splitTop(v);if(n===2)return [p[0],p[1]||p[0]];return [p[0],p[1]||p[0],p[2]||p[0],p[3]||p[1]||p[0]]}
+function splitTop(v){var a=[],d=0,cur='';v=v.trim();for(var i=0;i<v.length;i++){var c=v[i];if(c==='(')d++;else if(c===')')d--;if(/\s/.test(c)&&d===0){if(cur)a.push(cur);cur=''}else cur+=c}if(cur)a.push(cur);return a}
+function rootFs(){var s=0;try{s=parseFloat(getComputedStyle(D.documentElement).fontSize)}catch(e){}return s||16}
+function cssFix(css,fs){return css.replace(/([{;]\s*)([-a-z]+)(\s*:\s*)([^;{}]+)/gi,function(all,pre,prop,col,val){
+  if(/url\(/i.test(val))return all;var p=prop.toLowerCase(),imp=/!important\s*$/i.test(val),v=val.replace(/\s*!important\s*$/i,''),nv=v;
+  if(/(env|min|max|clamp)\(|\d[dsl]v[hw]\b/i.test(v))nv=cssVal(v,fs);
+  if(NEED.inset&&LONG[p]){var parts=four(nv,LONG[p].length);return pre+LONG[p].map(function(q,k){return q+':'+parts[k]+(imp?' !important':'')}).join(';')}
+  // a flex gap is marked with a custom property (kept by the CSSOM), from which gapRules() makes the children's margins
+  var mark=NEED.gap&&/^(gap|row-gap|column-gap|grid-gap)$/.test(p)?';--mc-'+p+':'+nv:'';
+  return (nv===v?all:pre+prop+col+nv+(imp?' !important':''))+mark})}
+// no flex gap: each child of a rule that sets a gap gets half the gap as its margin on every side (the usual stand-in), in a sheet placed
+// before every other style, so that the page's own margins on those children still win
+function gapRules(){var out=[];
+  var half=function(v){v=(v||'').trim();return !v||v==='normal'?'0':(/^[\d.]+[a-z%]*$/i.test(v)?'calc('+v+' / 2)':'calc(('+v+') / 2)')};
+  var walk=function(rules,cond){for(var i=0;i<rules.length;i++){var r=rules[i];
+    if(r.type===1){var st=r.style,g=st.getPropertyValue('--mc-gap')||st.getPropertyValue('--mc-grid-gap'),rg=st.getPropertyValue('--mc-row-gap'),cg=st.getPropertyValue('--mc-column-gap');
+      if(!g&&!rg&&!cg)continue;var parts=splitTop(g||'');var R=rg||parts[0]||'',Cc=cg||parts[1]||parts[0]||'';if(!g){if(!rg)R='';if(!cg)Cc=''}
+      var sel=r.selectorText.split(',').map(function(x){return x.trim()+' > *'}).join(','),css=sel+'{margin:'+half(R)+' '+half(Cc)+'}';out.push(cond?'@media '+cond+'{'+css+'}':css)}
+    else if(r.type===4&&r.cssRules)walk(r.cssRules,r.media.mediaText);else if(r.cssRules)walk(r.cssRules,cond)}};
+  for(var k=0;k<D.styleSheets.length;k++){var sh=D.styleSheets[k];if(sh.ownerNode&&sh.ownerNode.id==='mc-gap')continue;try{walk(sh.cssRules||[],'')}catch(e){}}
+  var g=D.getElementById('mc-gap');if(!g){g=D.createElement('style');g.id='mc-gap'}var h=D.head||D.documentElement;if(h.firstChild!==g)h.insertBefore(g,h.firstChild);var t=out.join('\n');if(g.textContent!==t)g.textContent=t}
+C.cssFixText=cssFix;
+if(C.cssFix){
+  var gt=0,gapSoon=function(){if(!NEED.gap)return;clearTimeout(gt);gt=setTimeout(gapRules,30)};
+  var fixEl=function(st){if(!st||st.tagName!=='STYLE'||st.id==='mc-css'||st.id==='mc-gap')return;gapSoon();var t=st.textContent;if(st.__mcOut===t)return;st.__mcIn=t;var o=cssFix(t,rootFs());st.__mcOut=o;if(o!==t)st.textContent=o};
+  var refix=function(){var a=D.getElementsByTagName('style');for(var i=0;i<a.length;i++){var st=a[i];if(st.__mcIn!=null&&st.textContent===st.__mcOut){var o=cssFix(st.__mcIn,rootFs());st.__mcOut=o;st.textContent=o}else fixEl(st)}};
+  try{new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){var m=ms[i];if(m.type==='characterData'||m.type==='childList'&&m.target.tagName==='STYLE'){fixEl(m.target.tagName==='STYLE'?m.target:m.target.parentNode);continue}
+      for(var k=0;k<m.addedNodes.length;k++){var n=m.addedNodes[k];if(n.tagName==='STYLE')fixEl(n);else if(n.getElementsByTagName){var s=n.getElementsByTagName('style');for(var q=0;q<s.length;q++)fixEl(s[q])}}}})
+    .observe(D.documentElement,{childList:true,subtree:true,characterData:true})}catch(e){}
+  D.addEventListener('DOMContentLoaded',function(){refix();if(NEED.gap)gapRules()});W.addEventListener('load',function(){refix();if(NEED.gap)gapRules()});
+  var rt=0;W.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(refix,150)});
+  // inline styles set from scripts: cssText and setProperty
+  try{var CSD=CSSStyleDeclaration.prototype,ctd=Object.getOwnPropertyDescriptor(CSD,'cssText'),sp0=CSD.setProperty;
+    if(ctd&&ctd.set)Object.defineProperty(CSD,'cssText',{get:ctd.get,set:function(v){ctd.set.call(this,typeof v==='string'&&/(env|min|max|clamp)\(|inset/.test(v)?cssFix(';'+v,rootFs()).slice(1):v)},configurable:true});
+    CSD.setProperty=function(p,v,pr){if(typeof v==='string'&&/(env|min|max|clamp)\(/.test(v))v=cssVal(v,rootFs());if(NEED.inset&&LONG[p]){var me=this,parts=four(String(v),LONG[p].length);LONG[p].forEach(function(q,k){sp0.call(me,q,parts[k],pr)});return}return sp0.call(this,p,v,pr)};
+  }catch(e){}
+}
+
+/* ---------- 2. Web Audio fallbacks ---------- */
+var AC0=W.AudioContext||W.webkitAudioContext,OAC=W.OfflineAudioContext||W.webkitOfflineAudioContext;
+C.feat={webAudio:!!AC0,prefixed:!W.AudioContext&&!!W.webkitAudioContext,offline:!!OAC,
+  worklet:!!(AC0&&W.AudioWorkletNode&&('audioWorklet' in AC0.prototype)),stereoPanner:!!(AC0&&AC0.prototype.createStereoPanner),
+  streamDest:!!(AC0&&AC0.prototype.createMediaStreamDestination),constantSource:!!(AC0&&AC0.prototype.createConstantSource),
+  mediaRecorder:!!W.MediaRecorder,speech:!!W.speechSynthesis,resizeObserver:C.poly.indexOf('ResizeObserver')<0};
+if(!W.OfflineAudioContext&&W.webkitOfflineAudioContext){W.OfflineAudioContext=W.webkitOfflineAudioContext;C.poly.push('OfflineAudioContext')}
+if(AC0&&!AC0.prototype.createStereoPanner&&AC0.prototype.createPanner){C.poly.push('createStereoPanner');
+  // an equal-power PannerNode on a unit circle in front of the listener; .pan takes values and the usual automation calls (as jumps)
+  var mkPan=function(){var p=this.createPanner(),v=0;p.panningModel='equalpower';p.distanceModel='linear';p.rolloffFactor=0;
+    var set=function(x){v=Math.max(-1,Math.min(1,+x||0));var a=v*Math.PI/2;if(p.positionX){p.positionX.value=Math.sin(a);p.positionY.value=0;p.positionZ.value=-Math.cos(a)}else p.setPosition(Math.sin(a),0,-Math.cos(a))};
+    var me=function(){return prm},prm={__fakePan:true,defaultValue:0,minValue:-1,maxValue:1,automationRate:'a-rate',
+      setValueAtTime:function(x){set(x);return prm},linearRampToValueAtTime:function(x){set(x);return prm},exponentialRampToValueAtTime:function(x){set(x);return prm},
+      setTargetAtTime:function(x){set(x);return prm},setValueCurveAtTime:function(c){set(c[c.length-1]);return prm},cancelScheduledValues:me,cancelAndHoldAtTime:me};
+    Object.defineProperty(prm,'value',{get:function(){return v},set:set});set(0);
+    try{Object.defineProperty(p,'pan',{value:prm})}catch(e){p.pan=prm}return p};
+  AC0.prototype.createStereoPanner=mkPan;if(OAC&&!OAC.prototype.createStereoPanner)OAC.prototype.createStereoPanner=mkPan;
+  // connecting a modulator to the stand-in .pan does nothing (the pan stays where it was set) rather than throwing
+  var AN=W.AudioNode&&AudioNode.prototype,cn0=AN&&AN.connect;
+  if(cn0)AN.connect=function(t){if(t&&t.__fakePan)return t;return cn0.apply(this,arguments)};
+}
+var APm=W.AudioParam&&AudioParam.prototype;
+if(APm&&APm.setValueCurveAtTime){var svc=APm.setValueCurveAtTime;
+  APm.setValueCurveAtTime=function(v,t,d){
+    try{return svc.call(this,v,t,d)}catch(e){
+      if(!(v instanceof Float32Array)){try{return svc.call(this,new Float32Array(v),t,d)}catch(e2){}}
+      try{var n=v.length,k=Math.min(n-1,64);this.setValueAtTime(v[0],t);for(var i=1;i<=k;i++){var j=Math.round(i*(n-1)/k);this.linearRampToValueAtTime(v[j],t+d*j/(n-1))}
+        log('setValueCurveAtTime → ramps ('+(e.name||'')+': '+e.message+')');return this}catch(e3){throw e}}}}
+
+/* ---------- 3. the start-up guard ---------- */
+var lastG=0,anyG=false,res0=AC0&&AC0.prototype.resume,sus0=AC0&&AC0.prototype.suspend;
+function isOffline(c){return OAC&&c instanceof OAC}
+function track(c){if(!c||c.__mt||isOffline(c))return;var m=c.__mt={i:C.ctxs.length+1,pre:!anyG,ran:c.state==='running',want:false,appSus:false,err:null,born:now()};C.ctxs.push(c);
+  try{c.addEventListener('statechange',function(){if(c.state==='running')m.ran=true})}catch(e){}
+  if(inGesture())watch(c)}
+function inGesture(){return Date.now()-lastG<1000}
+function watch(c){var m=c.__mt;if(!m||m.watching)return;m.watching=true;
+  setTimeout(function(){m.watching=false;if(c.state==='closed'||m.appSus||D.hidden)return;
+    if(c.state!=='running'){fail(m.err?(m.err.name?m.err.name+': ':'')+m.err.message:S('stuck'));return}
+    var t1=c.currentTime;setTimeout(function(){if(c.state==='running'&&!m.appSus&&!D.hidden&&c.currentTime===t1)fail(S('clock'))},1200)},3000)}
+if(AC0){
+  var Wr=function AudioContext(o){var c=null;
+    if(o!==undefined){try{c=new AC0(o)}catch(e){log('AudioContext('+JSON.stringify(o)+') failed, plain constructor instead: '+e.message)}}
+    if(!c){try{c=new AC0()}catch(e){fail((e.name?e.name+': ':'')+e.message);throw e}}
+    track(c);return c};
+  Wr.prototype=AC0.prototype;try{Object.setPrototypeOf(Wr,AC0)}catch(e){}
+  if(W.AudioContext)W.AudioContext=Wr;if(W.webkitAudioContext)W.webkitAudioContext=Wr;
+  if(res0)AC0.prototype.resume=function(){if(isOffline(this))return res0.apply(this,arguments);track(this);var c=this,m=c.__mt,p;m.want=true;m.appSus=false;
+    try{p=res0.apply(c,arguments)}catch(e){m.err=e;if(inGesture())watch(c);return Promise.reject(e)}
+    if(p&&p.then)p.then(function(){m.err=null},function(e){m.err=e});if(inGesture())watch(c);return p};
+  if(sus0)AC0.prototype.suspend=function(){if(!isOffline(this)){track(this);this.__mt.appSus=true;this.__mt.want=false}return sus0.apply(this,arguments)};
+}
+function onGesture(e){if(e&&e.isTrusted===false)return;lastG=Date.now();anyG=true;
+  // a context the page made before any tap, or one it asked to start and the browser held back: resume it inside this tap
+  for(var i=0;i<C.ctxs.length;i++){var c=C.ctxs[i],m=c.__mt;if(c.state!=='suspended'&&c.state!=='interrupted')continue;if(m.appSus)continue;
+    if(m.want||(m.pre&&!m.ran)){try{var p=res0.call(c);if(p&&p.then)p.then(null,function(er){m.err=er})}catch(er){m.err=er}if(m.want)watch(c)}}
+  // no Web Audio at all: say so at the first tap on a control (not on the help or privacy pages)
+  if(!AC0&&!C.noWAsaid&&e&&e.type==='click'&&!/help|privacy/.test(location.pathname)){var t=e.target;while(t&&t!==D&&!/^(BUTTON|A|SUMMARY|INPUT|LABEL)$/.test(t.tagName))t=t.parentNode;if(t&&t!==D){C.noWAsaid=true;fail(S('noWA'))}}}
+['pointerup','touchend','mousedown','click','keydown'].forEach(function(t){W.addEventListener(t,onGesture,true)});
+
+/* ---------- 4. the error catcher ---------- */
+var BENIGN=/ResizeObserver loop|^Script error\.?$|Failed to fetch|NetworkError|Load failed|network error|play\(\) request|AbortError|NotAllowedError|The operation was aborted/i;
+function log(s){C.notes.push(now()+' '+s)}
+W.addEventListener('error',function(e){if(!e||(e.target&&e.target!==W&&e.target.nodeType))return;
+  var m=e.message||(e.error&&e.error.message)||'error',f=(e.filename||'').split('/').pop().split('?')[0];
+  C.errs.push(now()+' '+m+(f?' @'+f+':'+(e.lineno||'')+(e.colno?':'+e.colno:''):''));
+  var same=!e.filename||e.filename.indexOf(location.origin)===0;if(same&&!BENIGN.test(m))oops()},false);
+W.addEventListener('unhandledrejection',function(e){var r=e&&e.reason,m=r&&r.message?((r.name?r.name+': ':'')+r.message):String(r);
+  C.errs.push(now()+' promise: '+m);if(r&&/^(TypeError|ReferenceError|SyntaxError|RangeError)$/.test(r.name)&&!BENIGN.test(m))oops()});
+
+/* ---------- strings (12 languages) ---------- */
+var TX={
+en:{ns:'Your browser couldn’t start the sound: {r}.',tips:'Troubleshooting tips',errA:'Something went wrong on this page. Updating Chrome and Android System WebView (in the Play Store) usually fixes it.',err:'Something went wrong on this page. Updating your browser usually fixes it.',det:'Details',close:'Close',chk:'Sound check',chkSub:'Play a test tone and see what this browser supports.',sub:'Take a screenshot of this box to send with your report.',tone:'Play a test tone',toneOn:'Playing a 2-second tone…',toneOk:'The tone played ({s}). Heard nothing? Check the volume and silent mode.',toneFail:'The test tone failed: {r}',copy:'Copy',copied:'Copied',noWA:'this browser has no Web Audio',stuck:'the audio stayed paused',clock:'the audio clock did not move'},
+pl:{ns:'Przeglądarka nie mogła uruchomić dźwięku: {r}.',tips:'Wskazówki i rozwiązywanie problemów',errA:'Na tej stronie coś poszło nie tak. Zwykle pomaga aktualizacja Chrome i Android System WebView (w Sklepie Play).',err:'Na tej stronie coś poszło nie tak. Zwykle pomaga aktualizacja przeglądarki.',det:'Szczegóły',close:'Zamknij',chk:'Test dźwięku',chkSub:'Zagraj dźwięk testowy i sprawdź, co obsługuje ta przeglądarka.',sub:'Zrób zrzut ekranu tego okna i dołącz go do zgłoszenia.',tone:'Zagraj dźwięk testowy',toneOn:'Gra dźwięk przez 2 sekundy…',toneOk:'Dźwięk zagrał ({s}). Nic nie słychać? Sprawdź głośność i tryb cichy.',toneFail:'Dźwięk testowy nie zadziałał: {r}',copy:'Kopiuj',copied:'Skopiowano',noWA:'ta przeglądarka nie obsługuje Web Audio',stuck:'dźwięk pozostał wstrzymany',clock:'zegar dźwięku stał w miejscu'},
+cy:{ns:'Doedd eich porwr ddim yn gallu cychwyn y sain: {r}.',tips:'Awgrymiadau a datrys problemau',errA:'Aeth rhywbeth o’i le ar y dudalen hon. Fel arfer, mae diweddaru Chrome ac Android System WebView (yn y Play Store) yn datrys hyn.',err:'Aeth rhywbeth o’i le ar y dudalen hon. Fel arfer, mae diweddaru eich porwr yn datrys hyn.',det:'Manylion',close:'Cau',chk:'Prawf sain',chkSub:'Chwaraewch dôn brawf a gweld beth mae’r porwr hwn yn ei gefnogi.',sub:'Tynnwch sgrinlun o’r blwch hwn i’w anfon gyda’ch adroddiad.',tone:'Chwarae tôn brawf',toneOn:'Yn chwarae tôn am 2 eiliad…',toneOk:'Chwaraewyd y dôn ({s}). Heb glywed dim? Gwiriwch y sain a’r modd tawel.',toneFail:'Methodd y dôn brawf: {r}',copy:'Copïo',copied:'Wedi copïo',noWA:'does gan y porwr hwn ddim Web Audio',stuck:'arhosodd y sain wedi’i seibio',clock:'wnaeth cloc y sain ddim symud'},
+de:{ns:'Dein Browser konnte den Ton nicht starten: {r}.',tips:'Tipps und Fehlerbehebung',errA:'Auf dieser Seite ist etwas schiefgegangen. Meist hilft es, Chrome und Android System WebView (im Play Store) zu aktualisieren.',err:'Auf dieser Seite ist etwas schiefgegangen. Meist hilft es, den Browser zu aktualisieren.',det:'Details',close:'Schließen',chk:'Soundcheck',chkSub:'Spiel einen Testton ab und sieh, was dieser Browser unterstützt.',sub:'Mach einen Screenshot dieses Felds und schick ihn mit deiner Meldung.',tone:'Testton abspielen',toneOn:'Ein 2-Sekunden-Ton läuft…',toneOk:'Der Ton wurde abgespielt ({s}). Nichts gehört? Prüfe Lautstärke und Lautlos-Modus.',toneFail:'Der Testton hat nicht funktioniert: {r}',copy:'Kopieren',copied:'Kopiert',noWA:'dieser Browser hat kein Web Audio',stuck:'der Ton blieb pausiert',clock:'die Audio-Uhr stand still'},
+es:{ns:'Tu navegador no pudo iniciar el sonido: {r}.',tips:'Consejos y solución de problemas',errA:'Algo salió mal en esta página. Actualizar Chrome y Android System WebView (en Play Store) suele solucionarlo.',err:'Algo salió mal en esta página. Actualizar el navegador suele solucionarlo.',det:'Detalles',close:'Cerrar',chk:'Prueba de sonido',chkSub:'Reproduce un tono de prueba y mira qué admite este navegador.',sub:'Haz una captura de este cuadro para enviarla con tu informe.',tone:'Reproducir un tono de prueba',toneOn:'Sonando un tono de 2 segundos…',toneOk:'El tono sonó ({s}). ¿No oíste nada? Revisa el volumen y el modo silencio.',toneFail:'El tono de prueba falló: {r}',copy:'Copiar',copied:'Copiado',noWA:'este navegador no tiene Web Audio',stuck:'el audio siguió en pausa',clock:'el reloj de audio no avanzó'},
+fr:{ns:'Votre navigateur n’a pas pu démarrer le son : {r}.',tips:'Conseils et dépannage',errA:'Un problème est survenu sur cette page. Mettre à jour Chrome et Android System WebView (dans le Play Store) règle généralement le souci.',err:'Un problème est survenu sur cette page. Mettre à jour votre navigateur règle généralement le souci.',det:'Détails',close:'Fermer',chk:'Test du son',chkSub:'Jouez une tonalité d’essai et voyez ce que ce navigateur prend en charge.',sub:'Faites une capture d’écran de ce cadre à joindre à votre signalement.',tone:'Jouer une tonalité d’essai',toneOn:'Tonalité de 2 secondes en cours…',toneOk:'La tonalité a été jouée ({s}). Rien entendu ? Vérifiez le volume et le mode silencieux.',toneFail:'La tonalité d’essai a échoué : {r}',copy:'Copier',copied:'Copié',noWA:'ce navigateur n’a pas Web Audio',stuck:'le son est resté en pause',clock:'l’horloge audio ne tournait pas'},
+it:{ns:'Il browser non è riuscito ad avviare il suono: {r}.',tips:'Consigli e risoluzione dei problemi',errA:'Qualcosa è andato storto in questa pagina. Di solito basta aggiornare Chrome e Android System WebView (dal Play Store).',err:'Qualcosa è andato storto in questa pagina. Di solito basta aggiornare il browser.',det:'Dettagli',close:'Chiudi',chk:'Prova audio',chkSub:'Suona un tono di prova e guarda cosa supporta questo browser.',sub:'Fai uno screenshot di questo riquadro da inviare con la tua segnalazione.',tone:'Suona un tono di prova',toneOn:'Tono di 2 secondi in corso…',toneOk:'Il tono è stato riprodotto ({s}). Non hai sentito nulla? Controlla il volume e la modalità silenziosa.',toneFail:'Il tono di prova non è riuscito: {r}',copy:'Copia',copied:'Copiato',noWA:'questo browser non ha Web Audio',stuck:'l’audio è rimasto in pausa',clock:'l’orologio audio era fermo'},
+zh:{ns:'你的浏览器无法启动声音：{r}。',tips:'提示与故障排除',errA:'此页面出了点问题。在 Play 商店中更新 Chrome 和 Android System WebView 通常可以解决。',err:'此页面出了点问题。更新浏览器通常可以解决。',det:'详情',close:'关闭',chk:'声音检测',chkSub:'播放测试音，并查看此浏览器支持哪些功能。',sub:'请截取此框的屏幕截图，随问题报告一起发送。',tone:'播放测试音',toneOn:'正在播放 2 秒的测试音…',toneOk:'测试音已播放（{s}）。没听到？请检查音量和静音模式。',toneFail:'测试音失败：{r}',copy:'复制',copied:'已复制',noWA:'此浏览器不支持 Web Audio',stuck:'音频一直处于暂停状态',clock:'音频时钟没有走动'},
+ja:{ns:'ブラウザーで音を開始できませんでした：{r}。',tips:'ヒントとトラブル対処',errA:'このページで問題が発生しました。Play ストアで Chrome と Android System WebView を更新すると、たいてい解決します。',err:'このページで問題が発生しました。ブラウザーを更新すると、たいてい解決します。',det:'詳細',close:'閉じる',chk:'サウンドチェック',chkSub:'テスト音を鳴らし、このブラウザーが対応している機能を確認します。',sub:'この枠のスクリーンショットを撮って、報告と一緒にお送りください。',tone:'テスト音を鳴らす',toneOn:'2 秒間のテスト音を再生中…',toneOk:'テスト音を再生しました（{s}）。聞こえない場合は、音量とマナーモードを確認してください。',toneFail:'テスト音を再生できませんでした：{r}',copy:'コピー',copied:'コピーしました',noWA:'このブラウザーは Web Audio に対応していません',stuck:'音声が一時停止のままでした',clock:'音声の時計が進みませんでした'},
+vi:{ns:'Trình duyệt của bạn không thể bắt đầu phát âm thanh: {r}.',tips:'Mẹo và khắc phục sự cố',errA:'Đã xảy ra lỗi trên trang này. Cập nhật Chrome và Android System WebView (trong Cửa hàng Play) thường sẽ khắc phục được.',err:'Đã xảy ra lỗi trên trang này. Cập nhật trình duyệt thường sẽ khắc phục được.',det:'Chi tiết',close:'Đóng',chk:'Kiểm tra âm thanh',chkSub:'Phát một âm thử và xem trình duyệt này hỗ trợ những gì.',sub:'Hãy chụp màn hình khung này và gửi kèm báo cáo của bạn.',tone:'Phát âm thử',toneOn:'Đang phát âm thử 2 giây…',toneOk:'Đã phát âm thử ({s}). Không nghe thấy gì? Hãy kiểm tra âm lượng và chế độ im lặng.',toneFail:'Âm thử không phát được: {r}',copy:'Sao chép',copied:'Đã sao chép',noWA:'trình duyệt này không có Web Audio',stuck:'âm thanh vẫn bị tạm dừng',clock:'đồng hồ âm thanh không chạy'},
+bg:{ns:'Браузърът ти не успя да пусне звука: {r}.',tips:'Съвети и отстраняване на проблеми',errA:'Нещо се обърка на тази страница. Обикновено помага да обновиш Chrome и Android System WebView (от Play Store).',err:'Нещо се обърка на тази страница. Обикновено помага да обновиш браузъра.',det:'Подробности',close:'Затвори',chk:'Проверка на звука',chkSub:'Пусни пробен тон и виж какво поддържа този браузър.',sub:'Направи екранна снимка на това поле и я изпрати с доклада си.',tone:'Пусни пробен тон',toneOn:'Звучи 2-секунден тон…',toneOk:'Тонът прозвуча ({s}). Не чу нищо? Провери силата на звука и безшумния режим.',toneFail:'Пробният тон не се получи: {r}',copy:'Копирай',copied:'Копирано',noWA:'този браузър няма Web Audio',stuck:'звукът остана на пауза',clock:'аудиочасовникът не вървеше'},
+pt:{ns:'Seu navegador não conseguiu iniciar o som: {r}.',tips:'Dicas e solução de problemas',errA:'Algo deu errado nesta página. Atualizar o Chrome e o Android System WebView (na Play Store) costuma resolver.',err:'Algo deu errado nesta página. Atualizar o navegador costuma resolver.',det:'Detalhes',close:'Fechar',chk:'Teste de som',chkSub:'Toque um tom de teste e veja o que este navegador suporta.',sub:'Tire uma captura de tela desta caixa para enviar com seu relato.',tone:'Tocar um tom de teste',toneOn:'Tocando um tom de 2 segundos…',toneOk:'O tom tocou ({s}). Não ouviu nada? Verifique o volume e o modo silencioso.',toneFail:'O tom de teste falhou: {r}',copy:'Copiar',copied:'Copiado',noWA:'este navegador não tem Web Audio',stuck:'o áudio continuou pausado',clock:'o relógio de áudio não andou'}};
+function lang(){var l=(D.documentElement.lang||'en').toLowerCase().slice(0,2);return TX[l]?l:'en'}
+function S(k,r){var s=(TX[lang()][k]||TX.en[k]);return r?s.replace(/\{(\w)\}/g,function(_,x){return r[x]==null?'':r[x]}):s}
+C.TX=TX;
+var ANDROID=/Android/i.test(N.userAgent);
+
+/* ---------- the notes and the panel ---------- */
+var CSS='.mc-bar{position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483000;max-width:640px;margin:0 auto;padding:10px 12px;border-radius:10px;'+
+  'background:#0b1630;color:#f1e6cc;border:1px solid #c79a4b;box-shadow:0 6px 24px rgba(0,0,0,.5);font:15px/1.4 "Alegreya Sans",system-ui,sans-serif;text-align:left}'+
+  '.mc-bar p{margin:0 28px 6px 0}.mc-bar .mc-acts{display:flex;flex-wrap:wrap;gap:8px}.mc-bar .mc-acts>*{margin:0 8px 0 0}'+
+  '.mc-btn{display:inline-block;min-height:40px;padding:8px 12px;border-radius:8px;border:1px solid #c79a4b;background:rgba(199,154,75,.14);color:#f1e6cc;font:inherit;cursor:pointer;text-decoration:none;line-height:22px}'+
+  '.mc-btn:focus-visible{outline:2px solid #f1e6cc;outline-offset:2px}.mc-x{position:absolute;top:4px;right:4px;width:40px;height:40px;border:0;background:none;color:#f1e6cc;font-size:22px;cursor:pointer}'+
+  '.mc-panel{position:fixed;left:8px;right:8px;top:8px;bottom:8px;z-index:2147483001;max-width:640px;margin:0 auto;display:flex;flex-direction:column;padding:12px;border-radius:10px;'+
+  'background:#0b1630;color:#f1e6cc;border:1px solid #c79a4b;box-shadow:0 8px 32px rgba(0,0,0,.6);font:15px/1.4 "Alegreya Sans",system-ui,sans-serif;text-align:left}'+
+  '.mc-panel h2{margin:0 40px 2px 0;font-size:20px;font-weight:600}.mc-panel .mc-sub{margin:0 0 8px;opacity:.85}'+
+  '.mc-panel pre{flex:1;min-height:0;overflow:auto;margin:0 0 8px;padding:8px;background:#000;color:#9f9;border-radius:6px;font:12px/1.35 "IBM Plex Mono",monospace;white-space:pre-wrap;word-break:break-word}'+
+  '.mc-panel .mc-msg{min-height:1.4em;margin:0 0 8px}.mc-chk{margin:.6em 0 1em}.mc-chk .mc-btn{margin-right:10px}';
+function css(){if(D.getElementById('mc-css'))return;var s=D.createElement('style');s.id='mc-css';s.textContent=CSS;(D.head||D.documentElement).appendChild(s)}
+function el(t,cls,txt){var e=D.createElement(t);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
+function ready(f){if(D.body)f();else D.addEventListener('DOMContentLoaded',f)}
+function helpHref(){return /help\.html$/.test(location.pathname)?'#tips':'help.html#tips'}
+function bar(id,text,withTips){ready(function(){if(D.getElementById(id))return;css();var b=el('div','mc-bar');b.id=id;b.setAttribute('role','alert');
+  b.appendChild(el('p',null,text));var a=el('div','mc-acts');
+  if(withTips){var h=el('a','mc-btn',S('tips'));h.href=helpHref();a.appendChild(h)}
+  var d=el('button','mc-btn',withTips?S('chk'):S('det'));d.type='button';d.onclick=function(){openDiag()};a.appendChild(d);b.appendChild(a);
+  var x=el('button','mc-x','×');x.type='button';x.setAttribute('aria-label',S('close'));x.onclick=function(){b.parentNode&&b.parentNode.removeChild(b)};b.appendChild(x);
+  D.body.appendChild(b)})}
+function fail(r){r=String(r||'').replace(/\.$/,'');C.fails.push(now()+' '+r);if(C.failSaid)return;C.failSaid=true;bar('mc-fail',S('ns',{r:r}),true)}
+function oops(){if(C.oopsSaid)return;C.oopsSaid=true;setTimeout(function(){bar('mc-err',S(ANDROID?'errA':'err'),false)},300)}
+C.fail=fail;
+
+function browser(){var u=N.userAgent,m,r=[];
+  if((m=u.match(/SamsungBrowser\/([\d.]+)/)))r.push('Samsung Internet '+m[1]);
+  if((m=u.match(/(?:Chrome|CriOS)\/([\d.]+)/)))r.push((/; wv\)/.test(u)?'Android System WebView (Chromium) ':/SamsungBrowser/.test(u)?'engine Chromium ':'Chrome ')+m[1]);
+  if((m=u.match(/Firefox\/([\d.]+)/)))r.push('Firefox '+m[1]);
+  if(!/Chrome|CriOS|Android/.test(u)&&(m=u.match(/Version\/([\d.]+).*Safari/)))r.push('Safari '+m[1]);
+  if((m=u.match(/Android ([\d.]+)/)))r.push('Android '+m[1]);else if((m=u.match(/OS (\d+[_\d]*) like Mac/)))r.push('iOS '+m[1].replace(/_/g,'.'));
+  var twa=false;try{if(D.referrer.indexOf('android-app://')===0)sessionStorage.setItem('mots.twa',D.referrer);twa=sessionStorage.getItem('mots.twa')}catch(e){}
+  var sa=false;try{sa=matchMedia('(display-mode: standalone)').matches}catch(e){}
+  return r.join(' · ')+(twa?' · app (TWA from '+twa+')':sa?' · installed app':'')}
+function report(){var L=[];
+  L.push('Music of the Spheres · sound check · '+new Date().toISOString().slice(0,19).replace('T',' ')+' · compat '+C.v+' ('+C.base+')');
+  L.push('page: '+location.pathname.split('/').slice(-2).join('/')+location.search+' · lang '+(D.documentElement.lang||'?'));
+  L.push('browser: '+browser());L.push('UA: '+N.userAgent);
+  L.push('screen '+screen.width+'×'+screen.height+' @'+(W.devicePixelRatio||1)+' · cores '+(N.hardwareConcurrency||'?')+' · memory '+(N.deviceMemory||'?')+' GB · online '+N.onLine+' · SW '+(N.serviceWorker&&N.serviceWorker.controller?'on':'off'));
+  var f=C.feat,yn=function(b){return b?'yes':'NO'};
+  L.push('Web Audio '+yn(f.webAudio)+(f.prefixed?' (webkit)':'')+' · AudioWorklet '+yn(f.worklet)+' · StereoPanner '+yn(f.stereoPanner)+' · MediaStreamDest '+yn(f.streamDest)+' · Offline '+yn(f.offline)+' · ConstantSource '+yn(f.constantSource));
+  L.push('MediaRecorder '+yn(f.mediaRecorder)+' · speech '+yn(f.speech)+(W.speechSynthesis?' ('+(speechSynthesis.getVoices()||[]).length+' voices)':'')+' · ResizeObserver '+yn(f.resizeObserver));
+  L.push('polyfilled: '+(C.poly.length?C.poly.join(', '):'none'));
+  var app=null;try{app=W.MOTS&&MOTS.audioCtx&&MOTS.audioCtx()}catch(e){}
+  if(!C.ctxs.length)L.push('audio: no audio context yet (tap Begin / Play first)');
+  C.ctxs.forEach(function(c){var m=c.__mt,s='';try{s=c.state+' · '+c.sampleRate+' Hz · t '+c.currentTime.toFixed(2)+' s · base '+((c.baseLatency||0)*1000).toFixed(0)+' ms'+(c.outputLatency?' · out '+(c.outputLatency*1000).toFixed(0)+' ms':'')}catch(e){s='error '+e.message}
+    L.push('audio #'+m.i+(c===app?' (page)':'')+': '+s+' · made '+m.born+(m.pre?' before':' after')+' the first tap'+(m.appSus?' · paused by the page':'')+(m.err?' · '+(m.err.name||'')+': '+m.err.message:''))});
+  if(C.fails.length)L.push('could not start: '+C.fails.slice(-4).join(' | '));
+  if(C.notes.length)L.push('notes: '+C.notes.slice(-4).join(' | '));
+  L.push('errors ('+C.errs.length+'):'+(C.errs.length?'\n  '+C.errs.slice(-12).join('\n  '):' none'));
+  return L.join('\n')}
+C.report=report;
+var PANEL=null,tick=0;
+function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';upd();return}
+  var p=PANEL=el('div','mc-panel');p.id='mc-diag';p.setAttribute('role','dialog');p.setAttribute('aria-label',S('chk'));
+  p.appendChild(el('h2',null,S('chk')));p.appendChild(el('p','mc-sub',S('sub')));
+  var pre=el('pre');p.appendChild(pre);var msg=el('p','mc-msg');msg.setAttribute('aria-live','polite');p.appendChild(msg);
+  var a=el('div','mc-acts');
+  var tb=el('button','mc-btn',S('tone'));tb.type='button';tb.id='mc-tone';tb.onclick=function(){testTone(msg)};a.appendChild(tb);
+  var cb=el('button','mc-btn',S('copy'));cb.type='button';cb.onclick=function(){copy(report(),cb)};a.appendChild(cb);
+  var xb=el('button','mc-btn',S('close'));xb.type='button';xb.onclick=function(){p.style.display='none';clearInterval(tick);tick=0};a.appendChild(xb);
+  p.appendChild(a);var x=el('button','mc-x','×');x.type='button';x.setAttribute('aria-label',S('close'));x.onclick=xb.onclick;p.appendChild(x);
+  D.body.appendChild(p);upd();
+  function upd(){pre.textContent=report();if(!tick)tick=setInterval(function(){if(p.style.display!=='none')pre.textContent=report()},1000)}
+  PANEL.upd=upd})}
+C.open=openDiag;
+function copy(t,b){var done=function(){b.textContent=S('copied');setTimeout(function(){b.textContent=S('copy')},1500)};
+  try{if(N.clipboard&&N.clipboard.writeText){N.clipboard.writeText(t).then(done,old);return}}catch(e){}old();
+  function old(){var ta=el('textarea');ta.value=t;ta.style.cssText='position:fixed;top:0;left:0;opacity:0';D.body.appendChild(ta);ta.select();try{D.execCommand('copy');done()}catch(e){}D.body.removeChild(ta)}}
+var toneCtx=null;
+function testTone(msg){
+  if(!AC0){msg.textContent=S('toneFail',{r:S('noWA')});return}
+  msg.textContent=S('toneOn');
+  try{
+    if(!toneCtx||toneCtx.state==='closed'){try{toneCtx=new AC0()}catch(e){msg.textContent=S('toneFail',{r:(e.name?e.name+': ':'')+e.message});return}track(toneCtx)}
+    var c=toneCtx,p=res0?res0.call(c):null;if(p&&p.then)p.then(null,function(e){c.__mt.err=e});
+    var t=c.currentTime+.05,o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=440;
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.25,t+.05);g.gain.setValueAtTime(.25,t+1.9);g.gain.linearRampToValueAtTime(0,t+2);
+    o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+2.05);var t0=c.currentTime;C.toneT=t0;
+    setTimeout(function(){var m=c.__mt;
+      if(c.state!=='running')msg.textContent=S('toneFail',{r:m&&m.err?(m.err.name||'')+': '+m.err.message:S('stuck')});
+      else if(c.currentTime<=t0)msg.textContent=S('toneFail',{r:S('clock')});
+      else msg.textContent=S('toneOk',{s:c.state+' · '+c.sampleRate+' Hz · '+(c.currentTime-t0).toFixed(1)+' s'});
+      C.toneResult={state:c.state,adv:c.currentTime-t0,text:msg.textContent};if(PANEL&&PANEL.upd)PANEL.upd()},2300);
+  }catch(e){msg.textContent=S('toneFail',{r:(e.name?e.name+': ':'')+e.message})}}
+
+/* ---------- 5. entry points: ?diag on any page, and "Sound check" in the help's Tips ---------- */
+ready(function(){
+  if(/[?&]diag\b/.test(location.search))openDiag();
+  var tips=D.getElementById('tips');
+  if(tips&&!D.getElementById('mc-chk')){css();var h=tips.querySelector('h2'),pp=el('p','mc-chk');pp.id='mc-chk';
+    var b=el('button','mc-btn',S('chk'));b.type='button';b.onclick=function(){openDiag()};pp.appendChild(b);pp.appendChild(el('span',null,S('chkSub')));
+    if(h&&h.nextSibling)tips.insertBefore(pp,h.nextSibling);else tips.appendChild(pp)}
+});
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#090b18">
