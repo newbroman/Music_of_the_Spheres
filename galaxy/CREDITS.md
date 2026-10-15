@@ -350,11 +350,56 @@ A hand-curated table (step 4f of the extension); every row carries its own `ref`
   waveform of the published shape (no LIGO audio or data is used); ringdown frequency and damping from the Berti et al.
   2006 fits for the final mass and spin.
 
+## The constellations (`constellations.json`, `conlines_<lang>.json`; added to `stars.json`)
+
+**Figures.** The IAU / *Sky & Telescope* constellation figures (stick figures drawn by Alan MacRobert with Roger Sinnott and
+Rick Fienberg for the IAU's constellation charts, 2008; https://iauarchive.eso.org/public/themes/constellations/), as
+digitised with Hipparcos numbers in Stellarium's **modern_iau** sky culture: `skycultures/modern_iau/index.json` from
+https://github.com/Stellarium/stellarium (branch master at commit 1ea9d5f6, fetched 2026-10-14; SHA-256
+`2b7aa4fa2860566e…`, cached in `data/conlines/`). Licence: **CC BY-SA 4.0** ("Text and data: CC BY-SA 4.0", Stellarium's
+team, `description.md` of the sky culture). Credit line: "Constellation figures: IAU and Sky & Telescope (MacRobert,
+Sinnott & Fienberg), digitised by the Stellarium team, CC BY-SA 4.0." Segments that a figure's polyline walks twice are
+kept once; Eridanus's one zero-length segment (HIP 12770 to itself) is dropped. constellations.json is a derivative of
+this and of stars.json, so it is CC BY-SA 4.0 as well (compatible with HYG's licence).
+Considered and not used: Stellarium's own "modern" figures (CC BY-SA 4.0 too, but not the IAU's), its "modern_st" sky
+culture (CC BY-SA 2.0), and d3-celestial's `constellations.lines.json` (BSD-3, but coordinates rather than Hipparcos stars).
+
+**Figure stars fainter than stars.json's cut.** 88 figure stars were added to `stars.json` from HYG v4.4 (same row format,
+`fig: 1`, HYG astrometry; derived quantities by build_stars.py's own functions). Two have no Hipparcos parallax in HYG and take
+Gaia DR3's (Hipparcos best neighbour, parallax/σ > 3, as build_stars.py accepts for such stars): HIP 54751 and HIP 56243
+(ο¹ Cen), cached in `data/gaia_hip_fig_*.csv`. ξ UMa (Alula Australis) is HYG's Gliese row Gl 423A, which lacks its Hipparcos
+number 55203; the number is added to that row. The optional large pack was rebuilt so that it shares no star with them.
+
+**Ptolemy's 48 and the Greek names:** Ptolemy, *Almagest* VII–VIII (Toomer 1984, *Ptolemy's Almagest*, Duckworth); the Argo's
+division into Carina, Puppis and Vela by Lacaille (1756/1763). **The modern constellations' origins** (who named them and
+when): Ridpath, *Star Tales* (2nd ed., 2018) and the IAU's constellation pages: Plancius's globes of 1589/1592/1598/1612 from
+the observations of Keyser and de Houtman; Hevelius, *Firmamentum Sobiescianum* (1687, Scutum 1684); Lacaille,
+*Coelum Australe Stelliferum* (1756/1763); Vopel 1536 and Conon of Samos for Coma Berenices; Royer 1679 for Crux.
+**The myths** follow the Greek sources as told by Eratosthenes (*Catasterismi*), Hyginus (*De astronomia*), Aratus
+(*Phaenomena*) and Ovid (*Metamorphoses*), via Ridpath; where versions differ (the Bears: Callisto and Arcas; Sagittarius:
+Crotus; Equuleus) the line follows one of them. The lines are the app's own text (CC0).
+
+## The galaxies' integrated spectra (`galaxyspectra.json`)
+
+Hand-curated templates (no download); every galaxy's spectrum is typical for its kind, shaped by its own [Fe/H], B−V and radial
+velocity from `localgroup.json`, and for the star-forming ones by its Hα strength and H II-region line ratios. Rounded, APPROX.
+- Kennicutt R. C. 1992, ApJS 79, 255 — A spectrophotometric atlas of galaxies (integrated spectra, 365–710 nm).
+- Kinney A. L. et al. 1996, ApJ 467, 38 — template spectra of bulges, ellipticals, spirals and starbursts.
+- Worthey G. 1994, ApJS 95, 107 — line strengths of old populations against age and metallicity (Lick indices).
+- Kauffmann G. et al. 2003, MNRAS 341, 33 — the 4000-Å break and Balmer absorption of galaxies.
+- Osterbrock D. E. & Ferland G. J. 2006, *Astrophysics of Gaseous Nebulae and Active Galactic Nuclei* (2nd ed.) — Case B Balmer decrement.
+- Storey P. J. & Zeippen C. J. 2000, MNRAS 312, 813 — the [O III] and [N II] doublet ratios.
+- Kennicutt R. C. & Kent S. M. 1983, AJ 88, 1094 — Hα equivalent widths of normal galaxies.
+- Kennicutt R. C. et al. 1995, AJ 109, 594 — integrated spectra of the Magellanic Clouds.
+- Russell S. C. & Dopita M. A. 1992, ApJ 384, 508 — abundances in the Magellanic Clouds' H II regions.
+- Rosolowsky E. & Simon J. D. 2008, ApJ 675, 1213 — the M33 metallicity project.
+- Hunter D. A. & Elmegreen B. G. 2004, AJ 128, 2170 — Hα and star formation in irregular galaxies.
+
 ## Software
 
 Python 3.13, numpy 2.5, pandas 3.0, galpy 1.12.0 (Bovy 2015), curl. No Astropy. Build scripts: `common.py`,
 `build_stars.py`, `build_stars_large.py`, `build_pulsars.py`, `build_radio.py`, `build_rotation.py`, `build_sunorbit.py`,
-`build_seismo.py`, `build_localgroup.py`, `build_names.py`, `build_starradio.py`, `build_bodyspectra.py`, `build_blackholes.py`, `tests.py`, `build_all.sh`. SciPy 1.18 for the Bessel functions of the galaxies' disc models.
+`build_seismo.py`, `build_localgroup.py`, `build_names.py`, `build_starradio.py`, `build_bodyspectra.py`, `build_blackholes.py`, `build_constellations.py` (with `con_voices.mjs`, node ≥ 18), `tests.py`, `build_all.sh`. SciPy 1.18 for the Bessel functions of the galaxies' disc models.
 
 ## Short credits for the app
 
@@ -374,6 +419,9 @@ Python 3.13, numpy 2.5, pandas 3.0, galpy 1.12.0 (Bovy 2015), curl. No Astropy. 
 > BH1, BH2); Gaia Collaboration, Panuzzo et al. 2024 (Gaia BH3); Miller-Jones et al. 2021 (Cygnus X-1); Radhika et al. 2016
 > (V404 Cygni); Cantrell et al. 2010 (A0620−00); Bender et al. 2005 (M31*); van den Bosch & de Zeeuw 2010 (M32); Gebhardt
 > et al. 2001 (M33); Abbott et al. 2016 (GW150914, synthesised from its parameters).
+>
+> Constellation figures: IAU and Sky & Telescope (MacRobert, Sinnott & Fienberg), digitised by the Stellarium team
+> (modern_iau sky culture), CC BY-SA 4.0; myths after Eratosthenes, Hyginus, Aratus and Ovid; origins after Ridpath, *Star Tales*.
 >
 > Large star pack (optional download): Gaia DR3, ESA/Gaia/DPAC (Gaia Collaboration, Vallenari et al. 2023), with
 > HYG v4.4 names (CC BY-SA 4.0); show the full ESA acknowledgement above with it.

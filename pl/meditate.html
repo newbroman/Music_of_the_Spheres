@@ -1189,6 +1189,862 @@ function oldLinks(){document.querySelectorAll('body a[hreflang]').forEach(a=>{if
 const go=()=>{if(isFlight)hudShell();else headerShell();oldLinks();hint();footer()};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();
 })();
+
+/* ---------- What's new: a calm sheet that announces the app's new features once after each update, and the full list on demand ----------
+   Built into every page: mklang.py appends this file to lang_built.js, which release.sh splices into the dial, flight, dance, synth,
+   meditate and help pages (so it runs after the shell in lang.js and can add itself to the shell's "⋯" menu).
+
+   HOW TO ADD AN ENTRY FOR A NEW RELEASE
+   1. Add an object at the TOP of WN (newest first):
+        {id:'short-id', d:'2026-11-02', s:'✶', go:{p:'flight.html', a:'fly:gc', h:''},
+         t:{en:['Title','One or two short sentences.'], pl:[…], cy:[…], de:[…], es:[…], fr:[…], it:[…], zh:[…], ja:[…], vi:[…], bg:[…], pt:[…]}}
+      - id: unique, never reused. d: the release date, YYYY-MM-DD. A second release on the same day uses a suffix, 'YYYY-MM-DDb', 'c' …
+        (versions compare as plain strings, so '2026-10-14b' is newer than '2026-10-14').
+      - s: one typographic glyph for the item's medallion (not an emoji).
+      - t: all twelve languages, short and friendly, in the app's voice (bg: ти-form; pt: Brazilian, você-form; ’ never ' inside '…').
+      - go (optional; without it the item has no "Show me" button): p = the page ('index.html' is the dial, 'flight.html', 'dance.html',
+        'synth.html', 'meditate.html', 'help.html'); h = a hash the page itself understands ('galaxy' on synth, 'tour' on the dial,
+        a section id on help); a = an action run on arrival by ACT below (add a new one there if needed):
+          lang · tour · lines · zodiac · find · fly:<destination id> (gc, above, sirius, acen, lg, m31 …) · style:<dance style id>
+          · ringtone · con · scape
+   2. That's all: the version is the newest d in the list, so the change is picked up by itself. Rebuild (release.sh).
+      A visitor whose localStorage 'mots.whatsnew.seen' is older than the newest d sees the items newer than it, once, on whichever page
+      they open first. A brand-new visitor never sees the sheet (the welcome tour covers it): the current version is marked seen.
+   ---------- */
+(()=>{
+"use strict";
+const WN=[
+ {id:'bh',d:'2026-10-14',s:'◉',go:{p:'flight.html',a:'fly:gc'},t:{
+  en:['Black holes','Fly to Sagittarius A* at the heart of the Milky Way and hear the flow around it, its flares and the S-stars swooping past. Visit Cygnus X-1 and the Gaia black holes, and hear two black holes collide.'],
+  pl:['Czarne dziury','Poleć do Sagittariusa A* w sercu Drogi Mlecznej i posłuchaj materii, która wokół niego krąży, jego rozbłysków i gwiazd S przemykających obok. Odwiedź Cygnus X-1 i czarne dziury Gai, i posłuchaj zderzenia dwóch czarnych dziur.'],
+  cy:['Tyllau duon','Hedfanwch at Sagittarius A* yng nghanol y Llwybr Llaethog a chlywed y llif o’i gwmpas, ei fflachiadau a’r sêr S yn gwibio heibio. Ewch at Cygnus X-1 a thyllau duon Gaia, a chlywed dau dwll du yn gwrthdaro.'],
+  de:['Schwarze Löcher','Flieg zu Sagittarius A* im Herzen der Milchstraße und hör den Strom um ihn herum, seine Flares und die S-Sterne, die an ihm vorbeischwingen. Besuche Cygnus X-1 und die Gaia-Löcher und hör zwei Schwarze Löcher verschmelzen.'],
+  es:['Agujeros negros','Vuela hasta Sagitario A*, en el corazón de la Vía Láctea, y escucha el flujo que lo rodea, sus fulguraciones y las estrellas S que pasan rozándolo. Visita Cygnus X-1 y los agujeros negros de Gaia, y escucha cómo chocan dos agujeros negros.'],
+  fr:['Trous noirs','Volez jusqu’à Sagittarius A*, au cœur de la Voie lactée, et écoutez le flot qui l’entoure, ses sursauts et les étoiles S qui le frôlent. Visitez Cygnus X-1 et les trous noirs de Gaia, et entendez deux trous noirs fusionner.'],
+  it:['Buchi neri','Vola fino a Sagittarius A*, nel cuore della Via Lattea, e ascolta il flusso che lo circonda, i suoi brillamenti e le stelle S che gli sfrecciano accanto. Visita Cygnus X-1 e i buchi neri di Gaia, e ascolta lo scontro di due buchi neri.'],
+  zh:['黑洞','飞往银河系中心的人马座A*，聆听它周围奔涌的物质流、它的耀发，以及从旁掠过的S星。造访天鹅座X-1和盖亚黑洞，还能听到两个黑洞相撞。'],
+  ja:['ブラックホール','天の川銀河の中心、いて座A*へ飛び、まわりを巡るガスの流れ、フレア、すぐそばをかすめるS星を聴きましょう。はくちょう座X-1やGaiaのブラックホールも訪ね、2つのブラックホールの合体も聴けます。'],
+  vi:['Hố đen','Bay tới Nhân Mã A* ở trung tâm Dải Ngân Hà và nghe dòng vật chất quanh nó, những đợt bùng sáng và các ngôi sao S lướt qua. Ghé Cygnus X-1 và các hố đen Gaia, và nghe hai hố đen va vào nhau.'],
+  bg:['Черни дупки','Полети до Стрелец A* в сърцето на Млечния път и чуй потока около него, изригванията му и S-звездите, които прелитат покрай него. Посети Лебед X-1 и черните дупки от Gaia и чуй сблъсъка на две черни дупки.'],
+  pt:['Buracos negros','Voe até Sagitário A*, no coração da Via Láctea, e ouça o fluxo ao redor dele, suas erupções e as estrelas S passando rente. Visite Cygnus X-1 e os buracos negros do Gaia, e ouça dois buracos negros colidirem.']}},
+ {id:'lines',d:'2026-10-14',s:'≋',go:{p:'index.html',a:'lines'},t:{
+  en:['Hear the light itself','Planets, moons and stars can now sound as their own spectral lines, a chord of their light forty octaves down. Choose “Spectral lines” on the dial, or as a voice in the Synth.'],
+  pl:['Posłuchaj samego światła','Planety, księżyce i gwiazdy mogą teraz brzmieć własnymi liniami widmowymi: akordem ich światła o czterdzieści oktaw niżej. Wybierz „Linie widmowe” na tarczy albo jako głos w Syntezatorze.'],
+  cy:['Clywed y goleuni ei hun','Gall planedau, lleuadau a sêr nawr seinio fel eu llinellau sbectrol eu hunain, cord o’u goleuni ddeugain wythfed yn is. Dewiswch “Llinellau sbectrol” ar y deial, neu fel llais yn y Synth.'],
+  de:['Das Licht selbst hören','Planeten, Monde und Sterne können jetzt als ihre eigenen Spektrallinien erklingen, als Akkord ihres Lichts vierzig Oktaven tiefer. Wähl „Spektrallinien“ auf der Scheibe oder als Stimme im Synthesizer.'],
+  es:['Escucha la propia luz','Planetas, lunas y estrellas pueden sonar ahora como sus propias líneas espectrales: un acorde de su luz cuarenta octavas más abajo. Elige «Líneas espectrales» en el dial o como voz en el Sintetizador.'],
+  fr:['Entendre la lumière elle-même','Planètes, lunes et étoiles peuvent désormais sonner comme leurs propres raies spectrales : un accord de leur lumière, quarante octaves plus bas. Choisissez « Raies spectrales » sur le cadran, ou comme voix dans le Synthé.'],
+  it:['Ascolta la luce stessa','Pianeti, lune e stelle ora possono suonare come le proprie righe spettrali: un accordo della loro luce quaranta ottave più in basso. Scegli «Righe spettrali» sul quadrante o come voce nel Synth.'],
+  zh:['聆听光本身','行星、卫星和恒星现在可以用自己的光谱线发声：把它们的光降低四十个八度，化作一个和弦。在刻度盘上选择“光谱线”，或在合成器里把它当作音色。'],
+  ja:['光そのものを聴く','惑星・衛星・恒星が、それぞれのスペクトル線で鳴るようになりました。光を40オクターブ下げた和音です。ダイヤルで「スペクトル線」を選ぶか、シンセの音色として使えます。'],
+  vi:['Nghe chính ánh sáng','Giờ đây hành tinh, mặt trăng và các vì sao có thể vang lên bằng chính các vạch quang phổ của mình: một hợp âm từ ánh sáng của chúng, hạ xuống bốn mươi quãng tám. Chọn “Vạch quang phổ” trên mặt số, hoặc làm giọng trong Synth.'],
+  bg:['Чуй самата светлина','Планетите, луните и звездите вече могат да звучат със собствените си спектрални линии: акорд от светлината им, свален с четиридесет октави. Избери „Спектрални линии“ на циферблата или като глас в Синтезатора.'],
+  pt:['Ouça a própria luz','Planetas, luas e estrelas agora podem soar como suas próprias linhas espectrais: um acorde da sua luz quarenta oitavas abaixo. Escolha “Linhas espectrais” no mostrador ou como voz no Sintetizador.']}},
+ {id:'stars',d:'2026-10-14',s:'✶',go:{p:'flight.html',a:'fly:sirius'},t:{
+  en:['Every star its own voice','Stars now sing by their size, their light and their spin, drawn in their true colours. In the Flight, tap any star to go there, see its spectrum and hear its radio.'],
+  pl:['Każda gwiazda ma własny głos','Gwiazdy śpiewają teraz zgodnie ze swoim rozmiarem, światłem i obrotem, w swoich prawdziwych barwach. W Locie dotknij dowolnej gwiazdy, by tam polecieć, zobaczyć jej widmo i usłyszeć jej fale radiowe.'],
+  cy:['Llais ei hun i bob seren','Mae’r sêr nawr yn canu yn ôl eu maint, eu goleuni a’u troelli, yn eu gwir liwiau. Yn Hedfan, tapiwch unrhyw seren i fynd yno, gweld ei sbectrwm a chlywed ei radio.'],
+  de:['Jeder Stern mit eigener Stimme','Sterne singen jetzt nach ihrer Größe, ihrem Licht und ihrer Drehung, in ihren wahren Farben. Tipp im Flug auf einen Stern, um hinzufliegen, sein Spektrum zu sehen und sein Radiosignal zu hören.'],
+  es:['Cada estrella, su propia voz','Las estrellas cantan ahora según su tamaño, su luz y su giro, con sus colores reales. En el Vuelo, toca cualquier estrella para ir hasta ella, ver su espectro y oír su radio.'],
+  fr:['À chaque étoile sa voix','Les étoiles chantent désormais selon leur taille, leur lumière et leur rotation, dans leurs vraies couleurs. Dans le Vol, touchez une étoile pour y aller, voir son spectre et écouter sa radio.'],
+  it:['Ogni stella la sua voce','Le stelle ora cantano secondo dimensione, luce e rotazione, nei loro veri colori. Nel Volo tocca una stella per raggiungerla, vederne lo spettro e ascoltarne la radio.'],
+  zh:['每颗恒星都有自己的声音','恒星现在按照自身的大小、光和自转歌唱，并以真实的颜色呈现。在飞行中点按任意一颗星即可前往，查看它的光谱，聆听它的射电。'],
+  ja:['星ごとに自分の声','恒星は大きさ・光・自転にしたがって歌い、本当の色で描かれます。飛行で星をタップすれば、そこへ飛び、スペクトルを見て、電波を聴けます。'],
+  vi:['Mỗi ngôi sao một giọng riêng','Các vì sao giờ hát theo kích thước, ánh sáng và chuyển động quay của mình, với màu sắc thật. Trong Bay, chạm vào bất kỳ ngôi sao nào để tới đó, xem quang phổ và nghe sóng vô tuyến của nó.'],
+  bg:['Всяка звезда със свой глас','Звездите вече пеят според размера, светлината и въртенето си, в истинските си цветове. В Полета докосни която и да е звезда, за да отидеш до нея, да видиш спектъра ѝ и да чуеш радиото ѝ.'],
+  pt:['Cada estrela com sua voz','As estrelas agora cantam conforme seu tamanho, sua luz e sua rotação, com suas cores verdadeiras. No Voo, toque em qualquer estrela para ir até ela, ver seu espectro e ouvir seu rádio.']}},
+ {id:'zodiac',d:'2026-10-14',s:'♈︎',go:{p:'index.html',a:'zodiac'},t:{
+  en:['Zodiac cards','Tap a sign on the dial, in Dance, Synth or Flight for its card: element, dates, where its stars really lie today, and its scale and chord to hear.'],
+  pl:['Karty zodiaku','Dotknij znaku na tarczy, w Tańcu, Syntezatorze lub Locie, by otworzyć jego kartę: żywioł, daty, gdzie naprawdę leżą dziś jego gwiazdy, a do tego jego skala i akord.'],
+  cy:['Cardiau’r Sidydd','Tapiwch arwydd ar y deial, yn Dawns, Synth neu Hedfan i agor ei gerdyn: ei elfen, ei ddyddiadau, ble mae ei sêr go iawn heddiw, a’i raddfa a’i gord i’w clywed.'],
+  de:['Tierkreiskarten','Tipp auf der Scheibe, im Tanz, im Synthesizer oder im Flug auf ein Zeichen, um seine Karte zu öffnen: Element, Daten, wo seine Sterne heute wirklich stehen, dazu seine Tonleiter und sein Akkord zum Anhören.'],
+  es:['Fichas del zodíaco','Toca un signo en el dial, en Danza, Sintetizador o Vuelo para ver su ficha: elemento, fechas, dónde están de verdad hoy sus estrellas, y su escala y su acorde para escuchar.'],
+  fr:['Les cartes du zodiaque','Touchez un signe sur le cadran, dans Danse, Synthé ou Vol pour ouvrir sa carte : élément, dates, où se trouvent vraiment ses étoiles aujourd’hui, avec sa gamme et son accord à écouter.'],
+  it:['Schede dello zodiaco','Tocca un segno sul quadrante, in Danza, Synth o Volo per aprirne la scheda: elemento, date, dove si trovano davvero oggi le sue stelle, e la sua scala e il suo accordo da ascoltare.'],
+  zh:['黄道星座卡','在刻度盘、舞蹈、合成器或飞行中点按一个星座，即可打开它的卡片：元素、日期、它的恒星如今真正所在的位置，还能聆听它的音阶与和弦。'],
+  ja:['黄道十二宮のカード','ダイヤル、舞、シンセ、飛行で星座をタップするとカードが開きます。エレメント、日付、その星々が今日実際にある位置、そして音階と和音を聴けます。'],
+  vi:['Thẻ cung hoàng đạo','Chạm vào một cung trên mặt số, trong Vũ điệu, Synth hoặc Bay để mở thẻ của nó: nguyên tố, ngày tháng, nơi các ngôi sao của nó thực sự nằm hôm nay, cùng thang âm và hợp âm để nghe.'],
+  bg:['Карти на зодиака','Докосни знак на циферблата, в Танц, Синтезатор или Полет, за да отвориш картата му: стихия, дати, къде всъщност са звездите му днес, както и гамата и акорда му.'],
+  pt:['Cartões do zodíaco','Toque em um signo no mostrador, na Dança, no Sintetizador ou no Voo para abrir o cartão dele: elemento, datas, onde as estrelas dele estão de verdade hoje, e a escala e o acorde para ouvir.']}},
+ {id:'con',d:'2026-10-14',s:'⁂',go:{p:'meditate.html',a:'con'},t:{
+  en:['The constellations sing','Each figure’s stars sound in their own voices, as a melody along its lines or one breathing chord, and the figure tells its myth. Listen in Meditate, or tap a figure on the dial.'],
+  pl:['Gwiazdozbiory śpiewają','Gwiazdy każdej figury brzmią własnymi głosami, jako melodia wzdłuż jej linii albo jeden oddychający akord, a figura opowiada swój mit. Posłuchaj w Medytacji albo dotknij figury na tarczy.'],
+  cy:['Mae’r cytserau’n canu','Mae sêr pob ffigur yn seinio yn eu lleisiau eu hunain, fel alaw ar hyd ei llinellau neu un cord sy’n anadlu, ac mae’r ffigur yn adrodd ei chwedl. Gwrandewch yn Myfyrio, neu tapiwch ffigur ar y deial.'],
+  de:['Die Sternbilder singen','Die Sterne jeder Figur erklingen mit eigener Stimme, als Melodie entlang ihrer Linien oder als ein atmender Akkord, und die Figur erzählt ihren Mythos. Hör zu in der Meditation oder tipp auf der Scheibe auf eine Figur.'],
+  es:['Las constelaciones cantan','Las estrellas de cada figura suenan con su propia voz, como una melodía a lo largo de sus líneas o un solo acorde que respira, y la figura cuenta su mito. Escúchalas en Meditar o toca una figura en el dial.'],
+  fr:['Les constellations chantent','Les étoiles de chaque figure sonnent de leur propre voix, en mélodie le long de ses lignes ou en un seul accord qui respire, et la figure raconte son mythe. Écoutez-les dans Méditer, ou touchez une figure sur le cadran.'],
+  it:['Le costellazioni cantano','Le stelle di ogni figura suonano con la propria voce, come melodia lungo le sue linee o come un unico accordo che respira, e la figura racconta il suo mito. Ascoltale in Medita o tocca una figura sul quadrante.'],
+  zh:['星座在歌唱','每个星座的恒星都以自己的声音发声，或沿着连线奏出旋律，或化作一个呼吸般的和弦，星座还会讲述自己的神话。在冥想中聆听，或在刻度盘上点按一个星座。'],
+  ja:['星座が歌う','星座の星はそれぞれ自分の声で鳴ります。線をたどる旋律にも、呼吸するひとつの和音にもなり、星座が自らの神話を語ります。瞑想で聴くか、ダイヤルで星座をタップしてください。'],
+  vi:['Các chòm sao cất tiếng','Các ngôi sao của mỗi chòm vang lên bằng giọng riêng, thành giai điệu dọc theo các đường nối hoặc một hợp âm như đang thở, và chòm sao kể lại thần thoại của mình. Nghe trong Thiền, hoặc chạm vào một chòm sao trên mặt số.'],
+  bg:['Съзвездията пеят','Звездите на всяка фигура звучат със собствените си гласове, като мелодия по линиите ѝ или като един дишащ акорд, а фигурата разказва своя мит. Слушай в Медитация или докосни фигура на циферблата.'],
+  pt:['As constelações cantam','As estrelas de cada figura soam com suas próprias vozes, como uma melodia ao longo das linhas ou um único acorde que respira, e a figura conta o seu mito. Ouça em Meditar ou toque em uma figura no mostrador.']}},
+ {id:'bgplay',d:'2026-10-14',s:'☾',t:{
+  en:['Plays on with the screen off','On Android the music now carries on smoothly with the screen off, and on a computer it keeps playing in the background without crackle.'],
+  pl:['Gra dalej przy wyłączonym ekranie','Na Androidzie muzyka gra teraz płynnie przy wyłączonym ekranie, a na komputerze także w tle, bez trzasków.'],
+  cy:['Yn dal i chwarae â’r sgrin i ffwrdd','Ar Android mae’r gerddoriaeth nawr yn parhau’n esmwyth â’r sgrin i ffwrdd, ac ar gyfrifiadur mae’n dal i chwarae yn y cefndir heb glecian.'],
+  de:['Spielt weiter, auch bei dunklem Bildschirm','Auf Android läuft die Musik jetzt auch bei ausgeschaltetem Bildschirm ruhig weiter, und am Computer spielt sie im Hintergrund ohne Knacken.'],
+  es:['Sigue sonando con la pantalla apagada','En Android la música sigue ahora sin cortes con la pantalla apagada, y en el ordenador continúa en segundo plano sin chasquidos.'],
+  fr:['La musique continue écran éteint','Sur Android, la musique continue désormais sans à-coups écran éteint, et sur ordinateur elle joue en arrière-plan sans craquements.'],
+  it:['Continua a suonare a schermo spento','Su Android la musica ora prosegue fluida a schermo spento, e sul computer continua in sottofondo senza crepitii.'],
+  zh:['熄屏也能继续播放','在安卓设备上，熄屏后音乐也能流畅地继续播放；在电脑上，它会在后台播放，不再有爆音。'],
+  ja:['画面を消しても鳴り続ける','Androidでは画面を消しても音楽がなめらかに続き、パソコンではバックグラウンドでもノイズなく再生されます。'],
+  vi:['Vẫn phát khi tắt màn hình','Trên Android, nhạc giờ phát mượt mà khi tắt màn hình, và trên máy tính nhạc vẫn chạy nền mà không bị rè.'],
+  bg:['Свири и при изгасен екран','На Android музиката вече продължава плавно при изгасен екран, а на компютър свири във фонов режим без пращене.'],
+  pt:['Continua tocando com a tela apagada','No Android, a música agora segue sem falhas com a tela apagada, e no computador continua em segundo plano sem estalos.']}},
+ {id:'flight',d:'2026-10-13',s:'➶',go:{p:'flight.html',a:'fly:above'},t:{
+  en:['Beyond the planets','The Flight now carries on past Voyager 1 and the Oort cloud to the stars, until the whole Milky Way turns below you, and on to Andromeda. Search for any star, pulsar or galaxy by name.'],
+  pl:['Poza planetami','Lot prowadzi teraz dalej, za Voyagera 1 i obłok Oorta, do gwiazd, aż cała Droga Mleczna obraca się pod tobą, i dalej do Andromedy. Wyszukaj dowolną gwiazdę, pulsar lub galaktykę po nazwie.'],
+  cy:['Y tu hwnt i’r planedau','Mae Hedfan nawr yn mynd ymlaen heibio Voyager 1 a chwmwl Oort at y sêr, nes bod y Llwybr Llaethog cyfan yn troi oddi tanoch, ac ymlaen at Andromeda. Chwiliwch am unrhyw seren, pwlsar neu alaeth wrth ei henw.'],
+  de:['Jenseits der Planeten','Der Flug geht jetzt weiter, an Voyager 1 und der Oortschen Wolke vorbei zu den Sternen, bis sich die ganze Milchstraße unter dir dreht, und weiter bis Andromeda. Such jeden Stern, Pulsar oder jede Galaxie beim Namen.'],
+  es:['Más allá de los planetas','El Vuelo continúa ahora más allá de la Voyager 1 y la nube de Oort hasta las estrellas, hasta que toda la Vía Láctea gira bajo tus pies, y sigue hasta Andrómeda. Busca cualquier estrella, púlsar o galaxia por su nombre.'],
+  fr:['Au-delà des planètes','Le Vol continue désormais au-delà de Voyager 1 et du nuage d’Oort jusqu’aux étoiles, jusqu’à ce que toute la Voie lactée tourne sous vous, et jusqu’à Andromède. Cherchez une étoile, un pulsar ou une galaxie par son nom.'],
+  it:['Oltre i pianeti','Il Volo ora prosegue oltre Voyager 1 e la nube di Oort fino alle stelle, finché l’intera Via Lattea ruota sotto di te, e poi fino ad Andromeda. Cerca qualsiasi stella, pulsar o galassia per nome.'],
+  zh:['飞出行星之外','飞行现在会继续前进，越过旅行者1号和奥尔特云直抵群星，直到整个银河系在你下方旋转，再一路飞向仙女座。还可以按名称搜索任何恒星、脉冲星或星系。'],
+  ja:['惑星の彼方へ','飛行はボイジャー1号とオールトの雲を越えて星々へ、天の川銀河全体が眼下で回るところまで、さらにアンドロメダへと続きます。恒星・パルサー・銀河を名前で検索できます。'],
+  vi:['Vượt ra ngoài các hành tinh','Chuyến Bay giờ đi tiếp qua Voyager 1 và đám mây Oort tới các vì sao, cho đến khi cả Dải Ngân Hà xoay bên dưới bạn, rồi tới tận Tiên Nữ. Tìm bất kỳ ngôi sao, sao xung hay thiên hà nào theo tên.'],
+  bg:['Отвъд планетите','Полетът вече продължава отвъд Вояджър 1 и облака на Оорт към звездите, докато целият Млечен път се завърти под теб, и нататък до Андромеда. Търси всяка звезда, пулсар или галактика по име.'],
+  pt:['Além dos planetas','O Voo agora segue além da Voyager 1 e da nuvem de Oort até as estrelas, até a Via Láctea inteira girar abaixo de você, e continua até Andrômeda. Busque qualquer estrela, pulsar ou galáxia pelo nome.']}},
+ {id:'meditate',d:'2026-10-13',s:'◌',go:{p:'meditate.html',a:'scape'},t:{
+  en:['Meditate','A new page for slow listening: the Sun’s hum, the thinkers’ heavens, each planet with its singing moons or a single voice, introduced by Hestia and the gods. Compose your own soundtrack, with bells.'],
+  pl:['Medytacja','Nowa strona do spokojnego słuchania: szum Słońca, niebiosa myślicieli, każda planeta ze śpiewającymi księżycami albo pojedynczy głos, a przedstawiają je Hestia i bogowie. Ułóż własną ścieżkę dźwiękową z dzwonkami.'],
+  cy:['Myfyrio','Tudalen newydd ar gyfer gwrando’n araf: si’r Haul, nefoedd y meddylwyr, pob planed gyda’i lleuadau’n canu neu un llais ar ei ben ei hun, wedi’u cyflwyno gan Hestia a’r duwiau. Cyfansoddwch eich trac sain eich hun, gyda chlychau.'],
+  de:['Meditation','Eine neue Seite zum langsamen Hören: das Summen der Sonne, die Himmel der Denker, jeder Planet mit seinen singenden Monden oder eine einzelne Stimme, vorgestellt von Hestia und den Göttern. Stell dir deinen eigenen Soundtrack zusammen, mit Glocken.'],
+  es:['Meditar','Una página nueva para escuchar despacio: el zumbido del Sol, los cielos de los pensadores, cada planeta con sus lunas cantoras o una sola voz, presentados por Hestia y los dioses. Compón tu propia banda sonora, con campanas.'],
+  fr:['Méditer','Une nouvelle page pour écouter lentement : le bourdonnement du Soleil, les cieux des penseurs, chaque planète avec ses lunes qui chantent ou une seule voix, présentés par Hestia et les dieux. Composez votre propre bande-son, avec des cloches.'],
+  it:['Medita','Una nuova pagina per l’ascolto lento: il ronzio del Sole, i cieli dei pensatori, ogni pianeta con le sue lune che cantano o una sola voce, presentati da Estia e dagli dèi. Componi la tua colonna sonora, con le campane.'],
+  zh:['冥想','一个用来慢慢聆听的新页面：太阳的嗡鸣、思想家们的天穹、每颗行星与它歌唱的卫星，或单独一个声音，由赫斯提亚和众神引介。还可以编排带钟声的专属音轨。'],
+  ja:['瞑想','ゆっくり聴くための新しいページ。太陽のハム、思想家たちの天球、歌う衛星をしたがえた惑星やひとつだけの声を、ヘスティアと神々が紹介します。鐘の入った自分だけのサウンドトラックも作れます。'],
+  vi:['Thiền','Một trang mới để lắng nghe chậm rãi: tiếng ngân của Mặt Trời, bầu trời của các nhà tư tưởng, từng hành tinh với các mặt trăng đang hát hoặc chỉ một giọng, do Hestia và các vị thần giới thiệu. Tự soạn bản nhạc nền của riêng bạn, có chuông.'],
+  bg:['Медитация','Нова страница за бавно слушане: бученето на Слънцето, небесата на мислителите, всяка планета с пеещите си луни или само един глас, представени от Хестия и боговете. Състави свой саундтрак, с камбанки.'],
+  pt:['Meditar','Uma página nova para ouvir devagar: o zumbido do Sol, os céus dos pensadores, cada planeta com suas luas cantando ou uma única voz, apresentados por Héstia e pelos deuses. Monte sua própria trilha sonora, com sinos.']}},
+ {id:'gsynth',d:'2026-10-13',s:'∿',go:{p:'synth.html',h:'galaxy'},t:{
+  en:['The Galactic Synthesiser','Switch the Synth from Planets to Galaxy and play with stars, pulsars, the Milky Way’s rotation and the hydrogen of its spiral arms.'],
+  pl:['Syntezator galaktyczny','Przełącz Syntezator z Planet na Galaktykę i graj gwiazdami, pulsarami, obrotem Drogi Mlecznej i wodorem jej ramion spiralnych.'],
+  cy:['Y Syntheseisydd Galaethol','Newidiwch y Synth o Planedau i Galaeth a chwarae gyda sêr, pylsarau, cylchdro’r Llwybr Llaethog a hydrogen ei freichiau troellog.'],
+  de:['Der galaktische Synthesizer','Schalt den Synthesizer von Planeten auf Galaxis um und spiel mit Sternen, Pulsaren, der Rotation der Milchstraße und dem Wasserstoff ihrer Spiralarme.'],
+  es:['El Sintetizador Galáctico','Cambia el Sintetizador de Planetas a Galaxia y toca con estrellas, púlsares, la rotación de la Vía Láctea y el hidrógeno de sus brazos espirales.'],
+  fr:['Le synthé galactique','Passez le Synthé de Planètes à Galaxie et jouez avec les étoiles, les pulsars, la rotation de la Voie lactée et l’hydrogène de ses bras spiraux.'],
+  it:['Il Synth galattico','Passa il Synth da Pianeti a Galassia e suona con stelle, pulsar, la rotazione della Via Lattea e l’idrogeno dei suoi bracci a spirale.'],
+  zh:['银河合成器','把合成器从“行星”切换到“银河”，用恒星、脉冲星、银河系的自转和旋臂中的氢来演奏。'],
+  ja:['銀河シンセサイザー','シンセを「惑星」から「銀河」に切り替えて、恒星、パルサー、天の川銀河の回転、渦状腕の水素で演奏しましょう。'],
+  vi:['Synth Thiên hà','Chuyển Synth từ Hành tinh sang Thiên hà và chơi nhạc với các vì sao, sao xung, chuyển động quay của Dải Ngân Hà và khí hydro trong các nhánh xoắn của nó.'],
+  bg:['Галактическият синтезатор','Превключи Синтезатора от Планети на Галактика и свири със звезди, пулсари, въртенето на Млечния път и водорода в спиралните му ръкави.'],
+  pt:['O Sintetizador Galáctico','Mude o Sintetizador de Planetas para Galáxia e toque com estrelas, pulsares, a rotação da Via Láctea e o hidrogênio dos seus braços espirais.']}},
+ {id:'ldc',d:'2026-10-13',s:'♪',go:{p:'dance.html',a:'style:synthwave'},t:{
+  en:['Synthwave sings','Synthwave now has a song, “The Long Dark Choir”, led by Kronos’s low voice, with Aphrodite joining on the chorus.'],
+  pl:['Synthwave śpiewa','Synthwave ma teraz piosenkę „The Long Dark Choir”, którą prowadzi niski głos Kronosa, a w refrenie dołącza Afrodyta.'],
+  cy:['Synthwave yn canu','Mae gan Synthwave gân nawr, “The Long Dark Choir”, dan arweiniad llais isel Kronos, gydag Aphrodite yn ymuno yn y gytgan.'],
+  de:['Synthwave singt','Synthwave hat jetzt einen Song, „The Long Dark Choir“, angeführt von Kronos’ tiefer Stimme; im Refrain singt Aphrodite mit.'],
+  es:['El synthwave canta','El synthwave tiene ahora una canción, «The Long Dark Choir», con la voz grave de Crono al frente y Afrodita uniéndose en el estribillo.'],
+  fr:['La synthwave chante','La synthwave a désormais sa chanson, « The Long Dark Choir », menée par la voix grave de Cronos, Aphrodite la rejoignant au refrain.'],
+  it:['La synthwave canta','La synthwave ora ha una canzone, «The Long Dark Choir», guidata dalla voce profonda di Crono, con Afrodite che si unisce nel ritornello.'],
+  zh:['合成器浪潮开口唱歌','合成器浪潮现在有了一首歌《The Long Dark Choir》，由克洛诺斯低沉的嗓音领唱，阿佛洛狄忒在副歌加入。'],
+  ja:['シンセウェイヴが歌う','シンセウェイヴに歌「The Long Dark Choir」が加わりました。クロノスの低い声が歌い、サビではアフロディテが加わります。'],
+  vi:['Synthwave cất tiếng hát','Synthwave giờ có một bài hát, “The Long Dark Choir”, do giọng trầm của Kronos dẫn dắt, Aphrodite hòa giọng ở điệp khúc.'],
+  bg:['Синтуейв запява','Синтуейв вече има песен, „The Long Dark Choir“, водена от ниския глас на Кронос, а в припева се присъединява Афродита.'],
+  pt:['O synthwave canta','O synthwave agora tem uma canção, “The Long Dark Choir”, conduzida pela voz grave de Cronos, com Afrodite entrando no refrão.']}},
+ {id:'shell',d:'2026-10-13',s:'☰',go:{p:'index.html',h:'tour'},t:{
+  en:['A clearer way around','One menu on every page, with the tour and the talk always one tap away, and this list in the ⋯ menu whenever you want it.'],
+  pl:['Łatwiej się poruszać','Jedno menu na każdej stronie, oprowadzanie i prelekcja zawsze na jedno dotknięcie, a ta lista w menu ⋯, kiedy tylko zechcesz.'],
+  cy:['Ffordd gliriach o gwmpas','Un ddewislen ar bob tudalen, gyda’r daith a’r sgwrs bob amser un tap i ffwrdd, a’r rhestr hon yn y ddewislen ⋯ pryd bynnag y mynnwch.'],
+  de:['Leichter zurechtfinden','Ein Menü auf jeder Seite, Tour und Vortrag immer nur einen Tipp entfernt, und diese Liste jederzeit im Menü ⋯.'],
+  es:['Moverse es más fácil','Un solo menú en cada página, con el recorrido y la charla siempre a un toque, y esta lista en el menú ⋯ cuando quieras.'],
+  fr:['Se repérer plus facilement','Un seul menu sur chaque page, avec la visite et la présentation toujours à portée de doigt, et cette liste dans le menu ⋯ quand vous voulez.'],
+  it:['Orientarsi è più facile','Un unico menu su ogni pagina, con il tour e la presentazione sempre a un tocco, e questo elenco nel menu ⋯ quando vuoi.'],
+  zh:['更清晰的导航','每个页面都有同一个菜单，导览和讲解随时一键可达；这份列表也随时可在 ⋯ 菜单中找到。'],
+  ja:['わかりやすくなったナビゲーション','どのページにも同じメニュー。ツアーと解説はいつでもワンタップ、この一覧も ⋯ メニューからいつでも開けます。'],
+  vi:['Dễ tìm đường hơn','Một menu chung trên mọi trang, phần giới thiệu và bài thuyết trình luôn chỉ cách một lần chạm, và danh sách này nằm trong menu ⋯ bất cứ khi nào bạn cần.'],
+  bg:['По-лесно ориентиране','Едно меню на всяка страница, обиколката и представянето винаги на едно докосване, а този списък е в менюто ⋯, когато поискаш.'],
+  pt:['Mais fácil de navegar','Um só menu em todas as páginas, com o tour e a apresentação sempre a um toque, e esta lista no menu ⋯ quando você quiser.']}},
+ {id:'langs',d:'2026-10-12',s:'⊕',go:{a:'lang'},t:{
+  en:['Português and Български','Brazilian Portuguese and Bulgarian join the app, with the gods’ voices and the sung lyrics recorded in both. Twelve languages in all.'],
+  pl:['Português i Български','Do aplikacji dołączają brazylijski portugalski i bułgarski, z głosami bogów i śpiewanymi tekstami nagranymi w obu językach. W sumie dwanaście języków.'],
+  cy:['Português a Български','Mae Portiwgaleg Brasil a Bwlgareg yn ymuno â’r ap, gyda lleisiau’r duwiau a’r geiriau a genir wedi’u recordio yn y ddwy iaith. Deuddeg iaith i gyd.'],
+  de:['Português und Български','Brasilianisches Portugiesisch und Bulgarisch sind dazugekommen, die Stimmen der Götter und die gesungenen Texte in beiden Sprachen aufgenommen. Zwölf Sprachen insgesamt.'],
+  es:['Português y Български','El portugués de Brasil y el búlgaro llegan a la app, con las voces de los dioses y las letras cantadas grabadas en ambos idiomas. Doce idiomas en total.'],
+  fr:['Português et Български','Le portugais du Brésil et le bulgare rejoignent l’appli, avec les voix des dieux et les paroles chantées enregistrées dans les deux langues. Douze langues en tout.'],
+  it:['Português e Български','Il portoghese brasiliano e il bulgaro arrivano nell’app, con le voci degli dèi e i testi cantati registrati in entrambe le lingue. Dodici lingue in tutto.'],
+  zh:['Português 与 Български','应用新增巴西葡萄牙语和保加利亚语，众神的声音和演唱的歌词都用这两种语言录制。现在共有十二种语言。'],
+  ja:['Português と Български','ブラジル・ポルトガル語とブルガリア語が加わりました。神々の声も歌われる歌詞も、両方の言語で録音されています。全部で12言語です。'],
+  vi:['Português và Български','Tiếng Bồ Đào Nha Brazil và tiếng Bulgaria gia nhập ứng dụng, giọng các vị thần và lời hát đều được thu âm bằng cả hai thứ tiếng. Tổng cộng mười hai ngôn ngữ.'],
+  bg:['Português и Български','Бразилският португалски и българският се присъединяват към приложението, с гласовете на боговете и песните, записани и на двата езика. Общо дванадесет езика.'],
+  pt:['Português e Български','O português do Brasil e o búlgaro chegam ao app, com as vozes dos deuses e as letras cantadas gravadas nos dois idiomas. São doze idiomas no total.']}},
+ {id:'dances',d:'2026-10-12',s:'♫',go:{p:'dance.html',a:'style:horo'},t:{
+  en:['Horo and Baile funk','Two new dances in the World row: the Bulgarian horo in its uneven metres, with kaval and gaida, and Rio’s Baile funk with its 808s and sirens.'],
+  pl:['Horo i Baile funk','Dwa nowe tańce w rzędzie muzyki świata: bułgarskie horo w nieparzystych metrach, z kawałem i gajdą, oraz Baile funk z Rio z bębnami 808 i syrenami.'],
+  cy:['Horo a Baile funk','Dwy ddawns newydd yn rhes Y Byd: yr horo Bwlgaraidd yn ei fesurau anghymesur, gyda’r kaval a’r gaida, a Baile funk Rio gyda’i 808au a’i seirenau.'],
+  de:['Horo und Baile Funk','Zwei neue Tänze in der Reihe Welt: der bulgarische Horo in seinen ungeraden Takten, mit Kaval und Gaida, und Baile Funk aus Rio mit 808 und Sirenen.'],
+  es:['Horo y Baile funk','Dos danzas nuevas en la fila Mundo: el horo búlgaro en sus compases irregulares, con kaval y gaida, y el Baile funk de Río con sus 808 y sus sirenas.'],
+  fr:['Horo et Baile funk','Deux nouvelles danses dans la rangée Monde : le horo bulgare et ses mesures boiteuses, avec kaval et gaïda, et le Baile funk de Rio avec ses 808 et ses sirènes.'],
+  it:['Horo e Baile funk','Due nuove danze nella fila Mondo: l’horo bulgaro con i suoi metri irregolari, kaval e gaida, e il Baile funk di Rio con le sue 808 e le sirene.'],
+  zh:['霍罗舞与巴西放克','“世界”一栏新增两种舞曲：节拍不对称、有卡瓦尔笛和风笛伴奏的保加利亚霍罗舞，以及带着808鼓机和警笛声的里约巴西放克。'],
+  ja:['ホロとバイリ・ファンク','「ワールド」の列に2つの新しいダンス。カヴァルとガイダが奏でる変拍子のブルガリアのホロと、808とサイレンが響くリオのバイリ・ファンクです。'],
+  vi:['Horo và Baile funk','Hai điệu nhảy mới ở hàng Thế giới: horo Bulgaria với nhịp lẻ, có sáo kaval và kèn túi gaida, và Baile funk của Rio với tiếng trống 808 và còi hú.'],
+  bg:['Хоро и Байле фънк','Два нови танца в реда Световна музика: българско хоро в неравноделни размери, с кавал и гайда, и Байле фънк от Рио с 808 и сирени.'],
+  pt:['Horo e Funk carioca','Duas danças novas na fileira Músicas do mundo: o horo búlgaro, com seus compassos irregulares, kaval e gaida, e o funk carioca, com 808 e sirenes.']}},
+ {id:'ring',d:'2026-10-12',s:'◔',go:{p:'dance.html',a:'ringtone'},t:{
+  en:['Ringtones and alarms','The Ringtone button beside Record catches the next 3, 30 or 60 seconds as a ringtone, notification or alarm for your phone.'],
+  pl:['Dzwonki i alarmy','Przycisk Dzwonek obok Nagraj zapisuje kolejne 3, 30 lub 60 sekund jako dzwonek, powiadomienie albo alarm do telefonu.'],
+  cy:['Tonau ffôn a larymau','Mae’r botwm Tôn ffôn wrth ymyl Recordio yn dal y 3, 30 neu 60 eiliad nesaf fel tôn ffôn, hysbysiad neu larwm i’ch ffôn.'],
+  de:['Klingeltöne und Wecker','Der Knopf Klingelton neben Aufnehmen fängt die nächsten 3, 30 oder 60 Sekunden als Klingelton, Benachrichtigungston oder Weckton für dein Handy ein.'],
+  es:['Tonos y alarmas','El botón Tono, junto a Grabar, capta los próximos 3, 30 o 60 segundos como tono de llamada, notificación o alarma para tu móvil.'],
+  fr:['Sonneries et alarmes','Le bouton Sonnerie, à côté d’Enregistrer, capte les 3, 30 ou 60 secondes suivantes comme sonnerie, notification ou alarme pour votre téléphone.'],
+  it:['Suonerie e sveglie','Il pulsante Suoneria accanto a Registra cattura i prossimi 3, 30 o 60 secondi come suoneria, notifica o sveglia per il telefono.'],
+  zh:['铃声与闹钟','“录音”旁的“铃声”按钮会录下接下来的3、30或60秒，做成手机的来电铃声、通知音或闹钟。'],
+  ja:['着信音とアラーム','「録音」の隣の「着信音」ボタンで、続く3秒・30秒・60秒を、スマートフォンの着信音・通知音・アラームにできます。'],
+  vi:['Nhạc chuông và báo thức','Nút Nhạc chuông cạnh Ghi âm thu lại 3, 30 hoặc 60 giây tiếp theo làm nhạc chuông, âm báo hoặc báo thức cho điện thoại của bạn.'],
+  bg:['Мелодии и аларми','Бутонът „Мелодия“ до „Запис“ улавя следващите 3, 30 или 60 секунди като мелодия за звънене, известие или аларма за телефона ти.'],
+  pt:['Toques e alarmes','O botão Toque de celular, ao lado de Gravar, captura os próximos 3, 30 ou 60 segundos como toque, notificação ou alarme para o seu celular.']}}
+];
+/* ---- the sheet's own words ---- */
+const UI={
+ en:{app:'Music of the Spheres',wn:'What’s new',since:'New since your last visit',all:'The latest additions to the app',show:'Show me',got:'Got it',more:'Show {n} more',close:'Close',nw:'New'},
+ pl:{app:'Muzyka sfer',wn:'Co nowego',since:'Nowości od twojej ostatniej wizyty',all:'Najnowsze dodatki w aplikacji',show:'Pokaż',got:'Rozumiem',more:'Pokaż jeszcze {n}',close:'Zamknij',nw:'Nowe'},
+ cy:{app:'Cerddoriaeth y Sfferau',wn:'Beth sy’n newydd',since:'Yn newydd ers eich ymweliad diwethaf',all:'Ychwanegiadau diweddaraf yr ap',show:'Dangos i mi',got:'Iawn',more:'Dangos {n} arall',close:'Cau',nw:'Newydd'},
+ de:{app:'Musik der Sphären',wn:'Was ist neu',since:'Neu seit deinem letzten Besuch',all:'Das Neueste in der App',show:'Zeig’s mir',got:'Alles klar',more:'{n} weitere zeigen',close:'Schließen',nw:'Neu'},
+ es:{app:'La música de las esferas',wn:'Novedades',since:'Lo nuevo desde tu última visita',all:'Lo último que ha llegado a la app',show:'Muéstramelo',got:'Entendido',more:'Ver {n} más',close:'Cerrar',nw:'Nuevo'},
+ fr:{app:'La Musique des sphères',wn:'Nouveautés',since:'Nouveau depuis votre dernière visite',all:'Les derniers ajouts de l’appli',show:'Voir',got:'Compris',more:'Voir {n} de plus',close:'Fermer',nw:'Nouveau'},
+ it:{app:'La musica delle sfere',wn:'Novità',since:'Le novità dalla tua ultima visita',all:'Le ultime aggiunte all’app',show:'Mostrami',got:'Ho capito',more:'Mostra altre {n}',close:'Chiudi',nw:'Nuovo'},
+ zh:{app:'天球音乐',wn:'新功能',since:'自你上次访问以来的新内容',all:'应用最近新增的内容',show:'带我看看',got:'知道了',more:'再显示 {n} 项',close:'关闭',nw:'新'},
+ ja:{app:'天球の音楽',wn:'新機能',since:'前回からの新しい機能',all:'アプリに加わった最近の機能',show:'見てみる',got:'OK',more:'あと{n}件を表示',close:'閉じる',nw:'NEW'},
+ vi:{app:'Nhạc của các thiên cầu',wn:'Có gì mới',since:'Điểm mới từ lần bạn ghé gần nhất',all:'Những bổ sung mới nhất của ứng dụng',show:'Cho tôi xem',got:'Đã hiểu',more:'Xem thêm {n} mục',close:'Đóng',nw:'Mới'},
+ bg:{app:'Музиката на сферите',wn:'Какво ново',since:'Ново от последното ти посещение',all:'Последните добавки в приложението',show:'Покажи ми',got:'Разбрах',more:'Покажи още {n}',close:'Затвори',nw:'Ново'},
+ pt:{app:'A Música das Esferas',wn:'Novidades',since:'Novidades desde a sua última visita',all:'As últimas novidades do app',show:'Mostrar',got:'Entendi',more:'Mostrar mais {n}',close:'Fechar',nw:'Novo'}
+};
+const KEY='mots.whatsnew.seen',CAP=8;
+const VERSION=WN.reduce((m,e)=>e.d>m?e.d:m,'');
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+const cur=(document.documentElement.lang||'en').slice(0,2);
+const U=Object.assign({},UI.en,UI[cur]||{});
+const tx=e=>(e.t[cur]||e.t.en);
+const LOC={zh:'zh-CN',pt:'pt-BR',en:'en-GB'}[cur]||cur;
+const fmtD=d=>{try{const [y,m,dd]=d.slice(0,10).split('-').map(Number);return new Intl.DateTimeFormat(LOC,{day:'numeric',month:'long'}).format(new Date(y,m-1,dd))}catch(e){return d.slice(0,10)}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+// this page, as its file name in the language folder ('index.html' for the dial)
+const HERE=(()=>{const m=location.pathname.match(/([a-z]+\.html)$/);return m?m[1]:'index.html'})();
+let inFrame=false;try{inFrame=window.top!==window.self}catch(e){inFrame=true}
+// a returning visitor: anything the app stored before this page started, apart from the volume each page remembers by itself
+// (the dial's hint counter mots.hint counts earlier visits, so it counts here too)
+const before=(()=>{try{return Object.keys(localStorage)}catch(e){return []}})();
+const returning=before.some(k=>/^mots[._]/.test(k)&&!/^mots\.vol\./.test(k)&&k!==KEY);
+const seen0=LS.get(KEY);
+// a brand-new visitor: the welcome tour is their introduction, so this version counts as seen
+if(seen0===null&&!returning&&!inFrame)LS.set(KEY,VERSION);
+const pending=()=>{if(inFrame||/[?&]show(=1)?\b/.test(location.search))return [];if(seen0===null)return returning?WN.slice():[];return WN.filter(e=>e.d>seen0)};
+const isNew=e=>seen0!==null&&e.d>seen0||seen0===null&&returning;
+
+/* ---- the sheet ---- */
+let el=null,back=null;
+function open(mode){
+  if(el)close(true);
+  const list=mode==='all'?WN.slice():pending();if(!list.length)return false;
+  back=document.activeElement;
+  el=document.createElement('div');el.id='wnSheet';el.className='wn';
+  const capped=mode!=='all'&&list.length>CAP;
+  // the date once per release, above its first item
+  const item=(e,k)=>{const [h,p]=tx(e),day=!k||list[k-1].d.slice(0,10)!==e.d.slice(0,10);return `<li class="wn-i${capped&&k>=CAP?' wn-x':''}${day?' wn-day':''}"${capped&&k>=CAP?' hidden':''}>${day?`<div class="wn-d">${esc(fmtD(e.d))}</div>`:''}<span class="wn-s" aria-hidden="true">${e.s||'✦'}</span><div class="wn-b"><h3>${esc(h)}${mode==='all'&&isNew(e)?` <span class="wn-n">${esc(U.nw)}</span>`:''}</h3><p>${esc(p)}</p>${e.go?`<button type="button" class="wn-go" data-id="${e.id}">${esc(U.show)} <span aria-hidden="true">→</span></button>`:''}</div></li>`};
+  el.innerHTML=`<div class="wn-bd"></div><div class="wn-c" role="dialog" aria-modal="true" aria-labelledby="wnT" aria-describedby="wnSub">
+   <div class="wn-h"><span class="wn-grab" aria-hidden="true"></span><div class="wn-k">${esc(U.app)}</div><h2 id="wnT" tabindex="-1">${esc(U.wn)}</h2><p id="wnSub">${esc(mode==='all'?U.all:U.since)}</p>
+   <button type="button" class="wn-close" aria-label="${esc(U.close)}" title="${esc(U.close)}">✕</button></div>
+   <ol class="wn-l">${list.map(item).join('')}</ol>
+   <div class="wn-f">${capped?`<button type="button" class="wn-more">${esc(U.more.replace('{n}',list.length-CAP))}</button>`:''}<button type="button" class="wn-ok">${esc(U.got)}</button></div></div>`;
+  document.body.appendChild(el);
+  el.querySelector('.wn-bd').onclick=()=>close();
+  el.querySelector('.wn-close').onclick=()=>close();
+  el.querySelector('.wn-ok').onclick=()=>close();
+  const mb=el.querySelector('.wn-more');if(mb)mb.onclick=()=>{const first=el.querySelector('.wn-x');el.querySelectorAll('.wn-x').forEach(x=>x.hidden=false);mb.remove();if(first){const g=first.querySelector('.wn-go');(g||el.querySelector('.wn-ok')).focus({preventScroll:true});try{first.scrollIntoView({block:'nearest',behavior:calm()?'auto':'smooth'})}catch(e){}}};
+  el.querySelectorAll('.wn-go').forEach(b=>b.onclick=()=>{const e=WN.find(x=>x.id===b.dataset.id);close(true);if(e)go(e.go)});
+  // Esc and Tab are ours while the sheet is up, wherever the focus is (a page may listen for Esc itself)
+  document.addEventListener('keydown',key,true);
+  // seen: shown once, whichever page it opened on
+  LS.set(KEY,VERSION);
+  requestAnimationFrame(()=>{if(!el)return;el.classList.add('on');el.querySelector('#wnT').focus({preventScroll:true})});
+  return true;
+}
+function close(now){if(!el)return;LS.set(KEY,VERSION);document.removeEventListener('keydown',key,true);const e=el;el=null;e.classList.remove('on');setTimeout(()=>e.remove(),now||calm()?0:320);
+  const b=back;back=null;if(!now&&b&&b.focus&&document.contains(b)&&b!==document.body)try{b.focus({preventScroll:true})}catch(x){}}
+function key(e){
+  if(!el)return;
+  if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();close();return}
+  if(e.key!=='Tab')return;
+  const f=[...el.querySelectorAll('button:not([hidden]),[href]')].filter(x=>x.offsetParent!==null);if(!f.length)return;
+  if(!el.contains(document.activeElement)){e.preventDefault();f[0].focus();return}
+  const a=f[0],z=f[f.length-1];
+  if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus()}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus()}
+}
+const calm=()=>matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+/* ---- "Show me": go to the page (same language folder) and run the item's action there ---- */
+function go(g){
+  const p=g.p||HERE;
+  if(p===HERE){
+    if(g.h==='tour'&&window.MOTS&&MOTS.tour)MOTS.tour();
+    else if(g.h&&location.hash!=='#'+g.h)location.hash=g.h;
+    if(g.a)run(g.a);return}
+  location.href=p+(g.a?'?wn='+encodeURIComponent(g.a):'')+(g.h?'#'+g.h:'');
+}
+// wait for something the page builds (up to 20 s)
+function when(test,fn,ms){const t0=performance.now();const tick=()=>{let v=null;try{v=test()}catch(e){}if(v)return fn(v);if(performance.now()-t0<(ms||20000))setTimeout(tick,150)};tick()}
+// a soft bronze ring that pulses three times round what the item is about
+function pulse(x){if(!x)return;
+  // in a closed <details> (a menu): open it; in the "⋯" menu: open that
+  let d=x.closest('details');while(d){if(!d.open)d.open=true;d=d.parentElement&&d.parentElement.closest('details')}
+  try{x.scrollIntoView({block:'center',inline:'nearest'})}catch(e){}
+  x.classList.remove('wn-pulse');void x.offsetWidth;x.classList.add('wn-pulse');setTimeout(()=>x.classList.remove('wn-pulse'),3600);
+  // still in view once late layout has settled
+  setTimeout(()=>{const r=x.getBoundingClientRect();if(r.bottom<0||r.top>innerHeight)try{x.scrollIntoView({block:'center',inline:'nearest'})}catch(e){}},900)}
+// the dial's today (its chip on the timeline; not the #today address, which would also scroll the page to the timeline)
+const today=fn=>when(()=>document.querySelector('.tl-chip[data-t="today"]'),c=>{if(!c.classList.contains('on')&&c.getAttribute('aria-pressed')!=='true')c.click();setTimeout(fn,300)});
+const vis=x=>x&&x.offsetParent!==null&&x.getClientRects().length>0;
+const ACT={
+  lang:()=>when(()=>document.getElementById('langMenu'),d=>{scrollTo({top:0});setTimeout(()=>{d.open=true;const s=d.querySelector('summary');if(s)s.focus({preventScroll:true})},120)}),
+  tour:()=>{if(window.MOTS&&MOTS.tour)MOTS.tour()},
+  lines:()=>today(()=>when(()=>document.getElementById('linesSeg'),pulse)),
+  // the sign the Sun is in today (tropical), its card opened from the dial's keyboard row of the twelve signs
+  zodiac:()=>today(()=>when(()=>{const b=document.querySelectorAll('.zodkeys button');return b.length===12?b:null},b=>{
+    const n=new Date(),doy=(Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())-Date.UTC(n.getFullYear(),2,21))/864e5;const k=Math.floor(((doy%365)+365)%365/30.44)%12;
+    setTimeout(()=>{b[k].click();when(()=>{const c=document.getElementById('zodCard');return c&&!c.hidden?c:null},c=>{const f=c.querySelector('.zc-acts button')||c.querySelector('button');if(f)f.focus({preventScroll:true})},3000)},400)})),
+  find:()=>when(()=>document.getElementById('gSearchBtn'),b=>b.click()),
+  fly:id=>when(()=>window.FLYG&&FLYG.ST&&FLYG.ST.ready,()=>{try{FLYG.travel(id)}catch(e){}},40000),
+  style:v=>when(()=>document.querySelector(`#style button[data-v="${v}"]`),b=>{
+    // on a phone only one genre shows at a time: its tab first
+    const gp=b.closest('.sgrp'),box=document.getElementById('style');
+    if(gp&&box&&!vis(b)){const grps=[...box.querySelectorAll('.sgrp')].filter(x=>!x.classList.contains('partygrp')&&x.querySelector('.lab'));const i=grps.indexOf(gp);const t=box.querySelectorAll('.stabs [role="tab"]')[i];if(t)t.click()}
+    if(b.getAttribute('aria-pressed')!=='true')b.click();setTimeout(()=>pulse(b),150)}),
+  ringtone:()=>when(()=>document.getElementById('ringBtn'),b=>{const mm=b.closest('.mmenu');if(mm){const d=mm.closest('details');if(d){scrollTo({top:0});d.open=true}}setTimeout(()=>pulse(b),150)}),
+  con:()=>when(()=>{const s=document.getElementById('scape');return s&&s.querySelector('option[value^="con:"]')?s:null},s=>{
+    const o=s.querySelector('option[value="con:ori"]')||s.querySelector('option[value^="con:"]');if(o&&s.value!==o.value){s.value=o.value;s.dispatchEvent(new Event('change',{bubbles:true}))}pulse(s)}),
+  scape:()=>when(()=>document.getElementById('scape'),pulse)
+};
+// after the page has loaded and settled (the dial sizes its sky as it loads, which moves everything below it)
+function run(a){const [k,v]=String(a).split(':');const f=ACT[k];if(!f)return;const go=()=>setTimeout(()=>{try{f(v)}catch(e){}},400);
+  if(document.readyState==='complete')go();else addEventListener('load',go,{once:true})}
+
+/* ---- always reachable: the "⋯" menu on every page, the dial's Extras menu, the help page's contents and every page's footer ---- */
+const ICON='✧';
+function entry(cls){const a=document.createElement('a');a.href='#whatsnew';a.className=cls;a.dataset.guide='wn';a.setAttribute('role','menuitem');
+  a.innerHTML=`<span class="i" aria-hidden="true">${ICON}</span><span class="l">${esc(U.wn)}</span>`;
+  a.onclick=e=>{e.preventDefault();const d=a.closest('details');if(d)d.open=false;setTimeout(()=>open('all'),0)};return a}
+function wire(){
+  document.querySelectorAll('.mots-more .mmenu').forEach(m=>{if(!m.querySelector('.g-wn'))m.appendChild(entry('g-wn'))});
+  const ex=document.querySelector('details.extras .menu');if(ex&&!ex.querySelector('.g-wn')){const a=entry('g-wn');a.removeAttribute('data-guide');a.id='wnExtras';ex.appendChild(a)}
+  const ol=document.querySelector('nav.toc ol');if(ol&&!ol.querySelector('.wn-toc')){const li=document.createElement('li');li.className='wn-toc';const a=document.createElement('a');a.href='#whatsnew';a.textContent=U.wn;a.onclick=e=>{e.preventDefault();open('all')};li.appendChild(a);ol.appendChild(li)}
+  const f=document.getElementById('motsCopy');if(f&&!f.querySelector('.wn-foot')){const a=document.createElement('a');a.href='#whatsnew';a.className='wn-foot';a.textContent=ICON+' '+U.wn;a.onclick=e=>{e.preventDefault();open('all')};f.prepend(a,document.createElement('br'))}
+}
+
+/* ---- the look: bronze on deep blue, a centred card on a desktop, a bottom sheet on a phone ---- */
+const css=document.createElement('style');css.id='wnCss';
+css.textContent=`
+#wnSheet{position:fixed;inset:0;z-index:85;display:grid;place-items:center;padding:16px;font-family:var(--f-body,"Alegreya Sans"),system-ui,sans-serif}
+#wnSheet .wn-bd{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,rgba(9,11,24,.55),rgba(5,6,12,.86));-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);opacity:0;transition:opacity .35s}
+#wnSheet .wn-c{position:relative;width:min(600px,100%);max-height:min(86vh,780px);max-height:min(86dvh,780px);display:flex;flex-direction:column;background:linear-gradient(180deg,#11152b,#0b0e1f);border:1px solid rgba(201,152,79,.5);border-radius:16px;box-shadow:0 24px 80px rgba(0,0,0,.7),inset 0 1px 0 rgba(243,217,164,.06);color:var(--vellum,#e9e1cc);opacity:0;transform:translateY(14px) scale(.985);transition:opacity .35s,transform .35s cubic-bezier(.2,.8,.2,1);overflow:hidden}
+#wnSheet.on .wn-bd{opacity:1}#wnSheet.on .wn-c{opacity:1;transform:none}
+#wnSheet .wn-h{position:relative;padding:22px 64px 14px 26px;border-bottom:1px solid rgba(201,152,79,.18);flex:none}
+#wnSheet .wn-grab{display:none}
+#wnSheet .wn-k{font:600 12px/1.2 var(--f-body,"Alegreya Sans"),system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--bronze,#c9984f)}
+#wnSheet h2{margin:6px 0 4px;font:400 clamp(28px,3.4vw,36px)/1.1 var(--f-display,"GFS Didot"),Georgia,serif;color:#f1e3bf;outline:none}
+#wnSheet #wnSub{margin:0;color:#a39c89;font-size:15px;line-height:1.4}
+#wnSheet .wn-close{position:absolute;top:12px;right:12px;appearance:none;border:1px solid transparent;background:transparent;color:#a39c89;border-radius:999px;width:var(--tap,2.75rem);height:var(--tap,2.75rem);min-width:44px;min-height:44px;font-size:18px;cursor:pointer;display:grid;place-items:center}
+#wnSheet .wn-close:hover{color:#e9d093;border-color:rgba(201,152,79,.5)}
+#wnSheet .wn-l{list-style:none;margin:0;padding:6px 26px 4px;overflow-y:auto;overscroll-behavior:contain;flex:1 1 auto;min-height:0;scrollbar-width:thin;scrollbar-color:rgba(201,152,79,.4) transparent}
+#wnSheet .wn-i{display:grid;grid-template-columns:40px minmax(0,1fr);gap:14px;padding:16px 0;border-bottom:1px solid rgba(58,64,104,.55)}
+#wnSheet .wn-i:last-child{border-bottom:0}
+#wnSheet .wn-i[hidden]{display:none}
+#wnSheet .wn-s{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(201,152,79,.55);background:radial-gradient(circle at 35% 30%,rgba(201,152,79,.22),rgba(201,152,79,.04) 70%);color:#e9d093;font:18px/1 var(--f-display,"GFS Didot"),Georgia,serif;margin-top:2px}
+#wnSheet .wn-b{min-width:0}
+#wnSheet .wn-d{grid-column:1/-1;margin:2px 0 -4px;font:600 12px/1.2 var(--f-body,"Alegreya Sans"),system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#8f897a;display:flex;align-items:center;gap:10px}
+#wnSheet .wn-d::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(201,152,79,.35),transparent)}
+#wnSheet .wn-day{border-top:0}
+#wnSheet .wn-n{display:inline-block;vertical-align:3px;margin-left:6px;font:700 11px/1.5 var(--f-body,"Alegreya Sans"),system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#1a1408;background:linear-gradient(180deg,#e2b468,#c9984f);border-radius:999px;padding:1px 8px}
+#wnSheet h3{margin:3px 0 4px;font:400 21px/1.2 var(--f-display,"GFS Didot"),Georgia,serif;color:#f3d9a4;overflow-wrap:anywhere}
+#wnSheet .wn-b p{margin:0;color:#d8cfb8;font-size:16px;line-height:1.5;overflow-wrap:anywhere}
+#wnSheet .wn-go{margin-top:10px;appearance:none;display:inline-flex;align-items:center;gap:.4em;min-height:44px;padding:8px 16px;border:1px solid rgba(201,152,79,.6);background:rgba(201,152,79,.06);color:var(--bronze,#c9984f);border-radius:999px;font:600 15px/1.2 var(--f-body,"Alegreya Sans"),system-ui,sans-serif;cursor:pointer;letter-spacing:.02em}
+#wnSheet .wn-go:hover{background:rgba(201,152,79,.16);color:#f3d9a4;border-color:var(--bronze,#c9984f)}
+#wnSheet .wn-f{flex:none;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;padding:12px 26px 18px;border-top:1px solid rgba(201,152,79,.18);background:rgba(8,10,22,.5)}
+#wnSheet .wn-more{appearance:none;border:1px solid #2b3050;background:transparent;color:#e9e1cc;border-radius:999px;min-height:44px;padding:8px 18px;font:15px/1.2 var(--f-body,"Alegreya Sans"),system-ui,sans-serif;cursor:pointer;margin-right:auto}
+#wnSheet .wn-more:hover{border-color:var(--bronze,#c9984f);color:#e9d093}
+#wnSheet .wn-ok{appearance:none;border:0;background:linear-gradient(180deg,#e2b468,#c9984f);color:#1a1408;font:700 16px/1.2 var(--f-body,"Alegreya Sans"),system-ui,sans-serif;min-height:48px;padding:12px 30px;border-radius:999px;cursor:pointer;box-shadow:0 6px 22px rgba(201,152,79,.3)}
+#wnSheet .wn-ok:hover{filter:brightness(1.07)}
+#wnSheet button:focus-visible{outline:2px solid #f3d9a4;outline-offset:2px}
+/* phones: a sheet from the bottom edge */
+@media (max-width:600px){
+  #wnSheet{padding:0;place-items:end stretch}
+  #wnSheet .wn-c{width:100%;max-height:88vh;max-height:88dvh;border-radius:18px 18px 0 0;border-bottom:0;transform:translateY(40px)}
+  #wnSheet .wn-h{padding:10px 60px 12px 18px}
+  #wnSheet .wn-grab{display:block;width:40px;height:4px;border-radius:2px;background:#3a4068;margin:0 auto 10px;transform:translateX(21px)}
+  #wnSheet h2{font-size:28px}
+  #wnSheet .wn-close{top:8px;right:8px}
+  #wnSheet .wn-l{padding:2px 18px}
+  #wnSheet .wn-i{grid-template-columns:34px minmax(0,1fr);gap:12px;padding:14px 0}
+  #wnSheet .wn-s{width:34px;height:34px;font-size:16px}
+  #wnSheet h3{font-size:19px}
+  #wnSheet .wn-b p{font-size:15.5px}
+  #wnSheet .wn-f{padding:10px 18px calc(12px + env(safe-area-inset-bottom,0px))}
+  #wnSheet .wn-ok{flex:1 1 auto}
+  #wnSheet .wn-more{flex:1 1 auto;margin-right:0}
+}
+/* landscape phones: a centred card using the height */
+@media (max-height:520px) and (orientation:landscape){
+  #wnSheet{padding:8px}
+  #wnSheet .wn-c{max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px);width:min(640px,100%)}
+  #wnSheet .wn-h{padding:10px 60px 8px 20px}#wnSheet h2{font-size:24px;margin:2px 0}#wnSheet #wnSub{font-size:14px}
+  #wnSheet .wn-close{top:4px;right:6px}
+  #wnSheet .wn-l{padding:0 20px}#wnSheet .wn-i{padding:10px 0}
+  #wnSheet .wn-f{padding:6px 20px 8px}
+}
+@media (prefers-reduced-motion:reduce){#wnSheet .wn-c,#wnSheet .wn-bd{transition:none}}
+/* the "⋯" menu's entry; on a desktop the menu also shows on the pages without the dial's Extras (its tour and talk are in the strip there) */
+.mots-more .mmenu > a.g-wn .i{color:var(--bronze,#c9984f);width:1.1em;text-align:center}
+details.extras .menu a.g-wn .i{color:var(--bronze,#c9984f);display:inline-block;margin-right:.4em}
+/* the dial's Extras menu sits at the right end of the button row on a desktop: open it leftwards so it stays on screen */
+@media not ((max-width:560px) or ((max-height:520px) and (orientation:landscape))){header.top.shell .ctl details.extras .menu{left:auto;right:0;transform:none}}
+@media not ((max-width:560px) or ((max-height:520px) and (orientation:landscape))){
+  header.top.shell nav.site > .mots-more{display:inline-block;flex:none}
+  header.top.shell nav.site > .mots-more .mmenu > [data-guide="tour"],header.top.shell nav.site > .mots-more .mmenu > [data-guide="talk"]{display:none!important}
+  header.top.shell nav.site > .mots-more summary{border:1px solid var(--bronze-dim,var(--line,#8a6a3a))}
+  header.top.shell nav.site > .mots-more summary:hover,header.top.shell nav.site > .mots-more[open] summary{border-color:var(--bronze,#c9984f);background:rgba(201,152,79,.08)}
+}
+@media not ((pointer:coarse) or (max-width:760px)){
+  .hud.tr .mots-more{display:inline-block}
+  .hud.tr .mots-more .mmenu > [data-guide="tour"],.hud.tr .mots-more .mmenu > [data-guide="talk"]{display:none!important}
+}
+/* the help page's contents: a star in place of a numeral */
+.toc li.wn-toc a::before,#tocSheet li.wn-toc a::before{content:"✧";font-family:inherit}
+#motsCopy .wn-foot{display:inline-block;min-height:44px;line-height:44px;padding:0 10px;color:var(--bronze,#c9984f);text-decoration:none;font-size:.95rem}
+#motsCopy .wn-foot:hover{color:#f3d9a4}
+/* "Show me": a soft ring round the thing */
+.wn-pulse{animation:wnPulse 1.1s ease-out 3;border-radius:12px}
+@keyframes wnPulse{0%{box-shadow:0 0 0 0 rgba(233,208,147,.85)}100%{box-shadow:0 0 0 16px rgba(233,208,147,0)}}
+@media (prefers-reduced-motion:reduce){.wn-pulse{animation:none;outline:2px solid #e9d093;outline-offset:3px}}
+`;
+document.head.appendChild(css);
+
+/* ---- on start-up ---- */
+// not while the welcome tour, the talk or the projector view is up, not in the talk's frames, not while the page is hidden
+// nor while another modal dialog is up (the Synth's own first-visit tour #stour, a panel the visitor opened …)
+const modal=()=>[...document.querySelectorAll('[aria-modal="true"]')].some(x=>!x.closest('#wnSheet')&&!x.hidden&&x.getClientRects().length>0&&getComputedStyle(x).visibility!=='hidden');
+const busy=()=>!!(modal()||document.getElementById('tour')||document.getElementById('stour')||document.getElementById('showOffer')||document.getElementById('motsShow')||document.documentElement.classList.contains('mots-show')||document.documentElement.classList.contains('mots-proj')||document.hidden||/^#(tour|talk|show)$/i.test(location.hash)||/[?&](tour|show)\b/.test(location.search));
+function auto(){
+  if(!pending().length)return;
+  // the visitor came for the tour or the talk: the sheet waits for another page
+  if(/^#(tour|talk|show)$/i.test(location.hash)||/[?&](tour|show)\b/.test(location.search))return;
+  let n=0;const t=()=>{if(el||LS.get(KEY)===VERSION)return;if(busy()){n=0;setTimeout(t,500);return}
+    // a quiet moment first: a second and a half of nothing in the way
+    if(++n<3){setTimeout(t,500);return}open('new')};
+  setTimeout(t,800);
+}
+function start(){
+  wire();
+  // the shell rebuilds its menus as the layout changes: keep the entry in them
+  setTimeout(wire,150);setTimeout(wire,800);setTimeout(wire,2500);
+  // ?wn=<action> from a "Show me" on another page
+  const m=location.search.match(/[?&]wn=([^&#]+)/);
+  if(m){const a=decodeURIComponent(m[1]);try{const q=location.search.replace(/([?&])wn=[^&#]*&?/,'$1').replace(/[?&]$/,'');history.replaceState(history.state,'',location.pathname+q+location.hash)}catch(e){}run(a)}
+  if(/^#whatsnew$/i.test(location.hash)){try{history.replaceState(history.state,'',location.pathname+location.search)}catch(e){}open('all')}
+  else if(!inFrame)auto();
+}
+addEventListener('hashchange',()=>{if(/^#whatsnew$/i.test(location.hash)){try{history.replaceState(history.state,'',location.pathname+location.search)}catch(e){}open('all')}});
+window.MOTS=window.MOTS||{};MOTS.whatsnew={open:()=>open('all'),version:VERSION,items:WN,pending};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
+})();
+</script>
+<script>
+/* ---------- con: the sounds of the constellations. Each star of a figure sings in its own voice, by the Galaxy engine's rules; a melody
+   traced along the figure's lines, or all its stars as one breathing chord; and a short line spoken by the figure (or, for the modern ones,
+   who named it). Shared by the dial, the Flight and Meditate (window.CON). The data are galaxy/constellations.json (the IAU / Sky &
+   Telescope figures as digitised by Stellarium, every star a row of stars.json, with its voice numbers computed by galaxy.js at build
+   time) and galaxy/conlines_<lang>.json (the spoken lines; voice/<lang>/con_<id>.mp3 when voice/manifest.json lists it, else the
+   device's speech).
+   The rules (stated on the card): a star's tone is the peak of its light lowered forty octaves; its body (the octaves below for giants,
+   thin for dwarfs, glassy odd partials for white dwarfs) from its luminosity class; its timbre from its spectral lines (the 3 strongest as
+   notches, folded about its tone) — or, when the page's sound is "Spectral lines", its line chord (its 6 strongest lines at their own
+   forty-octave pitches); a vibrato at its rotation; loudness from its apparent brightness (galaxy.js's loudness: 1 at −1.5 mag, 0 at 6.5,
+   with a floor so the faintest still sound); pan from its place in the figure, left to right as seen (north up); a note rings 0.9 s +
+   2.2 s × its brightness. Melody: the walk along the lines (constellations.json "tr"), the time to the next star 0.14 s per degree of the
+   line on the sky (0.5–2.4 s), a short breath where the walk turns back to a branch, then all its stars together as a chord. Chord: all
+   its stars at once, each breathing at its own rate (its pulsation, as the engine's breathing); "Depth" (a choice, not physics) delays
+   each star by 3.5 s × its distance / the farthest's. Voices: the chord takes the figure's brightest N stars (Eco 6, phone 10, else 16,
+   High 24). Output: its own little chain (a gentle compressor and a soft clip at −3 dBFS) into the page's context, the page's music
+   ducked while it sounds; or, in Meditate, straight into the page's own chain. ---------- */
+(()=>{
+"use strict";
+const MOTS=window.MOTS=window.MOTS||{};
+if(window.CON)return;
+const LANG=(document.documentElement.lang||'en').slice(0,2);
+const LOC={en:'en-GB',pl:'pl-PL',cy:'cy-GB',de:'de-DE',es:'es-ES',fr:'fr-FR',it:'it-IT',zh:'zh-CN',ja:'ja-JP',vi:'vi-VN',bg:'bg-BG',pt:'pt-BR'}[LANG]||'en-GB';
+const BASE=LANG==='en'||!/\/(pl|cy|de|es|fr|it|zh|ja|vi|bg|pt)\/[^/]*$/.test(location.pathname)?'./':'../';
+const LOWPOWER=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
+const REDUCED=matchMedia('(prefers-reduced-motion:reduce)').matches;
+const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fill=(t,o)=>String(t).replace(/\{(\w+)\}/g,(m,k)=>o&&o[k]!=null?o[k]:m);
+const nf=(x,d)=>{try{return Number(x).toLocaleString(LOC,{maximumFractionDigits:d||0})}catch(e){return String(Math.round(x))}};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const LY=3.2615637769;
+/* ---------- words ---------- */
+const TA={
+ en:{lyS:'ly',hear:'Hear its stars',mel:'Melody',chd:'Chord',play:'Play',stop:'Stop',depth:'Depth',myth:'Hear the myth',fact:'Who named it',anc:'One of Ptolemy’s 48',mod:'Modern',argo:'part of the ship Argo',stars:'{n} stars',
+   near:'Nearest: {s}, {ly} light-years',far:'Farthest: {s}, {ly} light-years',apart:'Its stars only look close together: they lie at very different distances.',seen:'north up, as seen from Earth',how:'How it sounds',
+   r1:'Each star sings in its own voice: the peak of its light lowered forty octaves, coloured by its spectral lines (with “Spectral lines” chosen, its line chord).',
+   r2:'Brighter stars are louder and ring longer; each is panned by its place in the figure, left to right as you see it.',
+   r3:'Melody: the figure traced along its lines, the length of each line on the sky setting the time to the next star; it ends with all its stars together.',
+   r4:'Chord: all its stars at once, each breathing at its own pace.',
+   r5:'Depth is a choice, not physics: each star enters a little later the farther it is ({s} s for the farthest).',
+   r6:'On this device the chord takes its {n} brightest stars.',sign:'Sign of the zodiac',pick:'Constellations',find:'Find a constellation',none:'Nothing found',figs:'Figures',close:'Close',
+   load:'Loading the constellations…',rec:'recorded voice',dev:'device voice',all:'All 88 constellations',hearCon:'Its stars as a slow melody along the figure, with the chord breathing between; its myth as the introduction.'},
+ pl:{lyS:'lś',hear:'Posłuchaj gwiazd',mel:'Melodia',chd:'Akord',play:'Odtwórz',stop:'Zatrzymaj',depth:'Głębia',myth:'Posłuchaj mitu',fact:'Kto go nazwał',anc:'Jeden z 48 Ptolemeusza',mod:'Nowożytny',argo:'część statku Argo',stars:'gwiazd: {n}',
+   near:'Najbliższa: {s}, {ly} lat świetlnych',far:'Najdalsza: {s}, {ly} lat świetlnych',apart:'Jego gwiazdy tylko wydają się bliskie: leżą w bardzo różnych odległościach.',seen:'północ u góry, widok z Ziemi',how:'Jak to brzmi',
+   r1:'Każda gwiazda śpiewa własnym głosem: szczyt jej światła obniżony o czterdzieści oktaw, zabarwiony jej liniami widmowymi (gdy wybrano „Linie widmowe” – jej akord linii).',
+   r2:'Jaśniejsze gwiazdy brzmią głośniej i dłużej; każda jest ustawiona w panoramie według miejsca w figurze, od lewej do prawej, tak jak ją widzisz.',
+   r3:'Melodia: figura prześledzona wzdłuż linii, a długość każdej linii na niebie wyznacza czas do następnej gwiazdy; na końcu wszystkie gwiazdy razem.',
+   r4:'Akord: wszystkie gwiazdy naraz, każda oddycha we własnym tempie.',
+   r5:'Głębia to wybór, nie fizyka: każda gwiazda wchodzi nieco później, im jest dalej ({s} s dla najdalszej).',
+   r6:'Na tym urządzeniu akord tworzy {n} najjaśniejszych gwiazd.',sign:'Znak zodiaku',pick:'Gwiazdozbiory',find:'Znajdź gwiazdozbiór',none:'Nic nie znaleziono',figs:'Figury',close:'Zamknij',
+   load:'Wczytuję gwiazdozbiory…',rec:'nagrany głos',dev:'głos urządzenia',all:'Wszystkie 88 gwiazdozbiorów',hearCon:'Jego gwiazdy jako powolna melodia wzdłuż figury, a między nimi oddychający akord; mit jako wprowadzenie.'},
+ cy:{lyS:'bl',hear:'Gwrando ar ei sêr',mel:'Alaw',chd:'Cord',play:'Chwarae',stop:'Stopio',depth:'Dyfnder',myth:'Gwrando ar y chwedl',fact:'Pwy a’i henwodd',anc:'Un o 48 Ptolemi',mod:'Modern',argo:'rhan o’r llong Argo',stars:'{n} seren',
+   near:'Agosaf: {s}, {ly} blwyddyn golau',far:'Pellaf: {s}, {ly} blwyddyn golau',apart:'Dim ond edrych yn agos at ei gilydd y mae ei sêr: maent ar bellteroedd gwahanol iawn.',seen:'y gogledd i fyny, fel y’i gwelir o’r Ddaear',how:'Sut mae’n swnio',
+   r1:'Mae pob seren yn canu yn ei llais ei hun: brig ei golau wedi’i ostwng ddeugain wythfed, wedi’i liwio gan ei llinellau sbectrol (gyda “Llinellau sbectrol”, cord ei llinellau).',
+   r2:'Mae sêr disgleiriach yn uwch ac yn canu’n hirach; mae pob un wedi’i phanio yn ôl ei lle yn y ffigur, o’r chwith i’r dde fel y’i gwelwch.',
+   r3:'Alaw: olrhain y ffigur ar hyd ei linellau, hyd pob llinell yn yr awyr yn gosod yr amser at y seren nesaf; mae’n gorffen â’i holl sêr gyda’i gilydd.',
+   r4:'Cord: ei holl sêr ar unwaith, pob un yn anadlu ar ei chyflymder ei hun.',
+   r5:'Dewis yw dyfnder, nid ffiseg: mae pob seren yn dod i mewn ychydig yn hwyrach po bellaf ydyw ({s} e i’r bellaf).',
+   r6:'Ar y ddyfais hon mae’r cord yn defnyddio ei {n} seren ddisgleiriaf.',sign:'Arwydd y sidydd',pick:'Cytserau',find:'Chwilio am gytser',none:'Dim canlyniad',figs:'Ffigurau',close:'Cau',
+   load:'Yn llwytho’r cytserau…',rec:'llais wedi’i recordio',dev:'llais y ddyfais',all:'Pob un o’r 88 cytser',hearCon:'Ei sêr fel alaw araf ar hyd y ffigur, a’r cord yn anadlu rhyngddynt; ei chwedl yn gyflwyniad.'},
+ de:{lyS:'Lj',hear:'Seine Sterne hören',mel:'Melodie',chd:'Akkord',play:'Abspielen',stop:'Stopp',depth:'Tiefe',myth:'Den Mythos hören',fact:'Wer es benannte',anc:'Eines der 48 des Ptolemäus',mod:'Neuzeitlich',argo:'Teil des Schiffes Argo',stars:'{n} Sterne',
+   near:'Am nächsten: {s}, {ly} Lichtjahre',far:'Am fernsten: {s}, {ly} Lichtjahre',apart:'Seine Sterne scheinen nur nah beieinander: Sie stehen in sehr verschiedenen Entfernungen.',seen:'Norden oben, von der Erde aus gesehen',how:'Wie es klingt',
+   r1:'Jeder Stern singt mit eigener Stimme: das Maximum seines Lichts, vierzig Oktaven tiefer, gefärbt von seinen Spektrallinien (mit „Spektrallinien“ als sein Linienakkord).',
+   r2:'Hellere Sterne klingen lauter und länger; jeder steht im Stereobild an seinem Platz in der Figur, von links nach rechts, wie du sie siehst.',
+   r3:'Melodie: die Figur entlang ihrer Linien nachgezeichnet; die Länge jeder Linie am Himmel bestimmt die Zeit bis zum nächsten Stern; am Ende klingen alle Sterne zusammen.',
+   r4:'Akkord: alle Sterne zugleich, jeder atmet in seinem eigenen Tempo.',
+   r5:'Tiefe ist eine Wahl, keine Physik: Jeder Stern setzt etwas später ein, je weiter er entfernt ist ({s} s für den fernsten).',
+   r6:'Auf diesem Gerät bilden seine {n} hellsten Sterne den Akkord.',sign:'Tierkreiszeichen',pick:'Sternbilder',find:'Sternbild suchen',none:'Nichts gefunden',figs:'Figuren',close:'Schließen',
+   load:'Die Sternbilder werden geladen …',rec:'aufgenommene Stimme',dev:'Gerätestimme',all:'Alle 88 Sternbilder',hearCon:'Seine Sterne als langsame Melodie entlang der Figur, dazwischen der atmende Akkord; sein Mythos als Einführung.'},
+ es:{lyS:'a. l.',hear:'Escuchar sus estrellas',mel:'Melodía',chd:'Acorde',play:'Reproducir',stop:'Detener',depth:'Profundidad',myth:'Escuchar el mito',fact:'Quién la nombró',anc:'Una de las 48 de Ptolomeo',mod:'Moderna',argo:'parte de la nave Argo',stars:'{n} estrellas',
+   near:'La más cercana: {s}, a {ly} años luz',far:'La más lejana: {s}, a {ly} años luz',apart:'Sus estrellas solo parecen juntas: están a distancias muy diferentes.',seen:'norte arriba, vista desde la Tierra',how:'Cómo suena',
+   r1:'Cada estrella canta con su propia voz: el pico de su luz, cuarenta octavas más abajo, coloreado por sus líneas espectrales (con «Líneas espectrales», su acorde de líneas).',
+   r2:'Las estrellas más brillantes suenan más fuerte y más tiempo; cada una se sitúa en el estéreo según su lugar en la figura, de izquierda a derecha tal como la ves.',
+   r3:'Melodía: la figura recorrida por sus líneas; la longitud de cada línea en el cielo marca el tiempo hasta la estrella siguiente; termina con todas sus estrellas juntas.',
+   r4:'Acorde: todas sus estrellas a la vez, cada una respirando a su propio ritmo.',
+   r5:'La profundidad es una elección, no física: cada estrella entra un poco más tarde cuanto más lejos está ({s} s para la más lejana).',
+   r6:'En este dispositivo el acorde usa sus {n} estrellas más brillantes.',sign:'Signo del zodiaco',pick:'Constelaciones',find:'Buscar una constelación',none:'No se encontró nada',figs:'Figuras',close:'Cerrar',
+   load:'Cargando las constelaciones…',rec:'voz grabada',dev:'voz del dispositivo',all:'Las 88 constelaciones',hearCon:'Sus estrellas como una melodía lenta a lo largo de la figura, con el acorde respirando entre medias; su mito como introducción.'},
+ fr:{lyS:'a.-l.',hear:'Écouter ses étoiles',mel:'Mélodie',chd:'Accord',play:'Jouer',stop:'Arrêter',depth:'Profondeur',myth:'Écouter le mythe',fact:'Qui l’a nommée',anc:'L’une des 48 de Ptolémée',mod:'Moderne',argo:'partie du navire Argo',stars:'{n} étoiles',
+   near:'La plus proche : {s}, à {ly} années-lumière',far:'La plus lointaine : {s}, à {ly} années-lumière',apart:'Ses étoiles ne semblent proches qu’en apparence : elles sont à des distances très différentes.',seen:'nord en haut, vue depuis la Terre',how:'Comment elle sonne',
+   r1:'Chaque étoile chante de sa propre voix : le pic de sa lumière abaissé de quarante octaves, coloré par ses raies spectrales (avec « Raies spectrales », son accord de raies).',
+   r2:'Les étoiles plus brillantes sonnent plus fort et plus longtemps ; chacune est placée dans l’espace stéréo selon sa place dans la figure, de gauche à droite comme vous la voyez.',
+   r3:'Mélodie : la figure parcourue le long de ses lignes ; la longueur de chaque ligne dans le ciel fixe le temps jusqu’à l’étoile suivante ; elle finit par toutes ses étoiles ensemble.',
+   r4:'Accord : toutes ses étoiles à la fois, chacune respirant à son propre rythme.',
+   r5:'La profondeur est un choix, pas de la physique : chaque étoile entre un peu plus tard qu’elle est lointaine ({s} s pour la plus lointaine).',
+   r6:'Sur cet appareil, l’accord prend ses {n} étoiles les plus brillantes.',sign:'Signe du zodiaque',pick:'Constellations',find:'Chercher une constellation',none:'Rien trouvé',figs:'Figures',close:'Fermer',
+   load:'Chargement des constellations…',rec:'voix enregistrée',dev:'voix de l’appareil',all:'Les 88 constellations',hearCon:'Ses étoiles en lente mélodie le long de la figure, l’accord respirant entre deux ; son mythe en introduction.'},
+ it:{lyS:'a.l.',hear:'Ascolta le sue stelle',mel:'Melodia',chd:'Accordo',play:'Suona',stop:'Ferma',depth:'Profondità',myth:'Ascolta il mito',fact:'Chi la nominò',anc:'Una delle 48 di Tolomeo',mod:'Moderna',argo:'parte della nave Argo',stars:'{n} stelle',
+   near:'La più vicina: {s}, a {ly} anni luce',far:'La più lontana: {s}, a {ly} anni luce',apart:'Le sue stelle sembrano vicine solo in apparenza: si trovano a distanze molto diverse.',seen:'nord in alto, vista dalla Terra',how:'Come suona',
+   r1:'Ogni stella canta con la propria voce: il picco della sua luce abbassato di quaranta ottave, colorato dalle sue righe spettrali (con «Righe spettrali», il suo accordo di righe).',
+   r2:'Le stelle più brillanti suonano più forte e più a lungo; ognuna è collocata nello stereo secondo il suo posto nella figura, da sinistra a destra come la vedi.',
+   r3:'Melodia: la figura percorsa lungo le sue linee; la lunghezza di ogni linea nel cielo stabilisce il tempo fino alla stella seguente; finisce con tutte le sue stelle insieme.',
+   r4:'Accordo: tutte le sue stelle insieme, ognuna respira al proprio ritmo.',
+   r5:'La profondità è una scelta, non fisica: ogni stella entra un po’ più tardi quanto più è lontana ({s} s per la più lontana).',
+   r6:'Su questo dispositivo l’accordo usa le sue {n} stelle più brillanti.',sign:'Segno dello zodiaco',pick:'Costellazioni',find:'Cerca una costellazione',none:'Nessun risultato',figs:'Figure',close:'Chiudi',
+   load:'Caricamento delle costellazioni…',rec:'voce registrata',dev:'voce del dispositivo',all:'Tutte le 88 costellazioni',hearCon:'Le sue stelle in una lenta melodia lungo la figura, con l’accordo che respira tra l’una e l’altra; il suo mito come introduzione.'},
+ zh:{lyS:'光年',hear:'聆听它的星',mel:'旋律',chd:'和弦',play:'播放',stop:'停止',depth:'纵深',myth:'聆听神话',fact:'谁为它命名',anc:'托勒密四十八星座之一',mod:'近代星座',argo:'南船座的一部分',stars:'{n} 颗星',
+   near:'最近：{s}，{ly} 光年',far:'最远：{s}，{ly} 光年',apart:'它的星只是看上去靠在一起：它们的距离相差很大。',seen:'北在上，从地球看',how:'怎样发声',
+   r1:'每颗星用自己的声音歌唱：其光谱峰值降低四十个八度，并带上它的谱线色彩（选择“谱线”时，是它的谱线和弦）。',
+   r2:'越亮的星越响、余音越长；每颗星按它在图形中的位置从左到右分布在立体声中，如你所见。',
+   r3:'旋律：沿图形的连线描画，每条线在天空中的长度决定到下一颗星的时间；最后所有星一起响起。',
+   r4:'和弦：所有星同时发声，各自以自己的节奏呼吸。',
+   r5:'纵深是一种选择，不是物理：越远的星进入得越晚（最远的星晚 {s} 秒）。',
+   r6:'在此设备上，和弦只用它最亮的 {n} 颗星。',sign:'黄道星座',pick:'星座',find:'查找星座',none:'未找到',figs:'连线',close:'关闭',
+   load:'正在载入星座……',rec:'录制的声音',dev:'设备语音',all:'全部八十八个星座',hearCon:'它的星沿着图形奏出缓慢的旋律，其间是呼吸的和弦；以它的神话作为开场。'},
+ ja:{lyS:'光年',hear:'星々を聴く',mel:'旋律',chd:'和音',play:'再生',stop:'停止',depth:'奥行き',myth:'神話を聴く',fact:'名づけた人',anc:'プトレマイオスの48星座のひとつ',mod:'近代の星座',argo:'アルゴー船座の一部',stars:'{n} 個の星',
+   near:'最も近い星：{s}、{ly} 光年',far:'最も遠い星：{s}、{ly} 光年',apart:'星々は近くに見えるだけで、距離はまったく違います。',seen:'北が上、地球から見た姿',how:'音のしくみ',
+   r1:'星はそれぞれ自分の声で歌います。光のピークを40オクターブ下げ、スペクトル線で色づけた音です（「スペクトル線」を選ぶと線の和音）。',
+   r2:'明るい星ほど大きく長く響きます。星座の中の位置に合わせて、見たとおり左から右へ定位します。',
+   r3:'旋律：星座の線をたどります。空の上の線の長さが次の星までの時間を決め、最後にすべての星が一緒に鳴ります。',
+   r4:'和音：すべての星が同時に鳴り、それぞれの速さで呼吸します。',
+   r5:'奥行きは物理ではなく選択です。遠い星ほど少し遅れて入ります（最も遠い星で {s} 秒）。',
+   r6:'この端末では、和音に明るい {n} 個の星を使います。',sign:'黄道十二宮',pick:'星座',find:'星座をさがす',none:'見つかりません',figs:'星座線',close:'閉じる',
+   load:'星座を読み込み中…',rec:'録音の声',dev:'端末の音声',all:'88星座すべて',hearCon:'星座の線に沿ったゆっくりした旋律と、その間に呼吸する和音。神話が導入になります。'},
+ vi:{lyS:'năm AS',hear:'Nghe các ngôi sao',mel:'Giai điệu',chd:'Hợp âm',play:'Phát',stop:'Dừng',depth:'Chiều sâu',myth:'Nghe thần thoại',fact:'Ai đặt tên',anc:'Một trong 48 chòm của Ptolemy',mod:'Chòm sao hiện đại',argo:'một phần của con thuyền Argo',stars:'{n} ngôi sao',
+   near:'Gần nhất: {s}, {ly} năm ánh sáng',far:'Xa nhất: {s}, {ly} năm ánh sáng',apart:'Các ngôi sao chỉ trông có vẻ gần nhau: chúng ở những khoảng cách rất khác nhau.',seen:'phía bắc ở trên, nhìn từ Trái Đất',how:'Âm thanh được tạo ra thế nào',
+   r1:'Mỗi ngôi sao hát bằng giọng riêng: đỉnh ánh sáng của nó hạ xuống bốn mươi quãng tám, nhuốm màu các vạch quang phổ (khi chọn “Vạch quang phổ”, là hợp âm vạch của nó).',
+   r2:'Sao sáng hơn vang to hơn và lâu hơn; mỗi sao được đặt trong âm thanh nổi theo vị trí của nó trong hình, từ trái sang phải như bạn thấy.',
+   r3:'Giai điệu: hình được vẽ theo các đường nối; độ dài mỗi đường trên bầu trời quyết định thời gian đến ngôi sao kế tiếp; cuối cùng mọi ngôi sao cùng vang lên.',
+   r4:'Hợp âm: mọi ngôi sao cùng lúc, mỗi sao thở theo nhịp riêng.',
+   r5:'Chiều sâu là một lựa chọn, không phải vật lý: sao càng xa càng vào muộn hơn một chút ({s} giây với sao xa nhất).',
+   r6:'Trên thiết bị này hợp âm dùng {n} ngôi sao sáng nhất.',sign:'Cung hoàng đạo',pick:'Chòm sao',find:'Tìm chòm sao',none:'Không tìm thấy',figs:'Hình chòm',close:'Đóng',
+   load:'Đang tải các chòm sao…',rec:'giọng đã ghi âm',dev:'giọng của thiết bị',all:'Cả 88 chòm sao',hearCon:'Các ngôi sao thành giai điệu chậm dọc theo hình, xen giữa là hợp âm đang thở; thần thoại của nó làm lời mở đầu.'},
+ bg:{lyS:'св. г.',hear:'Чуй звездите му',mel:'Мелодия',chd:'Акорд',play:'Пусни',stop:'Спри',depth:'Дълбочина',myth:'Чуй мита',fact:'Кой го е нарекъл',anc:'Едно от 48-те на Птолемей',mod:'Съвременно',argo:'част от кораба Арго',stars:'{n} звезди',
+   near:'Най-близка: {s}, {ly} светлинни години',far:'Най-далечна: {s}, {ly} светлинни години',apart:'Звездите му само изглеждат близо една до друга: те са на много различни разстояния.',seen:'северът е горе, както се вижда от Земята',how:'Как звучи',
+   r1:'Всяка звезда пее със собствен глас: върхът на светлината ѝ, свален с четиридесет октави, оцветен от спектралните ѝ линии (при „Спектрални линии“ – акордът на линиите ѝ).',
+   r2:'По-ярките звезди звучат по-силно и по-дълго; всяка е разположена в стереото според мястото си във фигурата, отляво надясно, както я виждаш.',
+   r3:'Мелодия: фигурата се проследява по линиите ѝ; дължината на всяка линия на небето определя времето до следващата звезда; накрая всички звезди звучат заедно.',
+   r4:'Акорд: всички звезди наведнъж, всяка диша със собствено темпо.',
+   r5:'Дълбочината е избор, не физика: всяка звезда влиза малко по-късно, колкото е по-далеч ({s} s за най-далечната).',
+   r6:'На това устройство акордът използва {n}-те най-ярки звезди.',sign:'Зодиакален знак',pick:'Съзвездия',find:'Намери съзвездие',none:'Нищо не е намерено',figs:'Фигури',close:'Затвори',
+   load:'Съзвездията се зареждат…',rec:'записан глас',dev:'глас на устройството',all:'Всички 88 съзвездия',hearCon:'Звездите му като бавна мелодия по фигурата, а между тях дишащият акорд; митът му като въведение.'},
+ pt:{lyS:'a.l.',hear:'Ouvir suas estrelas',mel:'Melodia',chd:'Acorde',play:'Tocar',stop:'Parar',depth:'Profundidade',myth:'Ouvir o mito',fact:'Quem a nomeou',anc:'Uma das 48 de Ptolomeu',mod:'Moderna',argo:'parte do navio Argo',stars:'{n} estrelas',
+   near:'Mais próxima: {s}, a {ly} anos-luz',far:'Mais distante: {s}, a {ly} anos-luz',apart:'Suas estrelas só parecem próximas: estão a distâncias muito diferentes.',seen:'norte para cima, vista da Terra',how:'Como soa',
+   r1:'Cada estrela canta com sua própria voz: o pico da sua luz rebaixado quarenta oitavas, colorido por suas linhas espectrais (com “Linhas espectrais”, seu acorde de linhas).',
+   r2:'Estrelas mais brilhantes soam mais forte e por mais tempo; cada uma fica no estéreo conforme seu lugar na figura, da esquerda para a direita, como você a vê.',
+   r3:'Melodia: a figura percorrida ao longo de suas linhas; o comprimento de cada linha no céu define o tempo até a próxima estrela; termina com todas as estrelas juntas.',
+   r4:'Acorde: todas as estrelas ao mesmo tempo, cada uma respirando no seu ritmo.',
+   r5:'A profundidade é uma escolha, não física: cada estrela entra um pouco mais tarde quanto mais distante está ({s} s para a mais distante).',
+   r6:'Neste aparelho o acorde usa suas {n} estrelas mais brilhantes.',sign:'Signo do zodíaco',pick:'Constelações',find:'Encontrar uma constelação',none:'Nada encontrado',figs:'Figuras',close:'Fechar',
+   load:'Carregando as constelações…',rec:'voz gravada',dev:'voz do aparelho',all:'Todas as 88 constelações',hearCon:'Suas estrelas como uma melodia lenta ao longo da figura, com o acorde respirando entre elas; seu mito como introdução.'}};
+const TX=Object.assign({},TA.en,TA[LANG]||{});
+/* ---------- the data ---------- */
+let DATA=null,LINES=null,LP=null,MAN=null,MANP=null;
+function load(){if(LP)return LP;
+  const g=window.GALAXY,have=g&&g.data&&g.data.constellations;
+  const dj=have?Promise.resolve(g.data.constellations):fetch(BASE+'galaxy/constellations.json').then(r=>{if(!r.ok)throw new Error('constellations '+r.status);return r.json()});
+  const lj=fetch(BASE+'galaxy/conlines_'+LANG+'.json').then(r=>r.ok?r.json():fetch(BASE+'galaxy/conlines_en.json').then(r2=>r2.json())).catch(()=>null);
+  LP=Promise.all([dj,lj]).then(([d,l])=>{DATA=prep(d);LINES=l&&l.lines||{};CON.ready=true;CON.data=DATA;return DATA}).catch(e=>{LP=null;throw e});return LP}
+function prep(d){const f={};d.meta.sf.forEach((k,i)=>f[k]=i);d.F=f;d.byId={};d.con.forEach(c=>{d.byId[c.id]=c;d.byId[c.ab.toLowerCase()]=c});return d}
+const conOf=q=>DATA&&q!=null?DATA.byId[String(q).toLowerCase()]||null:null;
+const starArr=(c,i)=>DATA.stars[c.s[i]];
+const sv=(c,i,k)=>starArr(c,i)[DATA.F[k]];
+function starName(c,i){const a=starArr(c,i),n=a[DATA.F.n]||a[DATA.F.bf]||('HIP '+a[0]);const G=window.GALAXY;if(G&&G.ready&&G.data.names&&LANG!=='en'){const v=(G.data.names.stars||{})[a[DATA.F.n]]||(G.data.names.stars||{})[a[DATA.F.bf]];if(v&&v[LANG])return v[LANG]}return n}
+const conName=c=>c.names[LANG]||c.names.en||c.la;
+const lineOf=c=>LINES&&LINES[c.key]||null;
+/** the voice numbers of figure star i, rebuilt from the table exactly as GALAXY.figureVoice does (tests compare the two in the Flight) */
+function foldLine(nm,f0){let f=299792.458e12/nm/1099511627776;const lo=f0/Math.SQRT2;while(f<lo)f*=2;while(f>=lo*2)f/=2;return f}
+function voiceOf(arr){const F=DATA.F,kb=DATA.kinds[arr[F.kind]],tb=DATA.tables[arr[F.t]],T=arr[F.T]||5772,f0=arr[F.f0];
+  const bright=clamp(.25+Math.log10(T/3000)/1.2*.5,0,1);
+  return {f0,kind:arr[F.kind],body:{sub:kb[0],sub2:kb[1],h2:kb[2],h3:kb[3],h5:kb[4],odd:!!kb[5],lp:kb[6],saw:kb[7]+bright*.1},
+    fl:tb.fl.map(([nm,gain,q])=>({f:foldLine(nm,f0),gain,q,nm})),ch:tb.ch.map(([f,amp])=>({f,amp})),rgb:arr[F.rgb],br:arr[F.br],vr:arr[F.vr],vd:arr[F.vd]}}
+// galaxy.js's loudness: 1 at −1.5 mag, 0 at 6.5
+const loudOf=m=>clamp((6.5-m)/8,0,1);
+/** the voice budget for the chord: the figure's brightest N */
+function cap(){const q=MOTS.quality?MOTS.quality():'std';return q==='eco'?6:q==='high'?24:LOWPOWER?10:16}
+const lite=()=>{const q=MOTS.quality?MOTS.quality():'std';return q==='eco'?2:LOWPOWER?1:0};   // 0 full, 1 phone (one notch, no vibrato on chords), 2 eco (no notches)
+/** the figure as notes: per star its voice, loudness, pan; the walk with its timing */
+function score(c,o){o=o||{};const n=c.s.length,xs=c.xy.map(p=>p[0]),mx=Math.max(1e-6,...xs.map(Math.abs));
+  const stars=c.s.map((_,i)=>{const a=starArr(c,i),mag=a[DATA.F.mag];return {i,v:voiceOf(a),mag,loud:loudOf(mag),pan:clamp(.85*c.xy[i][0]/mx,-.85,.85),d:a[DATA.F.d]}});
+  const k=(o.tempo||1)*.14,ev=[];let t=0,last=null;
+  c.tr.forEach((st,si)=>{st.forEach((i,j)=>{
+    if(j===0){if(si>0)t+=.7;ev.push({t,i,again:si>0&&ev.some(e=>e.i===i)});last=i;return}
+    const a=c.xy[last],b=c.xy[i],ang=Math.hypot(a[0]-b[0],a[1]-b[1]);t+=clamp(k*ang,.5*(o.tempo||1),2.4*(o.tempo||1));ev.push({t,i});last=i})});
+  const order=stars.slice().sort((a,b)=>a.mag-b.mag),N=Math.min(n,o.cap||cap()),chord=order.slice(0,N).map(s=>s.i),dmax=Math.max(...chord.map(i=>stars[i].d));
+  return {stars,ev,end:t,chord,dmax}}
+/* ---------- sound ---------- */
+const WAVES=new WeakMap();
+function waveOf(ac,s){let m=WAVES.get(ac);if(!m)WAVES.set(ac,m=new Map());const key=s.v.f0+':'+s.v.kind;let w=m.get(key);if(w)return w;
+  const b=s.v.body,k=b.sub2>0?4:b.sub>0?2:1,N=k*8+1,re=new Float32Array(N+1),im=new Float32Array(N+1);
+  im[k]=1;if(k>=2)im[k/2]+=b.sub;if(k===4)im[1]+=b.sub2;if(2*k<=N)im[2*k]+=b.h2;if(3*k<=N)im[3*k]+=b.h3;if(5*k<=N)im[5*k]+=b.h5;
+  for(let m2=1;m2<=8&&m2*k<=N;m2++)im[m2*k]+=b.saw/m2*(b.odd&&m2%2===0?.2:1);
+  w={wave:ac.createPeriodicWave(re,im,{disableNormalization:false}),k};m.set(key,w);return w}
+function noteTone(ac,out,s,t,dur,amp,o){const v=s.v,L=o.lite,nodes=[],w=waveOf(ac,s);
+  const osc=ac.createOscillator();osc.setPeriodicWave(w.wave);osc.frequency.value=v.f0/w.k;
+  const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=Math.min(9000,v.f0*Math.max(1.5,v.body.lp)*1.6);lp.Q.value=.5;osc.connect(lp);let prev=lp;
+  const nf=L>=2?0:L===1?1:3;for(let j=0;j<Math.min(nf,v.fl.length);j++){const pk=ac.createBiquadFilter();pk.type='peaking';pk.frequency.value=v.fl[j].f;pk.gain.value=v.fl[j].gain*1.3;pk.Q.value=v.fl[j].q;prev.connect(pk);prev=pk;nodes.push(pk)}
+  const g=ac.createGain();g.gain.value=0;prev.connect(g);
+  if(v.vd>0&&!(L&&o.held)){const lf=ac.createOscillator(),ld=ac.createGain();lf.frequency.value=Math.min(8,v.vr||4);ld.gain.value=Math.min(10,v.vd)*.7;lf.connect(ld);ld.connect(osc.detune);nodes.push(lf,ld);return {src:[osc,lf],g,nodes:nodes.concat([osc,lp,g])}}
+  nodes.push(osc,lp,g);return {src:[osc],g,nodes}}
+function noteLines(ac,out,s,t,dur,amp,o){const v=s.v,n=o.lite?3:6,ls=v.ch.slice(0,n);let q=0;ls.forEach(L=>q+=L.amp*L.amp);const k=1/Math.sqrt(Math.max(q,1e-6));
+  const g=ac.createGain();g.gain.value=0;const src=[],nodes=[g];ls.forEach((L,j)=>{const x=ac.createOscillator();x.type='sine';x.frequency.value=L.f;x.detune.value=((j*7)%5-2)*1.2;const gg=ac.createGain();gg.gain.value=L.amp*k*.9;x.connect(gg);gg.connect(g);src.push(x);nodes.push(x,gg)});
+  return {src,g,nodes}}
+/** one star sounding: from t for dur seconds (Infinity: held until released), peak amp, panned */
+function note(ac,out,s,t,dur,amp,o){const N=(o.lines?noteLines:noteTone)(ac,out,s,t,dur,amp,o),pan=ac.createStereoPanner?ac.createStereoPanner():null;
+  let tail=N.g;if(o.breath&&!(o.lite>=2)){const bg=ac.createGain(),lf=ac.createOscillator(),ld=ac.createGain();bg.gain.value=1;lf.frequency.value=clamp(s.v.br||.1,.03,.5);ld.gain.value=.22;lf.connect(ld);ld.connect(bg.gain);N.g.connect(bg);tail=bg;N.src.push(lf);N.nodes.push(bg,lf,ld)}
+  if(pan){pan.pan.value=s.pan;tail.connect(pan);pan.connect(out);N.nodes.push(pan)}else tail.connect(out);
+  const a=Math.max(.0001,amp),att=o.att||.06;N.g.gain.setValueAtTime(0,t);N.g.gain.linearRampToValueAtTime(a,t+att);
+  if(isFinite(dur)){N.g.gain.setTargetAtTime(0,t+Math.max(att,dur),.4);N.src.forEach(x=>{x.start(t);x.stop(t+dur+3)})}else N.src.forEach(x=>x.start(t));
+  N.release=(t1,tc)=>{try{N.g.gain.cancelScheduledValues(t1);N.g.gain.setValueAtTime(N.g.gain.value,t1);N.g.gain.setTargetAtTime(0,t1,tc||.5);N.src.forEach(x=>{try{x.stop(t1+(tc||.5)*7)}catch(e){}})}catch(e){}};
+  N.t0=t;N.dur=dur;N.i=s.i;return N}
+function softClip(){const n=2048,cv=new Float32Array(n),k=.45,c=.69;for(let i=0;i<n;i++){const x=i/(n-1)*2-1,a=Math.abs(x);cv[i]=(a<=k?a:k+(c-k)*Math.tanh((a-k)/(c-k)))*Math.sign(x)}return cv}
+/** a player on an audio context: into dest (its own gentle compressor + soft clip, unless o.raw) */
+function Player(ac,dest,po){po=po||{};const P={ac,notes:[],timer:0,gen:0,mode:null,c:null,lit:new Map()};
+  const mg=ac.createGain();mg.gain.value=1;P.master=mg;
+  if(po.raw)mg.connect(dest);else{const cp=ac.createDynamicsCompressor();cp.threshold.value=-12;cp.knee.value=6;cp.ratio.value=4;cp.attack.value=.01;cp.release.value=.25;const cl=ac.createWaveShaper();cl.curve=softClip();cl.oversample='2x';mg.connect(cp);cp.connect(cl);cl.connect(dest);P.nodes=[cp,cl]}
+  P.light=(i,lvl,t)=>{P.lit.set(i,{lvl,t,until:t})};
+  P.stop=(fade)=>{P.gen++;clearTimeout(P.timer);const t=ac.currentTime;P.notes.forEach(N=>N.release(t,(fade||.6)/3));P.notes=[];P.mode=null;if(P.onState)P.onState(null)};
+  P.dispose=()=>{P.stop(.3);setTimeout(()=>{try{mg.disconnect()}catch(e){}(P.nodes||[]).forEach(n=>{try{n.disconnect()}catch(e){}})},3000)};
+  const prune=()=>{const t=ac.currentTime;P.notes=P.notes.filter(N=>!(isFinite(N.dur)&&t>N.t0+N.dur+3))};
+  /** the melody: the walk, then all its stars together (held hold seconds); o.loop: again after a rest */
+  P.melody=(c,o)=>{P.stop(.3);P.evs=[];o=o||{};const gen=P.gen,sc=score(c,o),t0=ac.currentTime+.12,lines=!!o.lines,L=o.lite!=null?o.lite:lite(),base=(o.level||1)*(lines?.05:.12);
+    P.mode='melody';P.c=c;P.sc=sc;P.t0=t0;if(P.onState)P.onState('melody');
+    // the notes are scheduled a few seconds ahead, so a long figure costs little and Stop is immediate
+    let k=0;const step=()=>{if(gen!==P.gen)return;prune();const now=ac.currentTime;
+      while(k<sc.ev.length&&t0+sc.ev[k].t<now+2.5){const e=sc.ev[k],s=sc.stars[e.i],dur=.9+2.2*s.loud;
+        P.notes.push(note(ac,mg,s,t0+e.t,dur,base*(.3+.7*s.loud)*(e.again?.65:1),{lines,lite:L}));P.ev(e.i,t0+e.t,dur);k++}
+      if(k>=sc.ev.length){const tc=t0+sc.end+1.1,hold=o.hold||6;if(!P.chordAt){P.chordAt=tc;chordNotes(c,sc,tc,hold,{lines,lite:L,depth:o.depth,level:o.level});
+        P.timer=setTimeout(()=>{if(gen!==P.gen)return;P.chordAt=0;if(o.loop){const rest=o.rest||8;P.timer=setTimeout(()=>{if(gen===P.gen)P.melody(c,o)},rest*1000)}else{P.mode=null;if(P.onState)P.onState(null)}},(tc-ac.currentTime+hold+2.6)*1000);return}}
+      P.timer=setTimeout(step,400)};P.chordAt=0;step();return sc};
+  function chordNotes(c,sc,t,hold,o){const N=sc.chord.length,lines=o.lines;let q=0;sc.chord.forEach(i=>{const s=sc.stars[i];q+=Math.pow(.3+.7*s.loud,2)});
+    const base=(o.level||1)*(lines?.08:.105)/Math.sqrt(Math.max(1,q))*1.3;
+    sc.chord.forEach(i=>{const s=sc.stars[i],dl=o.depth?3.5*s.d/sc.dmax:0;P.notes.push(note(ac,mg,s,t+dl,hold,base*(.3+.7*s.loud),{lines,lite:o.lite,held:1,breath:!isFinite(hold)||hold>8,att:.6}));P.ev(i,t+dl,hold)})}
+  /** the chord: all its (brightest N) stars, breathing, held until stop (or for o.hold seconds) */
+  P.chord=(c,o)=>{P.stop(.3);P.evs=[];o=o||{};const sc=score(c,o),t=ac.currentTime+.12,L=o.lite!=null?o.lite:lite();P.mode='chord';P.c=c;P.sc=sc;P.t0=t;if(P.onState)P.onState('chord');
+    chordNotes(c,sc,t,o.hold||Infinity,{lines:!!o.lines,lite:L,depth:o.depth,level:o.level});
+    if(o.hold){const gen=P.gen;P.timer=setTimeout(()=>{if(gen===P.gen){P.mode=null;if(P.onState)P.onState(null)}},(o.hold+3)*1000)}return sc};
+  P.ev=(i,t,dur)=>{(P.evs||(P.evs=[])).push({i,t,dur});if(P.evs.length>400)P.evs.splice(0,200)};
+  /** how lit each star is now (0..1), for the drawings */
+  P.glow=()=>{const t=ac.currentTime,out=new Map();(P.evs||[]).forEach(e=>{if(t<e.t)return;const u=t-e.t,lv=u<.08?u/.08:isFinite(e.dur)&&u>e.dur?Math.exp(-(u-e.dur)/.45):1;if(lv>.02)out.set(e.i,Math.max(out.get(e.i)||0,lv))});return out};
+  return P}
+/* ---------- the output on the dial and the Flight: the page's context when it runs, else our own ---------- */
+let SAC=null,PL=null,PLAC=null;
+const pageVol=()=>{const v=document.getElementById('vol');return v?clamp((+v.value||0)/100,0,1):1};
+function ctxOf(spec){let ac=null;try{ac=spec&&spec.ac?spec.ac():null}catch(e){}if(!ac||ac.state==='closed'){if(!SAC){const A=window.AudioContext||window.webkitAudioContext;if(!A)return null;SAC=new A()}ac=SAC}if(ac.state!=='running')ac.resume().catch(()=>{});return ac}
+function player(spec){const ac=ctxOf(spec);if(!ac)return null;if(PL&&PLAC===ac)return PL;if(PL)PL.dispose();PLAC=ac;const vol=ac.createGain();vol.gain.value=pageVol();vol.connect(ac.destination);PL=Player(ac,vol);PL.vol=vol;
+  PL.onState=st=>{duck(!!st||SPK.on);syncCard()};return PL}
+let duckT=0;function duck(on){clearTimeout(duckT);const f=()=>{try{if(MOTS.sheetDuck)MOTS.sheetDuck(on)}catch(e){}};if(on)f();else duckT=setTimeout(f,400)}
+/* ---------- the spoken line: a recorded clip when voice/manifest.json lists it, else the device's speech ---------- */
+const SPK={on:false,last:null,src:null};
+function manifest(){if(MANP)return MANP;MANP=fetch(BASE+'voice/manifest.json').then(r=>r.ok?r.json():{}).catch(()=>({})).then(m=>MAN=m||{});return MANP}
+const FEM=/female|woman|frau|femme|mujer|donna|kobieta|женск|nữ|女|Zira|Hazel|Susan|Samantha|Karen|Moira|Tessa|Fiona|Amelie|Anna|Alice|Paulina|Monica|Luciana|Joana|Kyoko|Ting-Ting|Daria|Ewa|Zosia|Gwyneth/i;
+function pickVoice(sex){let V=[];try{V=speechSynthesis.getVoices()}catch(e){}const same=V.filter(v=>String(v.lang||'').toLowerCase().replace('_','-').startsWith(LANG));if(!same.length)return null;
+  const isF=v=>FEM.test(v.name);return sex==='f'?(same.find(isF)||same[0]):(same.find(v=>!isF(v))||same[0])}
+function stopSpeak(){try{speechSynthesis.cancel()}catch(e){}if(SPK.src){try{SPK.src.stop()}catch(e){}SPK.src=null}SPK.on=false;if(PL&&PL.master)PL.master.gain.setTargetAtTime(1,PL.ac.currentTime,.3);duck(!!(PL&&PL.mode));syncCard()}
+/** speak the figure's line: resolves {src: 'clip'|'tts'|'none', text} when it has been heard */
+function speak(c,spec){const L=lineOf(c);if(!L)return Promise.resolve({src:'none'});stopSpeak();const text=L.t,key=c.key,ac=ctxOf(spec);
+  SPK.on=true;SPK.last={key,text,src:null,sex:L.s,god:L.g};duck(true);if(PL&&PL.master&&PL.mode)PL.master.gain.setTargetAtTime(.45,PL.ac.currentTime,.3);syncCard();
+  const done=r=>{if(SPK.last&&SPK.last.key===key){SPK.on=false;SPK.src=null;if(PL&&PL.master)PL.master.gain.setTargetAtTime(1,PL.ac.currentTime,.4);duck(!!(PL&&PL.mode));syncCard()}return r};
+  const tts=()=>new Promise(res=>{SPK.last.src='tts';CON.spoke.push({key,src:'tts',text});syncCard();if(!window.speechSynthesis||!window.SpeechSynthesisUtterance){res({src:'none',text});return}
+    try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text),v=pickVoice(L.s);if(v){u.voice=v;u.lang=v.lang}else u.lang=LOC;u.rate=.92;u.pitch=L.s==='m'?.85:1.05;
+      let fin=false;const end=()=>{if(fin)return;fin=true;res({src:'tts',text})};u.onend=u.onerror=end;setTimeout(end,text.length*95+4000);speechSynthesis.speak(u)}catch(e){res({src:'none',text})}});
+  return manifest().then(m=>{const have=m&&m[LANG]&&m[LANG][key];if(!have||!ac)return tts();
+    return fetch(BASE+'voice/'+LANG+'/'+key+'.mp3').then(r=>{if(!r.ok)throw 0;return r.arrayBuffer()}).then(a=>ac.decodeAudioData(a)).then(buf=>new Promise(res=>{
+      SPK.last.src='clip';CON.spoke.push({key,src:'clip',text});syncCard();const s=ac.createBufferSource(),g=ac.createGain();g.gain.value=.95*pageVol();s.buffer=buf;s.connect(g);g.connect(ac.destination);SPK.src=s;s.onended=()=>res({src:'clip',text});s.start()})).catch(()=>tts())}).then(done,done)}
+/* ---------- the card ---------- */
+let CARD=null,CS=null,CV=null,RAF=0,OPT={mode:'melody',depth:false};
+try{const o=JSON.parse(localStorage.getItem('mots.con')||'{}');if(o.mode==='chord'||o.mode==='melody')OPT.mode=o.mode;OPT.depth=!!o.depth}catch(e){}
+const saveOpt=()=>{try{localStorage.setItem('mots.con',JSON.stringify(OPT))}catch(e){}};
+function css(){if(document.getElementById('conStyle'))return;const st=document.createElement('style');st.id='conStyle';st.textContent=`
+.ccard{position:fixed;z-index:72;left:1rem;bottom:1rem;width:min(25rem,calc(100vw - 2rem));max-height:min(86vh,46rem);overflow:auto;overscroll-behavior:contain;background:rgba(10,12,24,.97);border:1px solid var(--bronze-dim,#8a6a3a);border-radius:12px;padding:.95rem 1.05rem 1rem;box-shadow:0 12px 40px rgba(0,0,0,.65);color:var(--vellum,#e9e1cc);font-family:var(--f-body,'Alegreya Sans',system-ui,sans-serif);font-size:.92rem;line-height:1.45;text-align:left;box-sizing:border-box}
+.ccard.right{left:auto;right:1rem}.ccard[hidden]{display:none}
+.ccard .cx{position:absolute;top:.3rem;right:.3rem;width:var(--tap,2.75rem);height:var(--tap,2.75rem);border:0;background:transparent;color:var(--vellum-dim,#aea791);font-size:1.5rem;line-height:1;cursor:pointer;border-radius:50%}
+.ccard .cx:hover{color:var(--vellum,#e9e1cc)}
+.ccard .chd{padding-right:2.6rem}
+.ccard .cgr{font-family:var(--f-display,'GFS Didot',Georgia,serif);color:var(--bronze,#c9984f);font-size:1rem;line-height:1.2}
+.ccard h3{font-family:var(--f-display,'GFS Didot',Georgia,serif);font-weight:400;font-size:1.55rem;line-height:1.1;margin:.05rem 0 0;color:var(--vellum,#e9e1cc)}
+.ccard h3:focus{outline:none}
+.ccard .csub{color:var(--vellum-dim,#aea791);font-size:.84rem;margin-top:.15rem}
+.ccard .cfig{position:relative;margin:.65rem 0 .2rem;border-radius:9px;background:radial-gradient(ellipse at 50% 40%,#0d1230 0%,#05060f 75%);border:1px solid rgba(201,152,79,.2);overflow:hidden}
+.ccard canvas{display:block;width:100%;height:11rem}
+.ccard .cnow{position:absolute;left:.55rem;top:.35rem;font-family:var(--f-mono,'IBM Plex Mono',monospace);font-size:.68rem;color:#f3d9a4;pointer-events:none;text-shadow:0 0 6px #000;max-width:90%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ccard .cfig small{position:absolute;right:.5rem;bottom:.3rem;font-family:var(--f-mono,'IBM Plex Mono',monospace);font-size:.62rem;letter-spacing:.04em;color:rgba(233,225,204,.45);pointer-events:none}
+.ccard .cmyth{margin:.55rem 0 .2rem;display:flex;gap:.55rem;align-items:flex-start}
+.ccard .cmyth q{flex:1;font-style:italic;color:var(--vellum,#e9e1cc);quotes:none;line-height:1.42}
+.ccard .cmyth q.on{color:#f3d9a4}
+.ccard .cmyth button{flex:none}
+.ccard .cmyth .ctag{display:block;font-style:normal;font-family:var(--f-mono,'IBM Plex Mono',monospace);font-size:.62rem;color:var(--vellum-dim,#aea791);margin-top:.15rem}
+.ccard .crow{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin-top:.65rem}
+.ccard .cseg{display:inline-flex;border:1px solid var(--bronze-dim,#8a6a3a);border-radius:999px;overflow:hidden}
+.ccard .cseg button{appearance:none;border:0;background:transparent;color:var(--bronze,#c9984f);font:inherit;font-size:.88rem;min-height:var(--tap,2.75rem);padding:.3rem .85rem;cursor:pointer}
+.ccard .cseg button[aria-pressed=true]{background:rgba(201,152,79,.22);color:#f3d9a4}
+.ccard .cbtn{appearance:none;min-height:var(--tap,2.75rem);padding:.35rem .95rem;border-radius:999px;border:1px solid var(--bronze-dim,#8a6a3a);background:transparent;color:var(--bronze,#c9984f);font:inherit;font-size:.9rem;cursor:pointer;line-height:1.2}
+.ccard .cbtn:hover,.ccard .cseg button:hover{border-color:var(--bronze,#c9984f);color:#f3d9a4}
+.ccard .cbtn.go{background:linear-gradient(180deg,#d9ab5e,#b88a40);color:#1a1206;border-color:#d9ab5e;font-weight:600}
+.ccard .cbtn.go.on{background:rgba(201,152,79,.18);color:#f3d9a4}
+.ccard .cbtn.say{min-width:var(--tap,2.75rem);padding:.3rem .6rem}
+.ccard label.cdep{display:inline-flex;align-items:center;gap:.4rem;min-height:var(--tap,2.75rem);color:var(--vellum,#e9e1cc);font-size:.88rem;cursor:pointer;padding:0 .3rem}
+.ccard label.cdep input{width:1.15rem;height:1.15rem;accent-color:var(--bronze,#c9984f);margin:0}
+.ccard .cfacts{margin:.6rem 0 0;font-size:.82rem;color:var(--vellum-dim,#aea791)}
+.ccard .cfacts b{color:var(--vellum,#e9e1cc);font-weight:600}
+.ccard details{margin-top:.55rem;border-top:1px solid rgba(201,152,79,.18);padding-top:.35rem}
+.ccard summary{cursor:pointer;min-height:var(--tap,2.75rem);display:flex;align-items:center;color:var(--bronze,#c9984f);font-size:.88rem}
+.ccard details ul{margin:.2rem 0 0;padding-left:1.1rem;font-size:.82rem;color:var(--vellum-dim,#aea791)}
+.ccard details li{margin:.25rem 0}
+.ccard .cacts{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.6rem}
+.cpick{position:fixed;z-index:73;inset:auto 1rem 1rem auto;width:min(22rem,calc(100vw - 2rem));max-height:min(80vh,40rem);display:flex;flex-direction:column;background:rgba(10,12,24,.97);border:1px solid var(--bronze-dim,#8a6a3a);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.65);color:var(--vellum,#e9e1cc);font-family:var(--f-body,'Alegreya Sans',system-ui,sans-serif);box-sizing:border-box;padding:.8rem .8rem .5rem}
+.cpick[hidden]{display:none}
+.cpick h3{font-family:var(--f-display,'GFS Didot',Georgia,serif);font-weight:400;font-size:1.3rem;margin:0 2.6rem .5rem 0}
+.cpick input{width:100%;box-sizing:border-box;min-height:var(--tap,2.75rem);border-radius:8px;border:1px solid var(--bronze-dim,#8a6a3a);background:#070914;color:var(--vellum,#e9e1cc);font:inherit;padding:.3rem .7rem}
+.cpick ul{list-style:none;margin:.5rem 0 0;padding:0;overflow:auto;flex:1}
+.cpick li button{width:100%;text-align:left;appearance:none;background:transparent;border:0;border-top:1px solid rgba(201,152,79,.14);color:var(--vellum,#e9e1cc);font:inherit;min-height:var(--tap,2.75rem);padding:.35rem .3rem;cursor:pointer;display:flex;justify-content:space-between;gap:.6rem;align-items:center}
+.cpick li button:hover,.cpick li button:focus{background:rgba(201,152,79,.12)}
+.cpick li small{color:var(--vellum-dim,#aea791);font-size:.78rem;text-align:right}
+.cpick .cx{position:absolute;top:.3rem;right:.3rem;width:var(--tap,2.75rem);height:var(--tap,2.75rem);border:0;background:transparent;color:var(--vellum-dim,#aea791);font-size:1.5rem;cursor:pointer}
+@media (max-width:760px){.ccard,.ccard.right,.cpick{left:0;right:0;bottom:0;width:auto;border-radius:12px 12px 0 0;max-height:min(78vh,40rem);padding-bottom:calc(.9rem + env(safe-area-inset-bottom,0px))}.ccard canvas{height:9.5rem}.ccard h3{font-size:1.4rem}}
+@media (min-width:761px) and (max-height:520px){.ccard{top:0;bottom:0;left:0;right:auto;width:min(25rem,55vw);max-height:none;border-radius:0 12px 12px 0}.ccard.right{left:auto;right:0;border-radius:12px 0 0 12px}.ccard canvas{height:7.5rem}}
+@media (prefers-reduced-motion:no-preference){.ccard,.cpick{animation:ccIn .18s ease-out}@keyframes ccIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}}
+.mots-proj .ccard,.mots-proj .cpick{display:none}`;document.head.appendChild(st)}
+function build(){if(CARD)return;css();const d=document.createElement('div');d.className='ccard';d.id='conCard';d.setAttribute('role','dialog');d.hidden=true;document.body.appendChild(d);CARD=d;
+  d.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!CS)return;const a=b.dataset.a;
+    if(b.classList.contains('cx')){close();return}
+    if(a==='mode'){OPT.mode=b.dataset.v;saveOpt();if(PL&&PL.mode)play();else syncCard()}
+    else if(a==='play'){if(PL&&PL.mode&&PL.c===CS.c){PL.stop(.8);syncCard()}else play()}
+    else if(a==='say'){if(SPK.on)stopSpeak();else speak(CS.c,CS.spec)}
+    else if(a==='act'){const x=(CS.spec.acts||[])[+b.dataset.i];if(x)x.fn(CS.c,b)}});
+  d.addEventListener('change',e=>{if(e.target.dataset.a==='depth'){OPT.depth=e.target.checked;saveOpt();if(PL&&PL.mode==='chord')play()}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&CARD&&!CARD.hidden){e.stopPropagation();close()}},true);
+  document.addEventListener('pointerdown',e=>{if(CARD&&!CARD.hidden&&!CARD.contains(e.target)&&!(CS&&CS.spec.keepOpen&&CS.spec.keepOpen(e)))close()},true)}
+const linesMode=spec=>{try{if(spec&&spec.lines)return !!spec.lines();const L=MOTS.light&&MOTS.light.lines;return !!(L&&L.mode&&L.mode()==='lines')}catch(e){return false}};
+function play(){if(!CS)return;const P=player(CS.spec);if(!P)return;stopSpeak();const o={lines:linesMode(CS.spec),depth:OPT.depth};if(OPT.mode==='chord')P.chord(CS.c,o);else P.melody(CS.c,o);anim();syncCard();CON.played.push({id:CS.c.id,mode:OPT.mode,lines:o.lines,depth:o.depth,t:Date.now()})}
+/** open the card: q = id or abbreviation; spec = {side:'left'|'right', ac:()=>ctx, lines:()=>bool, acts:[{t,fn}], onOpen, onClose, keepOpen(e)} */
+function open(q,spec){spec=spec||{};build();return load().then(()=>{const c=conOf(q);if(!c)return null;const was=CS&&CS.c;if(PL&&PL.mode&&was!==c)PL.stop(.5);if(SPK.on&&was!==c)stopSpeak();
+    const back=CARD.hidden?document.activeElement:(CS&&CS.back);CS={c,spec,back};render();CARD.classList.toggle('right',spec.side==='right');const hid=CARD.hidden;CARD.hidden=false;
+    if(hid||spec.focus!==false){const h=CARD.querySelector('h3');if(h)h.focus({preventScroll:true})}if(spec.onOpen)spec.onOpen(c);anim();return c})}
+function close(){if(!CARD||CARD.hidden)return;CARD.hidden=true;const s=CS;if(PL&&PL.mode)PL.stop(.8);stopSpeak();CS=null;cancelAnimationFrame(RAF);RAF=0;if(s&&s.spec.onClose)s.spec.onClose(s.c);
+  const b=s&&s.back;if(b&&b.focus&&document.contains(b)&&b!==document.body)try{b.focus({preventScroll:true})}catch(e){}}
+function lyOf(c,i){return nf(sv(c,i,'d')*LY,sv(c,i,'d')*LY<100?1:0)}
+function render(){const {c,spec}=CS,L=lineOf(c),n=c.s.length,sc=score(c),capN=sc.chord.length,dmax=sc.dmax*LY;
+  const sub=[c.la!==conName(c)?esc(c.la):'',c.anc?esc(TX.anc)+(c.argo?' · '+esc(TX.argo):''):esc(TX.mod),esc(fill(TX.stars,{n}))].filter(Boolean).join(' · ');
+  CARD.setAttribute('aria-label',conName(c));
+  CARD.innerHTML=`<button type="button" class="cx" aria-label="${esc(TX.close)}">×</button>
+<div class="chd">${c.gr?`<div class="cgr" lang="grc">${esc(c.gr)}</div>`:''}<h3 tabindex="-1">${esc(conName(c))}</h3><div class="csub">${sub}</div></div>
+<div class="cfig"><canvas aria-hidden="true"></canvas><span class="cnow" aria-hidden="true"></span><small>${esc(TX.seen)}</small></div>
+${L?`<div class="cmyth"><q>${esc(L.t)}<span class="ctag" hidden></span></q><button type="button" class="cbtn say" data-a="say" aria-label="${esc(c.anc?TX.myth:TX.fact)}" title="${esc(c.anc?TX.myth:TX.fact)}">▶</button></div>`:''}
+<div class="crow"><span class="cseg" role="group" aria-label="${esc(TX.hear)}"><button type="button" data-a="mode" data-v="melody">${esc(TX.mel)}</button><button type="button" data-a="mode" data-v="chord">${esc(TX.chd)}</button></span>
+<button type="button" class="cbtn go" data-a="play"></button><label class="cdep"><input type="checkbox" data-a="depth"${OPT.depth?' checked':''}> ${esc(TX.depth)}</label></div>
+<p class="cfacts">${esc(TX.apart)}<br><b>${esc(fill(TX.near,{s:starName(c,c.near),ly:lyOf(c,c.near)}))}</b> · <b>${esc(fill(TX.far,{s:starName(c,c.far),ly:lyOf(c,c.far)}))}</b></p>
+${(spec.acts||[]).length?`<div class="cacts">${spec.acts.map((a,i)=>`<button type="button" class="cbtn" data-a="act" data-i="${i}">${esc(a.t)}</button>`).join('')}</div>`:''}
+<details><summary>${esc(TX.how)}</summary><ul><li>${esc(TX.r1)}</li><li>${esc(TX.r2)}</li><li>${esc(TX.r3)}</li><li>${esc(TX.r4)}</li><li>${esc(fill(TX.r5,{s:'3.5'}))}</li>${capN<n?`<li>${esc(fill(TX.r6,{n:capN}))}</li>`:''}</ul></details>`;
+  CV=CARD.querySelector('canvas');CV.dataset.top='30';CV.dataset.bot='22';syncCard();draw(CV,c,null,true)}
+function syncCard(){if(!CARD||CARD.hidden||!CS)return;const on=!!(PL&&PL.mode&&PL.c===CS.c);
+  CARD.querySelectorAll('[data-a="mode"]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===OPT.mode)));
+  const p=CARD.querySelector('[data-a="play"]');if(p){p.textContent=on?'■ '+TX.stop:'▶ '+TX.hear;p.classList.toggle('on',on);p.setAttribute('aria-pressed',String(on))}
+  const s=CARD.querySelector('[data-a="say"]');if(s){s.textContent=SPK.on?'■':'▶';s.setAttribute('aria-pressed',String(SPK.on))}
+  const q=CARD.querySelector('.cmyth q');if(q)q.classList.toggle('on',SPK.on);
+  const tg=CARD.querySelector('.ctag');if(tg){const l=SPK.last;if(l&&l.key===CS.c.key&&l.src){tg.hidden=false;tg.textContent=l.src==='clip'?TX.rec:TX.dev}else tg.hidden=true}}
+/** draw a figure into a canvas: its lines, its stars in their true colours sized by brightness, lit as they sound (glow: Map i → 0..1) */
+function draw(cv,c,glow,force){if(!cv)return;const r=cv.getBoundingClientRect(),dpr=Math.min(2,devicePixelRatio||1),W=Math.max(1,Math.round(r.width*dpr)),H=Math.max(1,Math.round(r.height*dpr));
+  if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H}const g=cv.getContext('2d');g.clearRect(0,0,W,H);
+  const xs=c.xy.map(p=>p[0]),ys=c.xy.map(p=>p[1]),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),pad=16*dpr,pt=(cv.dataset.top?+cv.dataset.top:16)*dpr,pb=(cv.dataset.bot?+cv.dataset.bot:16)*dpr;
+  const k=Math.min((W-2*pad)/Math.max(x1-x0,1),(H-pt-pb)/Math.max(y1-y0,1)),cx=W/2-(x0+x1)/2*k,cy=pt+(H-pt-pb)/2+(y0+y1)/2*k,P=i=>[cx+c.xy[i][0]*k,cy-c.xy[i][1]*k];
+  const gl=glow||new Map(),heard=CS&&CS.c===c&&PL&&PL.evs?new Set(PL.evs.filter(e=>e.t<=PL.ac.currentTime&&PL.c===c).map(e=>e.i)):new Set();
+  g.lineCap='round';c.seg.forEach(([a,b])=>{const A=P(a),B=P(b),lit=heard.has(a)&&heard.has(b);g.strokeStyle=lit?'rgba(243,217,164,.62)':'rgba(201,152,79,.36)';g.lineWidth=(lit?1.5:1.1)*dpr;g.beginPath();g.moveTo(A[0],A[1]);g.lineTo(B[0],B[1]);g.stroke()});
+  c.s.forEach((_,i)=>{const [x,y]=P(i),m=sv(c,i,'mag'),rgb=sv(c,i,'rgb'),rr=Math.max(1.3,3.9-.55*m)*dpr,lv=gl.get(i)||0;
+    if(lv>0){const R=rr*(3.2+4*lv),gr=g.createRadialGradient(x,y,0,x,y,R);gr.addColorStop(0,`rgba(${parseInt(rgb.slice(0,2),16)},${parseInt(rgb.slice(2,4),16)},${parseInt(rgb.slice(4),16)},${(.55*lv).toFixed(3)})`);gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.beginPath();g.arc(x,y,R,0,6.2832);g.fill()}
+    g.fillStyle='#'+rgb;g.globalAlpha=.75+.25*Math.max(lv,loudOf(m));g.beginPath();g.arc(x,y,rr*(1+.35*lv),0,6.2832);g.fill();g.globalAlpha=1})}
+function anim(){if(RAF)return;const step=()=>{RAF=0;if(!CARD||CARD.hidden||!CS)return;const on=PL&&PL.c===CS.c&&(PL.mode||PL.evs&&PL.evs.some(e=>PL.ac.currentTime<e.t+(isFinite(e.dur)?e.dur:1e9)+2));
+    const gw=on?PL.glow():null;draw(CV,CS.c,gw);const nw=CARD.querySelector('.cnow');if(nw){let t='';if(gw&&gw.size&&PL.mode==='melody'){let bi=-1,bt=-1;(PL.evs||[]).forEach(e=>{if(e.t<=PL.ac.currentTime&&e.t>bt&&gw.has(e.i)){bt=e.t;bi=e.i}});
+      if(bi>=0){const c=CS.c;t=starName(c,bi)+' · '+nf(sv(c,bi,'T'))+' K · '+nf(sv(c,bi,'f0'))+' Hz · '+lyOf(c,bi)+' '+TX.lyS}}if(nw.textContent!==t)nw.textContent=t}if(CON.onFrame)try{CON.onFrame(CS.c,on?PL.glow():null)}catch(e){}if(on||SPK.on)RAF=requestAnimationFrame(REDUCED?()=>setTimeout(step,250):step);else{const nw=CARD.querySelector('.cnow');if(nw)nw.textContent=''}};RAF=requestAnimationFrame(step)}
+/* ---------- the picker: all 88, filtered as you type ---------- */
+let PK=null;
+const fold=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+function list(){return DATA?DATA.con.slice().sort((a,b)=>conName(a).localeCompare(conName(b),LOC)):[]}
+function picker(spec){css();if(!PK){PK=document.createElement('div');PK.className='cpick';PK.setAttribute('role','dialog');PK.setAttribute('aria-label',TX.pick);PK.hidden=true;document.body.appendChild(PK);
+    PK.innerHTML=`<button type="button" class="cx" aria-label="${esc(TX.close)}">×</button><h3>${esc(TX.all)}</h3><input type="search" placeholder="${esc(TX.find)}" aria-label="${esc(TX.find)}"><ul></ul>`;
+    PK.querySelector('.cx').onclick=()=>{PK.hidden=true};PK.querySelector('input').oninput=()=>fillPick();
+    PK.addEventListener('click',e=>{const b=e.target.closest('li button');if(!b)return;PK.hidden=true;if(PK.spec.pick)PK.spec.pick(b.dataset.id);else open(b.dataset.id,PK.spec)});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&PK&&!PK.hidden){e.stopPropagation();PK.hidden=true}},true);
+    document.addEventListener('pointerdown',e=>{if(PK&&!PK.hidden&&!PK.contains(e.target))PK.hidden=true},true)}
+  PK.spec=spec||{};PK.hidden=false;const ul=PK.querySelector('ul');ul.innerHTML=`<li><small>${esc(TX.load)}</small></li>`;load().then(()=>{fillPick();PK.querySelector('input').focus({preventScroll:true})})}
+function fillPick(){const q=fold(PK.querySelector('input').value.trim()),ul=PK.querySelector('ul'),L=list().filter(c=>!q||[conName(c),c.la,c.ab,c.names.en].some(x=>fold(x).includes(q)));
+  ul.innerHTML=L.length?L.map(c=>`<li><button type="button" data-id="${c.id}"><span>${esc(conName(c))}</span><small>${esc(c.la!==conName(c)?c.la:'')}${c.anc?' · '+esc(c.gr):''}</small></button></li>`).join(''):`<li><small>${esc(TX.none)}</small></li>`}
+/* ---------- offline measurement: a figure rendered as the card plays it ---------- */
+function render_(q,mode,secs,o){o=o||{};return load().then(()=>{const c=conOf(q),sr=44100,dur=secs||(mode==='chord'?10:score(c,o).end+10),ac=new OfflineAudioContext(2,Math.round(sr*dur),sr),P=Player(ac,ac.destination);
+  P.notes=[];const sc=score(c,o);
+  if(mode==='chord'){P.chord(c,Object.assign({hold:dur-3},o))}else{
+    // the melody scheduled whole (the live player schedules it a little ahead; the notes are the same)
+    const t0=.12,lines=!!o.lines,L=o.lite!=null?o.lite:lite(),base=(o.level||1)*(lines?.05:.12);sc.ev.forEach(e=>{const s=sc.stars[e.i];note(ac,P.master,s,t0+e.t,.9+2.2*s.loud,base*(.3+.7*s.loud)*(e.again?.65:1),{lines,lite:L})});
+    const tc=t0+sc.end+1.1;let q2=0;sc.chord.forEach(i=>{const s=sc.stars[i];q2+=Math.pow(.3+.7*s.loud,2)});const b2=(o.level||1)*(lines?.08:.105)/Math.sqrt(Math.max(1,q2))*1.3;
+    sc.chord.forEach(i=>{const s=sc.stars[i],dl=o.depth?3.5*s.d/sc.dmax:0;note(ac,P.master,s,tc+dl,6,b2*(.3+.7*s.loud),{lines,lite:L,held:1,att:.6})})}
+  return ac.startRendering().then(buf=>{const a=buf.getChannelData(0),b=buf.getChannelData(1);let q=0,pk=0;const win=Math.round(sr*.5),rms=[];let wq=0,wn=0;
+    for(let i=0;i<a.length;i++){const m=(a[i]+b[i])/2;q+=a[i]*a[i]+b[i]*b[i];pk=Math.max(pk,Math.abs(a[i]),Math.abs(b[i]));wq+=m*m;if(++wn===win){rms.push(Math.sqrt(wq/wn));wq=0;wn=0}}
+    // clicks: any sample-to-sample jump larger than the signal's own slope allows
+    let jump=0;for(let i=2;i<a.length;i++){const d2=Math.abs(a[i]-2*a[i-1]+a[i-2]);if(d2>jump)jump=d2}
+    const B=44,nb=Math.floor(a.length/B),bm=new Float32Array(nb);for(let k=0;k<nb;k++){let m=0;for(let i=Math.max(2,k*B);i<(k+1)*B;i++){const d2=Math.abs(a[i]-2*a[i-1]+a[i-2]);if(d2>m)m=d2}bm[k]=m}
+    let spike=0;for(let k=15;k<nb-15;k++){let s2=0;for(let j=k-15;j<=k+15;j++)if(j!==k)s2+=bm[j];const avg=s2/30;if(bm[k]>1e-4&&avg>0)spike=Math.max(spike,bm[k]/Math.max(avg,1e-4))}
+    const act=rms.filter(x=>x>.004);return {id:c.id,mode,secs:dur,rms:Math.sqrt(q/(2*a.length)),rmsActive:act.length?Math.sqrt(act.reduce((s,x)=>s+x*x,0)/act.length):0,peak:pk,peakDb:20*Math.log10(pk||1e-9),
+      windows:rms.map(x=>Math.round(x*1000)/1000),maxD2:jump,spike,events:sc.ev.length,end:sc.end,chord:sc.chord.length}})})}
+const CON={ready:false,data:null,load,open,close,isOpen:()=>!!(CARD&&!CARD.hidden),current:()=>CS?CS.c:null,figure:conOf,list,name:conName,starName,line:lineOf,score,voiceOf,cap,
+  Player,player:spec=>player(spec),playing:()=>PL&&PL.mode?{mode:PL.mode,id:PL.c&&PL.c.id}:null,stop:()=>{if(PL)PL.stop(.6);syncCard()},glow:()=>PL&&PL.mode?PL.glow():null,
+  speak,stopSpeak,speaking:()=>SPK.on,lastSpoken:()=>SPK.last,spoke:[],played:[],picker,draw,render:render_,TX,LANG,BASE,opt:OPT,
+  play:(q,mode,spec)=>open(q,Object.assign({},spec||{})).then(c=>{if(!c)return null;if(mode)OPT.mode=mode;play();return c}),onFrame:null,_pl:()=>PL};
+window.CON=CON;
+})();
 </script>
 <script>
 /* ---------- recorder: captures the page's own sound output to an audio file ---------- */
@@ -3097,12 +3953,13 @@ function thinkerTap(best){
    are (med_t_<thinker>), after her welcome at the start or after the crossfade on a change, with the music ducked under the voice.
    Every setting can be changed while a session runs: the bells are re-planned from the session clock, the length moves the end fade. */
 const $=id=>document.getElementById(id);
-const TX=/*TX*/{"title": "Medytacja", "desc": "Usiądź i posłuchaj niebios, jakie słyszeli myśliciele, albo jednego boga z jego księżycami: własne śpiewające głosy tarczy, w powolnych frazach z ciszą pomiędzy. Minutnik sesji z misą dźwiękową, przewodnik oddechu i przyciemniony ekran na noc.", "lede": "Usiądź przy ognisku i słuchaj: niebios, jakie słyszeli Platon, Ptolemeusz czy Kepler, albo jednego boga z księżycami krążącymi wokół ciebie, śpiewanych w powolnych frazach.", "navApp": "Aplikacja", "navDial": "Tarcza 2D", "navFly": "Lot 3D", "navDance": "Taniec", "navHelp": "Jak to działa", "sound": "Szum Słońca", "begin": "Zacznij", "end": "Zakończ sesję", "ending": "Kończenie…", "hear": "Słyszysz własne drgania Słońca, przyspieszone o {n} oktaw (×{k}): jego pięciominutowy puls staje się dźwiękiem około {hz} Hz.", "more": "Więcej", "session": "Sesja", "length": "Długość", "open": "Otwarta (bez końca)", "min": "{n} min", "bells": "Dzwonek co jakiś czas", "none": "Brak", "every": "Co {n} min", "depth": "Głębia", "deeper": "głębiej", "brighter": "jaśniej", "oct": "{n} oktaw", "warmth": "Ciepło", "volume": "Głośność", "breath": "Przewodnik oddechu", "off": "Wył.", "pat44": "4 · 4", "pat478": "4 · 7 · 8", "patBox": "Kwadrat 4 · 4 · 4 · 4", "patSlow": "Wolno, 5½ oddechu na minutę", "follow": "Śpiew na wydechu", "bin": "wdech", "bhold": "zatrzymaj", "bout": "wydech", "hestia": "Hestia mówi", "hestiaTip": "Krótkie powitanie i słowo na zakończenie, wypowiedziane przez Hestię, strażniczkę ogniska.", "dim": "Przyciemnij ekran", "undim": "Dotknij, by obudzić ekran", "left": "pozostało", "elapsed": "minęło", "settings": "Ustawienia", "tools": "Nagrywanie i scena", "record": "Nagraj", "headphones": "Najlepiej w słuchawkach: szum jest niski.", "ended": "Sesja dobiegła końca.", "welcome": "Jestem Hestia, strażniczka ogniska domowego. Usiądź przy ogniu Słońca i posłuchaj, jak oddycha.", "close": "Ogień przygasł. Zabierz jego ciepło ze sobą.", "foot": "Głosy i niebiosa myślicieli to własny silnik tarczy, grający tu w powolnych frazach; szum Słońca jest syntezą z częstotliwości zmierzonych przez BiSON, nie nagraniem. Spokojne ćwiczenie słuchania, nie leczenie.", "scape": "Pejzaż dźwiękowy", "gSun": "Słońce", "gPlanets": "Planety", "gStars": "Gwiazdy", "pAll": "Wszystkie planety i ich księżyce", "p_mercury": "Merkury", "p_venus": "Wenus", "p_earth": "Ziemia i Księżyc", "p_mars": "Mars i jego księżyce", "p_jupiter": "Jowisz i jego księżyce", "p_saturn": "Saturn i jego księżyce", "p_uranus": "Uran i jego księżyce", "p_neptune": "Neptun i jego księżyce", "stars": "Najbliższe i najjaśniejsze gwiazdy", "galaxy": "Harmoniczna galaktyka", "hearPlanets": "Każda planeta śpiewa ze swojej dzisiejszej prędkości kątowej wokół Słońca, według reguły tarczy (330 Hz × (ω ÷ ω⊕)^0,353), dociągniętej do {tune}; każdy księżyc migoce nad swoją planetą na 1 760 Hz × 0,3 d ÷ jego okres, złożonej do wyższych oktaw.", "hearStars": "Ton każdej gwiazdy to szczyt jej światła obniżony o {n} oktaw (prawo Wiena), zabarwiony jej liniami widmowymi; jej jasność na naszym niebie wyznacza głośność, a brzmi stamtąd, gdzie stoi w Galaktyce, słyszana ze Słońca, twarzą do centrum Galaktyki.", "hearGalaxy": "Pierścienie Drogi Mlecznej na 24, 12, 8, 6, 4,8, 4, 3,4 i 3 kpc obracają się z Ω = V/R; ponieważ krzywa rotacji jest płaska (ciemna materia), brzmią szeregiem harmonicznym, podniesionym o {n} oktaw.", "regM1": "O oktawę niżej", "reg0": "Rejestr aplikacji", "regP1": "O oktawę wyżej", "regP2": "O dwie oktawy wyżej", "planets": "Planety i ich księżyce", "p_pluto": "Pluton i Charon", "preset": "Zestaw", "prCustom": "Własna mieszanka", "prMorning": "Poranek: Słońce i Ziemia", "prNight": "Noc: gwiazdy i Księżyc", "prJupiter": "Dwór Jowisza", "prSky": "Całe niebo", "prSun": "Samo Słońce", "gSession": "Sesja", "gSound": "Dźwięk", "gLayers": "Warstwy", "gMoons": "Planety i księżyce", "layerTip": "Szum Słońca, gwiazdy albo galaktyka, cicho pod wybranym pejzażem.", "planet": "Planeta", "moons": "Księżyce", "moonsLo": "tylko planety", "moonsHi": "tylko księżyce", "orbit": "Prędkość obiegu", "orbitLo": "wolno", "orbitHi": "słychać, jak krążą", "orbitOut": "{name}: jeden obieg w {t}", "view": "Słuchasz z", "vSun": "Słońca", "vEarth": "Ziemi", "vPlanet": "wybranej planety", "width": "Szerokość stereo", "tune": "Strój", "tJust": "Strój naturalny", "tPyth": "Pitagorejski", "tEqual": "Równomiernie temperowany", "amb": "Tło", "aNone": "Brak", "aWind": "Wiatr słoneczny", "aDeep": "Głęboki kosmos", "ambLvl": "Poziom tła", "bellSound": "Dźwięk dzwonka", "bBowl": "Misa dźwiękowa", "bChime": "Mały dzwonek", "bNone": "Brak", "bellVol": "Głośność dzwonka", "hearMoons": "Księżyce krążą {k}× szybciej niż naprawdę: {name} obiega swoją planetę w {t}. Gdy dwa sąsiednie księżyce ustawią się w jednej linii, rozbrzmiewa cichy dzwonek.", "secs": "{n} s", "snJust": "stroju naturalnego", "snPyth": "stroju pitagorejskiego", "snEqual": "stroju równomiernie temperowanego", "echo": "Echo", "gods": "Bogowie przedstawiają każdy pejzaż", "godsTip": "Gdy wybierzesz pejzaż dźwiękowy, jego bóg przedstawia go raz na sesję (Gaja, Zeus, Kronos…), a Hestia mówi, czyich niebios słuchasz.", "med_earth": "Jestem Gaja. Selene, mój Księżyc, okrąża mnie raz w miesiącu; posłuchaj, jak jej głos wznosi się i opada nad moim.", "med_mars": "Jestem Ares. Fobos i Deimos, moje dwa małe księżyce, śpieszą wokół mnie; Fobos okrąża mnie trzy razy w ciągu marsjańskiego dnia.", "med_jupiter": "Jestem Zeus. Io, Europa i Ganimedes odmierzają wokół mnie czas: raz, dwa i cztery; posłuchaj, jak krąży mój dwór.", "med_saturn": "Jestem Kronos. Tytan i moje pierścienie obracają się powoli wokół mnie; posłuchaj, jak krążą.", "med_uranus": "Jestem Uranos. Toczę się na boku, a moje księżyce krążą nade mną ponad biegunami; posłuchaj, jak obracają się Tytania i Oberon.", "med_neptune": "Jestem Posejdon. Tryton okrąża mnie wstecz, przeciw mojemu obrotowi, daleko w chłodzie; posłuchaj, jak krąży.", "med_pluto": "Jestem Hades. Charon i ja okrążamy się nawzajem, twarzą w twarz, raz na sześć dni; posłuchaj naszego powolnego obrotu.", "med_all": "Jestem Zeus. Posłuchaj wszystkich planet razem, każda śpiewa ze swoją własną prędkością wokół Słońca, a ich księżyce nad nimi.", "med_sun": "Jestem Helios. To, co słyszysz, to mój własny oddech: Słońce dźwięczące jak dzwon, przyspieszone tak, byś mógł je usłyszeć.", "med_stars": "Jestem Astrajos, ojciec gwiazd. Najbliższe i najjaśniejsze śpiewają ze swoich miejsc na niebie, każda w barwie swojego światła.", "med_galaxy": "Jestem Hera. To obraca się Droga Mleczna: jej pierścienie gwiazd brzmią szeregiem harmonicznym, gdy cała Galaktyka krąży wokół swego serca.", "gThinkers": "Niebiosa myślicieli", "gSystems": "Bogowie i ich księżyce", "gLayersAlone": "Same ciche warstwy", "hearSys": "{god} nuci w środku, a każdy z {n} księżyców śpiewa swoje imię dziecięcym głosem, jak na tarczy: wysokość z prędkości orbitalnej, nuta krocząca wraz z fazą względem Słońca, słyszana stamtąd, gdzie właśnie jest, gdy krąży wokół ciebie. Czas płynie tak, że {name} okrąża planetę w {t}.", "hearToday": "Cały Układ Słoneczny, jak śpiewa go dziś tarcza: każdy bóg śpiewa swoje imię frazami na wysokości prędkości swej planety wokół Słońca, księżyce odpowiadają ponad nimi, a planety w znaczących kątach brzmią swoim interwałem.", "vCentre": "{god}, w środku", "pace": "Tempo", "paceSlow": "Wolno: długie frazy, długie cisze", "paceCalm": "Spokojnie", "paceLively": "Żywo: jak na tarczy", "interp": "Interpretacja", "prPlato": "Syreny Platona", "prKepler": "Harmonia Keplera", "prEarth": "Ziemia i Księżyc", "prToday": "Dzisiejsze niebo", "gOne": "Pojedyncze głosy", "oneSun": "Apollo · Słońce", "wMoons": "z księżycami", "alone": "sam", "moonsL": "Księżyce", "hearOne": "{god} śpiewa sam, tuż przed tobą, jak wtedy, gdy dotkniesz {name} na tarczy: fraza imienia, potem pauza.", "hearOneM": "{n} księżyców śpiewa swoje imiona dziecięcymi głosami, krążąc wokół ciebie; czas płynie tak, że {name} okrąża planetę w {t}.", "hearSunVoice": "Apollo, własny głos Słońca na tarczy: dwa powolne nucenia na tonice i kwincie skali, oddychające.", "hearMoon": "Selene śpiewa swoje imię tuż przed tobą, jej nuta kroczy wraz z fazą względem Słońca, a Gaja nuci cicho za nią.", "track": "Moja ścieżka", "trackTip": "Ułóż sesję jako ciąg części: pejzaż dźwiękowy przez kilka minut, potem następny, z łagodnym przenikaniem. Zapisz kilka pod nazwą albo wyślij jedną jako link.", "addPart": "Dodaj część", "part": "Część {n}", "trTotalL": "Łączna długość", "trSum": "Suma części", "trBells": "Dzwonek przy każdej zmianie", "trPlay": "Odtwórz tę ścieżkę", "trPlayNext": "Odtwórz po tej sesji", "trShare": "Udostępnij jako link", "trSaved": "Zapisane", "trPick": "Wybierz zapisaną ścieżkę…", "trNone": "Nic jeszcze nie zapisano", "trNameHint": "Nazwa", "save": "Zapisz", "delete": "Usuń", "trSavedAs": "Zapisano jako „{name}”.", "trLoaded": "Wczytano udostępnioną ścieżkę: {name}.", "trCopied": "Link skopiowany: wyślij go komuś.", "trRow": "części: {n} · {t}", "trEmpty": "Dodaj część, by zacząć.", "trMine": "Moja ścieżka", "trShared": "Udostępniona ścieżka", "trOffL": "Wróć do jednego pejzażu", "prTrack": "Moja ścieżka: {name}", "beneath": "Pod spodem", "trNoUnder": "Nic pod spodem", "up": "Przesuń w górę", "down": "Przesuń w dół", "remove": "Usuń", "med_sunvoice": "Jestem Apollo, przewodnik Muz. Trzymam tonikę i kwintę pod planetami; posłuchaj, jak oddycham sam.", "med_moon": "Jestem Selene, Księżyc. Śpiewam swoje imię, krążąc wokół Gai, a moja nuta wznosi się i opada wraz z moją fazą względem Słońca.", "med_mercury": "Jestem Hermes, posłaniec, Stilbon Lśniący. Osiemdziesiąt osiem dni zajmuje mi droga wokół Słońca i żaden wędrowiec nie jest szybszy.", "med_venus": "Jestem Afrodyta, gwiazda poranna i wieczorna. Mój dzień jest dłuższy niż mój rok, a obracam się wstecz, przeciw wszystkim innym.", "med_v_earth": "Jestem Gaja, matka wszystkich rzeczy. Posłuchaj mojego własnego głosu, samego, ogniska kosmosu, obracającego się raz na dzień.", "med_v_mars": "Jestem Ares, Ognisty. Posłuchaj mojego głosu, samego, twardego i śmiałego, gdy okrążam Słońce w niemal dwa wasze lata.", "med_v_jupiter": "Jestem Zeus, Jaśniejący. Posłuchaj mojego głosu, samego, najszerszego basu na niebie; dwanaście lat zajmuje mi przejście zodiaku.", "med_v_saturn": "Jestem Kronos, ojciec czasu. Posłuchaj mojego głosu, samego, ciemnego i głuchego; dwadzieścia dziewięć lat na jeden obieg.", "med_v_uranus": "Jestem Uranos, samo niebo. Posłuchaj mojego głosu, samego, głębokiego i stłumionego, pulsującego wstecz, gdy toczę się na boku.", "med_v_neptune": "Jestem Posejdon, pan głębin. Posłuchaj mojego głosu, samego, najniższego z planet; sto sześćdziesiąt pięć lat na jeden obieg.", "med_v_pluto": "Jestem Hades, niewidzialny. Posłuchaj mojego głosu, samego, niskiej nuty, która wznosi się, gdy zbliżam się do Słońca, i znów opada na zimnym skraju.", "med_v_eris": "Jestem Eris, bogini niezgody. Posłuchaj mojego głosu, samego, niezgodnego i dalekiego, zza Hadesa.", "med_eris": "Jestem Eris, bogini niezgody. Dysnomia, mój księżyc, okrąża mnie raz na szesnaście dni; posłuchaj jej małego głosu obok mojego.", "med_ceres": "Jestem Demeter, żniwo. Jestem największą ze skał między Aresem a Zeusem i śpiewam cicho z serca pasa.", "med_vesta": "Jestem Hestia, strażniczka ogniska. Pilnuję ognia daleko w pasie skał, a mój mały głos pulsuje z moim pięciogodzinnym dniem.", "med_pallas": "Jestem Pallas Atena, jasnooka. Moja droga wznosi się stromo ponad wszystkie inne; posłuchaj mojego ostrego głosu, samego.", "med_juno": "Jestem Hera, mała królowa. Przemierzam pas skał w cztery i pół roku; posłuchaj mojego lekkiego głosu, samego.", "med_hygiea": "Jestem Hygieja, uzdrawiające dziecko. Trzymam się cicho zewnętrznego skraju pasa; posłuchaj mojego spokojnego głosu, samego.", "med_eros": "Jestem mały Eros. Przelatuję blisko Gai, gdzie każde serce to zauważa; posłuchaj mojego cienkiego głosu, samego.", "med_haumea": "Jestem Haumea, gość z wysp hawajskich. Obracam się dokoła co cztery godziny; posłuchaj najszybszego pulsu w chórze.", "med_makemake": "Jestem Makemake, gość z Rapa Nui. Gram daleko w pasie Kuipera; posłuchaj mojego niskiego, odległego głosu, samego.", "med_sedna": "Jestem Sedna, z morza Inuitów. Jeden mój rok jest dłuższy niż jedenaście tysięcy waszych; posłuchaj mojego powolnego głosu, samego.", "med_halley": "Jestem kometa Halleya, gwiazda z warkoczem. Wracam co siedemdziesiąt sześć lat, wędrując przeciw planetom; posłuchaj mojego oddechu, samego.", "med_encke": "Jestem kometa Enckego, najszybsza ze wszystkich. Wracam co trzy lata i trochę; posłuchaj mojego szeptu, samego.", "med_cg67p": "Jestem kometa sześćdziesiąt siedem P. Sonda zwana Rosetta zamieszkała kiedyś przy mnie; posłuchaj mojego słabego oddechu, samego.", "med_swift": "Jestem Swift–Tuttle, matka Perseidów. Znów przejdę blisko w roku dwa tysiące sto dwudziestym szóstym; posłuchaj mojego oddechu, samego.", "med_tempel": "Jestem Tempel–Tuttle, matka Leonidów. Krążę wstecz co trzydzieści trzy lata; posłuchaj mojego oddechu, samego.", "med_halebopp": "Jestem Hale–Bopp, wielka kometa roku tysiąc dziewięćset dziewięćdziesiątego siódmego. Nie wrócę przez dwa i pół tysiąca lat; posłuchaj mojego powolnego oddechu, samego.", "med_t_pythagoras": "Oto niebiosa, jakie słyszał Pitagoras: jeden dźwięk na każdą sferę, wznoszący się o całą oktawę od Ziemi do gwiazd.", "med_t_philolaus": "Oto niebiosa Filolaosa: centralny ogień pod tobą, a wokół niego, stopień po stopniu, Ziemia, Księżyc, Słońce i planety.", "med_t_plato": "Oto niebiosa, jakie słyszał Platon: osiem Syren na kręgach Wrzeciona Konieczności, każda śpiewająca jeden dźwięk, a wraz z nimi śpiewają Mojry.", "med_t_aristotle": "Oto niebiosa, jakie słyszał Arystoteles: harmonia sfer cichnie, gdy ucho do niej przywyka, i wzbiera na nowo, ilekroć znów ją zauważysz.", "med_t_lu": "Oto dwanaście piszczałek stroikowych dawnych Chin: piszczałka miesiąca Słońca daje dźwięk podstawowy, a pięć planet śpiewa dźwięki pięciu przemian.", "med_t_cicero": "Oto niebiosa ze snu Scypiona, jak opowiedział go Cyceron: siedem dźwięków od Księżyca po sferę gwiazd, a pod nimi ryk, który nas ogłusza.", "med_t_macrobius": "Oto niebiosa, jak objaśnił je Makrobiusz: sfery rozstawione według liczb Platona, a między nimi cicha linia wspinająca się po skali.", "med_t_nicomachus": "Oto lira Nikomachosa: siedem strun dla siedmiu planet, Saturn najniżej, Księżyc najwyżej, każda trącana, gdy jej planeta się porusza.", "med_t_ptolemy": "Oto niebiosa, jakie zapisał Ptolemeusz: każda planeta na swoim dźwięku Systemu Doskonałego, przechodząca przez swój tetrachord, gdy epicykl niesie ją bliżej i dalej.", "med_t_boethius": "Oto niebiosa, jak spisał je Boecjusz: dźwięki planet w porządku Cycerona, od Księżyca aż po niebo.", "med_t_eriugena": "Oto niebiosa, jakie wyobraził sobie Eriugena: osiem głosów o dźwiękach nigdy nieustalonych, wznoszących się, gdy planeta oddala się od Ziemi, i opadających, gdy się zbliża.", "med_t_ikhwan": "Oto muzyka Braci Czystości: cztery struny lutni ud, nastrojone w kwartach dla czterech żywiołów, a nad nimi siedem trącanych planet.", "med_t_nguyentrai": "Oto muzyka dworska Nguyễn Trãia w Thăng Long: pięć planet na pięciu dźwiękach, dzwony o wschodzie i zachodzie słońca, a pokój jako korzeń muzyki.", "med_t_copernicus": "Oto niebiosa Kopernika, słyszane ze Słońca: każda planeta trzyma jeden stały dźwięk ze swego doskonałego kręgu.", "med_t_fludd": "Oto boski monochord Roberta Fludda: jedna struna od Ziemi po najwyższe niebo, trącana próg po progu przez dwie oktawy.", "med_t_kepler": "Oto harmonia świata, jaką odkrył Kepler: sześć planet słyszanych ze Słońca, każda sunąca przez swój prawdziwy interwał i wzbierająca, gdy dwie spotkają się w konsonansie.", "med_t_sonic": "Oto harmonia obliczona z danych, jak stworzyli ją Ruff i Rodgers: sześć planet Keplera jako czyste tony elektroniczne, każda w swojej prawdziwej prędkości wokół Słońca."}/*TX-END*/;
+const TX=/*TX*/{"title": "Medytacja", "desc": "Usiądź i posłuchaj niebios, jakie słyszeli myśliciele, albo jednego boga z jego księżycami: własne śpiewające głosy tarczy, w powolnych frazach z ciszą pomiędzy. Minutnik sesji z misą dźwiękową, przewodnik oddechu i przyciemniony ekran na noc.", "lede": "Usiądź przy ognisku i słuchaj: niebios, jakie słyszeli Platon, Ptolemeusz czy Kepler, albo jednego boga z księżycami krążącymi wokół ciebie, śpiewanych w powolnych frazach.", "navApp": "Aplikacja", "navDial": "Tarcza 2D", "navFly": "Lot 3D", "navDance": "Taniec", "navHelp": "Jak to działa", "sound": "Szum Słońca", "begin": "Zacznij", "end": "Zakończ sesję", "ending": "Kończenie…", "hear": "Słyszysz własne drgania Słońca, przyspieszone o {n} oktaw (×{k}): jego pięciominutowy puls staje się dźwiękiem około {hz} Hz.", "more": "Więcej", "session": "Sesja", "length": "Długość", "open": "Otwarta (bez końca)", "min": "{n} min", "bells": "Dzwonek co jakiś czas", "none": "Brak", "every": "Co {n} min", "depth": "Głębia", "deeper": "głębiej", "brighter": "jaśniej", "oct": "{n} oktaw", "warmth": "Ciepło", "volume": "Głośność", "breath": "Przewodnik oddechu", "off": "Wył.", "pat44": "4 · 4", "pat478": "4 · 7 · 8", "patBox": "Kwadrat 4 · 4 · 4 · 4", "patSlow": "Wolno, 5½ oddechu na minutę", "follow": "Śpiew na wydechu", "bin": "wdech", "bhold": "zatrzymaj", "bout": "wydech", "hestia": "Hestia mówi", "hestiaTip": "Krótkie powitanie i słowo na zakończenie, wypowiedziane przez Hestię, strażniczkę ogniska.", "dim": "Przyciemnij ekran", "undim": "Dotknij, by obudzić ekran", "left": "pozostało", "elapsed": "minęło", "settings": "Ustawienia", "tools": "Nagrywanie i scena", "record": "Nagraj", "headphones": "Najlepiej w słuchawkach: szum jest niski.", "ended": "Sesja dobiegła końca.", "welcome": "Jestem Hestia, strażniczka ogniska domowego. Usiądź przy ogniu Słońca i posłuchaj, jak oddycha.", "close": "Ogień przygasł. Zabierz jego ciepło ze sobą.", "foot": "Głosy i niebiosa myślicieli to własny silnik tarczy, grający tu w powolnych frazach; szum Słońca jest syntezą z częstotliwości zmierzonych przez BiSON, nie nagraniem. Spokojne ćwiczenie słuchania, nie leczenie.", "scape": "Pejzaż dźwiękowy", "gSun": "Słońce", "gPlanets": "Planety", "gStars": "Gwiazdy", "pAll": "Wszystkie planety i ich księżyce", "p_mercury": "Merkury", "p_venus": "Wenus", "p_earth": "Ziemia i Księżyc", "p_mars": "Mars i jego księżyce", "p_jupiter": "Jowisz i jego księżyce", "p_saturn": "Saturn i jego księżyce", "p_uranus": "Uran i jego księżyce", "p_neptune": "Neptun i jego księżyce", "stars": "Najbliższe i najjaśniejsze gwiazdy", "galaxy": "Harmoniczna galaktyka", "hearPlanets": "Każda planeta śpiewa ze swojej dzisiejszej prędkości kątowej wokół Słońca, według reguły tarczy (330 Hz × (ω ÷ ω⊕)^0,353), dociągniętej do {tune}; każdy księżyc migoce nad swoją planetą na 1 760 Hz × 0,3 d ÷ jego okres, złożonej do wyższych oktaw.", "hearStars": "Ton każdej gwiazdy to szczyt jej światła obniżony o {n} oktaw (prawo Wiena), zabarwiony jej liniami widmowymi; jej jasność na naszym niebie wyznacza głośność, a brzmi stamtąd, gdzie stoi w Galaktyce, słyszana ze Słońca, twarzą do centrum Galaktyki.", "hearGalaxy": "Pierścienie Drogi Mlecznej na 24, 12, 8, 6, 4,8, 4, 3,4 i 3 kpc obracają się z Ω = V/R; ponieważ krzywa rotacji jest płaska (ciemna materia), brzmią szeregiem harmonicznym, podniesionym o {n} oktaw.", "regM1": "O oktawę niżej", "reg0": "Rejestr aplikacji", "regP1": "O oktawę wyżej", "regP2": "O dwie oktawy wyżej", "planets": "Planety i ich księżyce", "p_pluto": "Pluton i Charon", "preset": "Zestaw", "prCustom": "Własna mieszanka", "prMorning": "Poranek: Słońce i Ziemia", "prNight": "Noc: gwiazdy i Księżyc", "prJupiter": "Dwór Jowisza", "prSky": "Całe niebo", "prSun": "Samo Słońce", "gSession": "Sesja", "gSound": "Dźwięk", "gLayers": "Warstwy", "gMoons": "Planety i księżyce", "layerTip": "Szum Słońca, gwiazdy albo galaktyka, cicho pod wybranym pejzażem.", "planet": "Planeta", "moons": "Księżyce", "moonsLo": "tylko planety", "moonsHi": "tylko księżyce", "orbit": "Prędkość obiegu", "orbitLo": "wolno", "orbitHi": "słychać, jak krążą", "orbitOut": "{name}: jeden obieg w {t}", "view": "Słuchasz z", "vSun": "Słońca", "vEarth": "Ziemi", "vPlanet": "wybranej planety", "width": "Szerokość stereo", "tune": "Strój", "tJust": "Strój naturalny", "tPyth": "Pitagorejski", "tEqual": "Równomiernie temperowany", "amb": "Tło", "aNone": "Brak", "aWind": "Wiatr słoneczny", "aDeep": "Głęboki kosmos", "ambLvl": "Poziom tła", "bellSound": "Dźwięk dzwonka", "bBowl": "Misa dźwiękowa", "bChime": "Mały dzwonek", "bNone": "Brak", "bellVol": "Głośność dzwonka", "hearMoons": "Księżyce krążą {k}× szybciej niż naprawdę: {name} obiega swoją planetę w {t}. Gdy dwa sąsiednie księżyce ustawią się w jednej linii, rozbrzmiewa cichy dzwonek.", "secs": "{n} s", "snJust": "stroju naturalnego", "snPyth": "stroju pitagorejskiego", "snEqual": "stroju równomiernie temperowanego", "echo": "Echo", "gods": "Bogowie przedstawiają każdy pejzaż", "godsTip": "Gdy wybierzesz pejzaż dźwiękowy, jego bóg przedstawia go raz na sesję (Gaja, Zeus, Kronos…), a Hestia mówi, czyich niebios słuchasz.", "med_earth": "Jestem Gaja. Selene, mój Księżyc, okrąża mnie raz w miesiącu; posłuchaj, jak jej głos wznosi się i opada nad moim.", "med_mars": "Jestem Ares. Fobos i Deimos, moje dwa małe księżyce, śpieszą wokół mnie; Fobos okrąża mnie trzy razy w ciągu marsjańskiego dnia.", "med_jupiter": "Jestem Zeus. Io, Europa i Ganimedes odmierzają wokół mnie czas: raz, dwa i cztery; posłuchaj, jak krąży mój dwór.", "med_saturn": "Jestem Kronos. Tytan i moje pierścienie obracają się powoli wokół mnie; posłuchaj, jak krążą.", "med_uranus": "Jestem Uranos. Toczę się na boku, a moje księżyce krążą nade mną ponad biegunami; posłuchaj, jak obracają się Tytania i Oberon.", "med_neptune": "Jestem Posejdon. Tryton okrąża mnie wstecz, przeciw mojemu obrotowi, daleko w chłodzie; posłuchaj, jak krąży.", "med_pluto": "Jestem Hades. Charon i ja okrążamy się nawzajem, twarzą w twarz, raz na sześć dni; posłuchaj naszego powolnego obrotu.", "med_all": "Jestem Zeus. Posłuchaj wszystkich planet razem, każda śpiewa ze swoją własną prędkością wokół Słońca, a ich księżyce nad nimi.", "med_sun": "Jestem Helios. To, co słyszysz, to mój własny oddech: Słońce dźwięczące jak dzwon, przyspieszone tak, byś mógł je usłyszeć.", "med_stars": "Jestem Astrajos, ojciec gwiazd. Najbliższe i najjaśniejsze śpiewają ze swoich miejsc na niebie, każda w barwie swojego światła.", "med_galaxy": "Jestem Hera. To obraca się Droga Mleczna: jej pierścienie gwiazd brzmią szeregiem harmonicznym, gdy cała Galaktyka krąży wokół swego serca.", "gThinkers": "Niebiosa myślicieli", "gSystems": "Bogowie i ich księżyce", "gLayersAlone": "Same ciche warstwy", "hearSys": "{god} nuci w środku, a każdy z {n} księżyców śpiewa swoje imię dziecięcym głosem, jak na tarczy: wysokość z prędkości orbitalnej, nuta krocząca wraz z fazą względem Słońca, słyszana stamtąd, gdzie właśnie jest, gdy krąży wokół ciebie. Czas płynie tak, że {name} okrąża planetę w {t}.", "hearToday": "Cały Układ Słoneczny, jak śpiewa go dziś tarcza: każdy bóg śpiewa swoje imię frazami na wysokości prędkości swej planety wokół Słońca, księżyce odpowiadają ponad nimi, a planety w znaczących kątach brzmią swoim interwałem.", "vCentre": "{god}, w środku", "pace": "Tempo", "paceSlow": "Wolno: długie frazy, długie cisze", "paceCalm": "Spokojnie", "paceLively": "Żywo: jak na tarczy", "interp": "Interpretacja", "prPlato": "Syreny Platona", "prKepler": "Harmonia Keplera", "prEarth": "Ziemia i Księżyc", "prToday": "Dzisiejsze niebo", "gOne": "Pojedyncze głosy", "oneSun": "Apollo · Słońce", "wMoons": "z księżycami", "alone": "sam", "moonsL": "Księżyce", "hearOne": "{god} śpiewa sam, tuż przed tobą, jak wtedy, gdy dotkniesz {name} na tarczy: fraza imienia, potem pauza.", "hearOneM": "{n} księżyców śpiewa swoje imiona dziecięcymi głosami, krążąc wokół ciebie; czas płynie tak, że {name} okrąża planetę w {t}.", "hearSunVoice": "Apollo, własny głos Słońca na tarczy: dwa powolne nucenia na tonice i kwincie skali, oddychające.", "hearMoon": "Selene śpiewa swoje imię tuż przed tobą, jej nuta kroczy wraz z fazą względem Słońca, a Gaja nuci cicho za nią.", "track": "Moja ścieżka", "trackTip": "Ułóż sesję jako ciąg części: pejzaż dźwiękowy przez kilka minut, potem następny, z łagodnym przenikaniem. Zapisz kilka pod nazwą albo wyślij jedną jako link.", "addPart": "Dodaj część", "part": "Część {n}", "trTotalL": "Łączna długość", "trSum": "Suma części", "trBells": "Dzwonek przy każdej zmianie", "trPlay": "Odtwórz tę ścieżkę", "trPlayNext": "Odtwórz po tej sesji", "trShare": "Udostępnij jako link", "trSaved": "Zapisane", "trPick": "Wybierz zapisaną ścieżkę…", "trNone": "Nic jeszcze nie zapisano", "trNameHint": "Nazwa", "save": "Zapisz", "delete": "Usuń", "trSavedAs": "Zapisano jako „{name}”.", "trLoaded": "Wczytano udostępnioną ścieżkę: {name}.", "trCopied": "Link skopiowany: wyślij go komuś.", "trRow": "części: {n} · {t}", "trEmpty": "Dodaj część, by zacząć.", "trMine": "Moja ścieżka", "trShared": "Udostępniona ścieżka", "trOffL": "Wróć do jednego pejzażu", "prTrack": "Moja ścieżka: {name}", "beneath": "Pod spodem", "trNoUnder": "Nic pod spodem", "up": "Przesuń w górę", "down": "Przesuń w dół", "remove": "Usuń", "med_sunvoice": "Jestem Apollo, przewodnik Muz. Trzymam tonikę i kwintę pod planetami; posłuchaj, jak oddycham sam.", "med_moon": "Jestem Selene, Księżyc. Śpiewam swoje imię, krążąc wokół Gai, a moja nuta wznosi się i opada wraz z moją fazą względem Słońca.", "med_mercury": "Jestem Hermes, posłaniec, Stilbon Lśniący. Osiemdziesiąt osiem dni zajmuje mi droga wokół Słońca i żaden wędrowiec nie jest szybszy.", "med_venus": "Jestem Afrodyta, gwiazda poranna i wieczorna. Mój dzień jest dłuższy niż mój rok, a obracam się wstecz, przeciw wszystkim innym.", "med_v_earth": "Jestem Gaja, matka wszystkich rzeczy. Posłuchaj mojego własnego głosu, samego, ogniska kosmosu, obracającego się raz na dzień.", "med_v_mars": "Jestem Ares, Ognisty. Posłuchaj mojego głosu, samego, twardego i śmiałego, gdy okrążam Słońce w niemal dwa wasze lata.", "med_v_jupiter": "Jestem Zeus, Jaśniejący. Posłuchaj mojego głosu, samego, najszerszego basu na niebie; dwanaście lat zajmuje mi przejście zodiaku.", "med_v_saturn": "Jestem Kronos, ojciec czasu. Posłuchaj mojego głosu, samego, ciemnego i głuchego; dwadzieścia dziewięć lat na jeden obieg.", "med_v_uranus": "Jestem Uranos, samo niebo. Posłuchaj mojego głosu, samego, głębokiego i stłumionego, pulsującego wstecz, gdy toczę się na boku.", "med_v_neptune": "Jestem Posejdon, pan głębin. Posłuchaj mojego głosu, samego, najniższego z planet; sto sześćdziesiąt pięć lat na jeden obieg.", "med_v_pluto": "Jestem Hades, niewidzialny. Posłuchaj mojego głosu, samego, niskiej nuty, która wznosi się, gdy zbliżam się do Słońca, i znów opada na zimnym skraju.", "med_v_eris": "Jestem Eris, bogini niezgody. Posłuchaj mojego głosu, samego, niezgodnego i dalekiego, zza Hadesa.", "med_eris": "Jestem Eris, bogini niezgody. Dysnomia, mój księżyc, okrąża mnie raz na szesnaście dni; posłuchaj jej małego głosu obok mojego.", "med_ceres": "Jestem Demeter, żniwo. Jestem największą ze skał między Aresem a Zeusem i śpiewam cicho z serca pasa.", "med_vesta": "Jestem Hestia, strażniczka ogniska. Pilnuję ognia daleko w pasie skał, a mój mały głos pulsuje z moim pięciogodzinnym dniem.", "med_pallas": "Jestem Pallas Atena, jasnooka. Moja droga wznosi się stromo ponad wszystkie inne; posłuchaj mojego ostrego głosu, samego.", "med_juno": "Jestem Hera, mała królowa. Przemierzam pas skał w cztery i pół roku; posłuchaj mojego lekkiego głosu, samego.", "med_hygiea": "Jestem Hygieja, uzdrawiające dziecko. Trzymam się cicho zewnętrznego skraju pasa; posłuchaj mojego spokojnego głosu, samego.", "med_eros": "Jestem mały Eros. Przelatuję blisko Gai, gdzie każde serce to zauważa; posłuchaj mojego cienkiego głosu, samego.", "med_haumea": "Jestem Haumea, gość z wysp hawajskich. Obracam się dokoła co cztery godziny; posłuchaj najszybszego pulsu w chórze.", "med_makemake": "Jestem Makemake, gość z Rapa Nui. Gram daleko w pasie Kuipera; posłuchaj mojego niskiego, odległego głosu, samego.", "med_sedna": "Jestem Sedna, z morza Inuitów. Jeden mój rok jest dłuższy niż jedenaście tysięcy waszych; posłuchaj mojego powolnego głosu, samego.", "med_halley": "Jestem kometa Halleya, gwiazda z warkoczem. Wracam co siedemdziesiąt sześć lat, wędrując przeciw planetom; posłuchaj mojego oddechu, samego.", "med_encke": "Jestem kometa Enckego, najszybsza ze wszystkich. Wracam co trzy lata i trochę; posłuchaj mojego szeptu, samego.", "med_cg67p": "Jestem kometa sześćdziesiąt siedem P. Sonda zwana Rosetta zamieszkała kiedyś przy mnie; posłuchaj mojego słabego oddechu, samego.", "med_swift": "Jestem Swift–Tuttle, matka Perseidów. Znów przejdę blisko w roku dwa tysiące sto dwudziestym szóstym; posłuchaj mojego oddechu, samego.", "med_tempel": "Jestem Tempel–Tuttle, matka Leonidów. Krążę wstecz co trzydzieści trzy lata; posłuchaj mojego oddechu, samego.", "med_halebopp": "Jestem Hale–Bopp, wielka kometa roku tysiąc dziewięćset dziewięćdziesiątego siódmego. Nie wrócę przez dwa i pół tysiąca lat; posłuchaj mojego powolnego oddechu, samego.", "med_t_pythagoras": "Oto niebiosa, jakie słyszał Pitagoras: jeden dźwięk na każdą sferę, wznoszący się o całą oktawę od Ziemi do gwiazd.", "med_t_philolaus": "Oto niebiosa Filolaosa: centralny ogień pod tobą, a wokół niego, stopień po stopniu, Ziemia, Księżyc, Słońce i planety.", "med_t_plato": "Oto niebiosa, jakie słyszał Platon: osiem Syren na kręgach Wrzeciona Konieczności, każda śpiewająca jeden dźwięk, a wraz z nimi śpiewają Mojry.", "med_t_aristotle": "Oto niebiosa, jakie słyszał Arystoteles: harmonia sfer cichnie, gdy ucho do niej przywyka, i wzbiera na nowo, ilekroć znów ją zauważysz.", "med_t_lu": "Oto dwanaście piszczałek stroikowych dawnych Chin: piszczałka miesiąca Słońca daje dźwięk podstawowy, a pięć planet śpiewa dźwięki pięciu przemian.", "med_t_cicero": "Oto niebiosa ze snu Scypiona, jak opowiedział go Cyceron: siedem dźwięków od Księżyca po sferę gwiazd, a pod nimi ryk, który nas ogłusza.", "med_t_macrobius": "Oto niebiosa, jak objaśnił je Makrobiusz: sfery rozstawione według liczb Platona, a między nimi cicha linia wspinająca się po skali.", "med_t_nicomachus": "Oto lira Nikomachosa: siedem strun dla siedmiu planet, Saturn najniżej, Księżyc najwyżej, każda trącana, gdy jej planeta się porusza.", "med_t_ptolemy": "Oto niebiosa, jakie zapisał Ptolemeusz: każda planeta na swoim dźwięku Systemu Doskonałego, przechodząca przez swój tetrachord, gdy epicykl niesie ją bliżej i dalej.", "med_t_boethius": "Oto niebiosa, jak spisał je Boecjusz: dźwięki planet w porządku Cycerona, od Księżyca aż po niebo.", "med_t_eriugena": "Oto niebiosa, jakie wyobraził sobie Eriugena: osiem głosów o dźwiękach nigdy nieustalonych, wznoszących się, gdy planeta oddala się od Ziemi, i opadających, gdy się zbliża.", "med_t_ikhwan": "Oto muzyka Braci Czystości: cztery struny lutni ud, nastrojone w kwartach dla czterech żywiołów, a nad nimi siedem trącanych planet.", "med_t_nguyentrai": "Oto muzyka dworska Nguyễn Trãia w Thăng Long: pięć planet na pięciu dźwiękach, dzwony o wschodzie i zachodzie słońca, a pokój jako korzeń muzyki.", "med_t_copernicus": "Oto niebiosa Kopernika, słyszane ze Słońca: każda planeta trzyma jeden stały dźwięk ze swego doskonałego kręgu.", "med_t_fludd": "Oto boski monochord Roberta Fludda: jedna struna od Ziemi po najwyższe niebo, trącana próg po progu przez dwie oktawy.", "med_t_kepler": "Oto harmonia świata, jaką odkrył Kepler: sześć planet słyszanych ze Słońca, każda sunąca przez swój prawdziwy interwał i wzbierająca, gdy dwie spotkają się w konsonansie.", "med_t_sonic": "Oto harmonia obliczona z danych, jak stworzyli ją Ruff i Rodgers: sześć planet Keplera jako czyste tony elektroniczne, każda w swojej prawdziwej prędkości wokół Słońca.", "con_and": "Jestem Andromedą. Za przechwałki matki przykuto mnie do nadmorskiej skały i czekałam na potwora. Przybył Perseusz, a teraz świecę obok niego.", "con_aqr": "Jestem Ganimedes, trojański chłopiec, którego Zeus porwał na Olimp. Nalewam bogom napój, a moja woda spływa do Ryby Południowej.", "con_aql": "Jestem orłem Zeusa. Noszę jego pioruny, a niegdyś zaniosłem na Olimp chłopca Ganimedesa.", "con_ara": "Jestem Hestia. Na tym ołtarzu bogowie złożyli przysięgę przed wojną z Tytanami; jego dym unosi się jako Droga Mleczna.", "con_ari": "Jestem złotym baranem. Przeniosłem Fryksosa przez morze do Kolchidy, a moje runo, zawieszone w świętym gaju, przywołało Jazona i Argo.", "con_aur": "Jestem Erychtoniusz z Aten, który pierwszy zaprzągł cztery konie do rydwanu. W ramionach niosę kozę Amalteę, która wykarmiła małego Zeusa.", "con_boo": "Jestem Wolarz, pasterz. Pędzę dwie Niedźwiedzice wokół bieguna, a Arktur, strażnik Niedźwiedzicy, świeci przy moim kolanie.", "con_cnc": "Jestem Hera. Gdy Herakles walczył z moją Hydrą, posłałam tego kraba, by uszczypnął go w stopę. Zmiażdżył go; umieściłam go wśród gwiazd.", "con_cma": "Jestem wielkim psem Oriona. W mojej paszczy płonie Syriusz, palący: gdy wschodził ze Słońcem, zaczynały się psie dni.", "con_cmi": "Jestem mniejszym psem Oriona. Moja gwiazda to Procjon, „przed psem”: wschodzi tuż przed Syriuszem, gwiazdą wielkiego psa.", "con_cap": "Jestem Pan. Gdy potwór Tyfon napadł na bogów, skoczyłem do rzeki i się przemieniłem: u góry koza, u dołu ryba.", "con_cas": "Jestem Kasjopeja, królowa Etiopii. Chwaliłam się, że jestem piękniejsza od nimf morskich; Posejdon posadził mnie na tronie, który obraca się do góry nogami.", "con_cen": "Jestem Chiron, mądry centaur, nauczyciel Achillesa i Asklepiosa. Raniony zatrutą strzałą, oddałem nieśmiertelność i przybyłem tutaj.", "con_cep": "Jestem Cefeusz, król Etiopii, mąż Kasjopei. By ocalić królestwo przed morskim potworem, przykułem naszą córkę Andromedę do skały.", "con_cet": "Jestem Posejdon. Posłałem tego morskiego potwora na Etiopię za przechwałki Kasjopei. Perseusz zabił go, zanim dosięgnął Andromedy.", "con_cra": "Jestem Dionizos. Wyprowadziłem matkę, Semele, z podziemi i na jej cześć umieściłem ten wieniec wśród gwiazd.", "con_crb": "Jestem Ariadna. Tezeusz zostawił mnie na Naksos; Dionizos mnie odnalazł, poślubił i rzucił moją ślubną koronę między gwiazdy.", "con_crv": "Jestem Apollo. Posłałem kruka po wodę; on marudził i mnie okłamał. Teraz siedzi przy Pucharze, wiecznie spragniony.", "con_crt": "Jestem krukiem Apollina. To puchar, który miałem napełnić. Strzeże go Hydra i nigdy się nie napiję.", "con_cyg": "Jestem Zeus. Przyszedłem do Ledy jako łabędź. Teraz moje skrzydła rozpościerają się wzdłuż Drogi Mlecznej, a w ogonie płonie Deneb.", "con_del": "Jestem delfinem, który odnalazł Amfitrytę ukrytą w morzu i przyprowadził ją Posejdonowi za żonę. W podzięce umieścił mnie tutaj.", "con_dra": "Jestem Ladon, wąż, który nigdy nie spał, strażnik złotych jabłek Hesperyd. Herakles mnie zabił; wiecznie wiję się wokół bieguna.", "con_equ": "Jestem małym koniem, widać tylko moją głowę, biegnę tuż przed Pegazem. Jestem drugim najmniejszym ze wszystkich gwiazdozbiorów.", "con_eri": "Jestem Helios. Mój syn Faeton powoził moim rydwanem i wypuścił lejce. Zeus go strącił, a on wpadł do tej rzeki, Erydanu.", "con_gem": "Jestem Polideukes. Gdy umarł mój śmiertelny bliźniak Kastor, podzieliłem się z nim nieśmiertelnością. Teraz nigdy się nie rozstajemy.", "con_her": "Jestem Herakles, syn Zeusa. Ukończyłem dwanaście prac, a tutaj klęczę, z nogą na głowie smoka.", "con_hya": "Jestem Hydrą lernejską. Za każdą głowę ściętą przez Heraklesa odrastały dwie, aż ogień zasklepił rany. Jestem najdłuższym gwiazdozbiorem.", "con_leo": "Jestem lwem nemejskim. Żadna broń nie przebiła mojej skóry; Herakles udusił mnie gołymi rękami i nosił jak płaszcz.", "con_lep": "Jestem zającem u stóp Oriona. Psy myśliwego gonią mnie co noc przez całe niebo i nigdy mnie nie łapią.", "con_lib": "Jestem Dike, Sprawiedliwość, córka Zeusa. To moja waga. Grecy widzieli w niej najpierw szczypce Skorpiona.", "con_lup": "Jestem dzikim zwierzęciem, które Centaur niesie na Ołtarz jako ofiarę. Grecy nazywali mnie po prostu Therion, zwierzę; Rzymianie – wilkiem.", "con_lyr": "Jestem Orfeusz. Tą lirą, którą Hermes zrobił ze skorupy żółwia, oczarowałem skały i władcę umarłych.", "con_oph": "Jestem Asklepios, uzdrowiciel. Nauczyłem się wskrzeszać zmarłych; Zeus mnie zgładził, a potem umieścił tutaj z wężem w dłoniach.", "con_ori": "Jestem Orion, myśliwy. Chwaliłem się, że zabiję każde zwierzę na ziemi; ukąsił mnie skorpion. Teraz zachodzę, gdy wschodzi Skorpion.", "con_peg": "Jestem Pegaz, skrzydlaty koń, zrodzony z krwi Meduzy. Gdzie moje kopyto uderzyło w Helikon, wytrysnęło źródło Muz.", "con_per": "Jestem Perseusz. Odciąłem głowę Meduzy i uwolniłem Andromedę od morskiego potwora. Algol, gwiazda demona, to mrugające oko Meduzy.", "con_psc": "Jestem Afrodyta. Gdy Tyfon napadł na bogów, mój syn Eros i ja zamieniliśmy się w dwie ryby i odpłynęliśmy, związani sznurem.", "con_psa": "Jestem Rybą Południową. Piję wodę, którą wylewa Wodnik, a Fomalhaut, mój pysk, świeci samotnie na jesiennym niebie.", "con_sge": "Jestem Prometeusz. Co dzień szarpał mnie orzeł Zeusa, aż Herakles zestrzelił go tą strzałą i mnie uwolnił.", "con_sgr": "Jestem Krotos, który żył wśród Muz i wynalazł łuk. Moja strzała mierzy w serce Skorpiona, czerwony Antares.", "con_sco": "Jestem Gaja, Matka Ziemia. Gdy Orion chwalił się, że zabije każde stworzenie, posłałam tego skorpiona. Nigdy nie dzielą nieba.", "con_ser": "Jestem wężem, który pokazał Asklepiosowi leczniczą roślinę. On wciąż mnie trzyma: głowę mam po jednej jego stronie, ogon po drugiej.", "con_tau": "Jestem Europą. Zeus przyszedł do mnie jako łagodny biały byk; wspięłam się na jego grzbiet, a on przepłynął ze mną na Kretę.", "con_tri": "Jestem Hermes. Umieściłem ten trójkąt nad bladym Baranem, by dało się go odnaleźć. Grecy nazywali go Deltoton, od litery delta.", "con_uma": "Jestem Kallisto. Zeus mnie pokochał, a zazdrosna Hera zamieniła mnie w niedźwiedzicę. Zeus umieścił mnie na niebie, krążącą wokół bieguna, nigdy nie zachodzącą.", "con_umi": "Jestem Arkas, syn Kallisto. Na polowaniu omal nie zabiłem matki, niedźwiedzicy. Zeus umieścił nas oboje na niebie; mój ogon trzyma Gwiazdę Polarną.", "con_vir": "Jestem Demeter. Moja córka Persefona trzyma kłos pszenicy, Spikę. Gdy jest w podziemiach, pola śpią; gdy wraca, rosną.", "con_argo": "Jestem Atena. Pomogłam zbudować Argo dla Jazona i jego bohaterów. Teraz jego kil, rufa i żagle płyną przez południowe niebo.", "con_ant": "Pompa, czyli pompa próżniowa: nazwana przez Lacaille’a w latach pięćdziesiątych XVIII wieku, jeden z przyrządów nauki, które umieścił wśród gwiazd południa.", "con_aps": "Ptak Rajski: zmapowany przez holenderskich żeglarzy Keysera i de Houtmana, narysowany na globusie Plancjusza z 1598 roku.", "con_cae": "Rylec, dłuto grawera: nazwany przez Lacaille’a w latach pięćdziesiątych XVIII wieku, jedno z narzędzi, które umieścił wśród bladych gwiazd południa.", "con_cam": "Żyrafa: narysowana przez Petrusa Plancjusza w 1612 roku, by wypełnić puste pole północnego nieba.", "con_cvn": "Psy Gończe, które Wolarz trzyma na smyczy: nazwane przez Jana Heweliusza w 1687 roku.", "con_cha": "Kameleon: zmapowany przez holenderskich żeglarzy Keysera i de Houtmana, narysowany na globusie Plancjusza z 1598 roku.", "con_cir": "Cyrkiel: nazwany przez Lacaille’a w latach pięćdziesiątych XVIII wieku, obok Trójkąta Południowego i Węgielnicy.", "con_col": "Gołąb, gołębica Noego z gałązką oliwną: narysowany przez Petrusa Plancjusza w 1592 roku z gwiazd na południe od Zająca.", "con_com": "Warkocz Bereniki, włosy królowej Bereniki: nazwany przez astronoma Konona około 245 roku p.n.e., gwiazdozbiorem uczynił go Vopel w 1536 roku.", "con_cru": "Krzyż Południa, najmniejszy gwiazdozbiór: niegdyś stopy Centaura, wyodrębniony przez żeglarzy w latach dziewięćdziesiątych XVI wieku i utrwalony przez Royera w 1679 roku.", "con_dor": "Złota Ryba: zmapowana przez Keysera i de Houtmana, na globusie Plancjusza z 1598 roku. Leży w niej Wielki Obłok Magellana.", "con_for": "Piec, piec chemiczny: nazwany przez Lacaille’a w latach pięćdziesiątych XVIII wieku, jeden z przyrządów nauki, które umieścił wśród gwiazd południa.", "con_gru": "Żuraw: zmapowany przez holenderskich żeglarzy Keysera i de Houtmana, narysowany na globusie Plancjusza z 1598 roku.", "con_hor": "Zegar, zegar wahadłowy: nazwany przez Lacaille’a w latach pięćdziesiątych XVIII wieku, na cześć zegarów, które mierzą czas gwiazd.", "con_hyi": "Wąż Wodny, mały wodny wąż południa: zmapowany przez Keysera i de Houtmana, na globusie Plancjusza z 1598 roku.", "con_ind": "Indianin: zmapowany przez holenderskich żeglarzy Keysera i de Houtmana, narysowany na globusie Plancjusza z 1598 roku.", "con_lac": "Jaszczurka: nazwana przez Jana Heweliusza w 1687 roku, mały zygzak gwiazd między Łabędziem a Andromedą.", "con_lmi": "Mały Lew: nazwany przez Jana Heweliusza w 1687 roku, z bladych gwiazd nad grzbietem Lwa.", "con_lyn": "Ryś: nazwany przez Jana Heweliusza w 1687 roku. Jego gwiazdy są tak blade, mówił, że trzeba oczu rysia, by je zobaczyć.", "con_men": "Góra Stołowa: nazwana przez Lacaille’a w latach pięćdziesiątych XVIII wieku od góry nad Kapsztadem, gdzie mapował gwiazdy południa.", "con_mic": "Mikroskop: nazwany przez Lacaille’a w latach pięćdziesiątych XVIII wieku, jeden z przyrządów nauki, które umieścił wśród gwiazd południa.", "con_mon": "Jednorożec: narysowany przez Petrusa Plancjusza w 1612 roku, między dwoma psami Oriona, w poprzek zimowej Drogi Mlecznej.", "con_mus": "Mucha: zmapowana przez Keysera i de Houtmana i narysowana na globusie Plancjusza z 1598 roku jako pszczoła; muchą uczynił ją Lacaille.", "con_nor": "Węgielnica, kątownik cieśli: nazwana przez Lacaille’a w latach pięćdziesiątych XVIII wieku, jeden z przyrządów, które umieścił wśród gwiazd południa.", "con_oct": "Oktant, przyrząd nawigatorów: nazwany przez Lacaille’a w latach pięćdziesiątych XVIII wieku. Leży w nim południowy biegun niebieski.", "con_pav": "Paw: zmapowany przez holenderskich żeglarzy Keysera i de Houtmana, narysowany na globusie Plancjusza z 1598 roku.", "con_phe": "Feniks, ptak, który odradza się z własnych popiołów: zmapowany przez Keysera i de Houtmana, na globusie Plancjusza z 1598 roku.", "con_pic": "Malarz, sztaluga malarza: nazwany przez Lacaille’a w latach pięćdziesiątych XVIII wieku, jedno z narzędzi sztuki, które umieścił na niebie południa.", "con_pyx": "Kompas, kompas żeglarza: nazwany przez Lacaille’a w latach pięćdziesiątych XVIII wieku, z gwiazd obok dawnego statku Argo.", "con_ret": "Sieć, mała siatka: nazwana przez Lacaille’a w latach pięćdziesiątych XVIII wieku od krzyża nitek w lunecie, którą mierzył gwiazdy.", "con_scl": "Rzeźbiarz, pracownia rzeźbiarza: nazwany przez Lacaille’a w latach pięćdziesiątych XVIII wieku. Leży w nim południowy biegun Galaktyki.", "con_sct": "Tarcza: nazwana przez Jana Heweliusza w 1684 roku na cześć króla Jana III Sobieskiego, zwycięzcy spod Wiednia.", "con_sex": "Sekstant: nazwany przez Jana Heweliusza w 1687 roku na pamiątkę jego własnego sekstantu, utraconego, gdy spłonęło jego obserwatorium.", "con_tel": "Luneta, czyli teleskop: nazwana przez Lacaille’a w latach pięćdziesiątych XVIII wieku, jeden z przyrządów nauki, które umieścił wśród gwiazd południa.", "con_tra": "Trójkąt Południowy: po raz pierwszy narysowany przez Petrusa Plancjusza w 1589 roku, nazwany przez Johanna Bayera w 1603 roku.", "con_tuc": "Tukan: zmapowany przez Keysera i de Houtmana, na globusie Plancjusza z 1598 roku. Leży w nim Mały Obłok Magellana.", "con_vol": "Ryba Latająca: zmapowana przez holenderskich żeglarzy Keysera i de Houtmana, narysowana na globusie Plancjusza z 1598 roku.", "con_vul": "Lisek, z gęsią w pysku: nazwany przez Jana Heweliusza w 1687 roku."}/*TX-END*/;
 const LOC=/*LOC*/'pl-PL'/*LOC-END*/;
 const SUN=/*SUN*/{"numax":3090.0,"dnu":135.1,"modes":[[15,0,2228.774,0.0222],[15,1,2292.032,0.054],[15,2,2352.28,0.0275],[16,0,2362.823,0.059],[16,1,2425.65,0.1321],[16,2,2485.948,0.0626],[17,0,2496.226,0.1324],[17,1,2559.235,0.2748],[17,2,2619.761,0.121],[18,0,2629.724,0.2524],[18,1,2693.437,0.4863],[18,2,2754.551,0.199],[18,3,2811.44,0.0233],[19,0,2764.211,0.4099],[19,1,2828.258,0.7306],[19,2,2889.708,0.2774],[19,3,2947.075,0.0303],[20,0,2899.101,0.5643],[20,1,2963.447,0.9295],[20,2,3024.839,0.327],[20,3,3082.439,0.0333],[21,0,3033.845,0.6573],[21,1,3098.287,1.0],[21,2,3159.997,0.326],[21,3,3217.881,0.0309],[22,0,3168.726,0.6482],[22,1,3233.321,0.9104],[22,2,3295.275,0.2748],[22,3,3353.58,0.0243],[23,0,3303.652,0.5409],[23,1,3368.689,0.7006],[23,2,3431.006,0.1956],[24,0,3439.152,0.3813],[24,1,3504.397,0.4551],[24,2,3567.248,0.1173],[25,0,3575.083,0.2267],[25,1,3640.791,0.2488],[25,2,3703.388,0.0594],[26,0,3710.938,0.1138],[26,1,3777.436,0.1145],[26,2,3840.118,0.0253],[27,0,3847.25,0.0481],[27,1,3913.995,0.0444]]}/*SUN-END*/;   // {numax, dnu (µHz), modes:[[n,l,nu µHz,w relative power]…]} from galaxy/out/seismo.json
 const STARCAT=/*STARS*/[["Sirius",-1.44,10010,2.637,227.23,-8.89,"A",1,[[830.92,-6.6,25],[1121.76,-6.6,25],[1256.35,-5.94,25]]],["Canopus",-0.62,8450,94.79,261.21,-25.29,"F",0,[[693.14,-4.8,20],[830.92,-4.2,25],[1121.76,-4.2,25]]],["Arcturus",-0.05,4230,11.26,15.05,69.11,"K",0,[[346.57,-6,20],[343.53,-5.4,20],[462.68,-5.4,20]]],["Rigil Kentaurus",-0.01,5570,1.325,315.74,-0.68,"G",1,[[693.14,-6,20],[687.06,-5.4,20],[633.36,-4.2,12]]],["Vega",0.03,10140,7.679,67.45,19.24,"A",0,[[830.92,-6.6,25],[1121.76,-6.6,25],[1256.35,-5.94,25]]],["Capella",0.08,5300,13.12,162.59,4.57,"K",0,[[693.14,-6,20],[687.06,-5.4,20],[462.68,-5.4,20]]],["Rigel",0.18,12300,264.6,209.24,-25.25,"B",0,[[1219.68,-4.8,30],[928.05,-4.2,30],[830.92,-3.6,25]]],["Procyon",0.4,6710,3.514,213.7,13.02,"F",1,[[693.14,-4.8,20],[830.92,-4.2,25],[560.88,-4.2,25]]],["Achernar",0.45,17000,42.75,290.84,-58.79,"B",0,[[1219.68,-4.8,30],[1856.09,-4.2,30],[1661.85,-3.6,25]]],["Betelgeuse",0.45,3500,152.7,199.79,-8.96,"M",0,[[462.68,-3.67,20],[442.7,-3.67,6],[386.48,-3.67,6]]],["Hadar",0.61,24500,120.2,311.77,1.25,"B",0,[[2439.36,-4.8,30],[1856.09,-4.2,30],[1661.85,-3.6,25]]],["Altair",0.76,8000,5.13,47.74,-8.91,"A",0,[[830.92,-4.5,25],[560.88,-4.5,25],[628.18,-4.05,25]]],["Acrux",0.77,29000,98.72,300.13,-0.36,"B",0,[[2439.36,-4.8,30],[3712.18,-4.2,30],[3323.7,-3.6,25]]],["Aldebaran",0.87,3740,20.43,180.97,-20.25,"K",0,[[346.57,-6,20],[343.53,-5.4,20],[462.68,-5.4,20]]],["Gl 194B",0.96,5450,12.94,162.59,4.57,"G",0,[[693.14,-6,20],[687.06,-5.4,20],[633.36,-4.2,12]]],["Spica",0.98,26000,76.57,316.11,50.84,"B",0,[[2439.36,-4.8,30],[1856.09,-4.2,30],[3323.7,-3.6,25]]],["Antares",1.06,3600,169.8,351.95,15.06,"M",0,[[462.68,-3.33,20],[442.7,-3.33,6],[386.48,-3.33,6]]],["Pollux",1.16,4760,10.36,192.23,23.41,"K",0,[[346.57,-6,20],[343.53,-5.4,20],[462.68,-5.4,20]]],["Fomalhaut",1.17,8610,7.704,20.49,-64.91,"A",0,[[830.92,-5.7,25],[1121.76,-5.7,25],[628.18,-5.13,25]]],["Mimosa",1.25,27500,85.4,302.46,3.18,"B",0,[[2439.36,-4.8,30],[1856.09,-4.2,30],[3323.7,-3.6,25]]],["Deneb",1.25,9110,432.9,84.28,2.0,"A",0,[[830.92,-6.0,25],[1121.76,-6.0,25],[628.18,-5.4,25]]],["Toliman",1.35,5000,1.325,315.73,-0.68,"K",1,[[346.57,-6,20],[343.53,-5.4,20],[462.68,-5.4,20]]],["Regulus",1.36,14000,24.31,226.43,48.93,"B",0,[[1219.68,-4.8,30],[1856.09,-4.2,30],[1661.85,-3.6,25]]],["Adhara",1.5,18500,124.2,239.83,-11.33,"B",0,[[2439.36,-4.8,30],[1856.09,-4.2,30],[1661.85,-3.6,25]]],["Castor",1.58,9720,15.6,187.44,22.48,"A",0,[[830.92,-6.0,25],[1121.76,-6.0,25],[1256.35,-5.4,25]]],["Gacrux",1.59,3400,27.15,300.17,5.65,"M",0,[[231.34,-4.33,20],[442.7,-4.33,6],[386.48,-4.33,6]]],["τ Cet",3.49,5510,3.65,173.1,-73.44,"G",1,[[693.14,-6,20],[687.06,-5.4,20],[633.36,-4.2,12]]],["Ran",3.72,5050,3.216,195.84,-48.05,"K",1,[[346.57,-6,20],[343.53,-5.4,20],[462.68,-5.4,20]]],["ε Ind",4.69,4610,3.622,336.19,-48.05,"K",1,[[346.57,-6,20],[343.53,-5.4,20],[462.68,-5.4,20]]],["61 Cyg",5.2,4580,3.486,82.32,-5.82,"K",1,[[346.57,-6,20],[343.53,-5.4,20],[462.68,-5.4,20]]],["61 Cyg",6.05,4100,3.498,82.32,-5.83,"K",1,[[346.57,-6,20],[343.53,-5.4,20],[462.68,-5.4,20]]],["Lacaille 9352",7.35,3560,3.276,5.1,-65.96,"M",1,[[462.68,-3.67,20],[442.7,-3.67,6],[386.48,-3.67,6]]],["Lalande 21185",7.49,3560,2.547,185.12,65.43,"M",1,[[462.68,-3.67,20],[442.7,-3.67,6],[386.48,-3.67,6]]],["Groombridge 34",8.09,3660,3.587,116.68,-18.45,"M",1,[[462.68,-3.33,20],[442.7,-3.33,6],[386.48,-3.33,6]]],["Gl 244B",8.44,10520,2.637,227.23,-8.89,"WD",1,[]],["Struve 2398 A",8.94,3790,3.569,89.29,24.23,"K",1,[[346.57,-6,20],[343.53,-5.4,20],[462.68,-5.4,20]]],["Barnard's Star",9.54,3150,1.824,31.01,14.06,"M",1,[[231.34,-4.33,20],[221.35,-4.33,6],[386.48,-4.33,6]]],["Struve 2398 B",9.7,3290,3.454,89.28,24.23,"K",1,[[346.57,-6,20],[343.53,-5.4,20],[231.34,-5.4,20]]],["Ross 154",10.37,3170,2.97,11.31,-10.29,"M",1,[[231.34,-4.17,20],[221.35,-4.17,6],[386.48,-4.17,6]]],["Gl 280B",10.7,10000,3.497,213.7,13.02,"WD",1,[]],["Proxima Centauri",11.01,2910,1.296,313.94,-1.93,"M",1,[[231.34,-4.67,20],[221.35,-4.67,6],[386.48,-4.67,6]]],["Gl 15B",11.06,3140,3.568,116.69,-18.44,"M",1,[[231.34,-5.0,20],[221.35,-5.0,6],[386.48,-5.0,6]]],["Ross 128",11.12,3120,3.355,270.15,59.56,"M",1,[[231.34,-4.5,20],[221.35,-4.5,6],[386.48,-4.5,6]]],["Gl 54.1",12.1,3050,3.69,149.71,-78.76,"M",1,[[231.34,-4.83,20],[221.35,-4.83,6],[386.48,-4.83,6]]],["Ross 248",12.29,2990,3.169,109.99,-16.94,"M",1,[[231.34,-5.0,20],[221.35,-5.0,6],[386.48,-5.0,6]]],["Gl 65A",12.57,2910,2.627,175.49,-75.7,"M",1,[[231.34,-4.83,20],[221.35,-4.83,6],[386.48,-4.83,6]]],["EZ Aqr",12.66,2960,3.398,47.06,-56.98,"M",1,[[231.34,-4.67,20],[221.35,-4.67,6],[386.48,-4.67,6]]],["Gl 65B",12.7,2890,2.627,175.49,-75.7,"M",1,[[231.34,-4.83,20],[221.35,-4.83,6],[193.24,-4.83,6]]],["GJ 1061",13.03,2940,3.674,251.87,-52.91,"M",1,[[231.34,-4.5,20],[221.35,-4.5,6],[386.48,-4.5,6]]],["Wolf 359",13.45,2790,2.391,244.05,56.12,"M",1,[[231.34,-5.0,20],[221.35,-5.0,6],[193.24,-5.0,6]]],["GJ 1111",14.81,2750,3.626,197.01,32.42,"M",1,[[231.34,-5.17,20],[221.35,-5.17,6],[193.24,-5.17,6]]]]/*STARS-END*/;   // [name, mag, T (K), d (pc), l, b, class, near(0/1), [[f Hz, gain dB, Q]…]] from galaxy/out/stars.json by galaxy.js's rules
 const RINGS=/*RINGS*/[[24,109.467,1],[12,227.953,2],[8,346.687,3],[6,456.501,4],[4.8,557.247,5],[4,652.64,6],[3.429,744.02,7],[3,833.318,8]]/*RINGS-END*/;
-const HAVE_CLIPS=/*HAVE*/["hestia_close", "hestia_welcome", "med_all", "med_ceres", "med_cg67p", "med_earth", "med_encke", "med_eris", "med_eros", "med_galaxy", "med_halebopp", "med_halley", "med_haumea", "med_hygiea", "med_juno", "med_jupiter", "med_makemake", "med_mars", "med_mercury", "med_moon", "med_neptune", "med_pallas", "med_pluto", "med_saturn", "med_sedna", "med_stars", "med_sun", "med_sunvoice", "med_swift", "med_t_aristotle", "med_t_boethius", "med_t_cicero", "med_t_copernicus", "med_t_eriugena", "med_t_fludd", "med_t_ikhwan", "med_t_kepler", "med_t_lu", "med_t_macrobius", "med_t_nguyentrai", "med_t_nicomachus", "med_t_philolaus", "med_t_plato", "med_t_ptolemy", "med_t_pythagoras", "med_t_sonic", "med_tempel", "med_uranus", "med_v_earth", "med_v_eris", "med_v_jupiter", "med_v_mars", "med_v_neptune", "med_v_pluto", "med_v_saturn", "med_v_uranus", "med_venus", "med_vesta"]/*HAVE-END*/;   // the keys recorded in voice/<lang>/ at build time (null: unknown, try them all); a line not yet recorded goes to the device's speech without a fetch   // [[R kpc, f Hz at 61 octaves, harmonic]…] from galaxy/out/rotation.json (McMillan 2017 model), as galaxy.js's rotationChord
+const HAVE_CLIPS=/*HAVE*/["con_and", "con_ant", "con_aps", "con_aql", "con_aqr", "con_ara", "con_argo", "con_ari", "con_aur", "con_boo", "con_cae", "con_cam", "con_cap", "con_cas", "con_cen", "con_cep", "con_cet", "con_cha", "con_cir", "con_cma", "con_cmi", "con_cnc", "con_col", "con_com", "con_cra", "con_crb", "con_crt", "con_cru", "con_crv", "con_cvn", "con_cyg", "con_del", "con_dor", "con_dra", "con_equ", "con_eri", "con_for", "con_gem", "con_gru", "con_her", "con_hor", "con_hya", "con_hyi", "con_ind", "con_lac", "con_leo", "con_lep", "con_lib", "con_lmi", "con_lup", "con_lyn", "con_lyr", "con_men", "con_mic", "con_mon", "con_mus", "con_nor", "con_oct", "con_oph", "con_ori", "con_pav", "con_peg", "con_per", "con_phe", "con_pic", "con_psa", "con_psc", "con_pyx", "con_ret", "con_scl", "con_sco", "con_sct", "con_ser", "con_sex", "con_sge", "con_sgr", "con_tau", "con_tel", "con_tra", "con_tri", "con_tuc", "con_uma", "con_umi", "con_vir", "con_vol", "con_vul", "hestia_close", "hestia_welcome", "med_all", "med_ceres", "med_cg67p", "med_earth", "med_encke", "med_eris", "med_eros", "med_galaxy", "med_halebopp", "med_halley", "med_haumea", "med_hygiea", "med_juno", "med_jupiter", "med_makemake", "med_mars", "med_mercury", "med_moon", "med_neptune", "med_pallas", "med_pluto", "med_saturn", "med_sedna", "med_stars", "med_sun", "med_sunvoice", "med_swift", "med_t_aristotle", "med_t_boethius", "med_t_cicero", "med_t_copernicus", "med_t_eriugena", "med_t_fludd", "med_t_ikhwan", "med_t_kepler", "med_t_lu", "med_t_macrobius", "med_t_nguyentrai", "med_t_nicomachus", "med_t_philolaus", "med_t_plato", "med_t_ptolemy", "med_t_pythagoras", "med_t_sonic", "med_tempel", "med_uranus", "med_v_earth", "med_v_eris", "med_v_jupiter", "med_v_mars", "med_v_neptune", "med_v_pluto", "med_v_saturn", "med_v_uranus", "med_venus", "med_vesta"]/*HAVE-END*/;
+const CONS=/*CONS*/[["and","Andromeda",1,"con_and","f"],["ant","Pompa",0,"con_ant","f"],["aps","Ptak Rajski",0,"con_aps","f"],["aqr","Wodnik",1,"con_aqr","m"],["aql","Orzeł",1,"con_aql","m"],["ara","Ołtarz",1,"con_ara","f"],["ari","Baran",1,"con_ari","m"],["aur","Woźnica",1,"con_aur","m"],["boo","Wolarz",1,"con_boo","m"],["cae","Rylec",0,"con_cae","f"],["cam","Żyrafa",0,"con_cam","f"],["cnc","Rak",1,"con_cnc","f"],["cvn","Psy Gończe",0,"con_cvn","f"],["cma","Wielki Pies",1,"con_cma","m"],["cmi","Mały Pies",1,"con_cmi","m"],["cap","Koziorożec",1,"con_cap","m"],["car","Kil",1,"con_argo","f"],["cas","Kasjopeja",1,"con_cas","f"],["cen","Centaur",1,"con_cen","m"],["cep","Cefeusz",1,"con_cep","m"],["cet","Wieloryb",1,"con_cet","m"],["cha","Kameleon",0,"con_cha","f"],["cir","Cyrkiel",0,"con_cir","f"],["col","Gołąb",0,"con_col","f"],["com","Warkocz Bereniki",0,"con_com","f"],["cra","Korona Południowa",1,"con_cra","m"],["crb","Korona Północna",1,"con_crb","f"],["crv","Kruk",1,"con_crv","m"],["crt","Puchar",1,"con_crt","m"],["cru","Krzyż Południa",0,"con_cru","f"],["cyg","Łabędź",1,"con_cyg","m"],["del","Delfin",1,"con_del","m"],["dor","Złota Ryba",0,"con_dor","f"],["dra","Smok",1,"con_dra","m"],["equ","Źrebię",1,"con_equ","m"],["eri","Erydan",1,"con_eri","m"],["for","Piec",0,"con_for","f"],["gem","Bliźnięta",1,"con_gem","m"],["gru","Żuraw",0,"con_gru","f"],["her","Herkules",1,"con_her","m"],["hor","Zegar",0,"con_hor","f"],["hya","Hydra",1,"con_hya","f"],["hyi","Wąż Wodny",0,"con_hyi","f"],["ind","Indianin",0,"con_ind","f"],["lac","Jaszczurka",0,"con_lac","f"],["leo","Lew",1,"con_leo","m"],["lmi","Mały Lew",0,"con_lmi","f"],["lep","Zając",1,"con_lep","m"],["lib","Waga",1,"con_lib","f"],["lup","Wilk",1,"con_lup","m"],["lyn","Ryś",0,"con_lyn","f"],["lyr","Lutnia",1,"con_lyr","m"],["men","Góra Stołowa",0,"con_men","f"],["mic","Mikroskop",0,"con_mic","f"],["mon","Jednorożec",0,"con_mon","f"],["mus","Mucha",0,"con_mus","f"],["nor","Węgielnica",0,"con_nor","f"],["oct","Oktant",0,"con_oct","f"],["oph","Wężownik",1,"con_oph","m"],["ori","Orion",1,"con_ori","m"],["pav","Paw",0,"con_pav","f"],["peg","Pegaz",1,"con_peg","m"],["per","Perseusz",1,"con_per","m"],["phe","Feniks",0,"con_phe","f"],["pic","Malarz",0,"con_pic","f"],["psc","Ryby",1,"con_psc","f"],["psa","Ryba Południowa",1,"con_psa","m"],["pup","Rufa",1,"con_argo","f"],["pyx","Kompas",0,"con_pyx","f"],["ret","Sieć",0,"con_ret","f"],["sge","Strzała",1,"con_sge","m"],["sgr","Strzelec",1,"con_sgr","m"],["sco","Skorpion",1,"con_sco","f"],["scl","Rzeźbiarz",0,"con_scl","f"],["sct","Tarcza",0,"con_sct","f"],["ser","Wąż",1,"con_ser","m"],["sex","Sekstant",0,"con_sex","f"],["tau","Byk",1,"con_tau","f"],["tel","Luneta",0,"con_tel","f"],["tri","Trójkąt",1,"con_tri","m"],["tra","Trójkąt Południowy",0,"con_tra","f"],["tuc","Tukan",0,"con_tuc","f"],["uma","Wielka Niedźwiedzica",1,"con_uma","f"],["umi","Mała Niedźwiedzica",1,"con_umi","m"],["vel","Żagiel",1,"con_argo","f"],["vir","Panna",1,"con_vir","f"],["vol","Ryba Latająca",0,"con_vol","f"],["vul","Lisek",0,"con_vul","f"]]/*CONS-END*/;   // the 88 constellations: [id, name in this language, ancient (1/0), the spoken line's key, its speaker's sex] (galaxy/out/constellations.json, conlines_<lang>.json)   // the keys recorded in voice/<lang>/ at build time (null: unknown, try them all); a line not yet recorded goes to the device's speech without a fetch   // [[R kpc, f Hz at 61 octaves, harmonic]…] from galaxy/out/rotation.json (McMillan 2017 model), as galaxy.js's rotationChord
 const LANG=(document.documentElement.lang||'en').slice(0,2);
 const REDUCED=matchMedia('(prefers-reduced-motion:reduce)').matches;
 const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
@@ -3135,7 +3992,8 @@ const ONE_BODIES=['sun','moon',...BODIES.map(b=>b.id)];
 const ONE_IDS=ONE_BODIES.map(id=>'one:'+id);
 const oneOf=id=>{const p=id.split(':');return {body:p[1],moons:p[2]==='m',b:byId[p[1]]||null}};
 const hasMoons=body=>!!(byId[body]&&byId[body].moons.length);
-const SCAPE_IDS=[...TH_IDS,...SYS_IDS,...ONE_IDS,...ONE_BODIES.filter(hasMoons).map(id=>'one:'+id+':m'),...LAYER_IDS];
+const CON_IDS=CONS.slice().sort((a,b)=>a[1].localeCompare(b[1],LOC)).map(c=>'con:'+c[0]),CONBY={};CONS.forEach(c=>{CONBY[c[0]]={id:c[0],name:c[1],anc:c[2],key:c[3],sex:c[4]}});
+const SCAPE_IDS=[...TH_IDS,...SYS_IDS,...ONE_IDS,...ONE_BODIES.filter(hasMoons).map(id=>'one:'+id+':m'),...LAYER_IDS,...CON_IDS];
 const BELL_OPTS=[0,1,2,3,5,10,15];
 const BELL_KINDS=['bowl','chime','none'],PACES_IDS=['slow','calm','lively'],INTERPS=['athens','text'],AMBS=['none','wind','deep'];
 const K='mots.med.';
@@ -3159,7 +4017,7 @@ if(Q('orbit')!=null)M.orbit=clamp(parseFloat(Q('orbit'))||0,0,100);
 if(PACES_IDS.includes(Q('pace')))M.pace=Q('pace');
 if(INTERPS.includes(Q('interp')))M.interp=Q('interp');
 const save=(k,v)=>LS.set(K+k,String(v));
-const isTh=id=>id.startsWith('th:'),isSys=id=>id.startsWith('sys:'),isOne=id=>id.startsWith('one:'),isDial=id=>isTh(id)||isSys(id)||isOne(id);
+const isCon=id=>id.startsWith('con:'),conOfId=id=>CONBY[id.slice(4)]||null,isTh=id=>id.startsWith('th:'),isSys=id=>id.startsWith('sys:'),isOne=id=>id.startsWith('one:'),isDial=id=>isTh(id)||isSys(id)||isOne(id);
 const thOf=id=>id.slice(3),sysOf=id=>byId[id.slice(4)];
 const oneBase=id=>isOne(id)?'one:'+oneOf(id).body:id;                       // the selector's entry for a single voice (its moons are a separate setting)
 // the body whose moons circle in this soundscape: a system's planet, or a single voice heard with its moons
@@ -3304,7 +4162,7 @@ const SCAPES={};
 const REG=()=>M.depth-15;                                 // the register: the Depth setting is the Sun's octave count; for the others it moves the layer by octaves
 const regTx=()=>{const r=REG();return tx(r<=-1?'regM1':r===0?'reg0':r===1?'regP1':'regP2')};
 // how many layers sound at once: the voice caps shrink so a phone is never asked for more than one layer's worth
-const LAYERS_ON=()=>(isDial(M.scape)?1:0)+LAYER_IDS.filter(b=>b===M.scape||M.mix[b]>0).length;
+const LAYERS_ON=()=>(isDial(M.scape)||isCon(M.scape)?1:0)+LAYER_IDS.filter(b=>b===M.scape||M.mix[b]>0).length;
 const CAPMUL=()=>[1,1,.7,.55,.45][Math.min(4,LAYERS_ON())];
 // a smooth random walk for an amplitude (Ornstein–Uhlenbeck), so nothing stands still and nothing jumps
 const walk=(v,tau,dt,sig)=>{const a=Math.exp(-dt/tau);return v*a+gauss()*Math.sqrt(1-a*a)*sig};
@@ -3407,6 +4265,26 @@ SCAPES.galaxy={
       tick,voices:()=>V.length,now:()=>V.map(v=>[v.r[0],Math.round(v.f)]),
     }},
   about(){return tx('hearGalaxy',{n:61+REG()})}};
+/* --- a constellation (con.js): its stars as a slow melody along the figure, a long rest, then all its stars as a chord breathing, a rest, again ---
+   Each star in its own voice by the Galaxy engine's rules (con.js; the same notes as on the dial's and the Flight's cards), the walk slowed
+   to 1.6 × the cards' pace; the chord holds 24 s; rests of 9 and 7 s. Its myth (or who named it) is its introduction instead of a god's. */
+const CONSCAPE={
+  make(id){
+    const out=mkG(AC,0);out.connect(mBus);const cid=id.slice(4);let P=null,phase='',until=0,gen=0,last=0,c=null;
+    const lvl=()=>2.5/Math.sqrt(Math.max(1,LAYERS_ON()));   // measured: the session at −21…−23 dBFS RMS at 70 %, as the other soundscapes
+    const next=()=>{if(!P||!c)return;const t=AC.currentTime;
+      if(phase==='mel'){phase='rest1';until=t+9}
+      else if(phase==='rest1'){phase='chord';P.chord(c,{hold:24,level:lvl(),depth:false});until=t+27}
+      else if(phase==='chord'){phase='rest2';until=t+7}
+      else{phase='mel';const sc=P.melody(c,{tempo:1.6,hold:9,level:lvl()});until=t+sc.end+.12+1.1+9+3}};
+    const go=()=>{if(!window.CON)return;CON.load().then(()=>{if(gen<0)return;c=CON.figure(cid);if(!c)return;P=CON.Player(AC,out,{raw:true});phase='';next()}).catch(e=>{MEDITATE.errors.push('con '+e)})};
+    return{out,
+      start(fade,l){gen=1;go();out.gain.setTargetAtTime(l==null?1:l,AC.currentTime,(fade||.5)/3)},
+      stop(fade){gen=-1;fadeOut(out,fade);if(P)P.stop(fade||1);P=null},
+      rebuild(){},set(){},
+      tick(){if(!P||!c)return;const t=AC.currentTime;if(t-last<.25)return;last=t;if(t>=until)next()},
+      voices:()=>P&&P.notes?P.notes.length:0,now:()=>[phase,c&&c.id],phase:()=>phase,player:()=>P,con:()=>c}},
+  about(id){return window.CON?CON.TX.hearCon:''}};
 /* ---------- the dial's soundscapes: a thinker's heavens, or a god with his moons ----------
    The engine is driven from here: the sky's time is advanced on the audio clock (the worker pump keeps it going with the screen off), the
    positions are reckoned, the aspects found and the dial's updateAudio runs, exactly as on the dial. Changing the soundscape fades the
@@ -3445,10 +4323,10 @@ const ACTIVE={};            // layer id → the sounding instance
 const XFADE=6;              // seconds of real time between soundscapes
 const layerW=b=>b===M.scape?1:Math.pow(M.mix[b]/100,1.3);
 // the set that should sound, each at its weight scaled so the sum of powers stays about one soundscape's worth (the chain's headroom is for one)
-function applyLayers(fade,changed){if(M.state!=='running'||!AC)return;const want={};LAYER_IDS.forEach(b=>{const w=layerW(b);if(w>0)want[b]=w});const dial=isDial(M.scape)?1:0;
+function applyLayers(fade,changed){if(M.state!=='running'||!AC)return;const want={};LAYER_IDS.forEach(b=>{const w=layerW(b);if(w>0)want[b]=w});if(isCon(M.scape))want[M.scape]=1;const dial=isDial(M.scape)?1:0;
   const norm=1/Math.sqrt(Object.values(want).reduce((s,w)=>s+w*w,dial)||1),t=AC.currentTime,f=fade||XFADE,n=LAYERS_ON(),moved=applyLayers.n!=null&&applyLayers.n!==n;applyLayers.n=n;
   Object.keys(ACTIVE).forEach(b=>{if(!want[b]){ACTIVE[b].stop(f);delete ACTIVE[b]}});
-  Object.keys(want).forEach(b=>{const lvl=want[b]*norm;if(!ACTIVE[b]){ACTIVE[b]=SCAPES[b].make();ACTIVE[b].start(f,lvl)}else{ACTIVE[b].out.gain.setTargetAtTime(lvl,t,f/3);if(moved)ACTIVE[b].rebuild()}});
+  Object.keys(want).forEach(b=>{const lvl=want[b]*norm;if(!ACTIVE[b]){ACTIVE[b]=(isCon(b)?CONSCAPE:SCAPES[b]).make(b);ACTIVE[b].start(f,lvl)}else{ACTIVE[b].out.gain.setTargetAtTime(lvl,t,f/3);if(moved)ACTIVE[b].rebuild()}});
   if(!dial)dialStop(f);else if(changed)dialChange(M.scape,norm);else if(!DIAL.on)dialStart(M.scape,f,norm);else dialLevel(norm,f)}
 const forScapes=(fn)=>Object.values(ACTIVE).forEach(fn);
 const scape=()=>isDial(M.scape)?null:ACTIVE[M.scape]||null;
@@ -3541,11 +4419,12 @@ function speak(kind,god){
    The queue is served from the worker-driven pump, so it works with the screen off, and a line waits while another voice is sounding. */
 const GOD_OF={earth:'earth',mars:'mars',jupiter:'jupiter',saturn:'saturn',uranus:'uranus',neptune:'neptune',pluto:'pluto',sun:'helios',stars:'astraios',galaxy:'hera',sunvoice:'sun',moon:'selene'};
 // a single voice: with its moons the body's line (med_<id>, which names them), alone med_v_<id> where the body has moons, else med_<id>; Apollo med_sunvoice, Selene med_moon
-const introKeyOf=id=>isSys(id)?'med_'+sysOf(id).id:isOne(id)?(o=>o.body==='sun'?'med_sunvoice':o.body==='moon'?'med_moon':(hasMoons(o.body)&&!o.moons?'med_v_':'med_')+o.body)(oneOf(id)):id==='th:today'?'med_all':isTh(id)?'med_t_'+thOf(id):'med_'+id;
+const introKeyOf=id=>isCon(id)?(conOfId(id)?conOfId(id).key:'med_stars'):isSys(id)?'med_'+sysOf(id).id:isOne(id)?(o=>o.body==='sun'?'med_sunvoice':o.body==='moon'?'med_moon':(hasMoons(o.body)&&!o.moons?'med_v_':'med_')+o.body)(oneOf(id)):id==='th:today'?'med_all':isTh(id)?'med_t_'+thOf(id):'med_'+id;
 const introKey=()=>introKeyOf(M.scape);
-const introGod=k=>k.startsWith('med_t_')?'hestia':k==='med_all'?'jupiter':k.startsWith('med_v_')?k.slice(6):GOD_OF[k.slice(4)]||(byId[k.slice(4)]?k.slice(4):'hestia');
+const introGod=k=>k.startsWith('con_')?k:k.startsWith('med_t_')?'hestia':k==='med_all'?'jupiter':k.startsWith('med_v_')?k.slice(6):GOD_OF[k.slice(4)]||(byId[k.slice(4)]?k.slice(4):'hestia');
 // the sex of a god's voice, for the device's own speech: the dial's character sheet for its bodies; Hestia, Hera, Selene women, Helios, Astraios and Apollo men
-const godSex=g=>byId[g]&&byId[g].hv&&byId[g].hv.say?byId[g].hv.say[0]:['hestia','hera','selene','earth'].includes(g)?'f':'m';
+const CONSEX={};CONS.forEach(c=>{CONSEX[c[3]]=c[4]});
+const godSex=g=>CONSEX[g]?CONSEX[g]:byId[g]&&byId[g].hv&&byId[g].hv.say?byId[g].hv.say[0]:['hestia','hera','selene','earth'].includes(g)?'f':'m';
 let introDue=null,introduced=new Set();
 function planIntro(delay){if(M.state!=='running'||!M.gods)return;const k=introKey();if(introduced.has(k)){introDue=null;return}introDue={key:k,at:AC.currentTime+(delay==null?4:delay)}}
 function serveIntro(){if(!introDue||M.state!=='running'||!AC)return;const t=AC.currentTime;if(t<introDue.at)return;
@@ -3649,7 +4528,7 @@ function clock(){const el=$('clock'),dc=$('dimClock');if(M.state==='idle'){el.in
 let toastT=0;function toast(msg,ms){const t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),ms||4000)}
 /* ---------- a quiet view of the system in the hearth: the moons as faint points on their orbits, where they are now (nothing for a thinker's heavens) ---------- */
 let viewCv=null,viewLast=0;
-function drawView(clear){const sys=M.state!=='idle'?(isSys(M.scape)&&SYS.id?byId[SYS.id]:isOne(M.scape)&&S.audition&&(MED.audMoons||S.audMoon!=null)?byId[S.audition]:null):null,inSys=!!(sys&&SYS.id);
+function drawView(clear){const hc=$('hearth');if(hc)hc.classList.toggle('con',isCon(M.scape));if(isCon(M.scape)){drawCon(clear);return}if(conCv){conCv.style.opacity='0'}const sys=M.state!=='idle'?(isSys(M.scape)&&SYS.id?byId[SYS.id]:isOne(M.scape)&&S.audition&&(MED.audMoons||S.audMoon!=null)?byId[S.audition]:null):null,inSys=!!(sys&&SYS.id);
   if(!viewCv){if(!sys)return;viewCv=document.createElement('canvas');viewCv.className='sysview';viewCv.setAttribute('aria-hidden','true');$('hearth').appendChild(viewCv)}
   const g=viewCv.getContext('2d');if(!sys||clear||M.dim){if(viewCv.width)g.clearRect(0,0,viewCv.width,viewCv.height);viewCv.style.opacity='0';return}
   const t=performance.now();if(t-viewLast<(REDUCED?500:120))return;viewLast=t;
@@ -3662,6 +4541,15 @@ function drawView(clear){const sys=M.state!=='idle'?(isSys(M.scape)&&SYS.id?byId
     const th=sm?Math.atan2(sm.pos.y,sm.pos.x):TAU*(((S.jd-J2000)/m.P+m.ph0)%1),x=cx+rr*Math.cos(th),y=cy-rr*Math.sin(th),pr=dpr*(1.6+2.2*Math.max(0,m.sizeN||0));
     g.fillStyle=on?'rgba(243,217,164,.95)':'rgba(233,225,204,.45)';g.beginPath();g.arc(x,y,pr,0,TAU);g.fill();
     if(on){g.fillStyle='rgba(243,217,164,.18)';g.beginPath();g.arc(x,y,pr*3,0,TAU);g.fill()}})}
+let conCv=null,conLast=0;
+// a constellation's soundscape: the Sun's disc becomes a window on the night sky, the figure drawn in it, its stars lit as they sound
+// (before the session too, still, so the choice shows what it will be)
+{const st=document.createElement('style');st.textContent=`.hearth.con .disc{background:radial-gradient(circle at 50% 42%,#1c2552 0%,#111840 46%,#090c24 72%,rgba(9,12,36,0) 100%);box-shadow:0 0 calc(1.4rem + 3rem*var(--glow)) calc(.2rem + .8rem*var(--glow)) rgba(130,150,230,calc(.10 + .22*var(--glow))),0 0 0 1px rgba(201,152,79,.28) inset;opacity:1}
+.conview{width:74%!important;justify-self:center;align-self:center}`;document.head.appendChild(st)}
+function drawCon(clear){if(!window.CON)return;if(!CON.ready){CON.load().then(()=>drawView(true)).catch(()=>{});return}const inst=ACTIVE[M.scape],c=inst&&inst.con&&inst.con()||CON.figure(M.scape.slice(4));
+  if(!conCv){conCv=document.createElement('canvas');conCv.className='sysview conview';conCv.setAttribute('aria-hidden','true');$('hearth').appendChild(conCv)}
+  if(viewCv)viewCv.style.opacity='0';if(!c||M.dim){conCv.style.opacity='0';return}const t=performance.now();if(!clear&&t-conLast<(REDUCED?500:80))return;conLast=t;
+  const P=inst&&inst.player&&inst.player(),gl=M.state!=='idle'&&P&&P.glow?P.glow():null;conCv.style.opacity='1';CON.draw(conCv,c,gl)}
 /* ---------- the screen, dimmed for sleep ---------- */
 function dim(on){M.dim=on;$('dimmer').classList.toggle('on',on);if(window.MEDITATE_WAKE)MEDITATE_WAKE.allow(!on);
   if(!on&&navigator.wakeLock&&LS.get('mots.awake')!=='0'&&M.state!=='idle')navigator.wakeLock.request('screen').catch(()=>{})}
@@ -3737,7 +4625,7 @@ function trFromHash(h){const m=/^#st=(.*)$/.exec(h||'');if(!m)return null;const 
   let name='';try{name=decodeURIComponent(f[0])}catch(e){}return trValid({name,bells:f[1]==='1',total:+f[2],parts})}
 /* ---------- the soundtrack editor ---------- */
 function fillScapeSel(sel){const grp=(label,ids,name)=>{const g=document.createElement('optgroup');g.label=label;ids.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=name(v);g.appendChild(o)});sel.appendChild(g)};
-  grp(tx('gThinkers'),TH_IDS,nameOf);grp(tx('gSystems'),SYS_IDS,nameOf);grp(tx('gOne'),ONE_IDS.flatMap(id=>hasMoons(oneOf(id).body)?[id,id+':m']:[id]),nameOf);grp(tx('gLayersAlone'),LAYER_IDS,nameOf)}
+  grp(tx('gThinkers'),TH_IDS,nameOf);grp(tx('gSystems'),SYS_IDS,nameOf);grp(tx('gOne'),ONE_IDS.flatMap(id=>hasMoons(oneOf(id).body)?[id,id+':m']:[id]),nameOf);grp(tx('gLayersAlone'),LAYER_IDS,nameOf);if(CON_IDS.length)grp(window.CON?CON.TX.pick:'Constellations',CON_IDS,nameOf)}
 const trEdited=()=>{trSaveEd();if(M.state==='running'&&track())trackReplan();else if(M.trackOn&&M.state==='idle'&&TR.parts.length){const sc=TR.parts[0].scape;if(sc!==M.scape){M.scape=sc;M.view=viewFix()}trPartMix(TR.parts[0])}sync()};
 function trRender(){const box=$('trParts');if(!box)return;box.innerHTML='';
   TR.parts.forEach((p,i)=>{const row=document.createElement('div');row.className='trPart';
@@ -3764,13 +4652,13 @@ const SELENE=byId.earth.moons[0];
 const oneGod=body=>body==='sun'?'Apollo':body==='moon'?SELENE.name.split(' ')[0]:byId[body].god;
 const oneName=body=>body==='sun'?tx('oneSun'):body==='moon'?moonName(SELENE):byId[body].name;
 const oneLabel=body=>body==='sun'||body==='moon'?oneName(body):byId[body].kind==='comet'?byId[body].name:byId[body].god+' · '+byId[body].name;
-const nameOf=id=>isSys(id)?sysOf(id).god+' · '+tx('p_'+sysOf(id).id):isOne(id)?oneLabel(oneOf(id).body)+(hasMoons(oneOf(id).body)?', '+tx(oneOf(id).moons?'wMoons':'alone'):''):isTh(id)?thName(thOf(id))+(thOf(id)==='today'?'':' · '+thWhen(thOf(id))):id==='sun'?tx('sound'):id==='stars'?tx('stars'):tx('galaxy');
-const shortOf=id=>isSys(id)?sysOf(id).god:isOne(id)?oneGod(oneOf(id).body):isTh(id)?thName(thOf(id)):nameOf(id);
-function aboutOf(id){if(isSys(id)){const b=sysOf(id),m=favMoon(b);return tx('hearSys',{god:b.god,n:b.moons.length,name:moonName(m),t:fmtT(orbitSecs())})}
+const nameOf=id=>isCon(id)?(conOfId(id)?conOfId(id).name:id):isSys(id)?sysOf(id).god+' · '+tx('p_'+sysOf(id).id):isOne(id)?oneLabel(oneOf(id).body)+(hasMoons(oneOf(id).body)?', '+tx(oneOf(id).moons?'wMoons':'alone'):''):isTh(id)?thName(thOf(id))+(thOf(id)==='today'?'':' · '+thWhen(thOf(id))):id==='sun'?tx('sound'):id==='stars'?tx('stars'):tx('galaxy');
+const shortOf=id=>isCon(id)?nameOf(id):isSys(id)?sysOf(id).god:isOne(id)?oneGod(oneOf(id).body):isTh(id)?thName(thOf(id)):nameOf(id);
+function aboutOf(id){if(isCon(id))return CONSCAPE.about(id);if(isSys(id)){const b=sysOf(id),m=favMoon(b);return tx('hearSys',{god:b.god,n:b.moons.length,name:moonName(m),t:fmtT(orbitSecs())})}
   if(isOne(id)){const o=oneOf(id);if(o.body==='sun')return tx('hearSunVoice');if(o.body==='moon')return tx('hearMoon');const b=o.b;
     return tx('hearOne',{god:oneGod(o.body),name:b.name})+(o.moons&&b.moons.length?' '+tx('hearOneM',{n:b.moons.length,name:moonName(favMoon(b)),t:fmtT(orbitSecs())}):'')}
   if(id==='th:today')return tx('hearToday');if(isTh(id))return (TT[thOf(id)]&&TT[thOf(id)].hear)||'';return SCAPES[id].about()}
-const recName=()=>isSys(M.scape)?'the-system-of-'+sysOf(M.scape).id:isOne(M.scape)?'the-voice-of-'+oneOf(M.scape).body:isTh(M.scape)?'the-heavens-of-'+thOf(M.scape):M.scape==='sun'?'the-suns-hum':M.scape==='stars'?'the-stars':'the-harmonic-galaxy';
+const recName=()=>isCon(M.scape)?'the-stars-of-'+M.scape.slice(4):isSys(M.scape)?'the-system-of-'+sysOf(M.scape).id:isOne(M.scape)?'the-voice-of-'+oneOf(M.scape).body:isTh(M.scape)?'the-heavens-of-'+thOf(M.scape):M.scape==='sun'?'the-suns-hum':M.scape==='stars'?'the-stars':'the-harmonic-galaxy';
 function sync(){
   const run=M.state!=='idle',play=$('play');
   play.textContent=M.state==='ending'?tx('ending'):run?tx('end'):tx('begin');play.setAttribute('aria-pressed',String(run));play.disabled=M.state==='ending';
@@ -3797,14 +4685,14 @@ function sync(){
   LAYER_IDS.forEach(b=>{const e=$('mix_'+b);if(e&&+e.value!==M.mix[b])e.value=M.mix[b]});
   {const p=presetNow(),s=$('preset');if(s.value!==p)s.value=p}
   const rec=$('recBtn');if(rec)rec.dataset.name=recName();
-  if(!run){$('clock').innerHTML='';root.style.setProperty('--glow','0')}
+  if(!run){$('clock').innerHTML='';root.style.setProperty('--glow','0');drawView(true)}
 }
 const opts=(sel,list,label)=>{list.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=label(v);sel.appendChild(o)})};
 {const L=$('lens');LENS.forEach(m=>{const b=document.createElement('button');b.type='button';b.dataset.len=m;b.textContent=m?String(m):'∞';b.title=m?tx('min',{n:m}):tx('open');b.setAttribute('aria-label',m?tx('min',{n:m}):tx('open'));
   b.onclick=()=>{if(M.state==='ending')return;setLen(m)};L.appendChild(b)})}
 // the soundscape selector: the thinkers' heavens (and Today), the gods with their moons, the quiet layers alone
 {const s=$('scape');const grp=(label,ids,name)=>{const g=document.createElement('optgroup');g.label=label;ids.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=name(v);g.appendChild(o)});s.appendChild(g)};
-  grp(tx('gThinkers'),TH_IDS,nameOf);grp(tx('gSystems'),SYS_IDS,nameOf);grp(tx('gOne'),ONE_IDS,id=>oneLabel(oneOf(id).body));grp(tx('gLayersAlone'),LAYER_IDS,nameOf);s.value=oneBase(M.scape);
+  grp(tx('gThinkers'),TH_IDS,nameOf);grp(tx('gSystems'),SYS_IDS,nameOf);grp(tx('gOne'),ONE_IDS,id=>oneLabel(oneOf(id).body));grp(tx('gLayersAlone'),LAYER_IDS,nameOf);if(CON_IDS.length)grp(window.CON?CON.TX.pick:'Constellations',CON_IDS,nameOf);s.value=oneBase(M.scape);
   // a single voice keeps its Moons setting when you move from one body with moons to another
   s.onchange=()=>{let id=s.value;if(isOne(id)&&isOne(M.scape)&&oneOf(M.scape).moons&&hasMoons(oneOf(id).body))id+=':m';if(M.state==='idle')trackArm(null);setScape(id)}}
 {const s=$('oneMoons');[['a','alone'],['m','wMoons']].forEach(([v,k])=>{const o=document.createElement('option');o.value=v;o.textContent=tx(k);s.appendChild(o)});s.onchange=()=>setOneMoons(s.value==='m')}

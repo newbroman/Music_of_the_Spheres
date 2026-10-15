@@ -519,6 +519,465 @@ function oldLinks(){document.querySelectorAll('body a[hreflang]').forEach(a=>{if
 const go=()=>{if(isFlight)hudShell();else headerShell();oldLinks();hint();footer()};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();
 })();
+
+/* ---------- What's new: a calm sheet that announces the app's new features once after each update, and the full list on demand ----------
+   Built into every page: mklang.py appends this file to lang_built.js, which release.sh splices into the dial, flight, dance, synth,
+   meditate and help pages (so it runs after the shell in lang.js and can add itself to the shell's "⋯" menu).
+
+   HOW TO ADD AN ENTRY FOR A NEW RELEASE
+   1. Add an object at the TOP of WN (newest first):
+        {id:'short-id', d:'2026-11-02', s:'✶', go:{p:'flight.html', a:'fly:gc', h:''},
+         t:{en:['Title','One or two short sentences.'], pl:[…], cy:[…], de:[…], es:[…], fr:[…], it:[…], zh:[…], ja:[…], vi:[…], bg:[…], pt:[…]}}
+      - id: unique, never reused. d: the release date, YYYY-MM-DD. A second release on the same day uses a suffix, 'YYYY-MM-DDb', 'c' …
+        (versions compare as plain strings, so '2026-10-14b' is newer than '2026-10-14').
+      - s: one typographic glyph for the item's medallion (not an emoji).
+      - t: all twelve languages, short and friendly, in the app's voice (bg: ти-form; pt: Brazilian, você-form; ’ never ' inside '…').
+      - go (optional; without it the item has no "Show me" button): p = the page ('index.html' is the dial, 'flight.html', 'dance.html',
+        'synth.html', 'meditate.html', 'help.html'); h = a hash the page itself understands ('galaxy' on synth, 'tour' on the dial,
+        a section id on help); a = an action run on arrival by ACT below (add a new one there if needed):
+          lang · tour · lines · zodiac · find · fly:<destination id> (gc, above, sirius, acen, lg, m31 …) · style:<dance style id>
+          · ringtone · con · scape
+   2. That's all: the version is the newest d in the list, so the change is picked up by itself. Rebuild (release.sh).
+      A visitor whose localStorage 'mots.whatsnew.seen' is older than the newest d sees the items newer than it, once, on whichever page
+      they open first. A brand-new visitor never sees the sheet (the welcome tour covers it): the current version is marked seen.
+   ---------- */
+(()=>{
+"use strict";
+const WN=[
+ {id:'bh',d:'2026-10-14',s:'◉',go:{p:'flight.html',a:'fly:gc'},t:{
+  en:['Black holes','Fly to Sagittarius A* at the heart of the Milky Way and hear the flow around it, its flares and the S-stars swooping past. Visit Cygnus X-1 and the Gaia black holes, and hear two black holes collide.'],
+  pl:['Czarne dziury','Poleć do Sagittariusa A* w sercu Drogi Mlecznej i posłuchaj materii, która wokół niego krąży, jego rozbłysków i gwiazd S przemykających obok. Odwiedź Cygnus X-1 i czarne dziury Gai, i posłuchaj zderzenia dwóch czarnych dziur.'],
+  cy:['Tyllau duon','Hedfanwch at Sagittarius A* yng nghanol y Llwybr Llaethog a chlywed y llif o’i gwmpas, ei fflachiadau a’r sêr S yn gwibio heibio. Ewch at Cygnus X-1 a thyllau duon Gaia, a chlywed dau dwll du yn gwrthdaro.'],
+  de:['Schwarze Löcher','Flieg zu Sagittarius A* im Herzen der Milchstraße und hör den Strom um ihn herum, seine Flares und die S-Sterne, die an ihm vorbeischwingen. Besuche Cygnus X-1 und die Gaia-Löcher und hör zwei Schwarze Löcher verschmelzen.'],
+  es:['Agujeros negros','Vuela hasta Sagitario A*, en el corazón de la Vía Láctea, y escucha el flujo que lo rodea, sus fulguraciones y las estrellas S que pasan rozándolo. Visita Cygnus X-1 y los agujeros negros de Gaia, y escucha cómo chocan dos agujeros negros.'],
+  fr:['Trous noirs','Volez jusqu’à Sagittarius A*, au cœur de la Voie lactée, et écoutez le flot qui l’entoure, ses sursauts et les étoiles S qui le frôlent. Visitez Cygnus X-1 et les trous noirs de Gaia, et entendez deux trous noirs fusionner.'],
+  it:['Buchi neri','Vola fino a Sagittarius A*, nel cuore della Via Lattea, e ascolta il flusso che lo circonda, i suoi brillamenti e le stelle S che gli sfrecciano accanto. Visita Cygnus X-1 e i buchi neri di Gaia, e ascolta lo scontro di due buchi neri.'],
+  zh:['黑洞','飞往银河系中心的人马座A*，聆听它周围奔涌的物质流、它的耀发，以及从旁掠过的S星。造访天鹅座X-1和盖亚黑洞，还能听到两个黑洞相撞。'],
+  ja:['ブラックホール','天の川銀河の中心、いて座A*へ飛び、まわりを巡るガスの流れ、フレア、すぐそばをかすめるS星を聴きましょう。はくちょう座X-1やGaiaのブラックホールも訪ね、2つのブラックホールの合体も聴けます。'],
+  vi:['Hố đen','Bay tới Nhân Mã A* ở trung tâm Dải Ngân Hà và nghe dòng vật chất quanh nó, những đợt bùng sáng và các ngôi sao S lướt qua. Ghé Cygnus X-1 và các hố đen Gaia, và nghe hai hố đen va vào nhau.'],
+  bg:['Черни дупки','Полети до Стрелец A* в сърцето на Млечния път и чуй потока около него, изригванията му и S-звездите, които прелитат покрай него. Посети Лебед X-1 и черните дупки от Gaia и чуй сблъсъка на две черни дупки.'],
+  pt:['Buracos negros','Voe até Sagitário A*, no coração da Via Láctea, e ouça o fluxo ao redor dele, suas erupções e as estrelas S passando rente. Visite Cygnus X-1 e os buracos negros do Gaia, e ouça dois buracos negros colidirem.']}},
+ {id:'lines',d:'2026-10-14',s:'≋',go:{p:'index.html',a:'lines'},t:{
+  en:['Hear the light itself','Planets, moons and stars can now sound as their own spectral lines, a chord of their light forty octaves down. Choose “Spectral lines” on the dial, or as a voice in the Synth.'],
+  pl:['Posłuchaj samego światła','Planety, księżyce i gwiazdy mogą teraz brzmieć własnymi liniami widmowymi: akordem ich światła o czterdzieści oktaw niżej. Wybierz „Linie widmowe” na tarczy albo jako głos w Syntezatorze.'],
+  cy:['Clywed y goleuni ei hun','Gall planedau, lleuadau a sêr nawr seinio fel eu llinellau sbectrol eu hunain, cord o’u goleuni ddeugain wythfed yn is. Dewiswch “Llinellau sbectrol” ar y deial, neu fel llais yn y Synth.'],
+  de:['Das Licht selbst hören','Planeten, Monde und Sterne können jetzt als ihre eigenen Spektrallinien erklingen, als Akkord ihres Lichts vierzig Oktaven tiefer. Wähl „Spektrallinien“ auf der Scheibe oder als Stimme im Synthesizer.'],
+  es:['Escucha la propia luz','Planetas, lunas y estrellas pueden sonar ahora como sus propias líneas espectrales: un acorde de su luz cuarenta octavas más abajo. Elige «Líneas espectrales» en el dial o como voz en el Sintetizador.'],
+  fr:['Entendre la lumière elle-même','Planètes, lunes et étoiles peuvent désormais sonner comme leurs propres raies spectrales : un accord de leur lumière, quarante octaves plus bas. Choisissez « Raies spectrales » sur le cadran, ou comme voix dans le Synthé.'],
+  it:['Ascolta la luce stessa','Pianeti, lune e stelle ora possono suonare come le proprie righe spettrali: un accordo della loro luce quaranta ottave più in basso. Scegli «Righe spettrali» sul quadrante o come voce nel Synth.'],
+  zh:['聆听光本身','行星、卫星和恒星现在可以用自己的光谱线发声：把它们的光降低四十个八度，化作一个和弦。在刻度盘上选择“光谱线”，或在合成器里把它当作音色。'],
+  ja:['光そのものを聴く','惑星・衛星・恒星が、それぞれのスペクトル線で鳴るようになりました。光を40オクターブ下げた和音です。ダイヤルで「スペクトル線」を選ぶか、シンセの音色として使えます。'],
+  vi:['Nghe chính ánh sáng','Giờ đây hành tinh, mặt trăng và các vì sao có thể vang lên bằng chính các vạch quang phổ của mình: một hợp âm từ ánh sáng của chúng, hạ xuống bốn mươi quãng tám. Chọn “Vạch quang phổ” trên mặt số, hoặc làm giọng trong Synth.'],
+  bg:['Чуй самата светлина','Планетите, луните и звездите вече могат да звучат със собствените си спектрални линии: акорд от светлината им, свален с четиридесет октави. Избери „Спектрални линии“ на циферблата или като глас в Синтезатора.'],
+  pt:['Ouça a própria luz','Planetas, luas e estrelas agora podem soar como suas próprias linhas espectrais: um acorde da sua luz quarenta oitavas abaixo. Escolha “Linhas espectrais” no mostrador ou como voz no Sintetizador.']}},
+ {id:'stars',d:'2026-10-14',s:'✶',go:{p:'flight.html',a:'fly:sirius'},t:{
+  en:['Every star its own voice','Stars now sing by their size, their light and their spin, drawn in their true colours. In the Flight, tap any star to go there, see its spectrum and hear its radio.'],
+  pl:['Każda gwiazda ma własny głos','Gwiazdy śpiewają teraz zgodnie ze swoim rozmiarem, światłem i obrotem, w swoich prawdziwych barwach. W Locie dotknij dowolnej gwiazdy, by tam polecieć, zobaczyć jej widmo i usłyszeć jej fale radiowe.'],
+  cy:['Llais ei hun i bob seren','Mae’r sêr nawr yn canu yn ôl eu maint, eu goleuni a’u troelli, yn eu gwir liwiau. Yn Hedfan, tapiwch unrhyw seren i fynd yno, gweld ei sbectrwm a chlywed ei radio.'],
+  de:['Jeder Stern mit eigener Stimme','Sterne singen jetzt nach ihrer Größe, ihrem Licht und ihrer Drehung, in ihren wahren Farben. Tipp im Flug auf einen Stern, um hinzufliegen, sein Spektrum zu sehen und sein Radiosignal zu hören.'],
+  es:['Cada estrella, su propia voz','Las estrellas cantan ahora según su tamaño, su luz y su giro, con sus colores reales. En el Vuelo, toca cualquier estrella para ir hasta ella, ver su espectro y oír su radio.'],
+  fr:['À chaque étoile sa voix','Les étoiles chantent désormais selon leur taille, leur lumière et leur rotation, dans leurs vraies couleurs. Dans le Vol, touchez une étoile pour y aller, voir son spectre et écouter sa radio.'],
+  it:['Ogni stella la sua voce','Le stelle ora cantano secondo dimensione, luce e rotazione, nei loro veri colori. Nel Volo tocca una stella per raggiungerla, vederne lo spettro e ascoltarne la radio.'],
+  zh:['每颗恒星都有自己的声音','恒星现在按照自身的大小、光和自转歌唱，并以真实的颜色呈现。在飞行中点按任意一颗星即可前往，查看它的光谱，聆听它的射电。'],
+  ja:['星ごとに自分の声','恒星は大きさ・光・自転にしたがって歌い、本当の色で描かれます。飛行で星をタップすれば、そこへ飛び、スペクトルを見て、電波を聴けます。'],
+  vi:['Mỗi ngôi sao một giọng riêng','Các vì sao giờ hát theo kích thước, ánh sáng và chuyển động quay của mình, với màu sắc thật. Trong Bay, chạm vào bất kỳ ngôi sao nào để tới đó, xem quang phổ và nghe sóng vô tuyến của nó.'],
+  bg:['Всяка звезда със свой глас','Звездите вече пеят според размера, светлината и въртенето си, в истинските си цветове. В Полета докосни която и да е звезда, за да отидеш до нея, да видиш спектъра ѝ и да чуеш радиото ѝ.'],
+  pt:['Cada estrela com sua voz','As estrelas agora cantam conforme seu tamanho, sua luz e sua rotação, com suas cores verdadeiras. No Voo, toque em qualquer estrela para ir até ela, ver seu espectro e ouvir seu rádio.']}},
+ {id:'zodiac',d:'2026-10-14',s:'♈︎',go:{p:'index.html',a:'zodiac'},t:{
+  en:['Zodiac cards','Tap a sign on the dial, in Dance, Synth or Flight for its card: element, dates, where its stars really lie today, and its scale and chord to hear.'],
+  pl:['Karty zodiaku','Dotknij znaku na tarczy, w Tańcu, Syntezatorze lub Locie, by otworzyć jego kartę: żywioł, daty, gdzie naprawdę leżą dziś jego gwiazdy, a do tego jego skala i akord.'],
+  cy:['Cardiau’r Sidydd','Tapiwch arwydd ar y deial, yn Dawns, Synth neu Hedfan i agor ei gerdyn: ei elfen, ei ddyddiadau, ble mae ei sêr go iawn heddiw, a’i raddfa a’i gord i’w clywed.'],
+  de:['Tierkreiskarten','Tipp auf der Scheibe, im Tanz, im Synthesizer oder im Flug auf ein Zeichen, um seine Karte zu öffnen: Element, Daten, wo seine Sterne heute wirklich stehen, dazu seine Tonleiter und sein Akkord zum Anhören.'],
+  es:['Fichas del zodíaco','Toca un signo en el dial, en Danza, Sintetizador o Vuelo para ver su ficha: elemento, fechas, dónde están de verdad hoy sus estrellas, y su escala y su acorde para escuchar.'],
+  fr:['Les cartes du zodiaque','Touchez un signe sur le cadran, dans Danse, Synthé ou Vol pour ouvrir sa carte : élément, dates, où se trouvent vraiment ses étoiles aujourd’hui, avec sa gamme et son accord à écouter.'],
+  it:['Schede dello zodiaco','Tocca un segno sul quadrante, in Danza, Synth o Volo per aprirne la scheda: elemento, date, dove si trovano davvero oggi le sue stelle, e la sua scala e il suo accordo da ascoltare.'],
+  zh:['黄道星座卡','在刻度盘、舞蹈、合成器或飞行中点按一个星座，即可打开它的卡片：元素、日期、它的恒星如今真正所在的位置，还能聆听它的音阶与和弦。'],
+  ja:['黄道十二宮のカード','ダイヤル、舞、シンセ、飛行で星座をタップするとカードが開きます。エレメント、日付、その星々が今日実際にある位置、そして音階と和音を聴けます。'],
+  vi:['Thẻ cung hoàng đạo','Chạm vào một cung trên mặt số, trong Vũ điệu, Synth hoặc Bay để mở thẻ của nó: nguyên tố, ngày tháng, nơi các ngôi sao của nó thực sự nằm hôm nay, cùng thang âm và hợp âm để nghe.'],
+  bg:['Карти на зодиака','Докосни знак на циферблата, в Танц, Синтезатор или Полет, за да отвориш картата му: стихия, дати, къде всъщност са звездите му днес, както и гамата и акорда му.'],
+  pt:['Cartões do zodíaco','Toque em um signo no mostrador, na Dança, no Sintetizador ou no Voo para abrir o cartão dele: elemento, datas, onde as estrelas dele estão de verdade hoje, e a escala e o acorde para ouvir.']}},
+ {id:'con',d:'2026-10-14',s:'⁂',go:{p:'meditate.html',a:'con'},t:{
+  en:['The constellations sing','Each figure’s stars sound in their own voices, as a melody along its lines or one breathing chord, and the figure tells its myth. Listen in Meditate, or tap a figure on the dial.'],
+  pl:['Gwiazdozbiory śpiewają','Gwiazdy każdej figury brzmią własnymi głosami, jako melodia wzdłuż jej linii albo jeden oddychający akord, a figura opowiada swój mit. Posłuchaj w Medytacji albo dotknij figury na tarczy.'],
+  cy:['Mae’r cytserau’n canu','Mae sêr pob ffigur yn seinio yn eu lleisiau eu hunain, fel alaw ar hyd ei llinellau neu un cord sy’n anadlu, ac mae’r ffigur yn adrodd ei chwedl. Gwrandewch yn Myfyrio, neu tapiwch ffigur ar y deial.'],
+  de:['Die Sternbilder singen','Die Sterne jeder Figur erklingen mit eigener Stimme, als Melodie entlang ihrer Linien oder als ein atmender Akkord, und die Figur erzählt ihren Mythos. Hör zu in der Meditation oder tipp auf der Scheibe auf eine Figur.'],
+  es:['Las constelaciones cantan','Las estrellas de cada figura suenan con su propia voz, como una melodía a lo largo de sus líneas o un solo acorde que respira, y la figura cuenta su mito. Escúchalas en Meditar o toca una figura en el dial.'],
+  fr:['Les constellations chantent','Les étoiles de chaque figure sonnent de leur propre voix, en mélodie le long de ses lignes ou en un seul accord qui respire, et la figure raconte son mythe. Écoutez-les dans Méditer, ou touchez une figure sur le cadran.'],
+  it:['Le costellazioni cantano','Le stelle di ogni figura suonano con la propria voce, come melodia lungo le sue linee o come un unico accordo che respira, e la figura racconta il suo mito. Ascoltale in Medita o tocca una figura sul quadrante.'],
+  zh:['星座在歌唱','每个星座的恒星都以自己的声音发声，或沿着连线奏出旋律，或化作一个呼吸般的和弦，星座还会讲述自己的神话。在冥想中聆听，或在刻度盘上点按一个星座。'],
+  ja:['星座が歌う','星座の星はそれぞれ自分の声で鳴ります。線をたどる旋律にも、呼吸するひとつの和音にもなり、星座が自らの神話を語ります。瞑想で聴くか、ダイヤルで星座をタップしてください。'],
+  vi:['Các chòm sao cất tiếng','Các ngôi sao của mỗi chòm vang lên bằng giọng riêng, thành giai điệu dọc theo các đường nối hoặc một hợp âm như đang thở, và chòm sao kể lại thần thoại của mình. Nghe trong Thiền, hoặc chạm vào một chòm sao trên mặt số.'],
+  bg:['Съзвездията пеят','Звездите на всяка фигура звучат със собствените си гласове, като мелодия по линиите ѝ или като един дишащ акорд, а фигурата разказва своя мит. Слушай в Медитация или докосни фигура на циферблата.'],
+  pt:['As constelações cantam','As estrelas de cada figura soam com suas próprias vozes, como uma melodia ao longo das linhas ou um único acorde que respira, e a figura conta o seu mito. Ouça em Meditar ou toque em uma figura no mostrador.']}},
+ {id:'bgplay',d:'2026-10-14',s:'☾',t:{
+  en:['Plays on with the screen off','On Android the music now carries on smoothly with the screen off, and on a computer it keeps playing in the background without crackle.'],
+  pl:['Gra dalej przy wyłączonym ekranie','Na Androidzie muzyka gra teraz płynnie przy wyłączonym ekranie, a na komputerze także w tle, bez trzasków.'],
+  cy:['Yn dal i chwarae â’r sgrin i ffwrdd','Ar Android mae’r gerddoriaeth nawr yn parhau’n esmwyth â’r sgrin i ffwrdd, ac ar gyfrifiadur mae’n dal i chwarae yn y cefndir heb glecian.'],
+  de:['Spielt weiter, auch bei dunklem Bildschirm','Auf Android läuft die Musik jetzt auch bei ausgeschaltetem Bildschirm ruhig weiter, und am Computer spielt sie im Hintergrund ohne Knacken.'],
+  es:['Sigue sonando con la pantalla apagada','En Android la música sigue ahora sin cortes con la pantalla apagada, y en el ordenador continúa en segundo plano sin chasquidos.'],
+  fr:['La musique continue écran éteint','Sur Android, la musique continue désormais sans à-coups écran éteint, et sur ordinateur elle joue en arrière-plan sans craquements.'],
+  it:['Continua a suonare a schermo spento','Su Android la musica ora prosegue fluida a schermo spento, e sul computer continua in sottofondo senza crepitii.'],
+  zh:['熄屏也能继续播放','在安卓设备上，熄屏后音乐也能流畅地继续播放；在电脑上，它会在后台播放，不再有爆音。'],
+  ja:['画面を消しても鳴り続ける','Androidでは画面を消しても音楽がなめらかに続き、パソコンではバックグラウンドでもノイズなく再生されます。'],
+  vi:['Vẫn phát khi tắt màn hình','Trên Android, nhạc giờ phát mượt mà khi tắt màn hình, và trên máy tính nhạc vẫn chạy nền mà không bị rè.'],
+  bg:['Свири и при изгасен екран','На Android музиката вече продължава плавно при изгасен екран, а на компютър свири във фонов режим без пращене.'],
+  pt:['Continua tocando com a tela apagada','No Android, a música agora segue sem falhas com a tela apagada, e no computador continua em segundo plano sem estalos.']}},
+ {id:'flight',d:'2026-10-13',s:'➶',go:{p:'flight.html',a:'fly:above'},t:{
+  en:['Beyond the planets','The Flight now carries on past Voyager 1 and the Oort cloud to the stars, until the whole Milky Way turns below you, and on to Andromeda. Search for any star, pulsar or galaxy by name.'],
+  pl:['Poza planetami','Lot prowadzi teraz dalej, za Voyagera 1 i obłok Oorta, do gwiazd, aż cała Droga Mleczna obraca się pod tobą, i dalej do Andromedy. Wyszukaj dowolną gwiazdę, pulsar lub galaktykę po nazwie.'],
+  cy:['Y tu hwnt i’r planedau','Mae Hedfan nawr yn mynd ymlaen heibio Voyager 1 a chwmwl Oort at y sêr, nes bod y Llwybr Llaethog cyfan yn troi oddi tanoch, ac ymlaen at Andromeda. Chwiliwch am unrhyw seren, pwlsar neu alaeth wrth ei henw.'],
+  de:['Jenseits der Planeten','Der Flug geht jetzt weiter, an Voyager 1 und der Oortschen Wolke vorbei zu den Sternen, bis sich die ganze Milchstraße unter dir dreht, und weiter bis Andromeda. Such jeden Stern, Pulsar oder jede Galaxie beim Namen.'],
+  es:['Más allá de los planetas','El Vuelo continúa ahora más allá de la Voyager 1 y la nube de Oort hasta las estrellas, hasta que toda la Vía Láctea gira bajo tus pies, y sigue hasta Andrómeda. Busca cualquier estrella, púlsar o galaxia por su nombre.'],
+  fr:['Au-delà des planètes','Le Vol continue désormais au-delà de Voyager 1 et du nuage d’Oort jusqu’aux étoiles, jusqu’à ce que toute la Voie lactée tourne sous vous, et jusqu’à Andromède. Cherchez une étoile, un pulsar ou une galaxie par son nom.'],
+  it:['Oltre i pianeti','Il Volo ora prosegue oltre Voyager 1 e la nube di Oort fino alle stelle, finché l’intera Via Lattea ruota sotto di te, e poi fino ad Andromeda. Cerca qualsiasi stella, pulsar o galassia per nome.'],
+  zh:['飞出行星之外','飞行现在会继续前进，越过旅行者1号和奥尔特云直抵群星，直到整个银河系在你下方旋转，再一路飞向仙女座。还可以按名称搜索任何恒星、脉冲星或星系。'],
+  ja:['惑星の彼方へ','飛行はボイジャー1号とオールトの雲を越えて星々へ、天の川銀河全体が眼下で回るところまで、さらにアンドロメダへと続きます。恒星・パルサー・銀河を名前で検索できます。'],
+  vi:['Vượt ra ngoài các hành tinh','Chuyến Bay giờ đi tiếp qua Voyager 1 và đám mây Oort tới các vì sao, cho đến khi cả Dải Ngân Hà xoay bên dưới bạn, rồi tới tận Tiên Nữ. Tìm bất kỳ ngôi sao, sao xung hay thiên hà nào theo tên.'],
+  bg:['Отвъд планетите','Полетът вече продължава отвъд Вояджър 1 и облака на Оорт към звездите, докато целият Млечен път се завърти под теб, и нататък до Андромеда. Търси всяка звезда, пулсар или галактика по име.'],
+  pt:['Além dos planetas','O Voo agora segue além da Voyager 1 e da nuvem de Oort até as estrelas, até a Via Láctea inteira girar abaixo de você, e continua até Andrômeda. Busque qualquer estrela, pulsar ou galáxia pelo nome.']}},
+ {id:'meditate',d:'2026-10-13',s:'◌',go:{p:'meditate.html',a:'scape'},t:{
+  en:['Meditate','A new page for slow listening: the Sun’s hum, the thinkers’ heavens, each planet with its singing moons or a single voice, introduced by Hestia and the gods. Compose your own soundtrack, with bells.'],
+  pl:['Medytacja','Nowa strona do spokojnego słuchania: szum Słońca, niebiosa myślicieli, każda planeta ze śpiewającymi księżycami albo pojedynczy głos, a przedstawiają je Hestia i bogowie. Ułóż własną ścieżkę dźwiękową z dzwonkami.'],
+  cy:['Myfyrio','Tudalen newydd ar gyfer gwrando’n araf: si’r Haul, nefoedd y meddylwyr, pob planed gyda’i lleuadau’n canu neu un llais ar ei ben ei hun, wedi’u cyflwyno gan Hestia a’r duwiau. Cyfansoddwch eich trac sain eich hun, gyda chlychau.'],
+  de:['Meditation','Eine neue Seite zum langsamen Hören: das Summen der Sonne, die Himmel der Denker, jeder Planet mit seinen singenden Monden oder eine einzelne Stimme, vorgestellt von Hestia und den Göttern. Stell dir deinen eigenen Soundtrack zusammen, mit Glocken.'],
+  es:['Meditar','Una página nueva para escuchar despacio: el zumbido del Sol, los cielos de los pensadores, cada planeta con sus lunas cantoras o una sola voz, presentados por Hestia y los dioses. Compón tu propia banda sonora, con campanas.'],
+  fr:['Méditer','Une nouvelle page pour écouter lentement : le bourdonnement du Soleil, les cieux des penseurs, chaque planète avec ses lunes qui chantent ou une seule voix, présentés par Hestia et les dieux. Composez votre propre bande-son, avec des cloches.'],
+  it:['Medita','Una nuova pagina per l’ascolto lento: il ronzio del Sole, i cieli dei pensatori, ogni pianeta con le sue lune che cantano o una sola voce, presentati da Estia e dagli dèi. Componi la tua colonna sonora, con le campane.'],
+  zh:['冥想','一个用来慢慢聆听的新页面：太阳的嗡鸣、思想家们的天穹、每颗行星与它歌唱的卫星，或单独一个声音，由赫斯提亚和众神引介。还可以编排带钟声的专属音轨。'],
+  ja:['瞑想','ゆっくり聴くための新しいページ。太陽のハム、思想家たちの天球、歌う衛星をしたがえた惑星やひとつだけの声を、ヘスティアと神々が紹介します。鐘の入った自分だけのサウンドトラックも作れます。'],
+  vi:['Thiền','Một trang mới để lắng nghe chậm rãi: tiếng ngân của Mặt Trời, bầu trời của các nhà tư tưởng, từng hành tinh với các mặt trăng đang hát hoặc chỉ một giọng, do Hestia và các vị thần giới thiệu. Tự soạn bản nhạc nền của riêng bạn, có chuông.'],
+  bg:['Медитация','Нова страница за бавно слушане: бученето на Слънцето, небесата на мислителите, всяка планета с пеещите си луни или само един глас, представени от Хестия и боговете. Състави свой саундтрак, с камбанки.'],
+  pt:['Meditar','Uma página nova para ouvir devagar: o zumbido do Sol, os céus dos pensadores, cada planeta com suas luas cantando ou uma única voz, apresentados por Héstia e pelos deuses. Monte sua própria trilha sonora, com sinos.']}},
+ {id:'gsynth',d:'2026-10-13',s:'∿',go:{p:'synth.html',h:'galaxy'},t:{
+  en:['The Galactic Synthesiser','Switch the Synth from Planets to Galaxy and play with stars, pulsars, the Milky Way’s rotation and the hydrogen of its spiral arms.'],
+  pl:['Syntezator galaktyczny','Przełącz Syntezator z Planet na Galaktykę i graj gwiazdami, pulsarami, obrotem Drogi Mlecznej i wodorem jej ramion spiralnych.'],
+  cy:['Y Syntheseisydd Galaethol','Newidiwch y Synth o Planedau i Galaeth a chwarae gyda sêr, pylsarau, cylchdro’r Llwybr Llaethog a hydrogen ei freichiau troellog.'],
+  de:['Der galaktische Synthesizer','Schalt den Synthesizer von Planeten auf Galaxis um und spiel mit Sternen, Pulsaren, der Rotation der Milchstraße und dem Wasserstoff ihrer Spiralarme.'],
+  es:['El Sintetizador Galáctico','Cambia el Sintetizador de Planetas a Galaxia y toca con estrellas, púlsares, la rotación de la Vía Láctea y el hidrógeno de sus brazos espirales.'],
+  fr:['Le synthé galactique','Passez le Synthé de Planètes à Galaxie et jouez avec les étoiles, les pulsars, la rotation de la Voie lactée et l’hydrogène de ses bras spiraux.'],
+  it:['Il Synth galattico','Passa il Synth da Pianeti a Galassia e suona con stelle, pulsar, la rotazione della Via Lattea e l’idrogeno dei suoi bracci a spirale.'],
+  zh:['银河合成器','把合成器从“行星”切换到“银河”，用恒星、脉冲星、银河系的自转和旋臂中的氢来演奏。'],
+  ja:['銀河シンセサイザー','シンセを「惑星」から「銀河」に切り替えて、恒星、パルサー、天の川銀河の回転、渦状腕の水素で演奏しましょう。'],
+  vi:['Synth Thiên hà','Chuyển Synth từ Hành tinh sang Thiên hà và chơi nhạc với các vì sao, sao xung, chuyển động quay của Dải Ngân Hà và khí hydro trong các nhánh xoắn của nó.'],
+  bg:['Галактическият синтезатор','Превключи Синтезатора от Планети на Галактика и свири със звезди, пулсари, въртенето на Млечния път и водорода в спиралните му ръкави.'],
+  pt:['O Sintetizador Galáctico','Mude o Sintetizador de Planetas para Galáxia e toque com estrelas, pulsares, a rotação da Via Láctea e o hidrogênio dos seus braços espirais.']}},
+ {id:'ldc',d:'2026-10-13',s:'♪',go:{p:'dance.html',a:'style:synthwave'},t:{
+  en:['Synthwave sings','Synthwave now has a song, “The Long Dark Choir”, led by Kronos’s low voice, with Aphrodite joining on the chorus.'],
+  pl:['Synthwave śpiewa','Synthwave ma teraz piosenkę „The Long Dark Choir”, którą prowadzi niski głos Kronosa, a w refrenie dołącza Afrodyta.'],
+  cy:['Synthwave yn canu','Mae gan Synthwave gân nawr, “The Long Dark Choir”, dan arweiniad llais isel Kronos, gydag Aphrodite yn ymuno yn y gytgan.'],
+  de:['Synthwave singt','Synthwave hat jetzt einen Song, „The Long Dark Choir“, angeführt von Kronos’ tiefer Stimme; im Refrain singt Aphrodite mit.'],
+  es:['El synthwave canta','El synthwave tiene ahora una canción, «The Long Dark Choir», con la voz grave de Crono al frente y Afrodita uniéndose en el estribillo.'],
+  fr:['La synthwave chante','La synthwave a désormais sa chanson, « The Long Dark Choir », menée par la voix grave de Cronos, Aphrodite la rejoignant au refrain.'],
+  it:['La synthwave canta','La synthwave ora ha una canzone, «The Long Dark Choir», guidata dalla voce profonda di Crono, con Afrodite che si unisce nel ritornello.'],
+  zh:['合成器浪潮开口唱歌','合成器浪潮现在有了一首歌《The Long Dark Choir》，由克洛诺斯低沉的嗓音领唱，阿佛洛狄忒在副歌加入。'],
+  ja:['シンセウェイヴが歌う','シンセウェイヴに歌「The Long Dark Choir」が加わりました。クロノスの低い声が歌い、サビではアフロディテが加わります。'],
+  vi:['Synthwave cất tiếng hát','Synthwave giờ có một bài hát, “The Long Dark Choir”, do giọng trầm của Kronos dẫn dắt, Aphrodite hòa giọng ở điệp khúc.'],
+  bg:['Синтуейв запява','Синтуейв вече има песен, „The Long Dark Choir“, водена от ниския глас на Кронос, а в припева се присъединява Афродита.'],
+  pt:['O synthwave canta','O synthwave agora tem uma canção, “The Long Dark Choir”, conduzida pela voz grave de Cronos, com Afrodite entrando no refrão.']}},
+ {id:'shell',d:'2026-10-13',s:'☰',go:{p:'index.html',h:'tour'},t:{
+  en:['A clearer way around','One menu on every page, with the tour and the talk always one tap away, and this list in the ⋯ menu whenever you want it.'],
+  pl:['Łatwiej się poruszać','Jedno menu na każdej stronie, oprowadzanie i prelekcja zawsze na jedno dotknięcie, a ta lista w menu ⋯, kiedy tylko zechcesz.'],
+  cy:['Ffordd gliriach o gwmpas','Un ddewislen ar bob tudalen, gyda’r daith a’r sgwrs bob amser un tap i ffwrdd, a’r rhestr hon yn y ddewislen ⋯ pryd bynnag y mynnwch.'],
+  de:['Leichter zurechtfinden','Ein Menü auf jeder Seite, Tour und Vortrag immer nur einen Tipp entfernt, und diese Liste jederzeit im Menü ⋯.'],
+  es:['Moverse es más fácil','Un solo menú en cada página, con el recorrido y la charla siempre a un toque, y esta lista en el menú ⋯ cuando quieras.'],
+  fr:['Se repérer plus facilement','Un seul menu sur chaque page, avec la visite et la présentation toujours à portée de doigt, et cette liste dans le menu ⋯ quand vous voulez.'],
+  it:['Orientarsi è più facile','Un unico menu su ogni pagina, con il tour e la presentazione sempre a un tocco, e questo elenco nel menu ⋯ quando vuoi.'],
+  zh:['更清晰的导航','每个页面都有同一个菜单，导览和讲解随时一键可达；这份列表也随时可在 ⋯ 菜单中找到。'],
+  ja:['わかりやすくなったナビゲーション','どのページにも同じメニュー。ツアーと解説はいつでもワンタップ、この一覧も ⋯ メニューからいつでも開けます。'],
+  vi:['Dễ tìm đường hơn','Một menu chung trên mọi trang, phần giới thiệu và bài thuyết trình luôn chỉ cách một lần chạm, và danh sách này nằm trong menu ⋯ bất cứ khi nào bạn cần.'],
+  bg:['По-лесно ориентиране','Едно меню на всяка страница, обиколката и представянето винаги на едно докосване, а този списък е в менюто ⋯, когато поискаш.'],
+  pt:['Mais fácil de navegar','Um só menu em todas as páginas, com o tour e a apresentação sempre a um toque, e esta lista no menu ⋯ quando você quiser.']}},
+ {id:'langs',d:'2026-10-12',s:'⊕',go:{a:'lang'},t:{
+  en:['Português and Български','Brazilian Portuguese and Bulgarian join the app, with the gods’ voices and the sung lyrics recorded in both. Twelve languages in all.'],
+  pl:['Português i Български','Do aplikacji dołączają brazylijski portugalski i bułgarski, z głosami bogów i śpiewanymi tekstami nagranymi w obu językach. W sumie dwanaście języków.'],
+  cy:['Português a Български','Mae Portiwgaleg Brasil a Bwlgareg yn ymuno â’r ap, gyda lleisiau’r duwiau a’r geiriau a genir wedi’u recordio yn y ddwy iaith. Deuddeg iaith i gyd.'],
+  de:['Português und Български','Brasilianisches Portugiesisch und Bulgarisch sind dazugekommen, die Stimmen der Götter und die gesungenen Texte in beiden Sprachen aufgenommen. Zwölf Sprachen insgesamt.'],
+  es:['Português y Български','El portugués de Brasil y el búlgaro llegan a la app, con las voces de los dioses y las letras cantadas grabadas en ambos idiomas. Doce idiomas en total.'],
+  fr:['Português et Български','Le portugais du Brésil et le bulgare rejoignent l’appli, avec les voix des dieux et les paroles chantées enregistrées dans les deux langues. Douze langues en tout.'],
+  it:['Português e Български','Il portoghese brasiliano e il bulgaro arrivano nell’app, con le voci degli dèi e i testi cantati registrati in entrambe le lingue. Dodici lingue in tutto.'],
+  zh:['Português 与 Български','应用新增巴西葡萄牙语和保加利亚语，众神的声音和演唱的歌词都用这两种语言录制。现在共有十二种语言。'],
+  ja:['Português と Български','ブラジル・ポルトガル語とブルガリア語が加わりました。神々の声も歌われる歌詞も、両方の言語で録音されています。全部で12言語です。'],
+  vi:['Português và Български','Tiếng Bồ Đào Nha Brazil và tiếng Bulgaria gia nhập ứng dụng, giọng các vị thần và lời hát đều được thu âm bằng cả hai thứ tiếng. Tổng cộng mười hai ngôn ngữ.'],
+  bg:['Português и Български','Бразилският португалски и българският се присъединяват към приложението, с гласовете на боговете и песните, записани и на двата езика. Общо дванадесет езика.'],
+  pt:['Português e Български','O português do Brasil e o búlgaro chegam ao app, com as vozes dos deuses e as letras cantadas gravadas nos dois idiomas. São doze idiomas no total.']}},
+ {id:'dances',d:'2026-10-12',s:'♫',go:{p:'dance.html',a:'style:horo'},t:{
+  en:['Horo and Baile funk','Two new dances in the World row: the Bulgarian horo in its uneven metres, with kaval and gaida, and Rio’s Baile funk with its 808s and sirens.'],
+  pl:['Horo i Baile funk','Dwa nowe tańce w rzędzie muzyki świata: bułgarskie horo w nieparzystych metrach, z kawałem i gajdą, oraz Baile funk z Rio z bębnami 808 i syrenami.'],
+  cy:['Horo a Baile funk','Dwy ddawns newydd yn rhes Y Byd: yr horo Bwlgaraidd yn ei fesurau anghymesur, gyda’r kaval a’r gaida, a Baile funk Rio gyda’i 808au a’i seirenau.'],
+  de:['Horo und Baile Funk','Zwei neue Tänze in der Reihe Welt: der bulgarische Horo in seinen ungeraden Takten, mit Kaval und Gaida, und Baile Funk aus Rio mit 808 und Sirenen.'],
+  es:['Horo y Baile funk','Dos danzas nuevas en la fila Mundo: el horo búlgaro en sus compases irregulares, con kaval y gaida, y el Baile funk de Río con sus 808 y sus sirenas.'],
+  fr:['Horo et Baile funk','Deux nouvelles danses dans la rangée Monde : le horo bulgare et ses mesures boiteuses, avec kaval et gaïda, et le Baile funk de Rio avec ses 808 et ses sirènes.'],
+  it:['Horo e Baile funk','Due nuove danze nella fila Mondo: l’horo bulgaro con i suoi metri irregolari, kaval e gaida, e il Baile funk di Rio con le sue 808 e le sirene.'],
+  zh:['霍罗舞与巴西放克','“世界”一栏新增两种舞曲：节拍不对称、有卡瓦尔笛和风笛伴奏的保加利亚霍罗舞，以及带着808鼓机和警笛声的里约巴西放克。'],
+  ja:['ホロとバイリ・ファンク','「ワールド」の列に2つの新しいダンス。カヴァルとガイダが奏でる変拍子のブルガリアのホロと、808とサイレンが響くリオのバイリ・ファンクです。'],
+  vi:['Horo và Baile funk','Hai điệu nhảy mới ở hàng Thế giới: horo Bulgaria với nhịp lẻ, có sáo kaval và kèn túi gaida, và Baile funk của Rio với tiếng trống 808 và còi hú.'],
+  bg:['Хоро и Байле фънк','Два нови танца в реда Световна музика: българско хоро в неравноделни размери, с кавал и гайда, и Байле фънк от Рио с 808 и сирени.'],
+  pt:['Horo e Funk carioca','Duas danças novas na fileira Músicas do mundo: o horo búlgaro, com seus compassos irregulares, kaval e gaida, e o funk carioca, com 808 e sirenes.']}},
+ {id:'ring',d:'2026-10-12',s:'◔',go:{p:'dance.html',a:'ringtone'},t:{
+  en:['Ringtones and alarms','The Ringtone button beside Record catches the next 3, 30 or 60 seconds as a ringtone, notification or alarm for your phone.'],
+  pl:['Dzwonki i alarmy','Przycisk Dzwonek obok Nagraj zapisuje kolejne 3, 30 lub 60 sekund jako dzwonek, powiadomienie albo alarm do telefonu.'],
+  cy:['Tonau ffôn a larymau','Mae’r botwm Tôn ffôn wrth ymyl Recordio yn dal y 3, 30 neu 60 eiliad nesaf fel tôn ffôn, hysbysiad neu larwm i’ch ffôn.'],
+  de:['Klingeltöne und Wecker','Der Knopf Klingelton neben Aufnehmen fängt die nächsten 3, 30 oder 60 Sekunden als Klingelton, Benachrichtigungston oder Weckton für dein Handy ein.'],
+  es:['Tonos y alarmas','El botón Tono, junto a Grabar, capta los próximos 3, 30 o 60 segundos como tono de llamada, notificación o alarma para tu móvil.'],
+  fr:['Sonneries et alarmes','Le bouton Sonnerie, à côté d’Enregistrer, capte les 3, 30 ou 60 secondes suivantes comme sonnerie, notification ou alarme pour votre téléphone.'],
+  it:['Suonerie e sveglie','Il pulsante Suoneria accanto a Registra cattura i prossimi 3, 30 o 60 secondi come suoneria, notifica o sveglia per il telefono.'],
+  zh:['铃声与闹钟','“录音”旁的“铃声”按钮会录下接下来的3、30或60秒，做成手机的来电铃声、通知音或闹钟。'],
+  ja:['着信音とアラーム','「録音」の隣の「着信音」ボタンで、続く3秒・30秒・60秒を、スマートフォンの着信音・通知音・アラームにできます。'],
+  vi:['Nhạc chuông và báo thức','Nút Nhạc chuông cạnh Ghi âm thu lại 3, 30 hoặc 60 giây tiếp theo làm nhạc chuông, âm báo hoặc báo thức cho điện thoại của bạn.'],
+  bg:['Мелодии и аларми','Бутонът „Мелодия“ до „Запис“ улавя следващите 3, 30 или 60 секунди като мелодия за звънене, известие или аларма за телефона ти.'],
+  pt:['Toques e alarmes','O botão Toque de celular, ao lado de Gravar, captura os próximos 3, 30 ou 60 segundos como toque, notificação ou alarme para o seu celular.']}}
+];
+/* ---- the sheet's own words ---- */
+const UI={
+ en:{app:'Music of the Spheres',wn:'What’s new',since:'New since your last visit',all:'The latest additions to the app',show:'Show me',got:'Got it',more:'Show {n} more',close:'Close',nw:'New'},
+ pl:{app:'Muzyka sfer',wn:'Co nowego',since:'Nowości od twojej ostatniej wizyty',all:'Najnowsze dodatki w aplikacji',show:'Pokaż',got:'Rozumiem',more:'Pokaż jeszcze {n}',close:'Zamknij',nw:'Nowe'},
+ cy:{app:'Cerddoriaeth y Sfferau',wn:'Beth sy’n newydd',since:'Yn newydd ers eich ymweliad diwethaf',all:'Ychwanegiadau diweddaraf yr ap',show:'Dangos i mi',got:'Iawn',more:'Dangos {n} arall',close:'Cau',nw:'Newydd'},
+ de:{app:'Musik der Sphären',wn:'Was ist neu',since:'Neu seit deinem letzten Besuch',all:'Das Neueste in der App',show:'Zeig’s mir',got:'Alles klar',more:'{n} weitere zeigen',close:'Schließen',nw:'Neu'},
+ es:{app:'La música de las esferas',wn:'Novedades',since:'Lo nuevo desde tu última visita',all:'Lo último que ha llegado a la app',show:'Muéstramelo',got:'Entendido',more:'Ver {n} más',close:'Cerrar',nw:'Nuevo'},
+ fr:{app:'La Musique des sphères',wn:'Nouveautés',since:'Nouveau depuis votre dernière visite',all:'Les derniers ajouts de l’appli',show:'Voir',got:'Compris',more:'Voir {n} de plus',close:'Fermer',nw:'Nouveau'},
+ it:{app:'La musica delle sfere',wn:'Novità',since:'Le novità dalla tua ultima visita',all:'Le ultime aggiunte all’app',show:'Mostrami',got:'Ho capito',more:'Mostra altre {n}',close:'Chiudi',nw:'Nuovo'},
+ zh:{app:'天球音乐',wn:'新功能',since:'自你上次访问以来的新内容',all:'应用最近新增的内容',show:'带我看看',got:'知道了',more:'再显示 {n} 项',close:'关闭',nw:'新'},
+ ja:{app:'天球の音楽',wn:'新機能',since:'前回からの新しい機能',all:'アプリに加わった最近の機能',show:'見てみる',got:'OK',more:'あと{n}件を表示',close:'閉じる',nw:'NEW'},
+ vi:{app:'Nhạc của các thiên cầu',wn:'Có gì mới',since:'Điểm mới từ lần bạn ghé gần nhất',all:'Những bổ sung mới nhất của ứng dụng',show:'Cho tôi xem',got:'Đã hiểu',more:'Xem thêm {n} mục',close:'Đóng',nw:'Mới'},
+ bg:{app:'Музиката на сферите',wn:'Какво ново',since:'Ново от последното ти посещение',all:'Последните добавки в приложението',show:'Покажи ми',got:'Разбрах',more:'Покажи още {n}',close:'Затвори',nw:'Ново'},
+ pt:{app:'A Música das Esferas',wn:'Novidades',since:'Novidades desde a sua última visita',all:'As últimas novidades do app',show:'Mostrar',got:'Entendi',more:'Mostrar mais {n}',close:'Fechar',nw:'Novo'}
+};
+const KEY='mots.whatsnew.seen',CAP=8;
+const VERSION=WN.reduce((m,e)=>e.d>m?e.d:m,'');
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+const cur=(document.documentElement.lang||'en').slice(0,2);
+const U=Object.assign({},UI.en,UI[cur]||{});
+const tx=e=>(e.t[cur]||e.t.en);
+const LOC={zh:'zh-CN',pt:'pt-BR',en:'en-GB'}[cur]||cur;
+const fmtD=d=>{try{const [y,m,dd]=d.slice(0,10).split('-').map(Number);return new Intl.DateTimeFormat(LOC,{day:'numeric',month:'long'}).format(new Date(y,m-1,dd))}catch(e){return d.slice(0,10)}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+// this page, as its file name in the language folder ('index.html' for the dial)
+const HERE=(()=>{const m=location.pathname.match(/([a-z]+\.html)$/);return m?m[1]:'index.html'})();
+let inFrame=false;try{inFrame=window.top!==window.self}catch(e){inFrame=true}
+// a returning visitor: anything the app stored before this page started, apart from the volume each page remembers by itself
+// (the dial's hint counter mots.hint counts earlier visits, so it counts here too)
+const before=(()=>{try{return Object.keys(localStorage)}catch(e){return []}})();
+const returning=before.some(k=>/^mots[._]/.test(k)&&!/^mots\.vol\./.test(k)&&k!==KEY);
+const seen0=LS.get(KEY);
+// a brand-new visitor: the welcome tour is their introduction, so this version counts as seen
+if(seen0===null&&!returning&&!inFrame)LS.set(KEY,VERSION);
+const pending=()=>{if(inFrame||/[?&]show(=1)?\b/.test(location.search))return [];if(seen0===null)return returning?WN.slice():[];return WN.filter(e=>e.d>seen0)};
+const isNew=e=>seen0!==null&&e.d>seen0||seen0===null&&returning;
+
+/* ---- the sheet ---- */
+let el=null,back=null;
+function open(mode){
+  if(el)close(true);
+  const list=mode==='all'?WN.slice():pending();if(!list.length)return false;
+  back=document.activeElement;
+  el=document.createElement('div');el.id='wnSheet';el.className='wn';
+  const capped=mode!=='all'&&list.length>CAP;
+  // the date once per release, above its first item
+  const item=(e,k)=>{const [h,p]=tx(e),day=!k||list[k-1].d.slice(0,10)!==e.d.slice(0,10);return `<li class="wn-i${capped&&k>=CAP?' wn-x':''}${day?' wn-day':''}"${capped&&k>=CAP?' hidden':''}>${day?`<div class="wn-d">${esc(fmtD(e.d))}</div>`:''}<span class="wn-s" aria-hidden="true">${e.s||'✦'}</span><div class="wn-b"><h3>${esc(h)}${mode==='all'&&isNew(e)?` <span class="wn-n">${esc(U.nw)}</span>`:''}</h3><p>${esc(p)}</p>${e.go?`<button type="button" class="wn-go" data-id="${e.id}">${esc(U.show)} <span aria-hidden="true">→</span></button>`:''}</div></li>`};
+  el.innerHTML=`<div class="wn-bd"></div><div class="wn-c" role="dialog" aria-modal="true" aria-labelledby="wnT" aria-describedby="wnSub">
+   <div class="wn-h"><span class="wn-grab" aria-hidden="true"></span><div class="wn-k">${esc(U.app)}</div><h2 id="wnT" tabindex="-1">${esc(U.wn)}</h2><p id="wnSub">${esc(mode==='all'?U.all:U.since)}</p>
+   <button type="button" class="wn-close" aria-label="${esc(U.close)}" title="${esc(U.close)}">✕</button></div>
+   <ol class="wn-l">${list.map(item).join('')}</ol>
+   <div class="wn-f">${capped?`<button type="button" class="wn-more">${esc(U.more.replace('{n}',list.length-CAP))}</button>`:''}<button type="button" class="wn-ok">${esc(U.got)}</button></div></div>`;
+  document.body.appendChild(el);
+  el.querySelector('.wn-bd').onclick=()=>close();
+  el.querySelector('.wn-close').onclick=()=>close();
+  el.querySelector('.wn-ok').onclick=()=>close();
+  const mb=el.querySelector('.wn-more');if(mb)mb.onclick=()=>{const first=el.querySelector('.wn-x');el.querySelectorAll('.wn-x').forEach(x=>x.hidden=false);mb.remove();if(first){const g=first.querySelector('.wn-go');(g||el.querySelector('.wn-ok')).focus({preventScroll:true});try{first.scrollIntoView({block:'nearest',behavior:calm()?'auto':'smooth'})}catch(e){}}};
+  el.querySelectorAll('.wn-go').forEach(b=>b.onclick=()=>{const e=WN.find(x=>x.id===b.dataset.id);close(true);if(e)go(e.go)});
+  // Esc and Tab are ours while the sheet is up, wherever the focus is (a page may listen for Esc itself)
+  document.addEventListener('keydown',key,true);
+  // seen: shown once, whichever page it opened on
+  LS.set(KEY,VERSION);
+  requestAnimationFrame(()=>{if(!el)return;el.classList.add('on');el.querySelector('#wnT').focus({preventScroll:true})});
+  return true;
+}
+function close(now){if(!el)return;LS.set(KEY,VERSION);document.removeEventListener('keydown',key,true);const e=el;el=null;e.classList.remove('on');setTimeout(()=>e.remove(),now||calm()?0:320);
+  const b=back;back=null;if(!now&&b&&b.focus&&document.contains(b)&&b!==document.body)try{b.focus({preventScroll:true})}catch(x){}}
+function key(e){
+  if(!el)return;
+  if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();close();return}
+  if(e.key!=='Tab')return;
+  const f=[...el.querySelectorAll('button:not([hidden]),[href]')].filter(x=>x.offsetParent!==null);if(!f.length)return;
+  if(!el.contains(document.activeElement)){e.preventDefault();f[0].focus();return}
+  const a=f[0],z=f[f.length-1];
+  if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus()}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus()}
+}
+const calm=()=>matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+/* ---- "Show me": go to the page (same language folder) and run the item's action there ---- */
+function go(g){
+  const p=g.p||HERE;
+  if(p===HERE){
+    if(g.h==='tour'&&window.MOTS&&MOTS.tour)MOTS.tour();
+    else if(g.h&&location.hash!=='#'+g.h)location.hash=g.h;
+    if(g.a)run(g.a);return}
+  location.href=p+(g.a?'?wn='+encodeURIComponent(g.a):'')+(g.h?'#'+g.h:'');
+}
+// wait for something the page builds (up to 20 s)
+function when(test,fn,ms){const t0=performance.now();const tick=()=>{let v=null;try{v=test()}catch(e){}if(v)return fn(v);if(performance.now()-t0<(ms||20000))setTimeout(tick,150)};tick()}
+// a soft bronze ring that pulses three times round what the item is about
+function pulse(x){if(!x)return;
+  // in a closed <details> (a menu): open it; in the "⋯" menu: open that
+  let d=x.closest('details');while(d){if(!d.open)d.open=true;d=d.parentElement&&d.parentElement.closest('details')}
+  try{x.scrollIntoView({block:'center',inline:'nearest'})}catch(e){}
+  x.classList.remove('wn-pulse');void x.offsetWidth;x.classList.add('wn-pulse');setTimeout(()=>x.classList.remove('wn-pulse'),3600);
+  // still in view once late layout has settled
+  setTimeout(()=>{const r=x.getBoundingClientRect();if(r.bottom<0||r.top>innerHeight)try{x.scrollIntoView({block:'center',inline:'nearest'})}catch(e){}},900)}
+// the dial's today (its chip on the timeline; not the #today address, which would also scroll the page to the timeline)
+const today=fn=>when(()=>document.querySelector('.tl-chip[data-t="today"]'),c=>{if(!c.classList.contains('on')&&c.getAttribute('aria-pressed')!=='true')c.click();setTimeout(fn,300)});
+const vis=x=>x&&x.offsetParent!==null&&x.getClientRects().length>0;
+const ACT={
+  lang:()=>when(()=>document.getElementById('langMenu'),d=>{scrollTo({top:0});setTimeout(()=>{d.open=true;const s=d.querySelector('summary');if(s)s.focus({preventScroll:true})},120)}),
+  tour:()=>{if(window.MOTS&&MOTS.tour)MOTS.tour()},
+  lines:()=>today(()=>when(()=>document.getElementById('linesSeg'),pulse)),
+  // the sign the Sun is in today (tropical), its card opened from the dial's keyboard row of the twelve signs
+  zodiac:()=>today(()=>when(()=>{const b=document.querySelectorAll('.zodkeys button');return b.length===12?b:null},b=>{
+    const n=new Date(),doy=(Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())-Date.UTC(n.getFullYear(),2,21))/864e5;const k=Math.floor(((doy%365)+365)%365/30.44)%12;
+    setTimeout(()=>{b[k].click();when(()=>{const c=document.getElementById('zodCard');return c&&!c.hidden?c:null},c=>{const f=c.querySelector('.zc-acts button')||c.querySelector('button');if(f)f.focus({preventScroll:true})},3000)},400)})),
+  find:()=>when(()=>document.getElementById('gSearchBtn'),b=>b.click()),
+  fly:id=>when(()=>window.FLYG&&FLYG.ST&&FLYG.ST.ready,()=>{try{FLYG.travel(id)}catch(e){}},40000),
+  style:v=>when(()=>document.querySelector(`#style button[data-v="${v}"]`),b=>{
+    // on a phone only one genre shows at a time: its tab first
+    const gp=b.closest('.sgrp'),box=document.getElementById('style');
+    if(gp&&box&&!vis(b)){const grps=[...box.querySelectorAll('.sgrp')].filter(x=>!x.classList.contains('partygrp')&&x.querySelector('.lab'));const i=grps.indexOf(gp);const t=box.querySelectorAll('.stabs [role="tab"]')[i];if(t)t.click()}
+    if(b.getAttribute('aria-pressed')!=='true')b.click();setTimeout(()=>pulse(b),150)}),
+  ringtone:()=>when(()=>document.getElementById('ringBtn'),b=>{const mm=b.closest('.mmenu');if(mm){const d=mm.closest('details');if(d){scrollTo({top:0});d.open=true}}setTimeout(()=>pulse(b),150)}),
+  con:()=>when(()=>{const s=document.getElementById('scape');return s&&s.querySelector('option[value^="con:"]')?s:null},s=>{
+    const o=s.querySelector('option[value="con:ori"]')||s.querySelector('option[value^="con:"]');if(o&&s.value!==o.value){s.value=o.value;s.dispatchEvent(new Event('change',{bubbles:true}))}pulse(s)}),
+  scape:()=>when(()=>document.getElementById('scape'),pulse)
+};
+// after the page has loaded and settled (the dial sizes its sky as it loads, which moves everything below it)
+function run(a){const [k,v]=String(a).split(':');const f=ACT[k];if(!f)return;const go=()=>setTimeout(()=>{try{f(v)}catch(e){}},400);
+  if(document.readyState==='complete')go();else addEventListener('load',go,{once:true})}
+
+/* ---- always reachable: the "⋯" menu on every page, the dial's Extras menu, the help page's contents and every page's footer ---- */
+const ICON='✧';
+function entry(cls){const a=document.createElement('a');a.href='#whatsnew';a.className=cls;a.dataset.guide='wn';a.setAttribute('role','menuitem');
+  a.innerHTML=`<span class="i" aria-hidden="true">${ICON}</span><span class="l">${esc(U.wn)}</span>`;
+  a.onclick=e=>{e.preventDefault();const d=a.closest('details');if(d)d.open=false;setTimeout(()=>open('all'),0)};return a}
+function wire(){
+  document.querySelectorAll('.mots-more .mmenu').forEach(m=>{if(!m.querySelector('.g-wn'))m.appendChild(entry('g-wn'))});
+  const ex=document.querySelector('details.extras .menu');if(ex&&!ex.querySelector('.g-wn')){const a=entry('g-wn');a.removeAttribute('data-guide');a.id='wnExtras';ex.appendChild(a)}
+  const ol=document.querySelector('nav.toc ol');if(ol&&!ol.querySelector('.wn-toc')){const li=document.createElement('li');li.className='wn-toc';const a=document.createElement('a');a.href='#whatsnew';a.textContent=U.wn;a.onclick=e=>{e.preventDefault();open('all')};li.appendChild(a);ol.appendChild(li)}
+  const f=document.getElementById('motsCopy');if(f&&!f.querySelector('.wn-foot')){const a=document.createElement('a');a.href='#whatsnew';a.className='wn-foot';a.textContent=ICON+' '+U.wn;a.onclick=e=>{e.preventDefault();open('all')};f.prepend(a,document.createElement('br'))}
+}
+
+/* ---- the look: bronze on deep blue, a centred card on a desktop, a bottom sheet on a phone ---- */
+const css=document.createElement('style');css.id='wnCss';
+css.textContent=`
+#wnSheet{position:fixed;inset:0;z-index:85;display:grid;place-items:center;padding:16px;font-family:var(--f-body,"Alegreya Sans"),system-ui,sans-serif}
+#wnSheet .wn-bd{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,rgba(9,11,24,.55),rgba(5,6,12,.86));-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);opacity:0;transition:opacity .35s}
+#wnSheet .wn-c{position:relative;width:min(600px,100%);max-height:min(86vh,780px);max-height:min(86dvh,780px);display:flex;flex-direction:column;background:linear-gradient(180deg,#11152b,#0b0e1f);border:1px solid rgba(201,152,79,.5);border-radius:16px;box-shadow:0 24px 80px rgba(0,0,0,.7),inset 0 1px 0 rgba(243,217,164,.06);color:var(--vellum,#e9e1cc);opacity:0;transform:translateY(14px) scale(.985);transition:opacity .35s,transform .35s cubic-bezier(.2,.8,.2,1);overflow:hidden}
+#wnSheet.on .wn-bd{opacity:1}#wnSheet.on .wn-c{opacity:1;transform:none}
+#wnSheet .wn-h{position:relative;padding:22px 64px 14px 26px;border-bottom:1px solid rgba(201,152,79,.18);flex:none}
+#wnSheet .wn-grab{display:none}
+#wnSheet .wn-k{font:600 12px/1.2 var(--f-body,"Alegreya Sans"),system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--bronze,#c9984f)}
+#wnSheet h2{margin:6px 0 4px;font:400 clamp(28px,3.4vw,36px)/1.1 var(--f-display,"GFS Didot"),Georgia,serif;color:#f1e3bf;outline:none}
+#wnSheet #wnSub{margin:0;color:#a39c89;font-size:15px;line-height:1.4}
+#wnSheet .wn-close{position:absolute;top:12px;right:12px;appearance:none;border:1px solid transparent;background:transparent;color:#a39c89;border-radius:999px;width:var(--tap,2.75rem);height:var(--tap,2.75rem);min-width:44px;min-height:44px;font-size:18px;cursor:pointer;display:grid;place-items:center}
+#wnSheet .wn-close:hover{color:#e9d093;border-color:rgba(201,152,79,.5)}
+#wnSheet .wn-l{list-style:none;margin:0;padding:6px 26px 4px;overflow-y:auto;overscroll-behavior:contain;flex:1 1 auto;min-height:0;scrollbar-width:thin;scrollbar-color:rgba(201,152,79,.4) transparent}
+#wnSheet .wn-i{display:grid;grid-template-columns:40px minmax(0,1fr);gap:14px;padding:16px 0;border-bottom:1px solid rgba(58,64,104,.55)}
+#wnSheet .wn-i:last-child{border-bottom:0}
+#wnSheet .wn-i[hidden]{display:none}
+#wnSheet .wn-s{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(201,152,79,.55);background:radial-gradient(circle at 35% 30%,rgba(201,152,79,.22),rgba(201,152,79,.04) 70%);color:#e9d093;font:18px/1 var(--f-display,"GFS Didot"),Georgia,serif;margin-top:2px}
+#wnSheet .wn-b{min-width:0}
+#wnSheet .wn-d{grid-column:1/-1;margin:2px 0 -4px;font:600 12px/1.2 var(--f-body,"Alegreya Sans"),system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#8f897a;display:flex;align-items:center;gap:10px}
+#wnSheet .wn-d::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(201,152,79,.35),transparent)}
+#wnSheet .wn-day{border-top:0}
+#wnSheet .wn-n{display:inline-block;vertical-align:3px;margin-left:6px;font:700 11px/1.5 var(--f-body,"Alegreya Sans"),system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#1a1408;background:linear-gradient(180deg,#e2b468,#c9984f);border-radius:999px;padding:1px 8px}
+#wnSheet h3{margin:3px 0 4px;font:400 21px/1.2 var(--f-display,"GFS Didot"),Georgia,serif;color:#f3d9a4;overflow-wrap:anywhere}
+#wnSheet .wn-b p{margin:0;color:#d8cfb8;font-size:16px;line-height:1.5;overflow-wrap:anywhere}
+#wnSheet .wn-go{margin-top:10px;appearance:none;display:inline-flex;align-items:center;gap:.4em;min-height:44px;padding:8px 16px;border:1px solid rgba(201,152,79,.6);background:rgba(201,152,79,.06);color:var(--bronze,#c9984f);border-radius:999px;font:600 15px/1.2 var(--f-body,"Alegreya Sans"),system-ui,sans-serif;cursor:pointer;letter-spacing:.02em}
+#wnSheet .wn-go:hover{background:rgba(201,152,79,.16);color:#f3d9a4;border-color:var(--bronze,#c9984f)}
+#wnSheet .wn-f{flex:none;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;padding:12px 26px 18px;border-top:1px solid rgba(201,152,79,.18);background:rgba(8,10,22,.5)}
+#wnSheet .wn-more{appearance:none;border:1px solid #2b3050;background:transparent;color:#e9e1cc;border-radius:999px;min-height:44px;padding:8px 18px;font:15px/1.2 var(--f-body,"Alegreya Sans"),system-ui,sans-serif;cursor:pointer;margin-right:auto}
+#wnSheet .wn-more:hover{border-color:var(--bronze,#c9984f);color:#e9d093}
+#wnSheet .wn-ok{appearance:none;border:0;background:linear-gradient(180deg,#e2b468,#c9984f);color:#1a1408;font:700 16px/1.2 var(--f-body,"Alegreya Sans"),system-ui,sans-serif;min-height:48px;padding:12px 30px;border-radius:999px;cursor:pointer;box-shadow:0 6px 22px rgba(201,152,79,.3)}
+#wnSheet .wn-ok:hover{filter:brightness(1.07)}
+#wnSheet button:focus-visible{outline:2px solid #f3d9a4;outline-offset:2px}
+/* phones: a sheet from the bottom edge */
+@media (max-width:600px){
+  #wnSheet{padding:0;place-items:end stretch}
+  #wnSheet .wn-c{width:100%;max-height:88vh;max-height:88dvh;border-radius:18px 18px 0 0;border-bottom:0;transform:translateY(40px)}
+  #wnSheet .wn-h{padding:10px 60px 12px 18px}
+  #wnSheet .wn-grab{display:block;width:40px;height:4px;border-radius:2px;background:#3a4068;margin:0 auto 10px;transform:translateX(21px)}
+  #wnSheet h2{font-size:28px}
+  #wnSheet .wn-close{top:8px;right:8px}
+  #wnSheet .wn-l{padding:2px 18px}
+  #wnSheet .wn-i{grid-template-columns:34px minmax(0,1fr);gap:12px;padding:14px 0}
+  #wnSheet .wn-s{width:34px;height:34px;font-size:16px}
+  #wnSheet h3{font-size:19px}
+  #wnSheet .wn-b p{font-size:15.5px}
+  #wnSheet .wn-f{padding:10px 18px calc(12px + env(safe-area-inset-bottom,0px))}
+  #wnSheet .wn-ok{flex:1 1 auto}
+  #wnSheet .wn-more{flex:1 1 auto;margin-right:0}
+}
+/* landscape phones: a centred card using the height */
+@media (max-height:520px) and (orientation:landscape){
+  #wnSheet{padding:8px}
+  #wnSheet .wn-c{max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px);width:min(640px,100%)}
+  #wnSheet .wn-h{padding:10px 60px 8px 20px}#wnSheet h2{font-size:24px;margin:2px 0}#wnSheet #wnSub{font-size:14px}
+  #wnSheet .wn-close{top:4px;right:6px}
+  #wnSheet .wn-l{padding:0 20px}#wnSheet .wn-i{padding:10px 0}
+  #wnSheet .wn-f{padding:6px 20px 8px}
+}
+@media (prefers-reduced-motion:reduce){#wnSheet .wn-c,#wnSheet .wn-bd{transition:none}}
+/* the "⋯" menu's entry; on a desktop the menu also shows on the pages without the dial's Extras (its tour and talk are in the strip there) */
+.mots-more .mmenu > a.g-wn .i{color:var(--bronze,#c9984f);width:1.1em;text-align:center}
+details.extras .menu a.g-wn .i{color:var(--bronze,#c9984f);display:inline-block;margin-right:.4em}
+/* the dial's Extras menu sits at the right end of the button row on a desktop: open it leftwards so it stays on screen */
+@media not ((max-width:560px) or ((max-height:520px) and (orientation:landscape))){header.top.shell .ctl details.extras .menu{left:auto;right:0;transform:none}}
+@media not ((max-width:560px) or ((max-height:520px) and (orientation:landscape))){
+  header.top.shell nav.site > .mots-more{display:inline-block;flex:none}
+  header.top.shell nav.site > .mots-more .mmenu > [data-guide="tour"],header.top.shell nav.site > .mots-more .mmenu > [data-guide="talk"]{display:none!important}
+  header.top.shell nav.site > .mots-more summary{border:1px solid var(--bronze-dim,var(--line,#8a6a3a))}
+  header.top.shell nav.site > .mots-more summary:hover,header.top.shell nav.site > .mots-more[open] summary{border-color:var(--bronze,#c9984f);background:rgba(201,152,79,.08)}
+}
+@media not ((pointer:coarse) or (max-width:760px)){
+  .hud.tr .mots-more{display:inline-block}
+  .hud.tr .mots-more .mmenu > [data-guide="tour"],.hud.tr .mots-more .mmenu > [data-guide="talk"]{display:none!important}
+}
+/* the help page's contents: a star in place of a numeral */
+.toc li.wn-toc a::before,#tocSheet li.wn-toc a::before{content:"✧";font-family:inherit}
+#motsCopy .wn-foot{display:inline-block;min-height:44px;line-height:44px;padding:0 10px;color:var(--bronze,#c9984f);text-decoration:none;font-size:.95rem}
+#motsCopy .wn-foot:hover{color:#f3d9a4}
+/* "Show me": a soft ring round the thing */
+.wn-pulse{animation:wnPulse 1.1s ease-out 3;border-radius:12px}
+@keyframes wnPulse{0%{box-shadow:0 0 0 0 rgba(233,208,147,.85)}100%{box-shadow:0 0 0 16px rgba(233,208,147,0)}}
+@media (prefers-reduced-motion:reduce){.wn-pulse{animation:none;outline:2px solid #e9d093;outline-offset:3px}}
+`;
+document.head.appendChild(css);
+
+/* ---- on start-up ---- */
+// not while the welcome tour, the talk or the projector view is up, not in the talk's frames, not while the page is hidden
+// nor while another modal dialog is up (the Synth's own first-visit tour #stour, a panel the visitor opened …)
+const modal=()=>[...document.querySelectorAll('[aria-modal="true"]')].some(x=>!x.closest('#wnSheet')&&!x.hidden&&x.getClientRects().length>0&&getComputedStyle(x).visibility!=='hidden');
+const busy=()=>!!(modal()||document.getElementById('tour')||document.getElementById('stour')||document.getElementById('showOffer')||document.getElementById('motsShow')||document.documentElement.classList.contains('mots-show')||document.documentElement.classList.contains('mots-proj')||document.hidden||/^#(tour|talk|show)$/i.test(location.hash)||/[?&](tour|show)\b/.test(location.search));
+function auto(){
+  if(!pending().length)return;
+  // the visitor came for the tour or the talk: the sheet waits for another page
+  if(/^#(tour|talk|show)$/i.test(location.hash)||/[?&](tour|show)\b/.test(location.search))return;
+  let n=0;const t=()=>{if(el||LS.get(KEY)===VERSION)return;if(busy()){n=0;setTimeout(t,500);return}
+    // a quiet moment first: a second and a half of nothing in the way
+    if(++n<3){setTimeout(t,500);return}open('new')};
+  setTimeout(t,800);
+}
+function start(){
+  wire();
+  // the shell rebuilds its menus as the layout changes: keep the entry in them
+  setTimeout(wire,150);setTimeout(wire,800);setTimeout(wire,2500);
+  // ?wn=<action> from a "Show me" on another page
+  const m=location.search.match(/[?&]wn=([^&#]+)/);
+  if(m){const a=decodeURIComponent(m[1]);try{const q=location.search.replace(/([?&])wn=[^&#]*&?/,'$1').replace(/[?&]$/,'');history.replaceState(history.state,'',location.pathname+q+location.hash)}catch(e){}run(a)}
+  if(/^#whatsnew$/i.test(location.hash)){try{history.replaceState(history.state,'',location.pathname+location.search)}catch(e){}open('all')}
+  else if(!inFrame)auto();
+}
+addEventListener('hashchange',()=>{if(/^#whatsnew$/i.test(location.hash)){try{history.replaceState(history.state,'',location.pathname+location.search)}catch(e){}open('all')}});
+window.MOTS=window.MOTS||{};MOTS.whatsnew={open:()=>open('all'),version:VERSION,items:WN,pending};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
+})();
 /*LANG-END*/
 </script>
 <script>
@@ -597,6 +1056,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <li><a href="#meditate">Медитация: небесата, както са ги чували мислителите</a></li>
     <li><a href="#stage">На сцената: озвучаване, MIDI и проектор</a></li>
     <li><a href="#light">Светлина и радио</a></li>
+    <li><a href="#constellations">Звуците на съзвездията</a></li>
     <li><a href="#tips">Съвети и отстраняване на проблеми</a></li>
     <li><a href="#data">Данни, точност и литература</a></li>
   </ol>
@@ -830,7 +1290,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   <h2>Четирите начина да слушаш</h2>
   <div class="cards">
     <div class="card"><h3>Мислителите и 2D циферблатът</h3><p>Времева линия на мислителите, всеки със своя космос, и цялата Слънчева система днес, обградена от зодиака като бронзовия циферблат на Антикитерския механизъм. Избери къде да застанеш, докосни тяло, за да го чуеш самостоятелно, или влез в системата на някоя планета, за да чуеш как луните ѝ кръжат около теб.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/bg/">Отвори циферблата →</a></div>
-    <div class="card"><h3>3D полет</h3><p>Прелети с кораб през Слънчевата система, а хорът е разположен около кабината ти. Пътувай до всяко тяло, плавай напред или се издигни над равнината на планетите. Сред луните на Юпитер или Сатурн луните пеят около теб.</p><p id="interstellar-p">Отвъд Нептун полетът продължава: през хелиопаузата на около 120 а.е., където съскането на слънчевия вятър спира („Вояджър 1“ я прекоси през 2012 г.), през облака на Оорт и до най-близките звезди на истинските им места. Всяка звучи по правилото на четиридесетте октави с линиите на своя спектрален клас, толкова силно, колкото ярко изглежда от кораба ти, от истинската си посока и с истинското си доплерово отместване (×1, ×100 или ×1000). Пулсарите се чуват такива, каквито са, радиоизточниците като оцветен шум, а над диска целият Млечен път се върти под теб, докато кривата му на въртене свири хармоничния ред (ключ „Тъмна материя“ оставя акорда да увисне). Бутоните долу (Хелиопауза, Облак на Оорт, Алфа Кентавър, Сириус, Пулсарът Вела, Център на Галактиката, Над Млечния път, У дома) те отвеждат там; показанието дава разстоянието ти от Слънцето и колко време пътува светлината му до теб. Групата „Звезди“ в панела „Пътуване“ задава собствената сила на звездите (отделно от планетите), как звучат (укротен тон, меко трептене от зърна, пулс със светлината им или изключено), дали звездата пее името си при пристигане, звездотресението (собствените трептения на звезда като Слънцето, ускорени, докато си спрял до нея) и силата на акорда на тъмната материя. При пристигане карта показва вида на звездата, температурата и разстоянието от дома, с един ред за това, което чуваш, и бутони: обиколи я (звукът ѝ се върти около теб), следваща звезда, у дома.<span id="lg-help"> <b>Търси звезда</b> (в панела Пътуване или „Намери звезда“ в менюто на HUD): напиши име на който и да е от дванадесетте езика (Сириус, Sirius, シリウス, 天狼星, Syriusz…), обозначение по Байер или Флемстийд в произволен правопис (α Cen, alpha Cen, Алфа Кентавър, 61 Cyg), съзвездие (показва звездите му), номер HIP, HD или Gliese, идентификатор от Gaia, ако големият каталог е изтеглен, пулсар или галактика; всяко предложение показва вида, класа и разстоянието, а ти летиш дотам с автопилота или скачаш с ⤼. <b>Местната група:</b> пътуването продължава отвъд Млечния път до около 1,5 Mpc — Магелановите облаци, Андромеда (M31, с M32 и M110), Триъгълник (M33), джуджето в Стрелец и около деветдесет галактики джуджета от преброяването на Маконахи от 2012 г., всяка нарисувана според типа и измерения си размер на истинското си място, спиралите с реалните си наклони. Млечният път се смалява зад теб; показанията преминават в Mpc и милиони години. Всяка галактика е глас: собствените акорди на въртенето на спиралите (M31 плоска при 250 km/s, M33 растяща до 125; превключвателят за тъмната материя работи и за тях), джуджетата — мек тон на цялата им звездна светлина, силен колкото ярки изглеждат от кораба, от истинската им посока, с реалните им лъчеви скорости (Андромеда се приближава: мъничко синьо отместване, преувеличено с превключвателя). Бутони: Магеланови облаци, Андромеда, Триъгълник, Над Местната група.</span> <span id="sv-help"><b>Всяка звезда със собствен глас:</b> всяко правило е изписано на картата ѝ. Регистърът и тялото идват от класа на светимост и радиуса (свръхгигантите дълбоки и широки, с октавите отдолу и бавно дишане; гигантите с октавата отдолу; джуджетата тънки и ярки; белите джуджета мънички и стъклени, с нечетни обертонове); тембърът — от истинските ѝ абсорбционни линии, чути като прорези (линиите на Балмер при звездите A, Ca II, Fe и Na D при слънцеподобните, ивиците на TiO при звездите M); вибрато в темпото на въртенето ѝ (обиколката, повдигната с 20 октави; типични скорости за класа, когато не са измерени); дишане с периода ѝ на пулсация; спътниците ѝ като собствени тонове на Вин от собствената им посока, като двойката се върти веднъж на 20 s, когато орбитата е известна; истинските променливи следват кривата си на блясъка, един цикъл за 6 + 2 log₁₀ P секунди; и всяка звезда има собствена микромелодия от най-силните си линии, сгънати в нейната октава, така че и съседи от един тип се различават. <b>Щракнете или докоснете коя да е звезда</b> (или пулсар, радиоизточник, галактика, етикет, или името на най-близката звезда в показанията) за карта с Отиди там, Скок, Чуй я сама, Спектър и Радио. Звездите са нарисувани в истинските си цветове (спектърът им на черно тяло през функциите за съвпадение на цветовете на CIE: Слънцето бяло с нотка жълто, джуджетата M оранжево-червени, звездите B синьо-бели). <b>Спектър</b> показва видимия спектър на звездата, 380–750 nm, с абсорбционните ѝ линии на истинските им дължини на вълната и кривата на Планк с отбелязан максимум; <i>Чуй линиите ѝ</i> задържа всяка абсорбционна линия като нота по правилото на четиридесетте октави (един и същ елемент пее една и съща нота във всяка звезда: Hα 656 nm → 416 Hz), най-дълбоките линии най-силно, широките ивици като гроздове, а целият акорд е изместен с лъчевата скорост на звездата според настройката на Доплер — звездите от един вид споделят линиите си; движението им измества акорда — а <i>Чуй преминаването</i> преминава спектъра от виолетово (717 Hz) до червено (363 Hz), а линиите се чуват като спадове. Гласът <i>Линии (акорд)</i> в групата Звезди свири най-близката звезда като този акорд, докато летиш. <b>Радио</b> показва какво честно се знае за радиоизлъчването ѝ, от подбрана таблица с четиридесет забележителни звезди (източниците са в благодарностите): повечето звезди са радиотихи, под прага на откриване; изблиците на Слънцето, избухванията на Проксима Кентавър, UV Ceti и AD Leonis, мазерите SiO, H₂O и OH на Мира, χ Cygni, μ Cephei, Бетелгейзе и Антарес (всяка линия понижена с посочено цяло число октави: H₂O при 22 GHz −25 → 663 Hz), свободно-свободните ветрове на горещи звезди като ζ Puppis, жиросинхротронните избухвания на Алгол; <i>Чуй радиото</i> го свири — избухванията като пукащи изблици, ден минава за 20 s, мазерите като свирещи линии, тихите звезди само като шумов фон.</span> <span id="bh-help"><b>Черни дупки:</b> в центъра на Галактиката е Стрелец A*, 4,3 милиона слънчеви маси, нарисувана в истински мащаб от 2,5 а.е., откъдето сянката ѝ е 10°: фотонният пръстен и светещият поток, по-ярък от страната, която идва към теб; „Назад“ показва S-звездите по публикуваните им орбити (S2, S29, S38, S55, S4716…). Самата дупка мълчи — единственото тяло без спектър. Чуваш газа ѝ (спектърът му от радиото до милиметрите, понижен с 28 октави, като дишащ шум, изригвания с истинската им честота, рентгенови изригвания като съскане), гореща точка, която обикаля на всеки 41 минути с доплеровото и гравитационното си отместване, ускорена ×500, и гласовете на S-звездите, отместени от истинските им скорости (S2 достига 7700 km/s). Бутонът „Черни дупки“ отваря останалите: Gaia BH1, BH2 и BH3 (звезда, която обикаля нещо невидимо, с истинската ѝ радиална скорост, чута през превключвателя на Доплер), Лебед X-1 (рентгеновото му трептене в реално време и струите му), V404 Лебед (изригването от 2015 г., пуснато отново), A0620−00 и тихите гиганти на Андромеда и M32 — както и M33, където не е открита черна дупка. „Сблъскващи се черни дупки“ пуска чирикането на GW150914, както е пристигнало, или забавено ×4. Всяко правило и всяко число са на картата.</span></p><a href="https://newbroman.github.io/Music_of_the_Spheres/bg/flight.html">Излитай →</a></div>
+    <div class="card"><h3>3D полет</h3><p>Прелети с кораб през Слънчевата система, а хорът е разположен около кабината ти. Пътувай до всяко тяло, плавай напред или се издигни над равнината на планетите. Сред луните на Юпитер или Сатурн луните пеят около теб.</p><p id="interstellar-p">Отвъд Нептун полетът продължава: през хелиопаузата на около 120 а.е., където съскането на слънчевия вятър спира („Вояджър 1“ я прекоси през 2012 г.), през облака на Оорт и до най-близките звезди на истинските им места. Всяка звучи по правилото на четиридесетте октави с линиите на своя спектрален клас, толкова силно, колкото ярко изглежда от кораба ти, от истинската си посока и с истинското си доплерово отместване (×1, ×100 или ×1000). Пулсарите се чуват такива, каквито са, радиоизточниците като оцветен шум, а над диска целият Млечен път се върти под теб, докато кривата му на въртене свири хармоничния ред (ключ „Тъмна материя“ оставя акорда да увисне). Бутоните долу (Хелиопауза, Облак на Оорт, Алфа Кентавър, Сириус, Пулсарът Вела, Център на Галактиката, Над Млечния път, У дома) те отвеждат там; показанието дава разстоянието ти от Слънцето и колко време пътува светлината му до теб. Групата „Звезди“ в панела „Пътуване“ задава собствената сила на звездите (отделно от планетите), как звучат (укротен тон, меко трептене от зърна, пулс със светлината им или изключено), дали звездата пее името си при пристигане, звездотресението (собствените трептения на звезда като Слънцето, ускорени, докато си спрял до нея) и силата на акорда на тъмната материя. При пристигане карта показва вида на звездата, температурата и разстоянието от дома, с един ред за това, което чуваш, и бутони: обиколи я (звукът ѝ се върти около теб), следваща звезда, у дома.<span id="lg-help"> <b>Търси звезда</b> (в панела Пътуване или „Намери звезда“ в менюто на HUD): напиши име на който и да е от дванадесетте езика (Сириус, Sirius, シリウス, 天狼星, Syriusz…), обозначение по Байер или Флемстийд в произволен правопис (α Cen, alpha Cen, Алфа Кентавър, 61 Cyg), съзвездие (показва звездите му), номер HIP, HD или Gliese, идентификатор от Gaia, ако големият каталог е изтеглен, пулсар или галактика; всяко предложение показва вида, класа и разстоянието, а ти летиш дотам с автопилота или скачаш с ⤼. <b>Местната група:</b> пътуването продължава отвъд Млечния път до около 1,5 Mpc — Магелановите облаци, Андромеда (M31, с M32 и M110), Триъгълник (M33), джуджето в Стрелец и около деветдесет галактики джуджета от преброяването на Маконахи от 2012 г., всяка нарисувана според типа и измерения си размер на истинското си място, спиралите с реалните си наклони. Млечният път се смалява зад теб; показанията преминават в Mpc и милиони години. Всяка галактика е глас: собствените акорди на въртенето на спиралите (M31 плоска при 250 km/s, M33 растяща до 125; превключвателят за тъмната материя работи и за тях), джуджетата — мек тон на цялата им звездна светлина, силен колкото ярки изглеждат от кораба, от истинската им посока, с реалните им лъчеви скорости (Андромеда се приближава: мъничко синьо отместване, преувеличено с превключвателя). Бутони: Магеланови облаци, Андромеда, Триъгълник, Над Местната група.</span> <span id="sv-help"><b>Всяка звезда със собствен глас:</b> всяко правило е изписано на картата ѝ. Регистърът и тялото идват от класа на светимост и радиуса (свръхгигантите дълбоки и широки, с октавите отдолу и бавно дишане; гигантите с октавата отдолу; джуджетата тънки и ярки; белите джуджета мънички и стъклени, с нечетни обертонове); тембърът — от истинските ѝ абсорбционни линии, чути като прорези (линиите на Балмер при звездите A, Ca II, Fe и Na D при слънцеподобните, ивиците на TiO при звездите M); вибрато в темпото на въртенето ѝ (обиколката, повдигната с 20 октави; типични скорости за класа, когато не са измерени); дишане с периода ѝ на пулсация; спътниците ѝ като собствени тонове на Вин от собствената им посока, като двойката се върти веднъж на 20 s, когато орбитата е известна; истинските променливи следват кривата си на блясъка, един цикъл за 6 + 2 log₁₀ P секунди; и всяка звезда има собствена микромелодия от най-силните си линии, сгънати в нейната октава, така че и съседи от един тип се различават. <b>Щракнете или докоснете коя да е звезда</b> (или пулсар, радиоизточник, галактика, етикет, или името на най-близката звезда в показанията) за карта с Отиди там, Скок, Чуй я сама, Спектър и Радио. Звездите са нарисувани в истинските си цветове (спектърът им на черно тяло през функциите за съвпадение на цветовете на CIE: Слънцето бяло с нотка жълто, джуджетата M оранжево-червени, звездите B синьо-бели). <b>Спектър</b> показва видимия спектър на звездата, 380–750 nm, с абсорбционните ѝ линии на истинските им дължини на вълната и кривата на Планк с отбелязан максимум; <i>Чуй линиите ѝ</i> задържа всяка абсорбционна линия като нота по правилото на четиридесетте октави (един и същ елемент пее една и съща нота във всяка звезда: Hα 656 nm → 416 Hz), най-дълбоките линии най-силно, широките ивици като гроздове, а целият акорд е изместен с лъчевата скорост на звездата според настройката на Доплер — звездите от един вид споделят линиите си; движението им измества акорда — а <i>Чуй преминаването</i> преминава спектъра от виолетово (717 Hz) до червено (363 Hz), а линиите се чуват като спадове. Гласът <i>Линии (акорд)</i> в групата Звезди свири най-близката звезда като този акорд, докато летиш. <b>Радио</b> показва какво честно се знае за радиоизлъчването ѝ, от подбрана таблица с четиридесет забележителни звезди (източниците са в благодарностите): повечето звезди са радиотихи, под прага на откриване; изблиците на Слънцето, избухванията на Проксима Кентавър, UV Ceti и AD Leonis, мазерите SiO, H₂O и OH на Мира, χ Cygni, μ Cephei, Бетелгейзе и Антарес (всяка линия понижена с посочено цяло число октави: H₂O при 22 GHz −25 → 663 Hz), свободно-свободните ветрове на горещи звезди като ζ Puppis, жиросинхротронните избухвания на Алгол; <i>Чуй радиото</i> го свири — избухванията като пукащи изблици, ден минава за 20 s, мазерите като свирещи линии, тихите звезди само като шумов фон.</span> <span id="bh-help"><b>Черни дупки:</b> в центъра на Галактиката е Стрелец A*, 4,3 милиона слънчеви маси, нарисувана в истински мащаб от 2,5 а.е., откъдето сянката ѝ е 10°: фотонният пръстен и светещият поток, по-ярък от страната, която идва към теб; „Назад“ показва S-звездите по публикуваните им орбити (S2, S29, S38, S55, S4716…). Самата дупка мълчи — единственото тяло без спектър. Чуваш газа ѝ (спектърът му от радиото до милиметрите, понижен с 28 октави, като дишащ шум, изригвания с истинската им честота, рентгенови изригвания като съскане), гореща точка, която обикаля на всеки 41 минути с доплеровото и гравитационното си отместване, ускорена ×500, и гласовете на S-звездите, отместени от истинските им скорости (S2 достига 7700 km/s). Бутонът „Черни дупки“ отваря останалите: Gaia BH1, BH2 и BH3 (звезда, която обикаля нещо невидимо, с истинската ѝ радиална скорост, чута през превключвателя на Доплер), Лебед X-1 (рентгеновото му трептене в реално време и струите му), V404 Лебед (изригването от 2015 г., пуснато отново), A0620−00 и тихите гиганти на Андромеда и M32 — както и M33, където не е открита черна дупка. „Сблъскващи се черни дупки“ пуска чирикането на GW150914, както е пристигнало, или забавено ×4. Всяко правило и всяко число са на картата.</span> <span id="gs-help"><b>Спектрите на галактиките:</b> светлината на една галактика е сборът от звездите ѝ и светещия ѝ газ, затова Спектърът ѝ показва тъмните линии на звездите ѝ и там, където се раждат звезди, ярките емисионни линии на газа, който те осветяват. Старите балджове и елиптичните галактики (балджът на Андромеда, M32, M110) приличат на K гиганти: силни Ca II H и K, G ивицата, Mg b, Na D и желязо, слаби водородни линии, дълбоко стъпало при 400 nm. Галактиките, в които се раждат звезди (Триъгълник, Магелановите облаци, IC 10, NGC 6822), добавят водородните линии на младите звезди от клас A и ярки Hα, [N II], Hβ, [O III], [O II] и [S II], чути като добавени ноти; джуджестите сфероидални галактики (Дракон, Пещ, Скулптор, Стрелец) са стари и бедни на метали, със слаби метални линии. Всеки е типичен спектър за вида си (Kennicutt 1992; Kinney и др. 1996), оформен от цвета, металичността и силата на Hα на самата галактика. „Чуй линиите ѝ“ задържа всяка линия като нота по правилото на четиридесетте октави, изместена от истинската скорост на галактиката с превключвателя ×1/×100/×1000 (Андромеда, която се приближава с 300 km/s, звучи по-високо); с Звезди › Линии (акорд) посетената галактика свири линиите си.</span></p><a href="https://newbroman.github.io/Music_of_the_Spheres/bg/flight.html">Излитай →</a></div>
     <div class="card"><h3>Танц</h3><p>Слънчевата система свири транс, хаус, джънгъл или техно, или виенски или бавен валс, танго, самба, ча-ча, суинг, джайв или фанданго, или реда Концерт — от латинските песнопения на Хилдегард и Бах до Равел, Мориконе и Глас, — или соул, фънк, диско, дъб и синтуейв, или модален джаз, прог рок, Мундог, индъстриъл и амбиент. Слънцето държи ритъма, Зевс — баса, луните на Юпитер свирят арпежи в истинския си резонанс 1 : 2 : 4, а аспектите задействат нарастванията и дроповете.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/bg/dance.html">Започни сета →</a></div>
     <div class="card"><h3>Синтезаторът</h3><p>Модулен синтезатор, чиито осцилатори са планетите, на живо от небето в този момент. Избери коя величина задава всяка нота и как са настроени нотите, свържи небето със звука чрез матрицата за модулация, начукай ритъм на стъпковия секвенсер и запазвай или споделяй своите пачове.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/bg/synth.html">Отвори синтезатора →</a></div>
     <div class="card"><h3>Медитация</h3><p>Седни и слушай небесата, както са ги чували Платон, Птолемей или Кеплер, или един бог с луните му, кръжащи около теб: собствените пеещи гласове на циферблата, в бавни фрази с тишина помежду им. Таймер за сесия с пееща купа, водач за дишането и затъмнен екран за нощта.</p><a href="https://newbroman.github.io/Music_of_the_Spheres/bg/meditate.html">Започни →</a></div>
@@ -967,6 +1427,14 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <li>Радиото на Юпитер: Carr, Desch &amp; Alexander, в <em>Physics of the Jovian Magnetosphere</em> (1983), и таблиците за фазата на Йо и CML на проекта Radio JOVE. Сатурн: Kaiser et al., <em>Science</em> 209, 1238 (1980). Земята: Gurnett, <em>JGR</em> 79, 4227 (1974). Уран и Нептун: статиите по радиоастрономия от „Вояджър“ на Desch, Zarka и колеги.</li>
   </ul>
   <p>Уговорки: луните в приложението, включително Йо, се движат по кръгови орбити от произволна начална фаза, затова бурите на Йо следват Йо в приложението, а не ефемериди; областите източници на Йо и фазите на въртене на Сатурн, Уран и Нептун са приблизителни; радиоизлъчването на Земята е случайно „време“, а не данни за космическото време.</p>
+</section>
+
+<section id="constellations">
+  <div class="greek">ἀστερισμοί</div>
+  <h2>Звуците на съзвездията</h2>
+  <p>Всяко от 88-те съзвездия може да се чуе от собствените му звезди. На циферблата докосни фигурата на съзвездие в днешното небе (линиите ѝ се появяват под показалеца; <i>Фигури</i> в менюто за мащаб показва всички, <i>Съзвездия…</i> изброява всичките 88) или натисни <i>Чуй звездите му</i> на зодиакален знак. В Полета използвай същия бутон на картата на знак или ♪ до съзвездие в търсенето на звезди; картата може и да обърне кораба към него или да полети натам. В Медитация избери едно от <i>Съзвездия</i>: бавна мелодия по фигурата с дълги паузи, между тях дишащият акорд, а митът му като въведение; работи и като част от твоя саундтрак.</p>
+  <p>Всяка звезда пее със собствен глас по правилата на Галактиката: върхът на светлината ѝ, свален с четиридесет октави, тялото ѝ според класа на светимост, тембърът ѝ според спектралните ѝ линии (при <i>Спектрални линии</i> – акордът на линиите ѝ), по-силно, колкото по-ярка изглежда, разположена в стереото според мястото си във фигурата, както я виждаш, със севера горе. <b>Мелодия</b> проследява фигурата по линиите ѝ, дължината на всяка линия на небето определя времето до следващата звезда, и завършва с всички звезди заедно; <b>Акорд</b> държи всички, всяка диша със собствено темпо; <b>Дълбочина</b>, избор, а не физика, кара по-далечните звезди да влизат по-късно. Картата назовава най-близката и най-далечната звезда: звездите на една фигура само изглеждат близо. При 48-те на Птолемей фигурата или нейният бог казва изречение от мита си (Орион, Андромеда, Орфей за Лирата, Зевс за Лебеда, Атина за кораба Арго, днес Кил, Кърма и Платна); при 38-те съвременни изречението казва кой и кога го е нарекъл.</p>
+  <p class="note">Фигури: фигурите на съзвездията на МАС и Sky &amp; Telescope, дигитализирани в Stellarium (CC BY-SA 4.0); звездите от базата HYG.</p>
 </section>
 
 <section id="tips">
