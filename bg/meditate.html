@@ -1873,22 +1873,22 @@ function Player(ac,dest,po){po=po||{};const P={ac,notes:[],timer:0,gen:0,mode:nu
   P.stop=(fade)=>{P.gen++;clearTimeout(P.timer);const t=ac.currentTime;P.notes.forEach(N=>N.release(t,(fade||.6)/3));P.notes=[];P.mode=null;if(P.onState)P.onState(null)};
   P.dispose=()=>{P.stop(.3);setTimeout(()=>{try{mg.disconnect()}catch(e){}(P.nodes||[]).forEach(n=>{try{n.disconnect()}catch(e){}})},3000)};
   const prune=()=>{const t=ac.currentTime;P.notes=P.notes.filter(N=>!(isFinite(N.dur)&&t>N.t0+N.dur+3))};
-  /** the melody: the walk, then all its stars together (held hold seconds); o.loop: again after a rest */
+  /** the melody: the walk, then all its stars together (held hold seconds); o.loop: again after a rest; o.att, o.chordAtt: the notes' attack (s; default 0.06, the chord's 0.6) */
   P.melody=(c,o)=>{P.stop(.3);P.evs=[];o=o||{};const gen=P.gen,sc=score(c,o),t0=ac.currentTime+.12,lines=!!o.lines,L=o.lite!=null?o.lite:lite(),base=(o.level||1)*(lines?.05:.12);
     P.mode='melody';P.c=c;P.sc=sc;P.t0=t0;if(P.onState)P.onState('melody');
     // the notes are scheduled a few seconds ahead, so a long figure costs little and Stop is immediate
     let k=0;const step=()=>{if(gen!==P.gen)return;prune();const now=ac.currentTime;
       while(k<sc.ev.length&&t0+sc.ev[k].t<now+2.5){const e=sc.ev[k],s=sc.stars[e.i],dur=.9+2.2*s.loud;
-        P.notes.push(note(ac,mg,s,t0+e.t,dur,base*(.3+.7*s.loud)*(e.again?.65:1),{lines,lite:L}));P.ev(e.i,t0+e.t,dur);k++}
-      if(k>=sc.ev.length){const tc=t0+sc.end+1.1,hold=o.hold||6;if(!P.chordAt){P.chordAt=tc;chordNotes(c,sc,tc,hold,{lines,lite:L,depth:o.depth,level:o.level});
+        P.notes.push(note(ac,mg,s,t0+e.t,dur,base*(.3+.7*s.loud)*(e.again?.65:1),{lines,lite:L,att:o.att}));P.ev(e.i,t0+e.t,dur);k++}
+      if(k>=sc.ev.length){const tc=t0+sc.end+1.1,hold=o.hold||6;if(!P.chordAt){P.chordAt=tc;chordNotes(c,sc,tc,hold,{lines,lite:L,depth:o.depth,level:o.level,att:o.chordAtt});
         P.timer=setTimeout(()=>{if(gen!==P.gen)return;P.chordAt=0;if(o.loop){const rest=o.rest||8;P.timer=setTimeout(()=>{if(gen===P.gen)P.melody(c,o)},rest*1000)}else{P.mode=null;if(P.onState)P.onState(null)}},(tc-ac.currentTime+hold+2.6)*1000);return}}
       P.timer=setTimeout(step,400)};P.chordAt=0;step();return sc};
   function chordNotes(c,sc,t,hold,o){const N=sc.chord.length,lines=o.lines;let q=0;sc.chord.forEach(i=>{const s=sc.stars[i];q+=Math.pow(.3+.7*s.loud,2)});
     const base=(o.level||1)*(lines?.08:.105)/Math.sqrt(Math.max(1,q))*1.3;
-    sc.chord.forEach(i=>{const s=sc.stars[i],dl=o.depth?3.5*s.d/sc.dmax:0;P.notes.push(note(ac,mg,s,t+dl,hold,base*(.3+.7*s.loud),{lines,lite:o.lite,held:1,breath:!isFinite(hold)||hold>8,att:.6}));P.ev(i,t+dl,hold)})}
+    sc.chord.forEach(i=>{const s=sc.stars[i],dl=o.depth?3.5*s.d/sc.dmax:0;P.notes.push(note(ac,mg,s,t+dl,hold,base*(.3+.7*s.loud),{lines,lite:o.lite,held:1,breath:!isFinite(hold)||hold>8,att:o.att||.6}));P.ev(i,t+dl,hold)})}
   /** the chord: all its (brightest N) stars, breathing, held until stop (or for o.hold seconds) */
   P.chord=(c,o)=>{P.stop(.3);P.evs=[];o=o||{};const sc=score(c,o),t=ac.currentTime+.12,L=o.lite!=null?o.lite:lite();P.mode='chord';P.c=c;P.sc=sc;P.t0=t;if(P.onState)P.onState('chord');
-    chordNotes(c,sc,t,o.hold||Infinity,{lines:!!o.lines,lite:L,depth:o.depth,level:o.level});
+    chordNotes(c,sc,t,o.hold||Infinity,{lines:!!o.lines,lite:L,depth:o.depth,level:o.level,att:o.att});
     if(o.hold){const gen=P.gen;P.timer=setTimeout(()=>{if(gen===P.gen){P.mode=null;if(P.onState)P.onState(null)}},(o.hold+3)*1000)}return sc};
   P.ev=(i,t,dur)=>{(P.evs||(P.evs=[])).push({i,t,dur});if(P.evs.length>400)P.evs.splice(0,200)};
   /** how lit each star is now (0..1), for the drawings */
@@ -2776,40 +2776,40 @@ const PLOS={p:[900,true],t:[3500,true],k:[1800,true],d:[3000,false],g:[1600,fals
 function fitShift(f,type){const [lo,hi]=RANGE[type];return Math.round(Math.log2(Math.sqrt(lo*hi)/f))}
 // every gain move inside a phrase uses a time constant of 15 ms or more, so consonants never click
 function schedulePhrase(h,t0,f,level){
-  const sp=h.spec, vg=h.vg.gain; let t=t0;
+  const sp=h.spec, vg=medVG(h,f); let t=t0;
   h.shift=fitShift(f,sp.type);
-  h.out.gain.setTargetAtTime(level,t0,.07);
+  
   if(!h.whisper){const ff=f*Math.pow(2,h.shift);h.vibD.gain.setTargetAtTime(0,t0,.04);h.vibD.gain.setTargetAtTime(ff*sp.vib[1],t0+.35,.25);h.jit.gain.setTargetAtTime(ff*(sp.jit||.004)*6,t0,.1);}
   h.ig.gain.setTargetAtTime(0,t0,.05);
   h.words.forEach(({t:tok,hold})=>{
     if(FT[sp.type][tok]){
-      setFormants(h,h.form[tok],t,.05);vg.setTargetAtTime(1,t,.025);
+      setFormants(h,h.form[tok],t,MED.ftc);h.vk=medVK(h,tok,h.vkf);vg.setTargetAtTime(1,t,MED.ftc);
       if(!h.whisper)h.bg.gain.setTargetAtTime(sp.breath,t,.03);
       t+=Math.min(sp.syl*MED.syl,MED.sylMax)*(hold?2.4:1)*(.85+Math.random()*.3);
     }else if(FRIC[tok]){
       const [F,amt,unv]=FRIC[tok];
       if(tok==='h'){h.bg.gain.setTargetAtTime(h.whisper?1.5:.5,t,.02);if(!h.whisper)vg.setTargetAtTime(.1,t,.02);h.bg.gain.setTargetAtTime(h.whisper?1:sp.breath,t+.1,.025);}
-      else{h.fr.frequency.setValueAtTime(F,t);h.fg.gain.setTargetAtTime(amt,t,.02);h.fg.gain.setTargetAtTime(0,t+.1,.02);if(unv)vg.setTargetAtTime(.1,t,.02);}
+      else{h.fr.frequency.setValueAtTime(F,t);h.fg.gain.setTargetAtTime(amt*MED.fric,t,.04);h.fg.gain.setTargetAtTime(0,t+.1,.04);if(unv)vg.setTargetAtTime(.1,t,.02);}
       t+=.12;
     }else if(PLOS[tok]){
       const [F,unv]=PLOS[tok];
       vg.setTargetAtTime(unv?.08:.2,t,.015);vg.setTargetAtTime(1,t+.06,.02);
-      h.fr.frequency.setValueAtTime(F,t+.04);h.fg.gain.setTargetAtTime(.15,t+.05,.012);h.fg.gain.setTargetAtTime(0,t+.075,.02);
+      h.fr.frequency.setValueAtTime(F,t+.04);h.fg.gain.setTargetAtTime(.15*MED.fric,t+.05,.03);h.fg.gain.setTargetAtTime(0,t+.075,.04);
       t+=.08;
     }else if(tok==='m'||tok==='n'||tok==='l'){
-      setFormants(h,NASAL[tok],t,.03);vg.setTargetAtTime(tok==='l'?.8:.55,t,.025);t+=tok==='l'?.07:.1;
+      setFormants(h,NASAL[tok],t,MED.ftc);vg.setTargetAtTime(tok==='l'?.8:.55,t,.025);t+=tok==='l'?.07:.1;
     }else if(tok==='r'){
       [0,.03,.06].forEach((d,k)=>vg.setTargetAtTime(k%2?1:.55,t+d,.012));t+=.09;
     }
   });
-  h.out.gain.setTargetAtTime(0,t,.22);h.singUntil=t;
+  t=medHold(t0,t);medRise(h.out.gain,t0,MED.att,level,t);h.out.gain.setTargetAtTime(0,t,MED.rel);h.singUntil=t+MED.rel*1.5;medNote(f*Math.pow(2,h.shift||0),t0,t+MED.rel*1.5);
   const rest=(sp.rest*MED.restK+MED.rest)*(.7+Math.random()*.6);
   h.ig.gain.setTargetAtTime(.25*level,t+rest-.55,.12);h.ig.gain.setTargetAtTime(0,t+rest-.1,.07);
   h.next=t+.5+rest;
 }
 function humanTick(h,f,level,now){
-  if(!h.whisper){const ff=f*Math.pow(2,h.shift);tgt(h.o1.frequency,ff,.07);if(h.o2)tgt(h.o2.frequency,ff,.07)}
-  if(now+.12>=h.next&&medGate(now))schedulePhrase(h,Math.max(now+.05,h.next),f,level);
+  if(!h.whisper){const ff=medHoldF(h,f*Math.pow(2,h.shift));tgt(h.o1.frequency,ff,.07);if(h.o2)tgt(h.o2.frequency,ff,.07)}
+  if(now+.12>=h.next&&medGate(now,h,f))schedulePhrase(h,Math.max(now+.05,h.next),f,level);
 }
 // a moon child sings the vowels of its name once, when it completes an orbit
 function singMoon(m,dest,f){
@@ -3164,18 +3164,18 @@ function updateAudio(){
         const sb=p.r>0?p.z/p.r:0;tgt(I.lp.frequency,Math.max(300,Math.min(12000,(I.br||2600)*Math.pow(2,3*sb))),.2);}
       vol=aud?.1*(.55+.45*b.sizeG)*(focus?.3:1):(b.kind==='planet'?.075:.06)*g*grp*(S.thinker!=='today'?2.2:1);
     }
-    const volT=v.part&&(on||aud)?vol*duck*(1+W.a)*(1+.25*(swell[b.id]||0))*medBody(v,now):0;tgt(v.vol.gain,volT,.12);
+    const volT=v.part&&(on||aud)?vol*duck*(1+W.a)*(1+.25*(swell[b.id]||0))*medBody(v,now):0;tgt(v.vol.gain,volT,volT>v.vol.gain.value?MED.volTc:.4);
     if(window.MOTS&&MOTS.light)MOTS.light.tick(b,v,volT,aud);
     if(v.air)tgt(v.air.frequency,aud?16000:Math.max(1800,16000*Math.pow(1+(a.d||0),-.6)),.4);
     if(Hp&&(on||aud))humanTick(Hp.h,p.f,1,now);
     if(v.part&&v.part.L&&(on||aud))linesTick(v.part,p.f*Math.pow(2,W.c/1200),now);
     // moons follow their planet: silent when it is
     const mOn=S.thinker==='today'&&(on||aud)&&!!v.part&&(S.groups.moons.on||aud&&MED.audMoons);
-    tgt(v.moonVol.gain,mOn&&!aud?S.groups.moons.vol*Math.min(1,g):0,.12);
+    {const mv=mOn&&!aud?S.groups.moons.vol*Math.min(1,g):0;tgt(v.moonVol.gain,mv,mv>v.moonVol.gain.value?MED.volTc:.4)}
     (b.moons||[]).forEach((m,k)=>{
       const rate=S.playing?S.speed/Math.abs(m.P):0, her=focus&&k===S.audMoon;
       if(aud&&m.slot!==undefined){
-        const slot=POOL[m.slot];tgt(slot.g.gain,mOn?1:0,.12);
+        const slot=POOL[m.slot];tgt(slot.g.gain,mOn?1:0,mOn?MED.volTc:.4);
         // slow moons circle you at their true phase; fast ones hold a place so the panner never whips round; the moon in focus sings straight ahead
         const th=her?ang:rate>.5?ang+Math.PI*(.25+m.rank*.27):TAU*((S.jd-J2000)/m.P+m.ph0);
         setPos(slot.p,Math.cos(th),.1,-Math.sin(th),.12);
@@ -3191,7 +3191,7 @@ function updateAudio(){
       else if(!wantM&&sv.part&&now-sv.born>2.5){killPart(sv.part);sv.part=null}
       if(!sv.part){tgt(sv.vol.gain,0,.1);return}
       singAt(sv,mf,now);
-      tgt(sv.vol.gain,her?.12:.07*rel,.12);
+      tgt(sv.vol.gain,her?.12:.07*rel,MED.volTc);
     });
   });
   POOL.forEach((s,k)=>{if(!poolOwner||k>=byId[poolOwner].moons.length)tgt(s.g.gain,0,.1)});
@@ -3275,7 +3275,7 @@ const moonKey=(m,k)=>typeof m.k==='string'?m.k:'moon'+k;
 // the moon in focus, as a body for the readouts, and its note this moment
 function audMoonBody(){if(S.audMoon==null||!S.audition)return null;const b=byId[S.audition],m=b&&b.moons[S.audMoon];if(!m)return null;const nm=m.name.split(' ')[0];return {id:moonKey(m,S.audMoon),kind:'moonv',god:nm,name:nm,moons:[],m}}
 function audMoonF(){const mb=audMoonBody();if(!mb||!mb.m.sv||!mb.m.sv.part)return 0;const p=P[mb.m.sv.body.id];return p?p.f:0}
-function pluck(b,m){
+function pluck(b,m){if(MED.noChirp)return;
   if(!V[b.id].part&&S.audition!==b.id)return;
   if(S.voices==='human'){singMoon(m,m.out,moonPitch(m.P));return}
   let f=moonPitch(m.P);while(f>1100)f/=2;
@@ -3407,7 +3407,7 @@ function updateSystemAudio(){
     else if(!want&&v.part&&now-v.born>2.5){killPart(v.part);v.part=null}
     if(!v.part){tgt(v.vol.gain,0,.1);return}
     singAt(v,f,now);
-    tgt(v.vol.gain,.075*g*S.groups.moons.vol/(.8),.12);
+    tgt(v.vol.gain,.075*g*S.groups.moons.vol/(.8),MED.volTc);
   });
   // Apollo, the Sun, stays where the Sun is
   if(b.virtual){const a=audioDir({x:0,y:0,z:0},L);setPos(sunV.pan,a.x,a.y,a.z)}
@@ -3722,7 +3722,7 @@ function buildSiren(v,f,vowel){
 }
 // a sung attack: a swell with a short ornament into the note, rising when the body moves forward, falling when it moves backward
 function articulate(I,f,retro,flourish){
-  const now=AC.currentTime,a=I.art.gain;a.cancelScheduledValues(now);a.setValueAtTime(a.value,now);a.linearRampToValueAtTime(1,now+.035);a.setTargetAtTime(.5,now+.14,.35);
+  const now=AC.currentTime,a=I.art.gain;a.cancelScheduledValues(now);a.setValueAtTime(a.value,now);a.linearRampToValueAtTime(MED.artPk,now+MED.artA);a.setTargetAtTime(.5,now+MED.artA+.1,.8);
   [I.o1,I.o2].forEach(o=>{const p=o.frequency;p.cancelScheduledValues(now);
     if(flourish){[1,9/8,81/64,9/8,1].forEach((m,k)=>p.setTargetAtTime(f*m,now+k*.13,.025))}
     else{p.setValueAtTime(f*(retro?9/8:8/9),now);p.setTargetAtTime(f,now+.03,.04)}
@@ -3740,14 +3740,14 @@ function sphereSpec(w){if(FATES.includes(w))return null;return SPHERE_SPEC[w]||(
 // a struck line chord sits about as loud as the plucked string it replaces
 const LPLK=.45;
 // a plucked string, for the lyre and the monochord (with the lines: the sphere's line chord struck, or both)
-function plk(w,dest,f,lvl,dec,harm){const lm=lmode(),sw=lm!=='gods'?sphereSpec(w):null,L=LNX(),set=sw?L.lineSet(sw):null;
+function plk(w,dest,f,lvl,dec,harm){if(!medPluck(f,dec*MED.plkD*2.5+MED.plkA))return;const lm=lmode(),sw=lm!=='gods'?sphereSpec(w):null,L=LNX(),set=sw?L.lineSet(sw):null;
   if(set)L.pluck(AC,set,f,dest,lvl*LPLK*(lm==='both'?.6:1),dec,{truePitch:L.truePitch()});
   if(!set||lm==='both')strPluck(dest,f,lvl*(set?.7:1),dec,harm);if(window.MOTS&&MOTS.midi&&MOTS.midi.hit)MOTS.midi.hit(w,AC.currentTime+.02,f,Math.min(1,lvl*12),Math.min(2,dec*1.2))}
 function strPluck(dest,f,lvl,dec,harm){lvl*=MED.plk;
   const t=AC.currentTime+.02,o=AC.createOscillator(),o2=AC.createOscillator();o.type=harm?'triangle':'sawtooth';o2.type='triangle';o.frequency.value=f;o2.frequency.value=f*2.003;
-  const lp=AC.createBiquadFilter();lp.type='lowpass';lp.Q.value=.8;lp.frequency.setValueAtTime(Math.min(9000,f*(harm?4:10)),t);lp.frequency.setTargetAtTime(f*1.6,t,dec*.3);
-  const g=mkGain(0);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(lvl,t+.004);g.gain.setTargetAtTime(0,t+.004,dec);
-  o.connect(lp);o2.connect(mkGain(.25,lp));lp.connect(g);g.connect(dest);o.start(t);o2.start(t);o.stop(t+dec*6);o2.stop(t+dec*6);
+  const lp=AC.createBiquadFilter();lp.type='lowpass';lp.Q.value=.8;lp.frequency.setValueAtTime(Math.min(9000,f*(harm?2.5:4)),t);lp.frequency.setTargetAtTime(f*1.6,t,dec*.3);
+  const g=mkGain(0);g.gain.setValueAtTime(0,t);g.gain.setValueAtTime(lvl*.063,t+.001);g.gain.exponentialRampToValueAtTime(lvl,t+MED.plkA);g.gain.setTargetAtTime(0,t+MED.plkA,dec*MED.plkD);
+  o.connect(lp);o2.connect(mkGain(.25,lp));lp.connect(g);g.connect(dest);o.start(t);o2.start(t);o.stop(t+MED.plkA+dec*MED.plkD*7);o2.stop(t+MED.plkA+dec*MED.plkD*7);
 }
 function sirenVoice(who){
   let v=SIR.v[who];if(v)return v;
@@ -3805,11 +3805,11 @@ function buildCourt(v,f,kind){
 function bellStrike(dest,f,lvl,long){
   const t=AC.currentTime+.02,dec=long?2.6:1.1;
   [[1,1,1],[2.0,.5,.7],[2.76,.32,.45],[4.07,.14,.25],[5.4,.07,.15]].forEach(([r,a,d])=>{const o=AC.createOscillator();o.type='sine';o.frequency.value=f*r;const g=mkGain(0,dest);
-    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(lvl*a,t+.006);g.gain.setTargetAtTime(0,t+.006,dec*d);o.connect(g);o.start(t);o.stop(t+dec*d*6+.5)});
-  const n=AC.createBufferSource();n.buffer=noiseBuf;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f*6;bp.Q.value=3;const g=mkGain(0,dest);g.gain.setValueAtTime(lvl*.5,t);g.gain.setTargetAtTime(0,t,.02);n.connect(bp);bp.connect(g);n.start(t);n.stop(t+.3);
+    g.gain.setValueAtTime(0,t);g.gain.setValueAtTime(lvl*a*.063,t+.001);g.gain.exponentialRampToValueAtTime(lvl*a,t+MED.plkA);g.gain.setTargetAtTime(0,t+MED.plkA,dec*d*1.5);o.connect(g);o.start(t);o.stop(t+MED.plkA+dec*d*1.5*7+.5)});
+  const n=AC.createBufferSource();n.buffer=noiseBuf;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f*6;bp.Q.value=3;const g=mkGain(0,dest);g.gain.setValueAtTime(0,t);n.connect(bp);bp.connect(g);n.start(t);n.stop(t+.3);
 }
 // the great bells: Hoàng chung when the king goes out (sunrise over Thăng Long), Di Tân (Nhuy tân, Ruibin, the pipe of the summer solstice) when he returns (sunset); five bells answer each, one on each planet's note
-function traiBell(which){
+function traiBell(which){if(!AC||!isOpen(AC.currentTime))return;
   if(!AC)return;const th=THINK.nguyentrai,base=th.base,f=which==='hoang'?base*.5:base*.5*LUF[6],now=AC.currentTime;
   if(!TRAI.g){TRAI.g=mkGain(1,bus)}
   bellStrike(TRAI.g,f,.16,true);TRAI.bell[which]=performance.now();
@@ -3818,7 +3818,7 @@ function traiBell(which){
     const ff=base*r*2;bellStrike(v.pl,ff,.07,false);SIR.plk[w]=performance.now();if(window.MOTS&&MOTS.midi&&MOTS.midi.hit)MOTS.midi.hit(w,AC.currentTime+.02,ff,.5,1)},350+k*380));
 }
 // the slow court drum (trống): a soft thump, the fourth stroke heavier
-function traiDrum(strong){
+function traiDrum(strong){if(MED.noDrum)return;
   const t=AC.currentTime+.02,o=AC.createOscillator();o.type='sine';o.frequency.setValueAtTime(strong?110:95,t);o.frequency.exponentialRampToValueAtTime(42,t+.18);
   if(!TRAI.g){TRAI.g=mkGain(1,bus)}const g=mkGain(0,TRAI.g);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(strong?.2:.11,t+.008);g.gain.setTargetAtTime(0,t+.008,strong?.22:.14);o.connect(g);o.start(t);o.stop(t+1.2);
   const n=AC.createBufferSource();n.buffer=noiseBuf;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=900;const ng=mkGain(0,TRAI.g);ng.gain.setValueAtTime(strong?.06:.03,t);ng.gain.setTargetAtTime(0,t,.03);n.connect(lp);lp.connect(ng);n.start(t);n.stop(t+.3);
@@ -3848,7 +3848,7 @@ function thinkerAudio(){
   const swell={};SIR.asp.forEach(a=>{swell[a.a]=Math.max(swell[a.a]||0,a.str);swell[a.b]=Math.max(swell[a.b]||0,a.str)});
   // Cicero: the roar that deafens us, like the cataracts of the Nile
   if(th.roar&&!SIR.roar){const src=AC.createBufferSource();src.buffer=noiseBuf;src.loop=true;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=260;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=90;bp.Q.value=.7;const g=mkGain(0,bus);src.connect(lp);lp.connect(g);src.connect(bp);bp.connect(mkGain(1.4,g));src.start();SIR.roar={src,g}}
-  if(SIR.roar)tgt(SIR.roar.g.gain,SIR.solo?0:.14*MED.ilvl,.6);
+  if(SIR.roar)tgt(SIR.roar.g.gain,SIR.solo?0:.14*MED.roar*medRoar(now),.6);
   // Aristotle: the Pythagorean harmony fades as the ear grows used to it, waking briefly when the Sun enters a new sign
   let habit=1;
   if(model==='habit'){const sv=geo('sun'),sg=Math.floor((((lonOf(sv)/DEG)%360)+360)%360/30);
@@ -3891,7 +3891,7 @@ function thinkerAudio(){
     if(model==='monochord'&&STILL.has(w)&&!['earth','emp3'].includes(w)){tgt(v.vol.gain,0,.2);return}
     // the spectral lines: the sphere keeps this thinker's pitch, rhythm and phrasing, and sounds as the lines of the body it carries
     const lm=lmode(),sw=lm!=='gods'?sphereSpec(w):null;
-    const mode0=S.voices==='human'&&!STILL.has(w)&&!th.trai&&humans<humanCap?'human':'instrument',mode=sw&&lm==='lines'?'lines':mode0;if(mode==='human')humans++;
+    const mode0=S.voices==='human'&&(MED.still||!STILL.has(w))&&!th.trai&&humans<humanCap?'human':!th.trai&&MED.noInst?'none':'instrument',mode=sw&&lm==='lines'?'lines':mode0;if(mode0==='none'){if(v.part){killPart(v.part);v.part=null}tgt(v.vol.gain,0,.3);return}if(mode==='human')humans++;
     const key=mode+(sw?'|'+lkey(S.voices):'');
     if(v.part&&v.lkey!==key){killPart(v.part);v.part=null}
     if(!v.part&&!silent&&built<3){
@@ -3906,14 +3906,14 @@ function thinkerAudio(){
     if(th.trai&&v.mode==='instrument'){const n=athens()?TRAI.net[w]||0:0;tgt(v.part.o2.detune,6+24*n,.6);if(v.part.nb)tgt(v.part.nb.frequency,f*2,.2)}
     if(v.mode==='lines'){if(art&&!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,flourish)}
     else if(v.mode==='instrument'){if(art){articulate(v.part,f,v.retro,flourish);if(!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,flourish)}else{tgt(v.part.o1.frequency,f,.12);tgt(v.part.o2.frequency,f,.12)}tgt(v.part.lp.frequency,d.up<1?900:v.retro?1700:2800,.3)}
-    else{const h=v.part.h,ff=f*Math.pow(2,h.shift||0);tgt(h.o1.frequency,ff,.08);if(h.o2)tgt(h.o2.frequency,ff,.08);
-      if((art||!athens()||tR-(v.lastArt||0)>MED.resing)&&now+.12>=h.next&&medGate(now)){schedulePhrase(h,now+.05,f,1);v.lastArt=tR;if(!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,false)}}
+    else{const h=v.part.h,ff=medHoldF(h,f*Math.pow(2,h.shift||0));tgt(h.o1.frequency,ff,.08);if(h.o2)tgt(h.o2.frequency,ff,.08);
+      if((art||!athens()||tR-(v.lastArt||0)>MED.resing)&&now+.12>=h.next&&medGate(now,h,f)){schedulePhrase(h,now+.05,f,1);v.lastArt=tR;if(!soloMute&&!silent&&MOTS.score&&MOTS.score.attack)MOTS.score.attack(w,f,false)}}
     if(art)v.lastArt=tR;
     let lvl=silent||soloMute?0:SIR.solo===w?.13:fate?.03*(.6+.4*Math.sin(now*.25+r*2)):STILL.has(w)?.05:athens()?.15:.06;
     if(model==='monochord'&&STILL.has(w))lvl=.03;
     lvl*=(1+.7*(swell[w]||0))*v.up*habit;
     if(th.trai&&w==='sun')lvl*=.55; // the king's bell drone sits under the five notes
-    tgt(v.vol.gain,lvl*medSustain(v,w,now)*(v.mode==='human'?.85:1),.25);
+    tgt(v.vol.gain,lvl*medSustain(v,w,now)*(v.mode==='human'?.85:1),MED.volTc);
   });
 }
 
@@ -3955,11 +3955,13 @@ function thinkerTap(best){
    Mars, Jupiter and the Galileans, Saturn, Uranus, Neptune and Triton, Pluto and Charon), and the page's own quiet layers, which can also
    stand alone: the Sun's hum (its BiSON p-modes sped up into hearing), the nearest and brightest stars, the harmonic galaxy.
    Output chain: dial master → dialG ─┐
-                 layers → mBus ───────┴→ breath → warmth → lowpass → mDry ─┬→ duck → mMaster (the session's fade) ─┐
-                 ambience → lowpass (after the drive) ─────────────────────┤                                        │
-                                                   echo send → temple echo (the AudioWorklet FDN; convolution on High) ─┘
+                 layers → mBus ───────┴→ breath → warmth → lowpass → opening → waves → mDry ─┬→ ceiling → duck → mMaster (the session's fade) ─┐
+                 ambience → lowpass (after the drive) ───────────────────────────────────────┤                                                   │
+                                                   echo send → temple echo (the AudioWorklet FDN; convolution on High) ─┘                          │
                  bells → bellG ─────────────────────────────────────────────┼→ mix → pre → gentle compressor → peak limiter → soft clip (−3 dBFS) → speakers
                  Hestia and the gods → voiceG ──────────────────────────────┘
+   There is no automatic gain anywhere in this chain: the stage's level control is left listening to nothing (medInit), the ceiling only ever
+   turns a loud moment down (mkCeil), and each soundscape has a fixed trim (LVL_DB). Every entry is slow (medRise, medRamp, the waves' WV_OPEN).
    The dial's own temple echo (four native delay loops) is not used: everything shares this page's FDN, whose loop is a Hadamard
    network in a worklet with a measured, bounded decay (RT60 1.9…4.8 s), so nothing can build up over a long session.
    The gods: when a system is chosen its god introduces it once per session; for a thinker's heavens Hestia says whose heavens these
@@ -4036,17 +4038,27 @@ const oneBase=id=>isOne(id)?'one:'+oneOf(id).body:id;                       // t
 // the body whose moons circle in this soundscape: a system's planet, or a single voice heard with its moons
 const moonsBody=id=>isSys(id)?sysOf(id):isOne(id)&&oneOf(id).moons?oneOf(id).b:null;
 /* ---------- the dial's state, set for sitting still ---------- */
-S.voices='human';S.drone=false;S.aspects=true;S.interp=M.interp;S.verb=0;S.vol=1;S.groups.belt.on=false;S.minorMode='wobble';S.speak=false;
+S.voices='human';S.drone=false;S.aspects=false;S.interp=M.interp;S.verb=0;S.vol=1;S.groups.belt.on=false;S.minorMode='wobble';S.speak=false;
 S.groups.planet.vol=.7;S.groups.moons.vol=.4;S.groups.minor.vol=.6;S.groups.comet.vol=.6;   // Today's full choir, a little further back: fewer moons pass the threshold of hearing, the planets have room
 /* ---------- the pace: how the dial's singers are slowed here (the values MED holds are read by the spliced engine) ---------- */
 // syl: the syllables' length ×; restK, rest: a phrase's rest = rest × restK + rest s; resing: ms before a Siren sings again unmoved; lvl: the choir's level ×;
 // stagger: s over which a choir's first phrases are spread; day: minutes per day of a thinker's sky; today: days per second for Today's planets; orbit: × the Orbit setting
 // poly: how many voices may sing at once; gap: s between one phrase's start and the next (any voice); moonThr: × the dial's threshold of hearing for Today's moons
 // sylMax: the longest a syllable grows to; plk: × the plucks' level; fillK: × the step of Macrobius's climbing line; lyre: the lyre models' time runs this much faster (their notes come from motion)
-const PACES={slow:{syl:2.6,sylMax:2,restK:1.6,rest:4,resing:22000,lvl:1.8,stagger:9,day:12,today:1/60,orbit:1.8,poly:1,gap:4,plk:2.2,fillK:3.5,lyre:4},
-  calm:{syl:2,sylMax:1.6,restK:1.5,rest:2.5,resing:14000,lvl:1.9,stagger:6,day:8,today:1/30,orbit:1,poly:2,gap:2.5,plk:2.2,fillK:2.5,lyre:4},
-  lively:{syl:1.3,sylMax:1.3,restK:1.2,rest:1,resing:8000,lvl:2.1,stagger:3,day:4,today:1/10,orbit:.5,poly:4,gap:.8,plk:1.8,fillK:1.5,lyre:4}};
-const MED={...PACES.calm,moonThr:6,ilvl:.8,audMoons:false,sunK:1};   // ilvl: the sustained instrument voices' level ×; audMoons: a single voice's moons sing; sunK: × Apollo's drone
+// sing, rest: the waves (seconds of singing, then seconds of rest with only the echo's tail; a phrase may not begin in the last `close` seconds before a rest);
+// budget: the most seconds one pitch may sound in any 20 s (so no note turns into a drone, even when several Sirens share it)
+const PACES={slow:{syl:2.6,sylMax:2,restK:1.6,rest:4,resing:22000,lvl:.8,stagger:9,day:12,today:1/60,orbit:1.8,poly:1,gap:5,plk:1.1,fillK:3.5,lyre:4,sing:[24,30],rests:[10,12],close:6,budget:7,att:8,hold:4,rel:1.2},
+  calm:{syl:2,sylMax:1.6,restK:1.5,rest:2.5,resing:14000,lvl:.8,stagger:6,day:8,today:1/30,orbit:1,poly:2,gap:3,plk:1.1,fillK:2.5,lyre:4,sing:[26,32],rests:[8,10],close:6,budget:8,att:7,hold:3.5,rel:1},
+  lively:{syl:1.3,sylMax:1.3,restK:1.2,rest:1,resing:8000,lvl:.9,stagger:3,day:4,today:1/10,orbit:.5,poly:3,gap:1.5,plk:1,fillK:1.5,lyre:4,sing:[30,34],rests:[7,8],close:5,budget:9,att:6,hold:2.5,rel:.8}};
+// ilvl: the sustained instrument voices' level ×; audMoons: a single voice's moons sing; sunK: × Apollo's voice when he is chosen alone;
+// the calm envelope (read by the spliced engine, see build_meditate.py): att (in PACES), the seconds a phrase takes to rise from −30 dB (dB-linear),
+// hold, the least it is held after that, rel, its release (time constant); volTc: a voice's level rises no faster than this time constant;
+// ftc: the formants' time constant (each vowel's loudness evened out by medVK); vgMin, vgTc: the
+// floor and the speed of the consonants' dips inside a phrase; fric: × the consonants' noise; artPk, artA: an instrument's accent (peak ×, seconds);
+// plkA, plkD: a pluck's swell (seconds) and × its decay (the soft mallet); still: the fixed stars, the Fates and the elements sing in phrases too;
+// noInst: a voice beyond a phone's budget stays silent rather than becoming a steady tone; noChirp, noDrum: the moons' orbit chirps and Nguyễn Trãi's drum
+// are left out; roar: × Cicero's roar; first: seconds after the music begins during which one voice sings at a time; fadeMus: the music's fade-in (s)
+const MED={...PACES.calm,moonThr:6,ilvl:.8,audMoons:false,sunK:1,volTc:2,ftc:.12,vgMin:.62,vgTc:.12,fric:.3,artPk:.72,artA:4,plkA:4,plkD:1.3,still:true,noInst:true,noChirp:true,noDrum:true,roar:.45,first:30,fadeMus:20};
 const MEDH=new Set();   // every singer the engine has built (makeHuman adds, killHuman removes)
 // the favourite moon of each system, which names the orbit speed; the Orbit setting runs from four minutes to ten seconds a circuit (logarithmic), 45 s at the middle
 const FAV={earth:'selene',mars:'phobos',jupiter:'io',saturn:'titan',uranus:'titania',neptune:'triton',pluto:'charon'};
@@ -4062,12 +4074,12 @@ function medPace(){Object.assign(MED,PACES[M.pace]);MED.moonThr=6;MED.ilvl=.8;
   else if(S.thinker==='today')setSpeed(MED.today);
   else if(isBodyModel())setSpeed(MED.today*3);
   else setSpeed((THINK[S.thinker].model==='lyre'?MED.lyre:1)/(MED.day*60))}
-// the sustained voices of a thinker's heaven (the fixed stars, the elements, the central fire, Nguyễn Trãi's court) swell and fade over half a minute, each in its own time, never a flat hum
+// the sustained voices of a thinker's heaven (the fixed stars, the elements, the central fire, Nguyễn Trãi's court) swell and fade (16 s in every 36), each in its own time, never a flat hum
 // the planets' voices in Today and the body models: a thinker's choir sits lower than on the dial (the dial sings it at 2.2× for its panel), and a pure tone (Sonification) breathes slowly
-function medBody(v,now){const th=S.thinker!=='today'?.45:1;if(v.mode==='human')return th;if(S.thinker==='sonic')return 1.3*(.5+.5*Math.sin(now*.14+(v.sph===undefined?(v.sph=Math.random()*6.283):v.sph)));if(v.sph===undefined)v.sph=Math.random()*6.283;return th*(.5+.5*Math.sin(now*.14+v.sph))}
-function medSustain(v,w,now){if(v.mode==='human')return MED.lvl;if(v.sph===undefined)v.sph=Math.random()*6.283;return MED.ilvl*(.55+.45*Math.sin(now*.18+v.sph))}
+function medBody(v,now){const th=S.thinker!=='today'?.45:1;if(v.mode==='human')return th;return (S.thinker==='sonic'?1.3:th)*swellAt(v,now,36,16)}
+function medSustain(v,w,now){if(v.mode==='human')return MED.lvl;return MED.ilvl*swellAt(v,now,36,16)}
 /* ---------- the audio graph ---------- */
-let mBus=null,warmIn=null,shaper=null,post=null,lp=null,mDry=null,mVerbIn=null,verbOut=null,VERB=null,duck=null,mMaster=null,mix=null,pre=null,cmp=null,lim=null,trim=null,clip=null,an=null,bellBus=null,bellG=null,voiceG=null,breathG=null,ambIn=null,dialG=null;
+let levIn=null,LEV={g:1,node:null},introG=null,waveG=null,mBus=null,warmIn=null,shaper=null,post=null,lp=null,mDry=null,mVerbIn=null,verbOut=null,VERB=null,duck=null,mMaster=null,mix=null,pre=null,cmp=null,lim=null,trim=null,clip=null,an=null,bellBus=null,bellG=null,voiceG=null,breathG=null,ambIn=null,dialG=null;
 const mkG=(c,v)=>{const g=c.createGain();g.gain.value=v;return g};
 const KR=p=>{try{p.automationRate='k-rate'}catch(e){}};
 function tanhCurve(k){const n=1024,cv=new Float32Array(n);for(let i=0;i<n;i++){const x=i/(n-1)*2-1;cv[i]=Math.tanh(k*x)/Math.tanh(k)}return cv}
@@ -4078,7 +4090,7 @@ function medContext(){
   const c=new (window.AudioContext||window.webkitAudioContext)({latencyHint:'playback'});
   mBus=mkG(c,1);breathG=mkG(c,1);warmIn=mkG(c,1);shaper=c.createWaveShaper();shaper.curve=tanhCurve(1.6);shaper.oversample=LOWPOWER?'none':'2x';post=mkG(c,1);
   lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2200;lp.Q.value=.4;KR(lp.frequency);
-  mDry=mkG(c,1);mVerbIn=mkG(c,1);verbOut=mkG(c,1);duck=mkG(c,1);mMaster=mkG(c,0);mix=mkG(c,1);pre=mkG(c,1);bellBus=mkG(c,1);bellG=mkG(c,0);voiceG=mkG(c,0);ambIn=mkG(c,1);dialG=mkG(c,0);
+  mDry=mkG(c,1);levIn=mkG(c,1);mVerbIn=mkG(c,1);introG=mkG(c,0);waveG=mkG(c,1);verbOut=mkG(c,1);duck=mkG(c,1);mMaster=mkG(c,0);mix=mkG(c,1);pre=mkG(c,1);bellBus=mkG(c,1);bellG=mkG(c,0);voiceG=mkG(c,0);ambIn=mkG(c,1);dialG=mkG(c,0);
   // a gentle glue (slow, low ratio: no pumping), then a fast peak limiter, then the soft clip
   cmp=c.createDynamicsCompressor();cmp.threshold.value=-16;cmp.knee.value=12;cmp.ratio.value=2;cmp.attack.value=.06;cmp.release.value=.9;
   lim=c.createDynamicsCompressor();lim.threshold.value=-8;lim.knee.value=1;lim.ratio.value=20;lim.attack.value=.001;lim.release.value=.14;
@@ -4086,12 +4098,12 @@ function medContext(){
   // Chromium's compressor adds a fixed make-up gain (+2.9 dB for the glue, +4.4 dB for the limiter, measured); this trim takes it back out,
   // so the chain is unity below the thresholds and the limiter's ceiling sits near −10 dBFS, leaving the soft clip only the overshoots
   trim=mkG(c,Math.pow(10,-7.3/20));
-  dialG.connect(mBus);mBus.connect(breathG);breathG.connect(warmIn);warmIn.connect(shaper);shaper.connect(post);post.connect(lp);lp.connect(mDry);mDry.connect(duck);lp.connect(mVerbIn);
-  ambIn.connect(lp);   // the ambience skips the warmth drive (noise through it would fizz) and joins at the lowpass, before the echo and the fade
+  dialG.connect(mBus);mBus.connect(breathG);breathG.connect(warmIn);warmIn.connect(shaper);shaper.connect(post);post.connect(lp);lp.connect(introG);introG.connect(waveG);waveG.connect(mDry);mDry.connect(levIn);waveG.connect(mVerbIn);
+  ambIn.connect(lp);   // the ambience skips the warmth drive (noise through it would fizz) and joins at the lowpass, before the opening, the waves, the echo and the fade
   // the temple echo (see makeVerb): the FDN on every quality, the stage's convolution reverb instead on High; both hang off mVerbIn, the one in use gets the send
   VERB={fdn:makeVerb(c,false),conv:null};mVerbIn.connect(VERB.fdn.input);VERB.fdn.output.connect(verbOut);
   wetAn=c.createAnalyser();wetAn.fftSize=2048;wetAn.smoothingTimeConstant=0;verbOut.connect(wetAn);
-  verbOut.connect(duck);duck.connect(mMaster);mMaster.connect(mix);
+  verbOut.connect(levIn);mkCeil(c,levIn,duck);duck.connect(mMaster);mMaster.connect(mix);
   bellBus.connect(bellG);bellG.connect(mix);bellBus.connect(mVerbIn);voiceG.connect(mix);
   mix.connect(pre);pre.connect(cmp);cmp.connect(lim);lim.connect(trim);trim.connect(clip);clip.connect(c.destination);
   an=c.createAnalyser();an.fftSize=1024;an.smoothingTimeConstant=.6;clip.connect(an);
@@ -4106,7 +4118,8 @@ function medInit(){
     shaper.oversample=clip.oversample=q==='eco'?'none':'2x'};
   if(window.MOTS&&MOTS.quality){setQ(MOTS.quality());MOTS.onQuality(q=>{setQ(q);if(M.state!=='idle')Object.values(ACTIVE).forEach(i=>i.rebuild())})}
   // the stage: master = the mix (where it measures), lim = the plain gain it joins (a GainNode, so the stage leaves our limiter's settings alone)
-  if(window.MOTS&&MOTS.surround)MOTS.surround.attach({ctx:AC,master:mix,lim:pre,limiter:null,entry:mix,verb:mVerbIn,trim:1});
+  if(window.MOTS&&MOTS.surround){MOTS.surround.attach({ctx:AC,master:mix,lim:pre,limiter:null,entry:mix,verb:mVerbIn,trim:1});
+    const C=MOTS.surround._s&&MOTS.surround._s.cfg;if(C&&C.an2){try{C.master.disconnect(C.an2)}catch(e){}C.an2=AC.createAnalyser()}if(C&&C.agc)C.agc.gain.value=1}   // the stage's level control listens to nothing, so it never rides
   applyWarm(true);applyEcho(true);applyVol(true);
 }
 function applyWarm(now){if(!AC)return;const w=M.warm/100,t=AC.currentTime,tc=now?.001:.15;
@@ -4138,7 +4151,17 @@ const FDN_CODE=`class F extends AudioWorkletProcessor{
       for(let k=0;k<4;k++){w[k]=w[k]+1<B[k].length?w[k]+1:0}
       oL[i]=(y[0]+y[3])*.5;oR[i]=(y[1]+y[2])*.5}
     return true}}
-registerProcessor('mots-fdn',F);`;
+registerProcessor('mots-fdn',F);
+class C extends AudioWorkletProcessor{
+  static get parameterDescriptors(){return [{name:'ceil',defaultValue:.1,minValue:1e-4,maxValue:1,automationRate:'k-rate'}]}
+  constructor(){super();this.ms=0;this.g=1;this.n=0;const sr=sampleRate;this.kd=1-Math.exp(-1/(.3*sr));this.ka=1-Math.exp(-1/(.35*sr));this.kr=1-Math.exp(-1/(30*sr));this.kq=1-Math.exp(-1/(1.5*sr))}
+  process(inputs,outputs,p){const inp=inputs[0],out=outputs[0],x0=inp&&inp[0]?inp[0]:null,x1=inp&&inp[1]?inp[1]:x0,oL=out[0],oR=out[1]||out[0],n=oL.length,c=p.ceil[0];
+    let ms=this.ms,g=this.g;const kd=this.kd,ka=this.ka,kr=this.kr,kq=this.kq,hush=c*c*1e-4;
+    for(let i=0;i<n;i++){const a=x0?x0[i]:0,b=x1?x1[i]:0;ms+=((a*a+b*b)*.5-ms)*kd;
+      const tg=ms>c*c?c/Math.sqrt(ms):1;if(tg<g)g+=(tg-g)*ka;else g+=(tg-g)*(ms<hush?kq:kr);
+      oL[i]=a*g;oR[i]=b*g}
+    this.ms=ms;this.g=g;if(++this.n%96===0)this.port.postMessage(g);return true}}
+registerProcessor('mots-ceil',C);`;
 const fdnModule=new WeakMap();   // the worklet module, loaded once per context
 function makeVerb(c,useConv){
   const input=mkG(c,0),output=mkG(c,1),hp=c.createBiquadFilter();hp.type='highpass';hp.frequency.value=110;hp.Q.value=.6;KR(hp.frequency);input.connect(hp);
@@ -4160,6 +4183,15 @@ function makeVerb(c,useConv){
     if(R.w){R.w.parameters.get('g').setTargetAtTime(R.gAt(e),t,tc);R.w.parameters.get('damp').setTargetAtTime(R.dampAt(e),t,tc)}
     else{const g=R.gAt(e);R.fb.forEach(fb=>fb.gain.setTargetAtTime(g,t,tc));R.lp.forEach(lp=>lp.frequency.setTargetAtTime(R.dampAt(e),t,tc))}};
   return R}
+/* the ceiling: the music (the voices, the layers, the ambience and the echo, not the bells or the spoken voices) never rises above a calm level.
+   An RMS detector (300 ms); above the ceiling the gain comes down within about a third of a second. It goes back towards unity (never above)
+   in the true silences between waves (40 dB under the ceiling, where nothing is left to hear), and otherwise only very slowly (30 s), so it
+   can never swell a reverb tail, a quiet bed or the next phrase's entry: it only ever turns a loud moment down. Without an AudioWorklet the music passes straight through. */
+const CEIL_DB=-21;   // dBFS RMS at this point, before the session's volume (−8.5 dB at the default 70 %)
+function mkCeil(c,from,to){const R=()=>{try{from.disconnect(to)}catch(e){}from.connect(to)};from.connect(to);
+  const go=()=>{try{const w=new AudioWorkletNode(c,'mots-ceil',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[2]});w.parameters.get('ceil').value=Math.pow(10,CEIL_DB/20);
+    w.port.onmessage=e=>{LEV.g=e.data};from.disconnect(to);from.connect(w);w.connect(to);LEV.node=w}catch(e){R()}};
+  if(c.audioWorklet&&window.AudioWorkletNode){if(!fdnModule.has(c))fdnModule.set(c,c.audioWorklet.addModule(URL.createObjectURL(new Blob([FDN_CODE],{type:'text/javascript'}))));fdnModule.get(c).then(go,()=>{})}}
 // the wet signal's level, for the tests (RMS of the echo's output)
 let wetAn=null;const wetBuf=new Float32Array(2048);
 const wetRms=()=>{if(!wetAn)return 0;wetAn.getFloatTimeDomainData(wetBuf);let q=0;for(let i=0;i<wetBuf.length;i++)q+=wetBuf[i]*wetBuf[i];return Math.sqrt(q/wetBuf.length)};
@@ -4179,6 +4211,13 @@ const LAYERS_ON=()=>(isDial(M.scape)||isCon(M.scape)?1:0)+LAYER_IDS.filter(b=>b=
 const CAPMUL=()=>[1,1,.7,.55,.45][Math.min(4,LAYERS_ON())];
 // a smooth random walk for an amplitude (Ornstein–Uhlenbeck), so nothing stands still and nothing jumps
 const walk=(v,tau,dt,sig)=>{const a=Math.exp(-dt/tau);return v*a+gauss()*Math.sqrt(1-a*a)*sig};
+// a layer's breath: swells of on[0]…on[1] seconds (a dB-linear rise over 55 %, a short hold, a fall over 30 %, from and back to −30 dB: the rise
+// stays near 5 dB a second, so a layer never swells in faster than the voices do) with
+// rests of off[0]…off[1] seconds between, on a node of its own that nothing else automates; tick() keeps a few seconds of it scheduled
+const BREATH_CV=(()=>{const n=128,a=new Float32Array(n);for(let i=0;i<n;i++){const x=i/(n-1),u=x<.55?x/.55:x>.7?(1-x)/.3:1;a[i]=i===0||i===n-1?0:Math.pow(10,-30*(1-u)/20)}return a})();
+function mkBreath(c,dest,on,off,first){const g=mkG(c,0);g.connect(dest);let next=c.currentTime+(first==null?Math.random()*off[1]*.6:first);
+  return {node:g,tick(){const t=c.currentTime;if(next<t)next=t+.05;while(next<t+8){const d=rndIn(on);try{g.gain.setValueCurveAtTime(BREATH_CV,next,d)}catch(e){}next+=d+rndIn(off)}},
+    stop(){try{g.disconnect()}catch(e){}}}}
 const fadeOut=(out,fade)=>{const t=AC.currentTime;out.gain.cancelScheduledValues(t);out.gain.setTargetAtTime(0,t,(fade||.5)/3);setTimeout(()=>{try{out.disconnect()}catch(e){}},(fade||.5)*6000)};
 /* --- the Sun's hum: stochastically excited damped oscillators at the Sun's own mode frequencies (BiSON, l = 0…3), sped up 2^depth times --- */
 SCAPES.sun={
@@ -4186,7 +4225,7 @@ SCAPES.sun={
   // a mode's lifetime, seconds of real time: τ = 1/(π Γ), Γ the linewidth, ~1 µHz at νmax and growing with frequency (Chaplin et al.)
   tau(nu){const G=1.0*Math.exp((nu-SUN.numax)/650);return 1e6/(Math.PI*G)},
   make(){
-    const V=[];let k=0,horizon=0;const DT=.25,LOOK=3;const out=mkG(AC,0);out.connect(mBus);
+    const V=[];let k=0,horizon=0;const DT=.25,LOOK=3;const out=mkG(AC,0);out.connect(mBus);const br=mkBreath(AC,out,[10,13],[9,13],.3);
     const modes=SUN.modes.slice().sort((a,b)=>b[3]-a[3]);
     const build=()=>{
       const n=Math.min(SCAPES.sun.count(),modes.length),sel=modes.slice(0,n),sw=sel.reduce((s,m)=>s+m[3],0);
@@ -4194,7 +4233,7 @@ SCAPES.sun={
       const cosW=AC.createPeriodicWave(new Float32Array([0,1]),new Float32Array([0,0]),{disableNormalization:true});
       sel.forEach(m=>{const f=m[2]*k,sig=base*Math.sqrt(m[3]);
         const o1=AC.createOscillator(),o2=AC.createOscillator();o1.type='sine';o2.setPeriodicWave(cosW);o1.frequency.value=f;o2.frequency.value=f;
-        const g1=mkG(AC,0),g2=mkG(AC,0),vg=mkG(AC,0);o1.connect(g1);o2.connect(g2);g1.connect(vg);g2.connect(vg);vg.connect(out);
+        const g1=mkG(AC,0),g2=mkG(AC,0),vg=mkG(AC,0);o1.connect(g1);o2.connect(g2);g1.connect(vg);g2.connect(vg);vg.connect(br.node);
         vg.gain.setTargetAtTime(1,t,.6);o1.start(t);o2.start(t);
         V.push({m,nu:m[2],sig,re:gauss()*sig*Math.SQRT1_2,im:gauss()*sig*Math.SQRT1_2,o1,o2,g1,g2,vg});
       });
@@ -4202,14 +4241,14 @@ SCAPES.sun={
     };
     const teardown=(fade)=>{const t=AC.currentTime,old=V.splice(0);old.forEach(v=>{v.vg.gain.cancelScheduledValues(t);v.vg.gain.setTargetAtTime(0,t,fade/3);try{v.o1.stop(t+fade*2+.1);v.o2.stop(t+fade*2+.1)}catch(e){}})};
     // the random walk of each mode's complex amplitude, scheduled a few seconds ahead so the sound keeps breathing while the page is hidden
-    const tick=()=>{if(!V.length)return;const now=AC.currentTime;if(horizon<now-1){V.forEach(v=>{v.g1.gain.cancelScheduledValues(now);v.g2.gain.cancelScheduledValues(now)});horizon=now}
+    const tick=()=>{if(!V.length)return;br.tick();const now=AC.currentTime;if(horizon<now-1){V.forEach(v=>{v.g1.gain.cancelScheduledValues(now);v.g2.gain.cancelScheduledValues(now)});horizon=now}
       const look=document.hidden?LOOK*4:LOOK;let t=horizon;
       while(t<now+look){t+=DT;V.forEach(v=>{const tau=Math.max(2,SCAPES.sun.tau(v.nu)/Math.pow(2,M.depth)),a=Math.exp(-DT/tau),s=Math.sqrt(1-a*a)*v.sig*Math.SQRT1_2;
         v.re=v.re*a+gauss()*s;v.im=v.im*a+gauss()*s;v.g1.gain.linearRampToValueAtTime(v.re,t);v.g2.gain.linearRampToValueAtTime(-v.im,t)})}
       horizon=t};
     return{out,
       start(fade,lvl){build();tick();out.gain.setTargetAtTime(lvl==null?1:lvl,AC.currentTime,(fade||.5)/3)},
-      stop(fade){fadeOut(out,fade);teardown(fade||.5)},
+      stop(fade){fadeOut(out,fade);teardown(fade||.5);setTimeout(()=>br.stop(),(fade||.5)*6000)},
       rebuild(){if(!V.length)return;teardown(.6);build();tick()},
       set(){if(!V.length)return;k=Math.pow(2,M.depth)*1e-6;const t=AC.currentTime;V.forEach(v=>{v.o1.frequency.setTargetAtTime(v.nu*k,t,.4);v.o2.frequency.setTargetAtTime(v.nu*k,t,.4)})},
       tick,voices:()=>V.length,
@@ -4221,21 +4260,20 @@ function mkVoice(to,f,pan,tri,cut){const o1=AC.createOscillator(),o2=AC.createOs
   o1.type='sine';o2.type='triangle';o1.frequency.value=f;o2.frequency.value=f;o2.detune.value=3;f1.type='lowpass';f1.Q.value=.5;f1.frequency.value=Math.min(cut||f*3,12000);KR(f1.frequency);KR(pn.pan);
   o1.connect(f1);o2.connect(g2);g2.connect(f1);f1.connect(g);g.connect(pn);pn.connect(to);pn.pan.value=clamp(pan||0,-1,1);const t=AC.currentTime;o1.start(t);o2.start(t);
   const v={o1,o2,f1,g,pn,f,cut,out:null,
-    stop(fade){const t=AC.currentTime;g.gain.cancelScheduledValues(t);g.gain.setTargetAtTime(0,t,(fade||.5)/3);try{o1.stop(t+(fade||.5)*2+.1);o2.stop(t+(fade||.5)*2+.1)}catch(e){}
+    stop(fade){const t=AC.currentTime;holdAt(g.gain,t);g.gain.setTargetAtTime(0,t,(fade||.5)/3);try{o1.stop(t+(fade||.5)*2+.1);o2.stop(t+(fade||.5)*2+.1)}catch(e){}
       setTimeout(()=>{try{pn.disconnect()}catch(e){}},(fade||.5)*2500+200)},
     tune(f,tc){const t=AC.currentTime;v.f=f;o1.frequency.setTargetAtTime(f,t,tc||.3);o2.frequency.setTargetAtTime(f,t,tc||.3);f1.frequency.setTargetAtTime(Math.min(cut?cut*f/v.f0:f*3,12000),t,tc||.3)}};
   v.f0=f;return v}
 /* --- the nearest and brightest stars: a slow, wide field of tones by the Galaxy engine's rules --- */
 SCAPES.stars={
-  cap(){const q=QUAL();return Math.max(3,Math.round((q==='eco'?6:LOWPOWER?(q==='high'?12:8):q==='high'?16:12)*CAPMUL()))},
+  cap(){const q=QUAL();return Math.max(2,Math.round((q==='eco'?3:LOWPOWER?4:5)*CAPMUL()))},
   nLines(){const q=QUAL();return q==='eco'?0:LOWPOWER?1:2},
   make(){
     const out=mkG(AC,0);out.connect(mBus);let V=[],last=0;
-    const FADE=9,HOLD=[18,40];
-    const sounding=new Set();
+    const sounding=new Set(),recent=new Map();
     // loudness from brightness in our sky (galaxy.js's rule: 1 at −1.5 mag, 0 at 6.5); the faint neighbours are brought up to a whisper
     const loud=s=>{const x=clamp((6.5-s[1])/8,0,1);return s[7]?Math.max(.22,x):x};
-    const pick=()=>{let tot=0;const w=STARCAT.map((s,i)=>{if(sounding.has(i))return 0;const x=Math.pow(loud(s),1.2)+.04;tot+=x;return x});let r=Math.random()*tot;for(let i=0;i<w.length;i++){r-=w[i];if(r<=0)return i}return 0};
+    const pick=()=>{let tot=0;const now=AC.currentTime,w=STARCAT.map((s,i)=>{if(sounding.has(i)||now-(recent.get(i)||-99)<45)return 0;const x=Math.pow(loud(s),1.2)+.04;tot+=x;return x});let r=Math.random()*tot;for(let i=0;i<w.length;i++){r-=w[i];if(r<=0)return i}return 0};
     // the star's tone: the Wien peak of its light lowered forty octaves (galaxy.js's starTone), moved by the register
     const tone=s=>{const T=Math.max(s[2],300),lam=2.897771955e-3/T;return 299792458/lam/Math.pow(2,40-REG())};
     const panOf=s=>-Math.sin(s[4]*DEG)*Math.cos(s[5]*DEG);
@@ -4243,13 +4281,13 @@ SCAPES.stars={
       const v=mkVoice(out,f,panOf(s),cool?.3:.12,f*(s[6]==='M'?1.6:2.6));v.i=i;v.s=s;sounding.add(i);
       // the star's spectral lines, folded into its octave: peaking filters (absorption, so negative gain), fewer on a phone, none in Eco
       v.pk=[];const n=Math.min(SCAPES.stars.nLines(),s[8].length);if(n){let prev=v.f1;try{v.f1.disconnect(v.g)}catch(e){}for(let j=0;j<n;j++){const L=s[8][j],pk=AC.createBiquadFilter();pk.type='peaking';pk.frequency.value=L[0]*Math.pow(2,REG());pk.gain.value=L[1]*1.5;pk.Q.value=L[2];KR(pk.frequency);prev.connect(pk);prev=pk;v.pk.push(pk)}prev.connect(v.g)}
-      const t=AC.currentTime+(delay||0),base=.16/Math.sqrt(Math.max(1,SCAPES.stars.cap())/2),hold=HOLD[0]+Math.random()*(HOLD[1]-HOLD[0]);
-      v.lvl=base*(.45+.55*loud(s))*(f>1200?.7:1);v.born=t;v.die=t+FADE+hold;
-      v.g.gain.setValueAtTime(0,t);v.g.gain.setTargetAtTime(v.lvl,t,FADE/3);v.g.gain.setTargetAtTime(0,v.die,FADE/3);
+      const t=AC.currentTime+(delay||0),base=.2/Math.sqrt(Math.max(1,SCAPES.stars.cap())/2),D=7+Math.random()*3;
+      v.lvl=base*(.45+.55*loud(s))*(f>1200?.7:1);v.born=t;v.die=t+D;v.rest=5+Math.random()*8;recent.set(i,t);
+      try{v.g.gain.setValueCurveAtTime(BREATH_CV.map(x=>x*v.lvl),t,D)}catch(e){}
       V[k]=v;return v};
-    const build=()=>{const n=SCAPES.stars.cap();V=[];for(let k=0;k<n;k++)spawn(k,k*(FADE+HOLD[0])/n*.6);last=AC.currentTime};
+    const build=()=>{const n=SCAPES.stars.cap();V=[];for(let k=0;k<n;k++)spawn(k,.3+k*15/n);last=AC.currentTime};
     const tick=()=>{if(!V.length)return;const t=AC.currentTime;if(t-last<.25)return;last=t;
-      V.forEach((v,k)=>{if(t>v.die+FADE*1.3){sounding.delete(v.i);v.stop(.3);spawn(k,.2+Math.random()*2)}})};
+      V.forEach((v,k)=>{if(t>v.die+v.rest){sounding.delete(v.i);v.stop(.3);spawn(k,.05)}})};
     return{out,
       start(fade,lvl){build();out.gain.setTargetAtTime(lvl==null?1:lvl,AC.currentTime,(fade||.5)/3)},
       stop(fade){fadeOut(out,fade);V.forEach(v=>v.stop(fade));V=[];sounding.clear()},
@@ -4265,11 +4303,13 @@ SCAPES.galaxy={
     const out=mkG(AC,0);out.connect(mBus);let V=[],last=0;
     const f=r=>r[1]*Math.pow(2,REG());
     const build=()=>{const t=AC.currentTime,n=Math.max(3,Math.round((QUAL()==='eco'?6:RINGS.length)*CAPMUL())),base=.15/Math.sqrt(n/2);
-      V=RINGS.slice(0,n).map((r,k)=>{const v=mkVoice(out,f(r),0,.15,f(r)*2.5);v.r=r;v.lvl=base*Math.pow(.86,k);v.a=1;
-        // each ring turns at its own Ω: the outermost once in ten minutes, the inner ones faster, and its sound sweeps round with it
-        v.ph=k*1.3;v.w=TAU/600*(RINGS[0][0]/r[0]);v.g.gain.setTargetAtTime(v.lvl,t+k*.4,2.5);return v});last=t};
+      V=RINGS.slice(0,n).map((r,k)=>{const v=mkVoice(out,f(r),0,.15,f(r)*2.5);v.r=r;v.lvl=base*Math.pow(.86,k)*1.6;v.a=1;
+        // each ring turns at its own Ω (its tone is Ω raised 61 octaves), its sound sweeping round with it and swelling as it comes past, once a turn:
+        // the outermost in 44 s, the inner ones faster in proportion (a ring at 3 kpc every 6 s), each swell a gaussian a quarter of the turn wide (1.6…3 s), so no ring flares up
+        v.P=44*RINGS[0][1]/r[1];v.sig=clamp(.25*v.P,1.6,3);v.ph0=Math.random()*v.P;v.ph=TAU*v.ph0/v.P;v.w=TAU/v.P;return v});last=t};
     const tick=()=>{if(!V.length)return;const t=AC.currentTime;if(t-last<.25)return;const dt=Math.min(2,t-last);last=t;
-      V.forEach(v=>{v.ph+=v.w*dt;v.a=walk(v.a-1,20,dt,.12)+1;v.pn.pan.setTargetAtTime(.7*Math.sin(v.ph),t,.8);v.g.gain.setTargetAtTime(v.lvl*clamp(v.a,.7,1.3),t,.8)})};
+      V.forEach(v=>{v.ph+=v.w*dt;v.a=walk(v.a-1,20,dt,.12)+1;const d=((t+v.ph0)%v.P)-v.P/2,e=Math.exp(-(d/v.sig)*(d/v.sig));
+        v.pn.pan.setTargetAtTime(.7*Math.sin(v.ph),t,.8);v.g.gain.setTargetAtTime(e<.003?0:v.lvl*e*clamp(v.a,.7,1.3),t,.25)})};
     return{out,
       start(fade,lvl){build();out.gain.setTargetAtTime(lvl==null?1:lvl,AC.currentTime,(fade||.5)/3)},
       stop(fade){fadeOut(out,fade);V.forEach(v=>v.stop(fade));V=[]},
@@ -4278,22 +4318,27 @@ SCAPES.galaxy={
       tick,voices:()=>V.length,now:()=>V.map(v=>[v.r[0],Math.round(v.f)]),
     }},
   about(){return tx('hearGalaxy',{n:61+REG()})}};
-/* --- a constellation (con.js): its stars as a slow melody along the figure, a long rest, then all its stars as a chord breathing, a rest, again ---
+/* --- a constellation (con.js): its stars as a slow melody along the figure, a rest, then all its stars as a chord, a rest, again ---
    Each star in its own voice by the Galaxy engine's rules (con.js; the same notes as on the dial's and the Flight's cards), the walk slowed
-   to 1.6 × the cards' pace; the chord holds 24 s; rests of 9 and 7 s. Its myth (or who named it) is its introduction instead of a god's. */
+   to 1.6 × the cards' pace (or as much slower as keeps the walk within 20 s), every note swelling in over 2.2 s (the chords over 4 s); the melody's
+   own chord holds 6 s, the chord 8 s; rests of 10 and 9 s, so the figure breathes in waves of about half a minute. Its myth (or who named it) is its
+   introduction instead of a god's; it begins, like the other soundscapes, once the introduction has been spoken. */
 const CONSCAPE={
   make(id){
     const out=mkG(AC,0);out.connect(mBus);const cid=id.slice(4);let P=null,phase='',until=0,gen=0,last=0,c=null;
     const lvl=()=>2.5/Math.sqrt(Math.max(1,LAYERS_ON()));   // measured: the session at −21…−23 dBFS RMS at 70 %, as the other soundscapes
+    // after a rest the figure's first notes rise with the layer's own gain from −30 dB over 8 s (its notes' 2.2 s swell alone would leap out of the silence)
+    const sw=mkG(AC,1);out.disconnect();out.connect(sw);sw.connect(mBus);const swell=t=>{medRamp(sw.gain,t,.0316,.05);setTimeout(()=>{if(gen>0)medRamp(sw.gain,AC.currentTime,1,8)},80)};
     const next=()=>{if(!P||!c)return;const t=AC.currentTime;
-      if(phase==='mel'){phase='rest1';until=t+9}
-      else if(phase==='rest1'){phase='chord';P.chord(c,{hold:24,level:lvl(),depth:false});until=t+27}
-      else if(phase==='chord'){phase='rest2';until=t+7}
-      else{phase='mel';const sc=P.melody(c,{tempo:1.6,hold:9,level:lvl()});until=t+sc.end+.12+1.1+9+3}};
+      if(!MO.open||!isOpen(t)){phase='';until=t+1;return}   // the introduction is still being spoken (or the music was hushed for a change)
+      if(phase==='mel'){phase='rest1';until=t+10}
+      else if(phase==='rest1'){phase='chord';swell(t);P.chord(c,{hold:8,level:lvl()*.8,depth:false,att:4});until=t+8+3}
+      else if(phase==='chord'){phase='rest2';until=t+9}
+      else{phase='mel';swell(t);const e0=CON.score(c,{tempo:1.6}).end,tp=clamp(1.6*Math.min(1,20/Math.max(1,e0)),.7,1.6);const sc=P.melody(c,{tempo:tp,hold:6,level:lvl(),att:2.2,chordAtt:4});until=t+sc.end+.12+1.1+6+2.5}};
     const go=()=>{if(!window.CON)return;CON.load().then(()=>{if(gen<0)return;c=CON.figure(cid);if(!c)return;P=CON.Player(AC,out,{raw:true});phase='';next()}).catch(e=>{MEDITATE.errors.push('con '+e)})};
     return{out,
       start(fade,l){gen=1;go();out.gain.setTargetAtTime(l==null?1:l,AC.currentTime,(fade||.5)/3)},
-      stop(fade){gen=-1;fadeOut(out,fade);if(P)P.stop(fade||1);P=null},
+      stop(fade){gen=-1;fadeOut(out,fade);if(P)P.stop(fade||1);P=null;setTimeout(()=>{try{sw.disconnect()}catch(e){}},(fade||1)*6000+500)},
       rebuild(){},set(){},
       tick(){if(!P||!c)return;const t=AC.currentTime;if(t-last<.25)return;last=t;if(t>=until)next()},
       voices:()=>P&&P.notes?P.notes.length:0,now:()=>[phase,c&&c.id],phase:()=>phase,player:()=>P,con:()=>c}},
@@ -4313,18 +4358,22 @@ function dialStep(force){if(!DIAL.on||!AC||M.state==='idle')return;const now=AC.
 function dialSet(id){
   // a single voice is the dial's audition (one body alone, its moons through the pool); anything else leaves it, and the Sun's drone and the choir's groups come back
   const one=isOne(id)?oneOf(id):null;
-  S.audition=null;S.audMoon=null;S.drone=false;S.aspects=true;MED.audMoons=false;MED.sunK=1;['planet','minor','comet','moons'].forEach(g=>S.groups[g].on=true);
+  S.audition=null;S.audMoon=null;S.drone=false;S.aspects=false;MED.audMoons=false;MED.sunK=1;['planet','minor','comet','moons'].forEach(g=>S.groups[g].on=true);
   if(isSys(id)){const b=sysOf(id);if(S.thinker!=='today')setThinker('today');if(SYS.id!==b.id){if(SYS.id)leaveSystem();S.vp='sun';enterSystem(b.id)}
     SYS.vp=M.view==='centre'?'centre':(()=>{const k=b.moons.findIndex(m=>m.k===M.view);return k<0?'centre':k})();}
   else if(one){if(SYS.id)leaveSystem();S.interp=M.interp;if(S.thinker!=='today')setThinker('today');S.vp='sun';S.face='vernal';S.aspects=false;
-    if(one.body==='sun'){S.drone=true;MED.sunK=2.2;['planet','minor','comet','moons'].forEach(g=>S.groups[g].on=false)}   // Apollo alone: the choir's groups off, his drone up to a voice's level
+    if(one.body==='sun'){S.drone=true;MED.sunK=1;['planet','minor','comet','moons'].forEach(g=>S.groups[g].on=false)}   // Apollo alone: the choir's groups off, his drone up to a voice's level
     else if(one.body==='moon'){S.audition='earth';S.audMoon=0;MED.audMoons=true}                                          // Selene in focus: she sings ahead, Gaia hums quietly behind
     else{S.audition=one.body;MED.audMoons=one.moons&&hasMoons(one.body);S.groups.moons.on=MED.audMoons}}
   else{const th=thOf(id);if(SYS.id)leaveSystem();S.interp=M.interp;setThinker(th);if(th==='today'){S.vp=M.view==='earth'?'earth':'sun';S.face=S.vp==='sun'?'vernal':'sun'}}
   S.groups.moons.vol=isSys(id)?.8:.4;   // a system's moons at the dial's level; Today's moons further back
   medPace()}
 // the dial's output level in the mix (its weight among the layers), and the crossfade on a change
-function dialLevel(lvl,fade){if(!dialG)return;const t=AC.currentTime;dialG.gain.cancelScheduledValues(t);dialG.gain.setTargetAtTime(lvl*DIAL_LVL,t,(fade||.5)/3)}
+// each soundscape's own trim (dB), measured so that every one sings at about the same loudness (its phrases near −26 LUFS at the default volume):
+// the engine's heavens differ a great deal (Ptolemy's swelling tetrachords, Nicomachus's quiet lyre, a lone voice); a fixed calm gain, no automatic gain
+const LVL_DB=/*LVL*/{"one:halley":6,"sys:pluto":6,"th:nicomachus":3,"sys:saturn":3,"one:mars":3,"th:sonic":2.5,"one:jupiter:m":2,"th:ikhwan":2,"con:ori":-2.5}/*LVL-END*/;
+const trimOf=id=>Math.pow(10,(LVL_DB[id]||LVL_DB[oneBase(id)]||0)/20);
+function dialLevel(lvl,fade){if(!dialG)return;const t=AC.currentTime;dialG.gain.cancelScheduledValues(t);dialG.gain.setTargetAtTime(lvl*DIAL_LVL*(lvl>0?trimOf(M.scape):1),t,(fade||.5)/3)}
 function dialStart(id,fade,lvl){dialSet(id);DIAL.on=true;audioOn=true;tgt(master.gain,1,.001);DIAL.lastT=AC.currentTime;dialStep(true);dialLevel(lvl,fade)}
 function dialStop(fade){if(!DIAL.on)return;DIAL.on=false;dialLevel(0,fade);const gen=++DIAL.gen;
   setTimeout(()=>{if(DIAL.on||gen!==DIAL.gen||!AC)return;if(SYS.id)leaveSystem();S.audition=null;S.audMoon=null;S.drone=false;killSirens();hushWorld()},(fade||1)*1000+300)}
@@ -4334,12 +4383,13 @@ function dialChange(id,lvl){if(!DIAL.on){dialStart(id,XFADE,lvl);return}const ge
 /* ---------- the layers: the chosen soundscape at full level, the quiet ones under it at theirs ---------- */
 const ACTIVE={};            // layer id → the sounding instance
 const XFADE=6;              // seconds of real time between soundscapes
-const layerW=b=>b===M.scape?1:Math.pow(M.mix[b]/100,1.3);
+// (the Sun's hum under another soundscape at most −34 dBFS in its band at full slider, measured: its low modes carry far, so it sits 4.4 dB lower)
+const layerW=b=>b===M.scape?1:.5*Math.pow(M.mix[b]/100,1.3)*(b==='sun'?.6:1);
 // the set that should sound, each at its weight scaled so the sum of powers stays about one soundscape's worth (the chain's headroom is for one)
 function applyLayers(fade,changed){if(M.state!=='running'||!AC)return;const want={};LAYER_IDS.forEach(b=>{const w=layerW(b);if(w>0)want[b]=w});if(isCon(M.scape))want[M.scape]=1;const dial=isDial(M.scape)?1:0;
   const norm=1/Math.sqrt(Object.values(want).reduce((s,w)=>s+w*w,dial)||1),t=AC.currentTime,f=fade||XFADE,n=LAYERS_ON(),moved=applyLayers.n!=null&&applyLayers.n!==n;applyLayers.n=n;
   Object.keys(ACTIVE).forEach(b=>{if(!want[b]){ACTIVE[b].stop(f);delete ACTIVE[b]}});
-  Object.keys(want).forEach(b=>{const lvl=want[b]*norm;if(!ACTIVE[b]){ACTIVE[b]=(isCon(b)?CONSCAPE:SCAPES[b]).make(b);ACTIVE[b].start(f,lvl)}else{ACTIVE[b].out.gain.setTargetAtTime(lvl,t,f/3);if(moved)ACTIVE[b].rebuild()}});
+  Object.keys(want).forEach(b=>{const lvl=want[b]*norm*(b===M.scape?trimOf(b):1);if(!ACTIVE[b]){ACTIVE[b]=(isCon(b)?CONSCAPE:SCAPES[b]).make(b);ACTIVE[b].start(f,lvl)}else{ACTIVE[b].out.gain.setTargetAtTime(lvl,t,f/3);if(moved)ACTIVE[b].rebuild()}});
   if(!dial)dialStop(f);else if(changed)dialChange(M.scape,norm);else if(!DIAL.on)dialStart(M.scape,f,norm);else dialLevel(norm,f)}
 const forScapes=(fn)=>Object.values(ACTIVE).forEach(fn);
 const scape=()=>isDial(M.scape)?null:ACTIVE[M.scape]||null;
@@ -4357,14 +4407,15 @@ function ambMake(kind){if(!AC||kind==='none')return null;const out=mkG(AC,0);out
     for(let i=0;i<n;i++){const w=Math.random()*2-1;b0=.99765*b0+w*.099;b1=.963*b1+w*.2965;b2=.57*b2+w*1.0526;d[i]=(b0+b1+b2+w*.1848)*.12}   // pink-ish (Paul Kellet's filter)
     const src=AC.createBufferSource();src.buffer=buf;src.loop=true;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=260;bp.Q.value=.7;KR(bp.frequency);
     const lo=AC.createBiquadFilter();lo.type='lowpass';lo.frequency.value=900;KR(lo.frequency);const pn=AC.createStereoPanner();KR(pn.pan);const g=mkG(AC,.9);
-    src.connect(bp);bp.connect(lo);lo.connect(g);g.connect(pn);pn.connect(out);src.start();A.nodes=[src];A.bp=bp;A.pn=pn;A.g=g;A.x=0;A.y=0;A.z=0;
-    A.tick=()=>{const t=AC.currentTime,dt=Math.min(2,t-A.last);if(dt<.4)return;A.last=t;A.x=walk(A.x,9,dt,1);A.y=walk(A.y,14,dt,1);A.z=walk(A.z,6,dt,1);
+    const br=mkBreath(AC,pn,[10,14],[4,7],.5);A.brs=[br];
+    src.connect(bp);bp.connect(lo);lo.connect(g);g.connect(br.node);pn.connect(out);src.start();A.nodes=[src];A.bp=bp;A.pn=pn;A.g=g;A.x=0;A.y=0;A.z=0;
+    A.tick=()=>{br.tick();const t=AC.currentTime,dt=Math.min(2,t-A.last);if(dt<.4)return;A.last=t;A.x=walk(A.x,9,dt,1);A.y=walk(A.y,14,dt,1);A.z=walk(A.z,6,dt,1);
       bp.frequency.setTargetAtTime(clamp(260*Math.pow(2,.6*A.x),120,700),t,.8);pn.pan.setTargetAtTime(clamp(.5*A.y,-1,1),t,1);g.gain.setTargetAtTime(clamp(.9+.25*A.z,.45,1.3),t,.8)};
-  }else{const fs=[32.7,49,65.4,98];const g=mkG(AC,.22);g.connect(out);A.g=g;A.v=[];
-    fs.forEach((f,i)=>{[-1,1].forEach(sg=>{const o=AC.createOscillator(),og=mkG(AC,[.5,.45,.35,.18][i]*.5);o.type='sine';o.frequency.value=f;o.detune.value=sg*(2+i);o.connect(og);og.connect(g);o.start();A.nodes.push(o);A.v.push({og,a:1})})});
-    A.tick=()=>{const t=AC.currentTime,dt=Math.min(2,t-A.last);if(dt<.4)return;A.last=t;A.v.forEach((v,i)=>{v.a=walk(v.a-1,12+i*2,dt,.2)+1;v.og.gain.setTargetAtTime([.5,.45,.35,.18][i>>1]*.5*clamp(v.a,.5,1.5),t,1)})}}
+  }else{const fs=[32.7,49,65.4,98];const g=mkG(AC,.22);g.connect(out);A.g=g;A.v=[];A.brs=fs.map((f,i)=>mkBreath(AC,g,[6,9],[8,14],.5+i*3));
+    fs.forEach((f,i)=>{[-1,1].forEach(sg=>{const o=AC.createOscillator(),og=mkG(AC,[.5,.45,.35,.18][i]*.5);o.type='sine';o.frequency.value=f;o.detune.value=sg*(2+i);o.connect(og);og.connect(A.brs[i].node);o.start();A.nodes.push(o);A.v.push({og,a:1})})});
+    A.tick=()=>{A.brs.forEach(b=>b.tick());const t=AC.currentTime,dt=Math.min(2,t-A.last);if(dt<.4)return;A.last=t;A.v.forEach((v,i)=>{v.a=walk(v.a-1,12+i*2,dt,.2)+1;v.og.gain.setTargetAtTime([.5,.45,.35,.18][i>>1]*.5*clamp(v.a,.5,1.5),t,1)})}}
   return A}
-const ambGain=()=>Math.pow(M.ambLvl/100,1.5)*(M.amb==='wind'?.34:.5);
+const ambGain=()=>Math.pow(M.ambLvl/100,1.5)*(M.amb==='wind'?.2:.3);
 function applyAmb(){if(M.state!=='running'||!AC)return;const t=AC.currentTime;
   if(AMB&&(AMB.kind!==M.amb||M.ambLvl===0)){const old=AMB;AMB=null;old.out.gain.setTargetAtTime(0,t,1.2);setTimeout(()=>{old.nodes.forEach(n=>{try{n.stop()}catch(e){}});try{old.out.disconnect()}catch(e){}},6000)}
   if(!AMB&&M.amb!=='none'&&M.ambLvl>0)AMB=ambMake(M.amb);
@@ -4439,10 +4490,36 @@ const introGod=k=>k.startsWith('con_')?k:k.startsWith('med_t_')?'hestia':k==='me
 const CONSEX={};CONS.forEach(c=>{CONSEX[c[3]]=c[4]});
 const godSex=g=>CONSEX[g]?CONSEX[g]:byId[g]&&byId[g].hv&&byId[g].hv.say?byId[g].hv.say[0]:['hestia','hera','selene','earth'].includes(g)?'f':'m';
 let introDue=null,introduced=new Set();
-function planIntro(delay){if(M.state!=='running'||!M.gods)return;const k=introKey();if(introduced.has(k)){introDue=null;return}introDue={key:k,at:AC.currentTime+(delay==null?4:delay)}}
+function planIntro(delay){if(M.state==='running'&&MO.open)hush();if(M.state!=='running'||!M.gods)return;const k=introKey();if(introduced.has(k)){introDue=null;return}introDue={key:k,at:AC.currentTime+(delay==null?4:delay)}}
 function serveIntro(){if(!introDue||M.state!=='running'||!AC)return;const t=AC.currentTime;if(t<introDue.at)return;
   if(speakBusy||M.speaking||t<speechEnd+2.5)return;   // another voice is speaking, or has only just finished
   const k=introDue.key;introDue=null;if(introduced.has(k)||k!==introKey())return;introduced.add(k);speak(k,introGod(k))}
+/* ---------- the opening and the waves ----------
+   After Begin, Hestia's welcome and the soundscape's introduction are spoken over silence; only when the last voice has finished does the music
+   begin, fading in over MED.fadeMus seconds (dB-linear from −32 dB), one voice at a time for its first MED.first seconds. A new soundscape (or a part
+   of a soundtrack) is the same: the music fades away, its god speaks, the new music fades in. Then the music breathes in waves: MED.sing seconds of
+   phrases, MED.rests seconds of rest in which only the echo's tail sounds (a phrase may not begin in the last MED.close seconds before a rest, and the
+   waves' gain closes over whatever still sounds). A constellation keeps its own rests (its melody, a rest, its chord, a rest). */
+const MO={open:false,openAt:0,armed:false,hushUntil:0},WV={phase:'off',until:0};
+// a wave opens over WV_OPEN seconds (from −40 dB, 5 dB a second: what kept sounding through the rest, a layer's breath, the court's
+// instruments, the roar, comes back as gently as a voice enters), and the voices begin their phrases only once it is open
+const WV_OPEN=8;
+const rndIn=r=>r[0]+Math.random()*(r[1]-r[0]);
+const holdAt=(p,t)=>{if(p.cancelAndHoldAtTime)p.cancelAndHoldAtTime(t);else{const v=p.value;p.cancelScheduledValues(t);p.setValueAtTime(v,t)}};
+function introsDone(t){return MO.armed&&!introDue&&!speakBusy&&!M.speaking&&t>speechEnd+1.5&&t>=MO.hushUntil}
+function openMusic(){const t=AC.currentTime,p=introG.gain,cur=Math.max(p.value,Math.pow(10,-32/20)),d0=20*Math.log10(cur),n=256,cv=new Float32Array(n);
+  for(let i=0;i<n;i++){const x=i/(n-1);cv[i]=Math.pow(10,d0*(1-x)/20)}
+  holdAt(p,t);try{p.setValueCurveAtTime(cv,t+.02,MED.fadeMus/Math.min(SPEED,4))}catch(e){p.setTargetAtTime(1,t,MED.fadeMus/4)}
+  MO.open=true;MO.openAt=t;WV.phase='sing';WV.until=t+MED.fadeMus/Math.min(SPEED,4)+rndIn(MED.sing)*.4;holdAt(waveG.gain,t);waveG.gain.setTargetAtTime(1,t,.3);
+  MEDITATE.opened.push(Math.round(sNow()*10)/10)}
+// the music steps aside for a voice: a change of soundscape fades it away, and it begins again after the introduction
+function hush(){if(!AC)return;const t=AC.currentTime;MO.open=false;MO.hushUntil=t+3.5/Math.min(SPEED,4);holdAt(introG.gain,t);introG.gain.setTargetAtTime(0,t,.8);WV.phase='off'}
+function waveTick(){if(!AC||M.state!=='running')return;const t=AC.currentTime;
+  if(!MO.open){if(MO.armed&&introsDone(t))openMusic();return}
+  if(isCon(M.scape)){if(WV.phase==='rest'){WV.phase='sing';holdAt(waveG.gain,t);waveG.gain.setTargetAtTime(1,t,1)}WV.until=t+60;return}
+  if(t<WV.until)return;
+  if(WV.phase==='sing'){WV.phase='rest';WV.until=t+rndIn(MED.rests);medRamp(waveG.gain,t,.01,3)}
+  else{WV.phase='sing';WV.until=t+rndIn(MED.sing);WV.from=t+WV_OPEN;medRamp(waveG.gain,t,1,WV_OPEN)}}
 /* ---------- the session ---------- */
 const sNow=()=>AC?(AC.currentTime-M.t0)*SPEED:0;        // session seconds, on the audio clock (a pause from the lock screen pauses it too)
 const acAt=s=>M.t0+s/SPEED;                              // audio time of a session second
@@ -4459,12 +4536,13 @@ function planEnd(){bellPlan.filter(p=>p.kind==='end').forEach(dropBell);bellPlan
 async function begin(){
   if(M.state!=='idle')return;
   medInit();try{await AC.resume()}catch(e){}
+  MO.open=false;MO.armed=false;MO.hushUntil=0;WV.phase='off';{const t=AC.currentTime;holdAt(introG.gain,t);introG.gain.setValueAtTime(0,t+.01);holdAt(waveG.gain,t);waveG.gain.setValueAtTime(1,t+.01)}NOTES.length=0;
   M.state='running';ended=false;M.t0=AC.currentTime+.05;M.tEnd=track()?trLen(TR):M.len?M.len*60:0;M.finishAt=0;MEDITATE.rang=[];applyLayers.n=null;
   S.jd=jdNow();trackStart();applyLayers(.5);applyAmb();
   planFade(false);
   bellPlan=[{t:.1,f:196,L:.2,kind:'start'}];planEnd();planInterval();planPartBells();armBells();
   introduced.clear();introDue=null;speechEnd=0;MEDITATE.said=[];
-  setTimeout(()=>{if(M.state!=='running')return;if(M.hestia)speak('welcome');planIntro(M.hestia?1.5:0)},1400/Math.min(SPEED,4));
+  setTimeout(()=>{if(M.state!=='running')return;if(M.hestia)speak('welcome');planIntro(M.hestia?1.5:0);MO.armed=true},1400/Math.min(SPEED,4));
   if(window.MOTS&&MOTS.midi&&MOTS.midi.transport)MOTS.midi.transport(true,0);
   MOTS.transportOn=true;
   sync();loop();
@@ -4515,21 +4593,64 @@ function breathTick(now){
 // sing on the out-breath: with the guide on and "follows the breath" set, a phrase may only begin in the first half of the out-breath, two voices at most per breath
 // and at any time: no more than MED.poly voices in a phrase at once, and MED.gap seconds between one phrase's start and the next, so there is air between the phrases
 let gateBreath=-1,gateCount=0,gateLast=-99;
-function medGate(now){let n=0;MEDH.forEach(h=>{if(h.singUntil>now)n++});if(n>=MED.poly)return false;
+// the notes of the last half minute, by the pitch actually sung: [f, start, end]
+const NOTES=[];
+function medNote(f,t0,t1){NOTES.push([f,t0,t1]);if(NOTES.length>120)NOTES.splice(0,40)}
+// may a note of pitch f (Hz) lasting about dur seconds begin now? Not while the same pitch sounds or has only just ended, and not if that pitch has
+// already sounded for the page's budget in the last 20 s (any voice: several Sirens share a pitch)
+function pitchOK(f,now,dur){if(!f)return true;let used=0;for(const [g,a,b] of NOTES){if(Math.abs(1200*Math.log2(g/f))>40)continue;if(b+1.5>now&&a<now+dur)return false;
+    used+=Math.max(0,Math.min(b+2,now)-Math.max(a,now-20))}return used+Math.min(dur,6)<=MED.budget}
+const isOpen=now=>MO.open&&now>=MO.openAt+.3&&!M.speaking&&!speakBusy&&(isCon(M.scape)||WV.phase==='sing'&&now>=(WV.from||0)&&now<WV.until-MED.close);
+function medGate(now,h,f){if(!isOpen(now))return false;
+  let n=0;MEDH.forEach(x=>{if(x.singUntil>now)n++});if(n>=(now-MO.openAt<MED.first?1:MED.poly))return false;
+  if(h&&f&&!pitchOK(f*Math.pow(2,fitShift(f,h.spec.type)),now,4))return false;
   if(M.follow&&PATS[M.pat]&&bPhase>=0){const b=breathNow(performance.now());if(!b||b.ph!==2||b.u>.7)return false;   // the breath gives the spacing: the first part of the out-breath, three voices at most
     const cyc=Math.floor((performance.now()-bT0)/1000/PATS[M.pat].reduce((a,c)=>a+c));if(cyc!==gateBreath){gateBreath=cyc;gateCount=0}
     if(gateCount>=3)return false;gateCount++;MEDITATE.gated=(MEDITATE.gated||0)+1}
   else if(now<gateLast+MED.gap)return false;
   gateLast=now;return true}
+// a plucked or struck note (the lyre, the monochord, the court's bells): the same opening, waves and pitch budget, and at most one every gap/2 seconds
+let plkLast=-99;
+function medPluck(f,dur){if(!AC)return false;const now=AC.currentTime;if(!isOpen(now)||now<plkLast+MED.gap*.5||!pitchOK(f,now,dur))return false;plkLast=now;medNote(f,now,now+dur*.6);return true}
+// a phrase's entry (the dial's singers enter in 70 ms): a quarter second up to −30 dB below its level, then a dB-linear swell of `a` seconds
+// (MED.att: 6…8 s, 4…5 dB a second; a third longer while the music is still fading in, so a voice rises gently out of the silence and never arrives as a blast); never past the phrase's end
+function medRise(p,t0,a,lv,t1){if(lv<=0)return;if(MO.open&&t0<MO.openAt+MED.fadeMus)a*=1.3;a=Math.max(.5,Math.min(a,(t1||t0+a+1)-t0-.6));p.setValueAtTime(0,t0);p.linearRampToValueAtTime(lv*.0316,t0+.25);p.exponentialRampToValueAtTime(lv,t0+.25+a)}
+// a phrase is held long enough to swell in, sound and fade: at least MED.att + MED.hold seconds (the last vowel held)
+function medHold(t0,t){return Math.max(t,t0+MED.att+MED.hold*(.8+Math.random()*.4))}
+// Cicero's roar of the spheres in Meditate: it swells and ebbs like surf (on about 14 of every 20 seconds), never a constant noise
+const ROAR={};function medRoar(now){return .15+.85*swellAt(ROAR,now,20,14)}
+// a gain moved along a dB-linear curve from its present value (no exponential ramp after a hold: Chromium starts such a ramp from 0 and then steps)
+function medRamp(p,t,to,dur){const v=Math.max(1e-4,p.value),n=64,cv=new Float32Array(n),a=20*Math.log10(v),b=20*Math.log10(Math.max(1e-4,to));
+  for(let i=0;i<n;i++)cv[i]=Math.pow(10,(a+(b-a)*i/(n-1))/20);holdAt(p,t);try{p.setValueCurveAtTime(cv,t+.01,dur)}catch(e){try{p.setTargetAtTime(to,t+.01,dur/3)}catch(e2){}}}
+// every vowel at the same loudness: the dial's formant filters are narrow, so a vowel whose first formant meets the sung note's fundamental is
+// up to 15 dB louder than one that falls between harmonics (measured: Aphrodite's 'a' then her held 'e:' rose 18 dB in a second). Here each
+// vowel's voice gain is set so that the power through its formants (the glottal source's harmonics, n^−tilt, through the four band-passes, weighted
+// as loudness is: about +4 dB above 2 kHz, the K-weighting of ITU-R BS.1770) equals
+// the mean of the five vowels at this pitch; cached per voice type, vowel and pitch
+const VK=new Map();
+function medVK(h,tok,f){const T=h.form,tab=T&&T[tok];if(!tab||!(f>0)||h.whisper||!(h.spec.tilt>0))return 1;const key=h.spec.type+'|'+tok+'|'+Math.round(f)+'|'+h.spec.tilt;let k=VK.get(key);if(k!=null)return k;
+  const pw=tb=>{let s=0;for(let n=1;n<=48;n++){const fn=n*f;if(fn>9000)break;const a=Math.pow(n,-h.spec.tilt)*(n%2?1:.82)*Math.pow(10,.2/(1+Math.pow(1500/fn,2)));let hs=0;
+    for(let j=0;j<Math.min(NF,tb.length);j++){const [F,db,bw]=tb[j],x=F/bw*(fn/F-F/fn);hs+=Math.pow(10,db/20)/Math.sqrt(1+x*x)}s+=a*a*hs*hs}return s};
+  const vs=['a','e','i','o','u'].filter(v=>T[v]),ref=vs.reduce((s,v)=>s+pw(T[v]),0)/vs.length;
+  k=clamp(Math.sqrt(ref/Math.max(1e-12,pw(tab))),.28,3.5);if(!isFinite(k))k=1;if(VK.size>4000)VK.clear();VK.set(key,k);return k}
+// the note a voice holds while it sings a phrase (h.vkf, set when the phrase is scheduled): a leap waits for the next phrase, a drift is followed
+function medHoldF(h,ff){if(!AC||!h.vkf||!(h.singUntil>AC.currentTime))return ff;return h.vkf*Math.pow(2,clamp(1200*Math.log2(ff/h.vkf),-60,60)/1200)}
+// the consonants' dips inside a phrase, rounded: never below MED.vgMin, never faster than MED.vgTc
+// and every target is scaled by the present vowel's loudness factor (h.vk, medVK), so a consonant's return to full voice never overshoots the vowel
+function medVG(h,f){const p=h.vg.gain;h.vkf=f*Math.pow(2,fitShift(f,h.spec.type));const w=h.words.find(x=>h.form&&h.form[x.t]);h.vk=w?medVK(h,w.t,h.vkf):1;
+  return {setTargetAtTime:(v,t,tc)=>p.setTargetAtTime(Math.max(v,MED.vgMin)*h.vk,t,Math.max(tc,MED.vgTc))}}
+// a swell for a sustained voice: on for `on` of every `cyc` seconds (each voice in its own time), silent between; the swell is sin² in decibels
+// (−30 dB → 0 → −30 dB), so it rises at most 30·π/on dB a second (under 6 for the 16 s swells), never the sudden bloom of a sin² in amplitude
+function swellAt(v,now,cyc,on){if(v.sph===undefined)v.sph=Math.random();if(v.cyc===undefined)v.cyc=cyc*(.85+Math.random()*.3);const u=((now/v.cyc+v.sph)%1)*v.cyc;return u<on?Math.pow(10,-1.5*(1-Math.pow(Math.sin(Math.PI*u/on),2))):0}
 /* ---------- the pump: the sky's time, the envelopes, the bells and the session's end, driven by a worker clock that the background cannot throttle ---------- */
-function pump(){if(M.state==='idle'||!AC)return;try{trackTick();dialStep();forScapes(i=>i.tick());if(AMB)AMB.tick();armBells();serveIntro();if(M.finishAt&&sNow()>=M.finishAt&&!ended)finish()}catch(e){MEDITATE.errors.push(String(e&&e.stack||e))}}
+function pump(){if(M.state==='idle'||!AC)return;try{trackTick();waveTick();dialStep();forScapes(i=>i.tick());if(AMB)AMB.tick();armBells();serveIntro();if(M.finishAt&&sNow()>=M.finishAt&&!ended)finish()}catch(e){MEDITATE.errors.push(String(e&&e.stack||e))}}
 {let w=null;try{w=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),500)'],{type:'text/javascript'})));w.onmessage=pump}catch(e){}
   setInterval(pump,w?2500:900)}   // a second hand, should the worker be unavailable
 /* ---------- the loop: the sky's time at 25 steps a second, the clock and the glow (kept turning in the background by the stage) ---------- */
 const buf=new Float32Array(1024);let lastClock=-1,glow=0,loopOn=false;
 function loop(now){
   if(M.state==='idle'){loopOn=false;root.style.setProperty('--glow','0');breathTick(performance.now());drawView(true);return}
-  loopOn=true;try{trackTick();dialStep();forScapes(i=>i.tick())}catch(e){MEDITATE.errors.push(String(e&&e.stack||e))}
+  loopOn=true;try{trackTick();waveTick();dialStep();forScapes(i=>i.tick())}catch(e){MEDITATE.errors.push(String(e&&e.stack||e))}
   if(!document.hidden){an.getFloatTimeDomainData(buf);let q=0;for(let i=0;i<buf.length;i++)q+=buf[i]*buf[i];const r=Math.sqrt(q/buf.length);glow+=(Math.min(1,r*7)-glow)*.15;root.style.setProperty('--glow',glow.toFixed(3));breathTick(performance.now());drawView()}
   const s=Math.floor(sNow());if(s!==lastClock){lastClock=s;clock()}
   requestAnimationFrame(loop);
@@ -4763,8 +4884,34 @@ MOTS.nowPlaying=()=>M.state==='idle'?null:{k:isSys(M.scape)?sysOf(M.scape).god:i
 MOTS.skyHidden=()=>false;
 window.recName=recName;
 if(SYN&&SYN.onvoiceschanged!==undefined)SYN.addEventListener('voiceschanged',()=>{});
+/* ---------- test hooks: mute one source family (the analysis harness attributes each persistent tone this way), and a snapshot of what sounds ---------- */
+const MUTE=new Set();
+function medMute(){if(!MUTE.size||!AC)return;const cut=n=>{if(n&&!n.__muted){try{n.disconnect()}catch(e){}n.__muted=1}};
+  if(MUTE.has('sirens'))Object.values(SIR.v).forEach(v=>{cut(v.vol);cut(v.pl)});
+  if(MUTE.has('roar')&&SIR.roar)cut(SIR.roar.g);
+  if(MUTE.has('planets'))BODIES.forEach(b=>cut(V[b.id]&&V[b.id].vol));
+  if(MUTE.has('moons')){BODIES.forEach(b=>cut(V[b.id]&&V[b.id].moonVol));POOL.forEach(s=>cut(s.g));SYS.voices.forEach(v=>cut(v.vol))}
+  if(MUTE.has('sun')&&sunV)cut(sunV.vol);
+  if(MUTE.has('aspects'))ASP.forEach(s=>cut(s.g));
+  if(MUTE.has('layers'))Object.values(ACTIVE).forEach(i=>cut(i.out));
+  if(MUTE.has('amb')&&AMB)cut(AMB.out);
+  if(MUTE.has('echo'))cut(mVerbIn);
+  if(MUTE.has('voices'))cut(voiceG);
+  if(MUTE.has('bells'))cut(bellG);
+  if(MUTE.has('dial'))cut(dialG);
+  if(MUTE.has('agc')){const C=window.MOTS&&MOTS.surround&&MOTS.surround._s&&MOTS.surround._s.cfg;if(C&&C.an2&&!C.an2.__muted){try{C.master.disconnect(C.an2)}catch(e){}C.an2.__muted=1}}}
+setInterval(medMute,200);
+function medSnap(){if(!AC)return null;const g=n=>n?+n.gain.value.toFixed(5):0,out=[],now=AC.currentTime;
+  Object.entries(SIR.v).forEach(([w,v])=>{const h=v.part&&v.part.h;out.push(['siren:'+w,v.fcur||0,g(v.vol),v.mode||'',h?h.shift||0:0,h?(h.singUntil>now||h.next>now&&h.out.gain.value>.01?1:0):0])});
+  BODIES.forEach(b=>{const v=V[b.id];if(!v)return;const lv=g(v.vol);if(v.part&&lv>1e-4)out.push(['body:'+b.id,P[b.id]&&P[b.id].f||0,lv,v.mode||'',v.part.h?v.part.h.shift||0:0,0]);
+    (b.moons||[]).forEach(m=>{if(m.sv&&m.sv.part){const vv=g(m.sv.vol);if(vv>1e-4)out.push(['moon:'+b.id+':'+(m.k||m.rank),P[m.sv.body.id]?P[m.sv.body.id].f:0,vv,m.sv.mode||'',m.sv.part.h?m.sv.part.h.shift||0:0,0])}})});
+  SYS.voices.forEach(v=>{const lv=g(v.vol);if(v.part&&lv>1e-4)out.push(['sys:'+v.body.id,P[v.body.id]?P[v.body.id].f:0,lv,v.mode||'',v.part.h?v.part.h.shift||0:0,0])});
+  if(sunV&&g(sunV.vol)>1e-4)out.push(['sun',droneFreqs()[0],g(sunV.vol),sunV.mode||'',0,0]);
+  ASP.forEach((s,k)=>{const lv=g(s.g);if(lv>1e-4)out.push(['asp'+k,s.o1.frequency.value,lv,'',0,0],['asp'+k+'b',s.o2.frequency.value,lv,'',0,0])});
+  if(SIR.roar)out.push(['roar',90,g(SIR.roar.g),'',0,0]);
+  return {t:now,s:sNow(),open:MO.open?1:0,wave:WV.phase,introG:g(introG),waveG:g(waveG),dialG:g(dialG),duck:g(duck),master:g(mMaster),speaking:!!M.speaking,cmp:+cmp.reduction.toFixed(2),lev:+(20*Math.log10(LEV.g)).toFixed(2),lim:+lim.reduction.toFixed(2),agc:window.MOTS&&MOTS.master?+MOTS.master.gain().toFixed(4):1,src:out}}
 // a window on the engine, for testing and for the other pages
-window.MEDITATE={S:M,dial:S,SYS,SIR,V,P,THINK,THINK_ORDER,TT,BODIES,byId,SCAPES,MED,PACES,begin,end:endEarly,finish,bell,speak,dim,setScape,setLen,applyPreset,presetNow,AC:()=>AC,an:()=>an,scape,active:()=>ACTIVE,amb:()=>AMB,plan:()=>bellPlan,rang:[],said:[],errors:[],partsPlayed:[],track:()=>TR,trackOn:()=>M.trackOn,trackArm,trSaveAs,trLoad,trStore,trShareUrl,trFromHash,trBounds,speed:SPEED,spoke:0,gated:0,breath:null,makeVerb,makeTemple:(i,o)=>makeTemple(i,o),wetRms,introKey,introDue:()=>introDue,introduced:()=>[...introduced],sun:SUN,stars:STARCAT,rings:RINGS,systems:SYSTEMS,orbitSecs,dialOn:()=>DIAL.on,medGate,nodes:()=>({master:mMaster,mix,lim,cmp,trim,clip,bellG,voiceG,mVerbIn,verbOut,duck,dialG,dialMaster:master,dialBus:bus,mBus})};
+window.MEDITATE={opened:[],mo:()=>({...MO,wave:WV.phase,until:WV.until}),mute:a=>{(Array.isArray(a)?a:[a]).forEach(x=>MUTE.add(x));medMute()},snap:medSnap,S:M,dial:S,SYS,SIR,V,P,THINK,THINK_ORDER,TT,BODIES,byId,SCAPES,MED,PACES,begin,end:endEarly,finish,bell,speak,dim,setScape,setLen,applyPreset,presetNow,AC:()=>AC,an:()=>an,scape,active:()=>ACTIVE,amb:()=>AMB,plan:()=>bellPlan,rang:[],said:[],errors:[],partsPlayed:[],track:()=>TR,trackOn:()=>M.trackOn,trackArm,trSaveAs,trLoad,trStore,trShareUrl,trFromHash,trBounds,speed:SPEED,spoke:0,gated:0,breath:null,makeVerb,makeTemple:(i,o)=>makeTemple(i,o),wetRms,introKey,introDue:()=>introDue,introduced:()=>[...introduced],sun:SUN,stars:STARCAT,rings:RINGS,systems:SYSTEMS,orbitSecs,dialOn:()=>DIAL.on,medGate,nodes:()=>({master:mMaster,mix,lim,cmp,trim,clip,bellG,voiceG,mVerbIn,verbOut,duck,dialG,dialMaster:master,dialBus:bus,mBus})};
 sync();
 if(LOWPOWER&&!LS.get('mots.med.hp')){toast(tx('headphones'),6000);LS.set('mots.med.hp','1')}
 
