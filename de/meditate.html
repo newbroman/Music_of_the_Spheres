@@ -4098,7 +4098,7 @@ function schedulePhrase(h,t0,f,level){
   
   if(!h.whisper){const ff=f*Math.pow(2,h.shift);h.vibD.gain.setTargetAtTime(0,t0,.04);h.vibD.gain.setTargetAtTime(ff*sp.vib[1],t0+.35,.25);h.jit.gain.setTargetAtTime(ff*(sp.jit||.004)*6,t0,.1);}
   h.ig.gain.setTargetAtTime(0,t0,.05);
-  h.words.forEach(({t:tok,hold})=>{
+  medWords(h).forEach(({t:tok,hold})=>{
     if(FT[sp.type][tok]){
       setFormants(h,h.form[tok],t,MED.ftc);h.vk=medVK(h,tok,h.vkf);vg.setTargetAtTime(1,t,MED.ftc);
       if(!h.whisper)h.bg.gain.setTargetAtTime(sp.breath,t,.03);
@@ -5954,7 +5954,10 @@ function medVK(h,tok,f){const T=h.form,tab=T&&T[tok];if(!tab||!(f>0)||h.whisper|
 function medHoldF(h,ff){if(!AC||!h.vkf||!(h.singUntil>AC.currentTime))return ff;return h.vkf*Math.pow(2,clamp(1200*Math.log2(ff/h.vkf),-60,60)/1200)}
 // the consonants' dips inside a phrase, rounded: never below MED.vgMin, never faster than MED.vgTc
 // and every target is scaled by the present vowel's loudness factor (h.vk, medVK), so a consonant's return to full voice never overshoots the vowel
-function medVG(h,f){const p=h.vg.gain;h.vkf=f*Math.pow(2,fitShift(f,h.spec.type));const w=h.words.find(x=>h.form&&h.form[x.t]);h.vk=w?medVK(h,w.t,h.vkf):1;
+// one long vowel per phrase (the owner's choice): a god sings no name here, only the next vowel of it, held, phrase after phrase (Gaia: a…, i…, a…)
+function medVowel(h){const vs=h.words.filter(x=>h.form&&h.form[x.t]);if(!vs.length){h.medTok=null;return}h.mvi=h.mvi==null?Math.floor(Math.random()*vs.length):(h.mvi+1)%vs.length;h.medTok=vs[h.mvi].t}
+function medWords(h){return h.medTok?[{t:h.medTok,hold:true}]:h.words}
+function medVG(h,f){const p=h.vg.gain;h.vkf=f*Math.pow(2,fitShift(f,h.spec.type));medVowel(h);h.vk=h.medTok?medVK(h,h.medTok,h.vkf):1;
   return {setTargetAtTime:(v,t,tc)=>p.setTargetAtTime(Math.max(v,MED.vgMin)*h.vk,t,Math.max(tc,MED.vgTc))}}
 // a swell for a sustained voice: on for `on` of every `cyc` seconds (each voice in its own time), silent between; the swell is sin² in decibels
 // (−30 dB → 0 → −30 dB), so it rises at most 30·π/on dB a second (under 6 for the 16 s swells), never the sudden bloom of a sin² in amplitude
