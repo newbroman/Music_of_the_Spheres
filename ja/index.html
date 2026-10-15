@@ -6375,6 +6375,21 @@ html.mots-proj #motsShow,html.mots-proj #motsShow *{visibility:visible!important
 #motsShow .prog{position:absolute;left:0;bottom:0;height:max(3px,.3vh);background:#D4A657;width:0;transition:width 1s linear}
 #motsShow .tap{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:auto;appearance:none;border:0;background:#D4A657;color:#14110A;font:700 20px/1 "Alegreya Sans",system-ui,sans-serif;padding:18px 28px;border-radius:999px;cursor:pointer;display:none}
 @media (max-width:760px){#motsShow .cap{left:3vw;right:3vw;max-width:none;bottom:10vh}}
+/* a landscape screen: the captions get a column of their own on the left and the picture (the orrery, the flight, the band's dial) moves into
+   the space to its right, so a caption never covers it; the title cards still fill the screen */
+@media (min-aspect-ratio:6/5) and (min-width:761px){
+html.mots-show{--showL:clamp(280px,34vw,640px)}
+html.mots-show.mots-proj #orrery,html.mots-show.mots-proj #dial,html.mots-show.mots-proj #scene{left:var(--showL)!important;width:calc(100vw - var(--showL))!important}
+#motsShow iframe{left:var(--showL);width:calc(100% - var(--showL))}
+#motsShow::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--showL);background:#05060c}
+#motsShow .cap{left:2.2vw;right:auto;width:calc(var(--showL) - 4.4vw);max-width:none;bottom:auto;top:50%;transform:translateY(calc(-50% + 12px));max-height:86vh;overflow:hidden;box-sizing:border-box}
+#motsShow .cap.on{transform:translateY(-50%)}
+#motsShow .cap h2{font-size:clamp(22px,2.5vw,56px)}
+#motsShow .cap p{font-size:clamp(14px,1.3vw,30px)}
+#motsShow .cap .k{font-size:clamp(11px,.95vw,20px)}
+#motsShow .card{z-index:2}
+}
+@media (min-aspect-ratio:6/5) and (min-width:761px) and (max-height:500px){#motsShow .cap{padding:1.6vh 1.6vw}#motsShow .cap h2{font-size:clamp(18px,2.2vw,40px);margin-bottom:.6vh}#motsShow .cap p{font-size:clamp(12px,1.25vw,22px);line-height:1.35}}
 `;
 document.head.appendChild(css);
 let showQ=null,el=null,frame=null,curPg='dial',i=-1,left=0,timer=null,tick=null,paused=false,elapsed=0,idleT=null,gen=0;
@@ -6458,6 +6473,7 @@ async function start(){
   el.querySelector('.tap').onclick=()=>{const c=ctxOf();if(c)c.resume();el.querySelector('.tap').style.display='none'};
   addEventListener('keydown',key,true);addEventListener('pointermove',wake);addEventListener('pointerdown',wake,true);wake();
   if(window.MOTS&&MOTS.projector)MOTS.projector(true);
+  setTimeout(()=>dispatchEvent(new Event('resize')),60);
   showQ=null;try{const phone=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
     if(phone&&MOTS.quality&&MOTS.setQuality&&MOTS.quality()!=='eco'&&localStorage.getItem('mots.quality.manual')!=='1'){showQ=MOTS.quality();MOTS.setQuality('eco')}}catch(e){}
   paused=false;curPg='dial';tick=setInterval(tickUI,1000);
