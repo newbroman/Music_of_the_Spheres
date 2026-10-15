@@ -487,10 +487,10 @@ h1,h2,h3{font-family:var(--f-display);font-weight:400;margin:0;text-wrap:balance
 .lens button:hover{color:var(--bronze);border-color:var(--bronze)}
 .lens .lab{font-size:.74rem;text-transform:uppercase;letter-spacing:.09em;color:var(--vellum-dim);margin-right:.3rem}
 .lens.scapeRow{max-width:100%}
-.scapeRow select{flex:0 1 auto;min-width:0;font-family:var(--f-display);font-size:1.05rem;color:#f3d9a4;background:transparent;border:1px solid var(--line-2);border-radius:999px;padding:.45rem 2.2rem .45rem 1rem;min-height:var(--tap);max-width:min(100%,24rem);text-overflow:ellipsis;cursor:pointer;
+.scapeRow select,.lenRow select{flex:0 1 auto;min-width:0;font-family:var(--f-display);font-size:1.05rem;color:#f3d9a4;background:transparent;border:1px solid var(--line-2);border-radius:999px;padding:.45rem 2.2rem .45rem 1rem;min-height:var(--tap);max-width:min(100%,24rem);text-overflow:ellipsis;cursor:pointer;
   appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' fill='none' stroke='%23c9984f' stroke-width='1.5'/></svg>");background-repeat:no-repeat;background-position:right .9rem center}
-.scapeRow select:hover{border-color:var(--bronze)}
-.scapeRow select option,.scapeRow select optgroup{font-family:var(--f-body);font-size:1rem;color:var(--vellum);background:#0c0e1c}
+.scapeRow select:hover,.lenRow select:hover{border-color:var(--bronze)}
+.scapeRow select option,.scapeRow select optgroup,.lenRow select option,.lenRow select optgroup{font-family:var(--f-body);font-size:1rem;color:var(--vellum);background:#0c0e1c}
 .actions{display:flex;gap:.7rem;flex-wrap:wrap;justify-content:center;align-items:center}
 .play{appearance:none;border:1px solid var(--bronze);background:linear-gradient(180deg,#d7a75d,#a87a37);color:#1a1206;font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:.85rem;padding:.8rem 1.8rem;min-height:var(--tap);border-radius:999px;cursor:pointer;min-width:10em}
 .play[aria-pressed="true"]{background:transparent;color:var(--bronze)}
@@ -815,7 +815,22 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
     inNode.channelCountMode = "explicit";
     inNode.channelInterpretation = "speakers";
     const sp = c.createChannelSplitter(2), mg = c.createChannelMerger(2);
-    _c.call(inNode, sp);
+    try {
+      SAFE = c.createDynamicsCompressor();
+      SAFE.threshold.value = BG_PHONE ? -3 : -1.5;
+      SAFE.knee.value = 0;
+      SAFE.ratio.value = 20;
+      SAFE.attack.value = 2e-3;
+      SAFE.release.value = 0.1;
+      _c.call(inNode, SAFE);
+      const st = c.createGain();
+      st.gain.value = BG_PHONE ? 0.67 : 1;
+      _c.call(SAFE, st);
+      _c.call(st, sp);
+    } catch (e) {
+      SAFE = null;
+      _c.call(inNode, sp);
+    }
     G = { ll: c.createGain(), lr: c.createGain(), rl: c.createGain(), rr: c.createGain() };
     _c.call(sp, G.ll, 0);
     _c.call(sp, G.lr, 0);
@@ -843,7 +858,7 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
     _c.call(GUARD, an);
     setWidth(true);
   }
-  let GUARD = null;
+  let GUARD = null, SAFE = null;
   const guardOS = () => {
     const q = BG.q0 || quality;
     return q === "eco" ? "none" : q === "high" ? "4x" : "2x";
@@ -1407,9 +1422,13 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
     }
     _c.call(C.master, agc);
     _c.call(agc, C.lim);
+    if (BG_PHONE) {
+      AGC.ref = Math.pow(10, -17 / 20);
+      AGC.refP = Math.pow(10, -6 / 20);
+    }
     if (C.limiter) {
       const L = C.limiter;
-      L.threshold.value = -1;
+      L.threshold.value = BG_PHONE ? -3 : -1;
       L.knee.value = 0;
       L.ratio.value = 20;
       L.attack.value = 1e-3;
@@ -1475,7 +1494,7 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
   MOTS.master = { gain: () => AGC.cur, pre: () => AGC.curPre, trim: () => SUR.cfg ? SUR.cfg.trim : 1, reduction: () => {
     const C = SUR.cfg;
     return C && C.limiter ? -C.limiter.reduction : 0;
-  }, analyser: () => an, softCurve };
+  }, safe: () => SAFE ? -SAFE.reduction : 0, analyser: () => an, softCurve };
   const CH = { sun: 0, mercury: 1, venus: 2, earth: 3, mars: 4, jupiter: 5, saturn: 6, uranus: 7, neptune: 8, "jupiter-moons": 9, io: 9, europa: 9, ganymede: 9, callisto: 9 };
   const CTL = 15, SEC = { intro: 0, groove: 1, build: 2, drop: 3, break: 4 };
   let access = null, out = null, clockOn = LS.get("mots.clock") === "1";
@@ -6200,7 +6219,7 @@ const recName=()=>isCon(M.scape)?'the-stars-of-'+M.scape.slice(4):isSys(M.scape)
 function sync(){
   const run=M.state!=='idle',play=$('play');
   play.textContent=M.state==='ending'?tx('ending'):run?tx('end'):tx('begin');play.setAttribute('aria-pressed',String(run));play.disabled=M.state==='ending';
-  $('dimBtn').hidden=!run;$('lens').querySelectorAll('button').forEach(b=>{b.setAttribute('aria-pressed',String(+b.dataset.len===M.len))});
+  $('dimBtn').hidden=!run;{const ls=$('lenSel');if(ls&&ls.value!==String(M.len))ls.value=String(M.len)}
   {const t=track();$('lens').hidden=!!t;$('trackRow').hidden=!t;if(t){const n=(t.name?t.name+' · ':'')+tx('trRow',{n:t.parts.length,t:fmtT(trLen(t))})+(run&&M.trackIdx>=0?' · '+tx('part',{n:M.trackIdx+1}):'');if($('trackTxt').textContent!==n)$('trackTxt').textContent=n;$('trOff').hidden=run}}
   const layers=LAYER_IDS.filter(b=>b!==M.scape&&M.mix[b]>0).map(nameOf);
   $('hearTxt').textContent=aboutOf(M.scape);$('soundName').textContent=shortOf(M.scape);
@@ -6226,8 +6245,14 @@ function sync(){
   if(!run){$('clock').innerHTML='';root.style.setProperty('--glow','0');drawView(true)}
 }
 const opts=(sel,list,label)=>{list.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=label(v);sel.appendChild(o)})};
-{const L=$('lens');LENS.forEach(m=>{const b=document.createElement('button');b.type='button';b.dataset.len=m;b.textContent=m?String(m):'∞';b.title=m?tx('min',{n:m}):tx('open');b.setAttribute('aria-label',m?tx('min',{n:m}):tx('open'));
-  b.onclick=()=>{if(M.state==='ending')return;setLen(m)};L.appendChild(b)})}
+// the session's length: one menu, nested like the soundscape's (short and long sessions, then an open one), not a row of eight buttons
+const LENG={en:['Short','Long'],pl:['Krótkie','Długie'],cy:['Byr','Hir'],de:['Kurz','Lang'],es:['Cortas','Largas'],fr:['Courtes','Longues'],it:['Brevi','Lunghe'],zh:['短','长'],ja:['短め','長め'],vi:['Ngắn','Dài'],bg:['Кратки','Дълги'],pt:['Curtas','Longas']};
+{const L=$('lens'),G=LENG[(document.documentElement.lang||'en').slice(0,2)]||LENG.en,s=document.createElement('select');s.id='lenSel';s.setAttribute('aria-label',L.getAttribute('aria-label')||'');
+  const opt=(m,par)=>{const o=document.createElement('option');o.value=String(m);o.textContent=m?tx('min',{n:m}):tx('open');par.appendChild(o)};
+  [[G[0],[5,10,15]],[G[1],[20,30,45,60]]].forEach(([lab,ms])=>{const g=document.createElement('optgroup');g.label=lab;ms.forEach(m=>opt(m,g));s.appendChild(g)});opt(0,s);
+  s.value=String(M.len);s.onchange=()=>{if(M.state==='ending'){s.value=String(M.len);return}setLen(+s.value)};
+  const lab=L.querySelector('.lab');if(lab){const l=document.createElement('label');l.className='lab';l.htmlFor='lenSel';l.textContent=lab.textContent;lab.replaceWith(l)}
+  L.classList.add('lenRow');L.appendChild(s);}
 // the soundscape selector: the thinkers' heavens (and Today), the gods with their moons, the quiet layers alone
 {const s=$('scape');const grp=(label,ids,name)=>{const g=document.createElement('optgroup');g.label=label;ids.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=name(v);g.appendChild(o)});s.appendChild(g)};
   grp(tx('gThinkers'),TH_IDS,nameOf);grp(tx('gSystems'),SYS_IDS,nameOf);grp(tx('gOne'),ONE_IDS,id=>oneLabel(oneOf(id).body));grp(tx('gLayersAlone'),LAYER_IDS,nameOf);if(CON_IDS.length)grp(window.CON?CON.TX.pick:'Constellations',CON_IDS,nameOf);s.value=oneBase(M.scape);

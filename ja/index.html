@@ -958,7 +958,22 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     inNode.channelCountMode = "explicit";
     inNode.channelInterpretation = "speakers";
     const sp = c.createChannelSplitter(2), mg = c.createChannelMerger(2);
-    _c.call(inNode, sp);
+    try {
+      SAFE = c.createDynamicsCompressor();
+      SAFE.threshold.value = BG_PHONE ? -3 : -1.5;
+      SAFE.knee.value = 0;
+      SAFE.ratio.value = 20;
+      SAFE.attack.value = 2e-3;
+      SAFE.release.value = 0.1;
+      _c.call(inNode, SAFE);
+      const st = c.createGain();
+      st.gain.value = BG_PHONE ? 0.67 : 1;
+      _c.call(SAFE, st);
+      _c.call(st, sp);
+    } catch (e) {
+      SAFE = null;
+      _c.call(inNode, sp);
+    }
     G = { ll: c.createGain(), lr: c.createGain(), rl: c.createGain(), rr: c.createGain() };
     _c.call(sp, G.ll, 0);
     _c.call(sp, G.lr, 0);
@@ -986,7 +1001,7 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     _c.call(GUARD, an);
     setWidth(true);
   }
-  let GUARD = null;
+  let GUARD = null, SAFE = null;
   const guardOS = () => {
     const q = BG.q0 || quality;
     return q === "eco" ? "none" : q === "high" ? "4x" : "2x";
@@ -1550,9 +1565,13 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     }
     _c.call(C.master, agc);
     _c.call(agc, C.lim);
+    if (BG_PHONE) {
+      AGC.ref = Math.pow(10, -17 / 20);
+      AGC.refP = Math.pow(10, -6 / 20);
+    }
     if (C.limiter) {
       const L = C.limiter;
-      L.threshold.value = -1;
+      L.threshold.value = BG_PHONE ? -3 : -1;
       L.knee.value = 0;
       L.ratio.value = 20;
       L.attack.value = 1e-3;
@@ -1618,7 +1637,7 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
   MOTS.master = { gain: () => AGC.cur, pre: () => AGC.curPre, trim: () => SUR.cfg ? SUR.cfg.trim : 1, reduction: () => {
     const C = SUR.cfg;
     return C && C.limiter ? -C.limiter.reduction : 0;
-  }, analyser: () => an, softCurve };
+  }, safe: () => SAFE ? -SAFE.reduction : 0, analyser: () => an, softCurve };
   const CH = { sun: 0, mercury: 1, venus: 2, earth: 3, mars: 4, jupiter: 5, saturn: 6, uranus: 7, neptune: 8, "jupiter-moons": 9, io: 9, europa: 9, ganymede: 9, callisto: 9 };
   const CTL = 15, SEC = { intro: 0, groove: 1, build: 2, drop: 3, break: 4 };
   let access = null, out = null, clockOn = LS.get("mots.clock") === "1";
@@ -6375,6 +6394,17 @@ html.mots-proj #motsShow,html.mots-proj #motsShow *{visibility:visible!important
 #motsShow .prog{position:absolute;left:0;bottom:0;height:max(3px,.3vh);background:#D4A657;width:0;transition:width 1s linear}
 #motsShow .tap{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:auto;appearance:none;border:0;background:#D4A657;color:#14110A;font:700 20px/1 "Alegreya Sans",system-ui,sans-serif;padding:18px 28px;border-radius:999px;cursor:pointer;display:none}
 @media (max-width:760px){#motsShow .cap{left:3vw;right:3vw;max-width:none;bottom:10vh}}
+/* a portrait screen: the captions get the lower part of the screen and the picture moves up into the space above them */
+@media (max-aspect-ratio:1/1){
+html.mots-show{--showB:max(42vh,300px)}
+html.mots-show.mots-proj #orrery,html.mots-show.mots-proj #dial,html.mots-show.mots-proj #scene{top:0!important;height:calc(100vh - var(--showB))!important}
+#motsShow iframe{height:calc(100% - var(--showB))}
+#motsShow::before{content:"";position:absolute;left:0;right:0;bottom:0;height:var(--showB);background:#05060c}
+#motsShow .cap{left:3vw;right:3vw;max-width:none;bottom:auto;top:calc(100vh - var(--showB) + 1.5vh);max-height:calc(var(--showB) - 1.5vh - 72px);overflow-y:auto;padding:2vh 4vw;box-sizing:border-box}
+#motsShow .cap h2{font-size:clamp(20px,6vw,44px)}
+#motsShow .cap p{font-size:clamp(14px,3.9vw,26px)}
+#motsShow .card{z-index:2}
+}
 /* a landscape screen: the captions get a column of their own on the left and the picture (the orrery, the flight, the band's dial) moves into
    the space to its right, so a caption never covers it; the title cards still fill the screen */
 @media (min-aspect-ratio:6/5) and (min-width:761px){

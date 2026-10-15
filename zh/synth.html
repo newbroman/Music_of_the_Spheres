@@ -1040,7 +1040,22 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
     inNode.channelCountMode = "explicit";
     inNode.channelInterpretation = "speakers";
     const sp = c.createChannelSplitter(2), mg = c.createChannelMerger(2);
-    _c.call(inNode, sp);
+    try {
+      SAFE = c.createDynamicsCompressor();
+      SAFE.threshold.value = BG_PHONE ? -3 : -1.5;
+      SAFE.knee.value = 0;
+      SAFE.ratio.value = 20;
+      SAFE.attack.value = 2e-3;
+      SAFE.release.value = 0.1;
+      _c.call(inNode, SAFE);
+      const st = c.createGain();
+      st.gain.value = BG_PHONE ? 0.67 : 1;
+      _c.call(SAFE, st);
+      _c.call(st, sp);
+    } catch (e) {
+      SAFE = null;
+      _c.call(inNode, sp);
+    }
     G = { ll: c.createGain(), lr: c.createGain(), rl: c.createGain(), rr: c.createGain() };
     _c.call(sp, G.ll, 0);
     _c.call(sp, G.lr, 0);
@@ -1068,7 +1083,7 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
     _c.call(GUARD, an);
     setWidth(true);
   }
-  let GUARD = null;
+  let GUARD = null, SAFE = null;
   const guardOS = () => {
     const q = BG.q0 || quality;
     return q === "eco" ? "none" : q === "high" ? "4x" : "2x";
@@ -1632,9 +1647,13 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
     }
     _c.call(C.master, agc);
     _c.call(agc, C.lim);
+    if (BG_PHONE) {
+      AGC.ref = Math.pow(10, -17 / 20);
+      AGC.refP = Math.pow(10, -6 / 20);
+    }
     if (C.limiter) {
       const L = C.limiter;
-      L.threshold.value = -1;
+      L.threshold.value = BG_PHONE ? -3 : -1;
       L.knee.value = 0;
       L.ratio.value = 20;
       L.attack.value = 1e-3;
@@ -1700,7 +1719,7 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
   MOTS.master = { gain: () => AGC.cur, pre: () => AGC.curPre, trim: () => SUR.cfg ? SUR.cfg.trim : 1, reduction: () => {
     const C = SUR.cfg;
     return C && C.limiter ? -C.limiter.reduction : 0;
-  }, analyser: () => an, softCurve };
+  }, safe: () => SAFE ? -SAFE.reduction : 0, analyser: () => an, softCurve };
   const CH = { sun: 0, mercury: 1, venus: 2, earth: 3, mars: 4, jupiter: 5, saturn: 6, uranus: 7, neptune: 8, "jupiter-moons": 9, io: 9, europa: 9, ganymede: 9, callisto: 9 };
   const CTL = 15, SEC = { intro: 0, groove: 1, build: 2, drop: 3, break: 4 };
   let access = null, out = null, clockOn = LS.get("mots.clock") === "1";
