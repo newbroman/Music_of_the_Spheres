@@ -8589,6 +8589,190 @@ MOTS.app={start:()=>audioOn?Promise.resolve():startAudio3D(),stop:()=>{if(audioO
 // the caption of the projector view: where the ship is, the date and the sky, in the page's own words
 MOTS.nowPlaying=()=>{const t=document.querySelector('.tl .t');return {k:t?t.textContent:'',h:$('nearTxt').textContent,p:$('zodTxt').textContent,d:$('dateTxt').textContent+' · '+$('timeTxt').textContent}};
 
+/* ---- the target in the crosshair: a few times a second the ship looks at what lies under the centre of the screen (the Sun, a planet, a moon,
+   a dwarf planet, an asteroid or a comet; out among the stars, a star, a pulsar, a black hole or a galaxy, through FLYG.aim), names it in a small
+   label under the crosshair with its kind, its distance and the time to get there at the present speed, and closes bronze brackets around it.
+   The label waits until the aim has held for 0.4 s, and a new candidate has to win for as long again before it takes over (no flicker between
+   two neighbours). "Fly there" (the label itself, Enter, or a tap on a phone) sets the course through the usual autopilot: travelTo for the
+   solar system, FLYG.travel out among the stars, so it arrives framed like every other destination; the label stays quiet for the body under way. ---- */
+const XH=(()=>{
+  const LG=document.documentElement.lang||'en';
+  const D={
+    en:{go:'Fly there',info:'About {n}',lock:'In the crosshair: {n}. Press Enter to fly there.',moonOf:'moon of {p}',planet:'planet',dwarf:'dwarf planet',asteroid:'asteroid',comet:'comet',sun:'our star · G2V',eta:'≈ {t} at this speed',s:'{n} s',m:'{n} min',h:'{n} h',key:'fly to the target'},
+    pl:{go:'Leć tam',info:'Więcej: {n}',lock:'W celowniku: {n}. Naciśnij Enter, aby tam polecieć.',moonOf:'księżyc · {p}',planet:'planeta',dwarf:'planeta karłowata',asteroid:'planetoida',comet:'kometa',sun:'nasza gwiazda · G2V',eta:'≈ {t} przy tej prędkości',s:'{n} s',m:'{n} min',h:'{n} godz.',key:'lot do celu'},
+    cy:{go:'Hedfan yno',info:'Am {n}',lock:'Yn y croesflew: {n}. Pwyswch Enter i hedfan yno.',moonOf:'lleuad {p}',planet:'planed',dwarf:'planed gorrach',asteroid:'asteroid',comet:'comed',sun:'ein seren · G2V',eta:'≈ {t} ar y cyflymder hwn',s:'{n} eiliad',m:'{n} munud',h:'{n} awr',key:'hedfan at y targed'},
+    de:{go:'Hinfliegen',info:'Über {n}',lock:'Im Fadenkreuz: {n}. Drück Enter, um hinzufliegen.',moonOf:'Mond von {p}',planet:'Planet',dwarf:'Zwergplanet',asteroid:'Asteroid',comet:'Komet',sun:'unser Stern · G2V',eta:'≈ {t} bei diesem Tempo',s:'{n} s',m:'{n} min',h:'{n} h',key:'zum Ziel fliegen'},
+    es:{go:'Volar allí',info:'Sobre {n}',lock:'En la mira: {n}. Pulsa Intro para volar allí.',moonOf:'luna de {p}',planet:'planeta',dwarf:'planeta enano',asteroid:'asteroide',comet:'cometa',sun:'nuestra estrella · G2V',eta:'≈ {t} a esta velocidad',s:'{n} s',m:'{n} min',h:'{n} h',key:'volar al objetivo'},
+    fr:{go:'Y aller',info:'À propos de {n}',lock:'Dans le viseur : {n}. Appuyez sur Entrée pour y aller.',moonOf:'lune de {p}',planet:'planète',dwarf:'planète naine',asteroid:'astéroïde',comet:'comète',sun:'notre étoile · G2V',eta:'≈ {t} à cette vitesse',s:'{n} s',m:'{n} min',h:'{n} h',key:'voler vers la cible'},
+    it:{go:'Vola lì',info:'Informazioni su {n}',lock:'Nel mirino: {n}. Premi Invio per volarci.',moonOf:'luna di {p}',planet:'pianeta',dwarf:'pianeta nano',asteroid:'asteroide',comet:'cometa',sun:'la nostra stella · G2V',eta:'≈ {t} a questa velocità',s:'{n} s',m:'{n} min',h:'{n} h',key:'vola verso il bersaglio'},
+    zh:{go:'飞往那里',info:'关于{n}',lock:'准星对准：{n}。按回车键飞过去。',moonOf:'{p}的卫星',planet:'行星',dwarf:'矮行星',asteroid:'小行星',comet:'彗星',sun:'我们的恒星 · G2V',eta:'按此速度约{t}',s:'{n} 秒',m:'{n} 分钟',h:'{n} 小时',key:'飞向目标',au:'天文单位'},
+    ja:{go:'そこへ飛ぶ',info:'{n}について',lock:'照準の中：{n}。Enter キーでそこへ飛びます。',moonOf:'{p}の衛星',planet:'惑星',dwarf:'準惑星',asteroid:'小惑星',comet:'彗星',sun:'私たちの恒星 · G2V',eta:'この速さで約{t}',s:'{n} 秒',m:'{n} 分',h:'{n} 時間',key:'目標へ飛ぶ',au:'au'},
+    vi:{go:'Bay tới đó',info:'Về {n}',lock:'Trong tâm ngắm: {n}. Nhấn Enter để bay tới đó.',moonOf:'vệ tinh của {p}',planet:'hành tinh',dwarf:'hành tinh lùn',asteroid:'tiểu hành tinh',comet:'sao chổi',sun:'ngôi sao của chúng ta · G2V',eta:'≈ {t} ở tốc độ này',s:'{n} giây',m:'{n} phút',h:'{n} giờ',key:'bay tới mục tiêu'},
+    bg:{go:'Лети натам',info:'За {n}',lock:'В мерника: {n}. Натисни Enter, за да полетиш натам.',moonOf:'спътник на {p}',planet:'планета',dwarf:'планета джудже',asteroid:'астероид',comet:'комета',sun:'нашата звезда · G2V',eta:'≈ {t} при тази скорост',s:'{n} с',m:'{n} мин',h:'{n} ч',key:'лети към целта'},
+    pt:{go:'Voar até lá',info:'Sobre {n}',lock:'Na mira: {n}. Pressione Enter para voar até lá.',moonOf:'lua de {p}',planet:'planeta',dwarf:'planeta anão',asteroid:'asteroide',comet:'cometa',sun:'nossa estrela · G2V',eta:'≈ {t} nesta velocidade',s:'{n} s',m:'{n} min',h:'{n} h',key:'voar até o alvo'}};
+  const T=Object.assign({},D.en,D[LG]||{});
+  const LOC={en:'en-GB',pl:'pl-PL',cy:'cy-GB',de:'de-DE',es:'es-ES',fr:'fr-FR',it:'it-IT',zh:'zh-CN',ja:'ja-JP',vi:'vi-VN',bg:'bg-BG',pt:'pt-BR'}[LG]||'en-GB';
+  const fill=(t,o)=>String(t).replace(/\{(\w+)\}/g,(m,k)=>o[k]!=null?o[k]:m);
+  const num=(n,d)=>{try{return Number(n).toLocaleString(LOC,{maximumFractionDigits:d})}catch(e){return Number(n).toFixed(d)}};
+  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+  const DWARF=/^(pluto|ceres|eris|haumea|makemake|sedna)$/;
+  const coarse=matchMedia('(pointer:coarse)').matches;
+  const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const HOLD=400, TOL=coarse?22:14;
+  const st={cur:null,cand:null,candSince:0,chal:null,chalSince:0,miss:0,shown:false,sup:{k:'s',id:'earth'},supOff:0,sig:''};   // the flight opens framed on the Earth, as after an arrival
+
+  /* ---- the look ---- */
+  const css=document.createElement('style');css.textContent=`
+.cross{transition:opacity .3s}.cross.xh-on{opacity:.95}
+.xh-br{position:fixed;left:50%;top:50%;width:40px;height:40px;transform:translate(-50%,-50%) scale(1.25);pointer-events:none;opacity:0;transition:opacity .35s,transform .35s,width .25s,height .25s;z-index:4}
+.xh-br.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.xh-br i{position:absolute;width:9px;height:9px;border:0 solid var(--bronze);filter:drop-shadow(0 0 3px rgba(0,0,0,.9))}
+.xh-br i:nth-child(1){left:0;top:0;border-width:2px 0 0 2px}.xh-br i:nth-child(2){right:0;top:0;border-width:2px 2px 0 0}
+.xh-br i:nth-child(3){left:0;bottom:0;border-width:0 0 2px 2px}.xh-br i:nth-child(4){right:0;bottom:0;border-width:0 2px 2px 0}
+.xh{position:fixed;left:50%;top:0;z-index:5;display:flex;align-items:stretch;width:max-content;max-width:min(26rem,calc(100vw - 32px));opacity:0;transform:translate(-50%,6px);transition:opacity .35s,transform .35s;pointer-events:none;
+  background:linear-gradient(180deg,rgba(18,20,36,.86),rgba(8,10,20,.84));border:1px solid rgba(201,152,79,.5);border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.45),0 0 0 1px rgba(0,0,0,.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.xh.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.xh::before{content:"";position:absolute;left:50%;bottom:100%;width:1px;height:var(--xh-stem,10px);background:linear-gradient(0deg,rgba(201,152,79,.6),rgba(201,152,79,0))}
+.xh.up::before{bottom:auto;top:100%;background:linear-gradient(180deg,rgba(201,152,79,.6),rgba(201,152,79,0))}
+.xh button{appearance:none;background:transparent;border:0;color:var(--vellum);cursor:pointer;font:inherit}
+.xh-go{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;column-gap:.9rem;row-gap:.05rem;padding:.38rem .5rem .42rem .85rem;min-height:var(--tap);text-align:left;min-width:0;border-radius:11px 0 0 11px}
+.xh-n{font-family:var(--f-display);font-size:1.02rem;line-height:1.2;color:#f3e6c4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xh-n small{font-family:var(--f-body);font-size:.78em;color:var(--vellum-dim);margin-left:.4em}
+.xh-c{font-family:var(--f-body);font-size:.7rem;letter-spacing:.11em;text-transform:uppercase;color:var(--bronze);white-space:nowrap}
+.xh-c::after{content:" \\203A";letter-spacing:0;font-size:1.15em}
+.xh-s{grid-column:1/-1;font-family:var(--f-mono);font-size:.72rem;line-height:1.3;color:var(--vellum-dim);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xh-i{flex:none;width:var(--tap);min-height:var(--tap);border-left:1px solid rgba(201,152,79,.3)!important;border-radius:0 11px 11px 0;display:flex;align-items:center;justify-content:center}
+.xh-i span{display:inline-flex;align-items:center;justify-content:center;width:1.35rem;height:1.35rem;border:1px solid var(--bronze);border-radius:50%;font-family:var(--f-display);font-style:italic;font-size:.85rem;color:var(--bronze)}
+.xh-go:hover .xh-c,.xh-go:focus-visible .xh-c{color:#f3d9a4}.xh-go:hover{background:rgba(201,152,79,.1)}.xh-i:hover{background:rgba(201,152,79,.1)}.xh-i:hover span{color:#f3d9a4;border-color:#f3d9a4}
+.xh button:focus-visible{outline:2px solid var(--bronze);outline-offset:-2px}
+@media (max-width:620px){.xh-n{font-size:.95rem}.xh-s{font-size:.68rem}.xh-go{padding:.32rem .45rem .36rem .7rem;column-gap:.6rem}}
+@media (prefers-reduced-motion:reduce){.xh,.xh-br,.cross{transition:none}.xh,.xh.on{transform:translate(-50%,0)}.xh-br,.xh-br.on{transform:translate(-50%,-50%)}}
+html.mots-proj .xh,html.mots-proj .xh-br{display:none}
+.lbl.xh-lk{opacity:0;pointer-events:none}`;
+  document.head.appendChild(css);
+  const br=document.createElement('div');br.className='xh-br';br.setAttribute('aria-hidden','true');br.innerHTML='<i></i><i></i><i></i><i></i>';
+  const el=document.createElement('div');el.className='xh';el.setAttribute('role','group');
+  el.innerHTML='<button type="button" class="xh-go"><span class="xh-n"></span><span class="xh-c"></span><span class="xh-s"></span></button><button type="button" class="xh-i"><span aria-hidden="true">i</span></button>';
+  const cross=document.querySelector('.cross'),host=cross&&cross.parentNode||document.body;
+  host.insertBefore(br,cross?cross.nextSibling:null);host.insertBefore(el,br.nextSibling);
+  const goB=el.querySelector('.xh-go'),infoB=el.querySelector('.xh-i'),nmE=el.querySelector('.xh-n'),subE=el.querySelector('.xh-s'),ctaE=el.querySelector('.xh-c');
+  ctaE.textContent=T.go;if(!coarse)goB.title=T.go+' (Enter)';
+  el.hidden=true;
+  // the keys line on a computer: Enter flies to the target
+  {const k=$('keys');if(k){const s=document.createElement('span');s.innerHTML=` · <b>Enter</b> ${esc(T.key)}`;k.appendChild(s)}}
+
+  /* ---- what is where ---- */
+  const v3=new THREE.Vector3();
+  const isFar=()=>!!(window.FLYG&&FLYG.ST&&FLYG.ST.gf>=.02);
+  function solarPlace(id){
+    if(id==='sun')return {pos:v3.set(0,0,0),r:SUN_R};
+    if(id.includes(':')){const pk=id.split(':'),o=OBJ[pk[0]];if(!o||!o.moons[+pk[1]])return null;return {pos:moonWorld(o,+pk[1]),r:o.moons[+pk[1]].mesh.geometry.parameters.radius}}
+    const o=OBJ[id];return o&&o.pos?{pos:o.pos,r:o.r}:null}
+  function solarMeasure(id){const P0=solarPlace(id);if(!P0)return null;const cv=renderer.domElement,W=cv.clientWidth||innerWidth,H=cv.clientHeight||innerHeight,k=H/(2*Math.tan(camera.fov*Math.PI/360));
+    const d=camera.position.distanceTo(P0.pos);pv.copy(P0.pos).project(camera);if(!(pv.z<=1&&pv.z>=-1))return null;
+    return {x:(pv.x*.5+.5)*W,y:(-pv.y*.5+.5)*H,d,rpx:P0.r/Math.max(d,1e-12)*k}}
+  const same=(a,b)=>!!a&&!!b&&a.k===b.k&&(a.k==='s'?a.id===b.id:a.body.row===b.body.row);
+  const measure=t=>t.k==='s'?solarMeasure(t.id):(window.FLYG&&FLYG.aim?FLYG.aim.measure(t.body):null);
+  const weightS=id=>{if(id==='sun')return 0;if(id.includes(':'))return .45;const b=byId[id];return b.kind==='planet'?0:b.kind==='comet'?.5:DWARF.test(b.id)?.3:.5};
+  function scoreOf(t,m,cx,cy){const dp=Math.hypot(m.x-cx,m.y-cy),on=m.rpx>=1.5&&dp<=m.rpx,eff=Math.max(0,dp-m.rpx);
+    return {on,eff,s:on?-100+Math.log10(Math.max(m.d||m.dAU||1e-12,1e-12)):eff/TOL*2+(t.k==='s'?weightS(t.id):t.w||0)}}
+  function candidates(cx,cy,wide){const out=[];
+    if(isFar()){if(!FLYG.aim)return out;FLYG.aim.pick(cx,cy,TOL).forEach((body,i)=>out.push({k:'g',body,w:i?.3:0}));
+      if(st.cur&&st.cur.k==='g'&&!out.some(t=>same(t,st.cur)))out.push(st.cur);return out}
+    const ids=['sun'];BODIES.forEach(b=>{ids.push(b.id);const o=OBJ[b.id];if(!o||!o.moons.length)return;
+      const near=ship.anchor===b.id||(ship.ap&&ship.ap.id.startsWith(b.id+':'));let pm=null;
+      o.moons.forEach((mm,j)=>{if(near){ids.push(b.id+':'+j);return}pm=pm||solarMeasure(b.id);const mm2=pm&&solarMeasure(b.id+':'+j);if(mm2&&Math.hypot(mm2.x-pm.x,mm2.y-pm.y)>TOL*1.5)ids.push(b.id+':'+j)})});
+    ids.forEach(id=>out.push({k:'s',id}));return out}
+  function best(cx,cy){let b=null;for(const t of candidates(cx,cy,TOL*1.6)){const m=measure(t);if(!m)continue;const sc=scoreOf(t,m,cx,cy),held=st.cur&&same(t,st.cur);
+      if(!sc.on&&sc.eff>=TOL*(held?1.6:1))continue;   // the one already held keeps a wider circle and a lead
+      if(held)sc.s-=.8;
+      if(!b||sc.s<b.s)b={t,s:sc.s,m}}return b}
+
+  /* ---- the words ---- */
+  function fmtD(dAU){if(dAU*AU_KM<5e6){const km=dAU*AU_KM,p=Math.pow(10,Math.max(0,Math.floor(Math.log10(Math.max(km,1)))-2));return num(Math.round(km/p)*p,0)+' km'}
+    if(dAU<9999||!(window.FLYG&&FLYG.aim)){const au=T.au||(window.FLYG&&FLYG.TX&&FLYG.TX.au)||'AU';return num(dAU,dAU<10?2:dAU<100?1:0)+' '+au}
+    return FLYG.aim.dist(dAU)}
+  function fmtT(s){if(s<90)return fill(T.s,{n:num(s,0)});const m=s/60;if(m<90)return fill(T.m,{n:num(m,m<10?1:0)});const h=m/60;return fill(T.h,{n:num(h,h<10?1:0)})}
+  function words(t,m){let name,small='',kind,dAU;
+    if(t.k==='s'){const id=t.id,local=ship.anchor&&(id===ship.anchor||id.startsWith(ship.anchor+':'));dAU=m.d/(local?MAG:1);
+      if(id==='sun'){const s=LBL.sun,sm=s&&s.querySelector('small');name=s?s.firstChild.textContent.trim():'Helios';small=sm?sm.textContent:'';kind=T.sun}
+      else if(id.includes(':')){const p=byId[id.split(':')[0]];name=moonName(id);kind=fill(T.moonOf,{p:p.name})}
+      else{const b=byId[id];if(b.kind==='comet'){name=b.name;kind=T.comet}else{name=b.god;small=b.god!==b.name?b.name:'';kind=b.kind==='planet'?T.planet:DWARF.test(b.id)?T.dwarf:T.asteroid}}}
+    else{const inf=FLYG.aim.info(t.body);name=inf.name;kind=inf.kind;dAU=m.dAU}
+    const bits=[kind,fmtD(dAU)];
+    const v=ship.speed||0,moving=ship.cruise||hold>0||keys.has('w')||keys.has('ArrowUp');if(v>0&&moving&&!ship.ap&&!ship.gap){const sec=m.d!=null?m.d/v:dAU/v;if(sec>=1&&sec<3*3600)bits.push(fill(T.eta,{t:fmtT(sec)}))}
+    return {name,small,sub:bits.join(' · ')}}
+
+  /* ---- show, hide, place ---- */
+  // a card, a sheet, a dialog or (on a narrow screen) the Travel panel over the middle of the screen: no label
+  const seen=e=>!e.hidden&&e.getClientRects().length>0&&getComputedStyle(e).visibility!=='hidden';
+  function overlays(){const cx=innerWidth/2,cy=innerHeight/2;
+    for(const s of ['.gpop','.gsheet','[aria-modal="true"]','#panel','.gcard','.gcap'])for(const e of document.querySelectorAll(s)){if(!seen(e))continue;const r=e.getBoundingClientRect();if(!r.width||!r.height)continue;
+      if(s[0]==='.'&&s!=='.gpop'&&s!=='.gsheet'||s==='#panel'){if(getComputedStyle(e).opacity<.05)continue;if(r.left<cx+140&&r.right>cx-140&&r.top<cy+110&&r.bottom>cy-30)return true;continue}
+      return true}return false}
+  function place(m){const H=innerHeight,cy=H/2,rp=m?Math.min(m.rpx,H*.2):0,gap=Math.max(20,rp+10),stem=Math.max(8,gap-14);
+    const lh=el.offsetHeight||52;let top=cy+gap,up=false;
+    const bc=document.querySelector('.hud.bc');let lim=H-8;if(bc){const r=bc.getBoundingClientRect();if(r.height)lim=Math.min(lim,r.top-8)}
+    const tp=document.querySelector('.thrust');if(tp&&innerWidth<700){const r=tp.getBoundingClientRect();if(r.height&&r.left<innerWidth/2+190)lim=Math.min(lim,r.top-8)}
+    if(top+lh>lim){top=cy-gap-lh;up=true}
+    el.style.top=Math.round(top)+'px';el.classList.toggle('up',up);el.style.setProperty('--xh-stem',stem+'px');
+    const s=Math.max(40,Math.min(150,2*(m?m.rpx:0)+20));br.style.width=br.style.height=Math.round(s)+'px'}
+  // the body's own name in the sky steps aside while the label names it
+  let lk=null;const lkSet=t=>{const nx=st.shown&&t?(t.k==='s'?LBL[t.id]:FLYG.aim.label(t.body)):null;if(nx===lk)return;if(lk)lk.classList.remove('xh-lk');lk=nx;if(lk)lk.classList.add('xh-lk')};
+  function show(on){if(on===st.shown)return;st.shown=on;lkSet(st.cur);
+    if(on){el.hidden=false;void el.offsetWidth;el.classList.add('on');br.classList.add('on');if(cross)cross.classList.add('xh-on')}
+    else{el.classList.remove('on');br.classList.remove('on');if(cross)cross.classList.remove('xh-on');const f=()=>{if(!st.shown)el.hidden=true};if(reduced())f();else setTimeout(f,360);
+      if(el.contains(document.activeElement))try{document.activeElement.blur()}catch(e){}}}
+  function render(t,m){const w=words(t,m),sig=w.name+'|'+w.small+'|'+w.sub;if(sig!==st.sig){st.sig=sig;nmE.innerHTML=esc(w.name)+(w.small?` <small>${esc(w.small)}</small>`:'');subE.textContent=w.sub;
+      el.setAttribute('aria-label',fill(T.lock,{n:w.name}));infoB.setAttribute('aria-label',fill(T.info,{n:w.name}));infoB.title=fill(T.info,{n:w.name});
+      infoB.hidden=t.k==='s'&&(t.id==='sun'||!(window.MOTS&&MOTS.light&&MOTS.light.spectrum))}
+    place(m);lkSet(t)}
+
+  /* ---- the body under way (or just reached) is not labelled: the arrival frames it, not the label ---- */
+  function underWay(){if(ship.ap&&ship.ap.id&&ship.ap.id!=='above')return {k:'s',id:ship.ap.id};
+    const g=ship.gap;if(g){const row=g.bh||g.row||g.gal;if(row)return {k:'g',body:{row}};if(g.id==='home')return {k:'s',id:'sun'}}return null}
+
+  function tick(){
+    if(document.hidden)return;
+    const now=performance.now(),cv=renderer.domElement,cx=(cv.clientWidth||innerWidth)/2,cy=(cv.clientHeight||innerHeight)/2;
+    const blocked=(window.MOTS&&MOTS.skyHidden&&MOTS.skyHidden())||document.documentElement.classList.contains('mots-proj')||overlays();
+    const uw=underWay();if(uw){if(!same(uw,st.sup))st.supD=0;st.sup=uw;st.supOff=0;st.wasUW=1}
+    else if(st.wasUW){st.wasUW=0;st.quiet=now+2500}   // just arrived: a moment's calm before naming anything else
+    if(st.quiet&&(now>st.quiet||lookDrag||keys.size))st.quiet=0;
+    let b=null;try{b=blocked?null:best(cx,cy)}catch(e){b=null;st.err=String(e&&e.message||e)}
+    // the body under way or just reached stays quiet until another body has held the aim, or the ship has left it far behind
+    if(st.sup&&!uw){const ms=measure(st.sup),d=ms?(ms.d!=null?ms.d:ms.dAU):null;if(d!=null){if(!st.supD||d<st.supD)st.supD=d;else if(d>st.supD*4)st.sup=null}
+      if(st.sup&&b&&!same(b.t,st.sup)){if(!st.supOff)st.supOff=now;else if(now-st.supOff>=HOLD)st.sup=null}else st.supOff=0}
+    if(b&&((st.sup&&same(b.t,st.sup))||(st.quiet&&!st.cur)))b=null;
+    if(!b){st.cand=null;st.chal=null;if(st.cur){if(++st.miss>=2){st.cur=null;show(false)}}return}
+    st.miss=0;
+    if(st.cur&&same(b.t,st.cur)){st.chal=null;st.cur=b.t;render(b.t,b.m);return}
+    if(st.cur){   // a challenger has to hold as long as a new lock does
+      if(st.chal&&same(st.chal,b.t)){if(now-st.chalSince>=HOLD){st.cur=b.t;st.chal=null;render(b.t,b.m)}else{const m0=measure(st.cur);if(m0)place(m0)}}
+      else{st.chal=b.t;st.chalSince=now;const m0=measure(st.cur);if(m0)place(m0)}return}
+    if(st.cand&&same(st.cand,b.t)){if(now-st.candSince>=HOLD){st.cur=b.t;st.cand=null;render(b.t,b.m);show(true)}}
+    else{st.cand=b.t;st.candSince=now}}
+
+  /* ---- fly there, or open its card ---- */
+  function go(){const t=st.cur;if(!t)return false;if(typeof zodLook!=='undefined')zodLook=null;resumeAudio();
+    if(t.k==='s'){if(window.MOTS&&MOTS.app&&MOTS.app.travel)MOTS.app.travel(t.id);else travelTo(t.id)}
+    else{const inf=FLYG.aim.info(t.body);FLYG.travel(inf.spec)}
+    st.sup=t;st.supOff=0;st.supD=0;st.cur=null;show(false);return true}
+  function info(){const t=st.cur;if(!t)return;resumeAudio();const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top;
+    if(t.k==='s'){if(t.id!=='sun')openBodyPop(t.id,x,y)}else FLYG.pop(t.body,x,y)}
+  goB.onclick=e=>{e.stopPropagation();go()};infoB.onclick=e=>{e.stopPropagation();info()};
+  el.addEventListener('pointerdown',e=>e.stopPropagation());
+  addEventListener('keydown',e=>{if(e.ctrlKey||e.metaKey||e.altKey)return;const a=document.activeElement,free=!a||!a.closest||!a.closest('input,textarea,select,button,a[href],summary,[contenteditable="true"],[role="button"],[role="option"],[role="slider"],[role="menuitem"],[role="tab"]');
+    if(e.key==='Enter'&&st.shown&&free){e.preventDefault();go()}
+    else if((e.key==='i'||e.key==='I')&&st.shown&&free&&e.target.tagName!=='INPUT'){e.preventDefault();info()}});
+  setInterval(tick,LOWPOWER?180:150);
+  const label=t=>t.k==='s'?t.id:t.body.kind+':'+FLYG.aim.info(t.body).name;
+  const dbg=()=>{const cv=renderer.domElement,cx=(cv.clientWidth||innerWidth)/2,cy=(cv.clientHeight||innerHeight)/2;return candidates(cx,cy).map(t=>{const m=measure(t);if(!m)return null;const sc=scoreOf(t,m,cx,cy);return {t:label(t),dp:Math.round(Math.hypot(m.x-cx,m.y-cy)),rpx:Math.round(m.rpx),on:sc.on,eff:Math.round(sc.eff),s:+sc.s.toFixed(2)}}).filter(x=>x&&(x.on||x.eff<TOL*2))};
+  return {T,dbg,state:()=>({shown:st.shown,cur:st.cur?(st.cur.k==='s'?st.cur.id:(st.cur.body.kind+':'+(FLYG.aim.info(st.cur.body).name))):null,
+    cand:st.cand?(st.cand.k==='s'?st.cand.id:'g'):null,err:st.err||null,blocked:overlays(),name:nmE.textContent,sub:subE.textContent,sup:!!st.sup,tol:TOL}),tick,go,info,el,br};
+})();
+MOTS.app.xh=XH;
+
 
 /* ================= INTERSTELLAR FLIGHT (fly_galaxy.js): the 3D flight continues out into the Milky Way =================
    Step 4 of the Galaxy extension. Appended inside the flight page's closure after fly3d.js, so it sees the ship, the camera, the
@@ -10157,7 +10341,7 @@ function goalOf(id){const g=G(),out={id,goal:new THREE.Vector3(),look:new THREE.
     const fr=g.galaxyFrame(r,{}),N=galToScene(fr.N.x,fr.N.y,fr.N.z,new THREE.Vector3()),from=ship.pos.clone().sub(p).normalize();if(N.dot(from)<0)N.negate();
     // approach spirals from above their disc, so the arms show; everything else straight from where we come
     const dir=big&&r.k==='spiral'?from.multiplyScalar(.78).addScaledVector(N,.62).normalize():from;
-    out.id='galaxy';out.row=r;out.gal=r;out.goal.copy(p).addScaledVector(dir,standPc*AU_PC);out.look.copy(p);out.stand=standPc*AU_PC;out.up=big&&r.k==='spiral'?N:null;out.name=galName(r);out.cap=r.id==='m31'||r.id==='m33'?r.id:'gal';return out}
+    out.id='galaxy';out.row=r;out.gal=r;out.goal.copy(p).addScaledVector(dir,standPc*AU_PC);out.look.copy(p);out.stand=standPc*AU_PC;out.up=big&&r.k==='spiral'?N:null;out.anchor=p.clone();out.tilt=1;out.name=galName(r);out.cap=r.id==='m31'||r.id==='m33'?r.id:'gal';return out}
   if(typeof id==='object'&&id.pulsar){const P=id.pulsar,T=g.tables(),k=g.pulsars().indexOf(P),p=galToScene(T.PX[k],T.PY[k],T.PZ[k],new THREE.Vector3()).multiplyScalar(AU_PC);out.id='pulsar';out.row=P;out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(2*AU_PC));out.look.copy(p);out.stand=2*AU_PC;out.tilt=1;out.name=g.nameOf('pulsar',P,LANG);out.cap='pulsar';return out}
   if(typeof id==='object'&&id.radio){const R=id.radio;if(R.id==='sgra')return goalOf('gc');const T=g.tables(),k=g.radio().indexOf(R),p=galToScene(T.RX[k],T.RY[k],T.RZ[k],new THREE.Vector3()).multiplyScalar(AU_PC);out.id='radio';out.row=R;out.goal.copy(p).add(ship.pos.clone().sub(p).normalize().multiplyScalar(25*AU_PC));out.look.copy(p);out.stand=25*AU_PC;out.name=g.nameOf('radio',R,LANG);out.cap='radio';return out}
   if(id==='m31'||id==='m33'){const r=g.galaxy(id);if(!r)return null;const o=goalOf({galaxy:r});o.id=id;o.name=TL.nm[id];return o}
@@ -10181,7 +10365,7 @@ function travelG(id){if(!ST.ready){toast('…');return}const gp=goalOf(id);if(!g
 const lookM=new THREE.Matrix4(),lookQ=new THREE.Quaternion(),UP=new THREE.Vector3(0,1,0),tiltQ=new THREE.Quaternion(),XAXIS=new THREE.Vector3(1,0,0);
 // a star moves (proper motion and radial velocity, at the sim's time speed): the goal, the look-at and the orbit's centre follow it
 const trackV=new THREE.Vector3();
-function trackStar(gp){if(!gp||!gp.anchor||!gp.row)return;starScene(gp.row,SV);trackV.set(SV.x,SV.y,SV.z).multiplyScalar(AU_PC).sub(gp.anchor);if(trackV.lengthSq()<1e-20)return;gp.goal.add(trackV);gp.look.add(trackV);gp.anchor.add(trackV);return trackV}
+function trackStar(gp){if(!gp||!gp.anchor||!gp.row||gp.gal)return;starScene(gp.row,SV);trackV.set(SV.x,SV.y,SV.z).multiplyScalar(AU_PC).sub(gp.anchor);if(trackV.lengthSq()<1e-20)return;gp.goal.add(trackV);gp.look.add(trackV);gp.anchor.add(trackV);return trackV}
 // the cockpit's aim at a destination: look at it, and (gp.tilt) pitch down a little so the star sits above the centre, clear of the arrival card
 function aimQ(gp,lookAt,out,frac){const upv=gp.up?gp.up:gp.id==='above'||gp.id==='gc'||gp.id==='mag'?new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z):UP;lookM.lookAt(ship.pos,lookAt||gp.look,upv);out.setFromRotationMatrix(lookM);
   if(gp.tilt){const H=renderer.domElement.clientHeight||innerHeight,pxr=H/(2*Math.tan(gcam.fov*Math.PI/360));out.multiply(tiltQ.setFromAxisAngle(XAXIS,-Math.atan((frac==null?TILT:frac)*H/pxr)))}
@@ -11363,8 +11547,31 @@ function bhPick(px,py,rad,best){const cv=renderer.domElement,W=cv.clientWidth||i
     pvG.set(x,y,z).project(cam);if(pvG.z>1||pvG.z<-1)continue;const sx=(pvG.x*.5+.5)*W,sy=(-pvG.y*.5+.5)*H,d=Math.hypot(sx-px,sy-py),r=near&&b.M&&!isBinary(b)?Math.max(rad,G().shadowAU(b.M)/2/Math.hypot(x,y,z)*H/(2*Math.tan(gcam.fov*Math.PI/360))):rad;if(d>r)continue;const sc=d/r*2.5-(near?3:0);if(sc<bs){bs=sc;hit={kind:'bh',row:b}}}
   return hit}
 
+/* ---------- the target in the crosshair (fly3d.js draws the label): what lies under a screen point out here, where it is on the screen,
+   how large it looks, how far it is, and its name and kind in the page's language ---------- */
+function aimMeasure(b){if(!b||!ST.ready)return null;const cv=renderer.domElement,W=cv.clientWidth||innerWidth,H=cv.clientHeight||innerHeight,k=H/(2*Math.tan(gcam.fov*Math.PI/360));
+  let x,y,z,cam=gcam,dAU;
+  if(b.kind==='bh'){const p=bhSceneAU(b.row);dAU=p.distanceTo(ship.pos);if(BHX.row===b.row){x=p.x-ship.pos.x;y=p.y-ship.pos.y;z=p.z-ship.pos.z;cam=nearCam()}else{x=p.x/AU_PC;y=p.y/AU_PC;z=p.z/AU_PC}}
+  else{bodyPos(b,SV);x=SV.x;y=SV.y;z=SV.z;dAU=Math.hypot(x-gcam.position.x,y-gcam.position.y,z-gcam.position.z)*AU_PC}
+  pvG.set(x,y,z).project(cam);if(!(pvG.z<=1&&pvG.z>=-1))return null;
+  let rPc=0;if(b.kind==='galaxy'){const r=b.row;rPc=r.disc&&r.disc.rmax?r.disc.rmax*1000*.55:(r.rhpc||((r.rh||5)/60*Math.PI/180*(r.d||1)*1000))*1.5}
+  return {x:(pvG.x*.5+.5)*W,y:(-pvG.y*.5+.5)*H,dAU,rpx:rPc?rPc*AU_PC/Math.max(dAU,1e-9)*k:0,inside:!!rPc&&dAU<rPc*AU_PC*1.2}}
+// the candidates near a screen point: the catalogue's own pick (the brightest star, pulsar, radio source, black hole or galaxy within the radius),
+// and any galaxy whose disc the point lies on
+function aimPick(cx,cy,tol){if(!ST.ready)return [];const out=[],h=pickAt(cx,cy,tol);if(h)out.push(h);
+  const g=G();if(g.galaxy&&ST.gf>=.02)for(const id in GALPOS){const r=g.galaxy(id);if(!r||(h&&h.row===r))continue;const b={kind:'galaxy',row:r},m=aimMeasure(b);if(m&&!m.inside&&m.rpx>2&&Math.hypot(m.x-cx,m.y-cy)<m.rpx+tol)out.push(b)}
+  return out}
+function aimInfo(b){const S2=TX.st,row=b.row;let kind='';
+  if(b.kind==='star'){const sp=row.sun?'G2V':String(row.sp||'').replace(/\.\.\./,'').trim().split(/\s+/)[0];kind=(sp?sp+' · ':'')+typeWord(row)}
+  else if(b.kind==='bh')kind=TBH.kind[row.kind]||TBH.kind.smbh;
+  else if(b.kind==='galaxy')kind=gkWord(row);
+  else if(b.kind==='pulsar')kind=S2.kind.P;
+  else kind=row.id==='sgra'?S2.kind.BH:TL.srch.kind.radio;
+  return {name:bodyName(b),kind,spec:specOfBody(b)}}
+
 /* ---------- the test window ---------- */
-const api={base,frame,render,audio,readout,labels,travel:travelG,caption,ST,AS,OPT,GA:()=>GA,TX,TL,gscene,gcam,far:()=>ST.r>FAR_AU,card:()=>cardEl,nextStar,nextGalaxy,orbit:()=>ST.card&&startOrbit(ST.card),
+function aimLabel(b){if(!b||!b.row)return null;if(b.kind==='star'){const e=NAMED.find(x=>x.row===b.row);return e?e.el:null}if(b.kind==='galaxy')return GL['g_'+b.row.id]||null;if(b.row.id==='sgra')return GL.sgra||null;return null}
+const api={aim:{measure:aimMeasure,pick:aimPick,info:aimInfo,dist:r=>fmtDist(r),label:aimLabel},base,frame,render,audio,readout,labels,travel:travelG,caption,ST,AS,OPT,GA:()=>GA,TX,TL,gscene,gcam,far:()=>ST.r>FAR_AU,card:()=>cardEl,nextStar,nextGalaxy,orbit:()=>ST.card&&startOrbit(ST.card),
   search:(q,n)=>G().search(q,{n:n||9}),pick:(r,jump)=>pick(r,jump),searchFor,SR,galPos:id=>GALPOS[id],
   setOpt:(k,v)=>{OPT[k]=v;saveOpt();if(GA){tgt(GA.starG.gain,OPT.vol,.1);tgt(GA.chordG.gain,OPT.dmVol,.1)}refreshHear()},
   warp:x=>{ST.warp=x},adapt:b=>{ST.adapt=b},jump:id=>{const gp=goalOf(id);if(!gp)return;ship.gap=null;ship.ap=null;ship.drift=null;ship.vel.set(0,0,0);ST.orbit=null;ship.pos.copy(gp.goal);camera.position.copy(ship.pos);aimQ(gp,null,camera.quaternion);ST.lastScan=0;AS.dirty=true},jumpTo,
