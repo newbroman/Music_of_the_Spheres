@@ -2730,7 +2730,7 @@ let nearLast='';
 function near(id){const el=document.getElementById('lightTxt');if(!el)return;let h='';
   if(id&&H){const pk=String(id).split(':'),b=H.byId[pk[0]],m=b&&pk.length>1&&b.moons?b.moons[+pk[1]]:null;
     if(m||b){const nm=m?m.name.split(' ')[0]:b.kind==='comet'?b.name.split(' ')[0]:(b.god||b.name),full=m?nm:b.kind==='comet'?b.name:(b.god&&b.god!==b.name?b.god+' · '+b.name:b.name),txt=!m&&b.kind!=='comet'?nm+' · '+readout(b):nm;
-      h=ESCH(txt)+`<button class="bslink" type="button" data-bs="${ESCH(m?m.k:b.id)}" data-nm="${ESCH(full)}">${ESCH(SP.spec)}</button>`}}
+      h=ESCH(txt)+(m&&m.add?'':`<button class="bslink" type="button" data-bs="${ESCH(m?m.k:b.id)}" data-nm="${ESCH(full)}">${ESCH(SP.spec)}</button>`)}}
   if(h!==nearLast){nearLast=h;el.innerHTML=h}}
 
 /* ---------- the spectrum of a planet, moon, minor body or comet: "Spectrum" on the dial's info card, the flight's readout and tap card.
@@ -3176,7 +3176,8 @@ function renderBody(id,secs){return bsData().then(D=>{const C=BODYSPEC.chord(D,i
 // the hosts' hooks: a Spectrum button on the dial's info card, λ buttons on the moons of the dial's system view, a link on the flight's readout line
 function cardButton(b){const acts=document.querySelector('#info .acts');if(!acts||acts.querySelector('[data-bs]'))return;const bt=document.createElement('button');bt.className='btn';bt.dataset.bs=b.id;bt.textContent=SP.spec;
   bt.onclick=()=>open({id:b.id,name:b.kind==='comet'?b.name:(b.god&&b.god!==b.name?b.god+' · '+b.name:b.name)});acts.appendChild(bt)}
-function sysRows(roster,planet){if(!roster||!planet)return;roster.querySelectorAll('.vrow[data-moon]').forEach(row=>{const m=planet.moons[+row.dataset.moon];if(!m||row.querySelector('.bslam'))return;const slot=row.lastElementChild&&row.lastElementChild.tagName==='SPAN'&&!row.lastElementChild.textContent?row.lastElementChild:row;
+// (an added moon, m.add, has no measured spectrum here: no λ)
+function sysRows(roster,planet){if(!roster||!planet)return;roster.querySelectorAll('.vrow[data-moon]').forEach(row=>{const m=planet.moons[+row.dataset.moon];if(!m||m.add||row.querySelector('.bslam'))return;const slot=row.lastElementChild&&row.lastElementChild.tagName==='SPAN'&&!row.lastElementChild.textContent?row.lastElementChild:row;
   const bt=document.createElement('button');bt.className='bslam';bt.type='button';bt.textContent='λ';const nm=m.name.split(' ')[0];bt.title=bt.ariaLabel=SP.spec+': '+nm;bt.setAttribute('aria-label',SP.spec+': '+nm);bt.onclick=e=>{e.stopPropagation();open({id:m.k,name:nm})};slot.appendChild(bt)})}
 document.addEventListener('click',e=>{const b=e.target.closest('.bslink');if(!b)return;e.preventDefault();e.stopPropagation();open({id:b.dataset.bs,name:b.dataset.nm})});
 
@@ -3598,7 +3599,7 @@ const s=document.createElement('style');s.id='motsPulseCss';s.textContent=css;(d
       - go (optional; without it the item has no "Show me" button): p = the page ('index.html' is the dial, 'flight.html', 'dance.html',
         'synth.html', 'meditate.html', 'help.html'); h = a hash the page itself understands ('galaxy' on synth, 'tour' on the dial,
         a section id on help); a = an action run on arrival by ACT below (add a new one there if needed):
-          lang · tour · lines · zodiac · find · fly:<destination id> (gc, above, sirius, acen, lg, m31 …) · style:<dance style id>
+          lang · tour · lines · zodiac · find · fly:<destination id> (gc, above, sirius, acen, lg, m31 …) · moons (fly to Jupiter) · style:<dance style id>
           · ringtone · con · scape
    2. That's all: the version is the newest d in the list, so the change is picked up by itself. Rebuild (release.sh).
       A visitor whose localStorage 'mots.whatsnew.seen' is older than the newest d sees the items newer than it, once, on whichever page
@@ -3607,6 +3608,19 @@ const s=document.createElement('style');s.id='motsPulseCss';s.textContent=css;(d
 (()=>{
 "use strict";
 const WN=[
+ {id:'moons',d:'2026-10-16',s:'☾',go:{p:'flight.html',a:'moons'},t:{
+  en:['Every named moon','All 172 moons with an official name now sing, each on its real orbit, with Makemake’s still-unnamed MK2: Jupiter has 57, Saturn 63, Uranus 27, Neptune 14. The small ones sing softly, and those that orbit backwards sing their melody upside down. In the Flight, open “More moons”.'],
+  pl:['Wszystkie nazwane księżyce','Śpiewają teraz wszystkie 172 księżyce z oficjalną nazwą, każdy na prawdziwej orbicie, a z nimi jeszcze nienazwany MK2 Makemake: Jowisz ma ich 57, Saturn 63, Uran 27, Neptun 14. Małe śpiewają cicho, a te, które krążą wstecz, śpiewają swoją melodię do góry nogami. W Locie otwórz „Więcej księżyców”.'],
+  cy:['Pob lleuad ag enw','Mae pob un o’r 172 lleuad ag enw swyddogol yn canu nawr, pob un ar ei horbit go iawn, gydag MK2 Makemake sydd heb enw eto: mae gan Iau 57, Sadwrn 63, Wranws 27, Neifion 14. Mae’r rhai bach yn canu’n dawel, ac mae’r rhai sy’n troi am yn ôl yn canu eu halaw â’i phen i lawr. Yn Hedfan, agorwch “Rhagor o leuadau”.'],
+  de:['Alle benannten Monde','Alle 172 Monde mit offiziellem Namen singen jetzt, jeder auf seiner echten Bahn, dazu Makemakes noch namenloser MK2: Jupiter hat 57, Saturn 63, Uranus 27, Neptun 14. Die kleinen singen leise, und wer rückwärts umläuft, singt seine Melodie auf dem Kopf. Im Flug: „Weitere Monde“ öffnen.'],
+  es:['Todas las lunas con nombre','Ya cantan las 172 lunas con nombre oficial, cada una en su órbita real, junto con MK2, la luna aún sin nombre de Makemake: Júpiter tiene 57, Saturno 63, Urano 27, Neptuno 14. Las pequeñas cantan bajito, y las que giran al revés cantan su melodía invertida. En el Vuelo, abre «Más lunas».'],
+  fr:['Toutes les lunes nommées','Les 172 lunes qui portent un nom officiel chantent désormais, chacune sur son orbite réelle, avec MK2, la lune encore sans nom de Makemake : Jupiter en a 57, Saturne 63, Uranus 27, Neptune 14. Les petites chantent doucement, et celles qui tournent à rebours chantent leur mélodie renversée. Dans le Vol, ouvrez « Autres lunes ».'],
+  it:['Tutte le lune con un nome','Cantano ora tutte le 172 lune con un nome ufficiale, ciascuna sulla sua orbita reale, insieme a MK2, la luna ancora senza nome di Makemake: Giove ne ha 57, Saturno 63, Urano 27, Nettuno 14. Le piccole cantano piano, e quelle che girano all’indietro cantano la melodia capovolta. Nel Volo, apri «Altre lune».'],
+  zh:['所有命名的卫星','所有172颗拥有正式名称的卫星现在都在歌唱，各自沿真实轨道运行，还有鸟神星尚未命名的MK2：木星57颗，土星63颗，天王星27颗，海王星14颗。小卫星轻声歌唱，逆行的卫星把旋律倒过来唱。在“飞行”中打开“更多卫星”。'],
+  ja:['名前のあるすべての衛星','正式な名前をもつ172個の衛星すべてが、それぞれ本当の軌道で歌うようになりました。マケマケのまだ名前のない MK2 も一緒です。木星57個、土星63個、天王星27個、海王星14個。小さな衛星は静かに歌い、逆行する衛星は旋律を上下反転して歌います。「飛行」で「ほかの衛星」を開いてください。'],
+  vi:['Mọi mặt trăng có tên','Cả 172 mặt trăng có tên chính thức giờ đều cất tiếng hát, mỗi mặt trăng trên quỹ đạo thật của mình, cùng với MK2 chưa có tên của Makemake: sao Mộc có 57, sao Thổ 63, sao Thiên Vương 27, sao Hải Vương 14. Các mặt trăng nhỏ hát khẽ, còn những mặt trăng quay ngược thì hát giai điệu lộn ngược. Trong phần Bay, hãy mở “Thêm mặt trăng”.'],
+  bg:['Всички луни с имена','Вече пеят всичките 172 луни с официално име, всяка по истинската си орбита, заедно с още безименната MK2 на Макемаке: Юпитер има 57, Сатурн – 63, Уран – 27, Нептун – 14. Малките пеят тихо, а тези, които обикалят наобратно, пеят мелодията си обърната. В Полета отвори „Още луни“.'],
+  pt:['Todas as luas com nome','Agora cantam todas as 172 luas com nome oficial, cada uma em sua órbita real, junto com MK2, a lua ainda sem nome de Makemake: Júpiter tem 57, Saturno 63, Urano 27, Netuno 14. As pequenas cantam baixinho, e as que giram ao contrário cantam a melodia invertida. No Voo, abra “Mais luas”.']}},
  {id:'bh',d:'2026-10-14',s:'◉',go:{p:'flight.html',a:'fly:gc'},t:{
   en:['Black holes','Fly to Sagittarius A* at the heart of the Milky Way and hear the flow around it, its flares and the S-stars swooping past. Visit Cygnus X-1 and the Gaia black holes, and hear two black holes collide.'],
   pl:['Czarne dziury','Poleć do Sagittariusa A* w sercu Drogi Mlecznej i posłuchaj materii, która wokół niego krąży, jego rozbłysków i gwiazd S przemykających obok. Odwiedź Cygnus X-1 i czarne dziury Gai, i posłuchaj zderzenia dwóch czarnych dziur.'],
@@ -3899,6 +3913,8 @@ const ACT={
     const n=new Date(),doy=(Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())-Date.UTC(n.getFullYear(),2,21))/864e5;const k=Math.floor(((doy%365)+365)%365/30.44)%12;
     setTimeout(()=>{b[k].click();when(()=>{const c=document.getElementById('zodCard');return c&&!c.hidden?c:null},c=>{const f=c.querySelector('.zc-acts button')||c.querySelector('button');if(f)f.focus({preventScroll:true})},3000)},400)})),
   find:()=>when(()=>document.getElementById('gSearchBtn'),b=>b.click()),
+  // the flight: set course for Jupiter, whose ribbon then shows its major moons and “More moons ▸”
+  moons:()=>when(()=>window.MOTS&&MOTS.app&&MOTS.app.travel&&MOTS.app._probe,()=>{try{MOTS.app.travel('jupiter')}catch(e){}},20000),
   fly:id=>when(()=>window.FLYG&&FLYG.ST&&FLYG.ST.ready,()=>{try{FLYG.travel(id)}catch(e){}},40000),
   style:v=>when(()=>document.querySelector(`#style button[data-v="${v}"]`),b=>{
     // on a phone only one genre shows at a time: its tab first
@@ -7032,6 +7048,15 @@ const WHERE={ceres:'belt',vesta:'belt',pallas:'belt',juno:'belt',hygiea:'belt',e
   halley:'htc',encke:'spc',cg67p:'jfc',swift:'htc',tempel:'htc',halebopp:'lpc'};
 const EXTRA={pluto:'res32',haumea:'hfam'};
 const SHOWER={halley:'shHalley',encke:'shEncke',swift:'shPerseids',tempel:'shLeonids'};
+/*MYTH2-START*/
+// ---- the added moons (generated by /tmp/claude-0/moons/gen.py: do not edit here): their myths, and the moons known today by JPL's count
+// (ssd.jpl.nasa.gov/sats/discovery.html, 2026-10-16; "+" where discoveries continue). Every moon with an IAU name is drawn now.
+Object.assign(MYTH,{"metis":"metis","adrastea":"nurseZeus","thebe":"loveZeus","themisto":"loveZeus","leda":"loveZeus","ersa":"daughterZeus","himalia":"loveZeus","pandia":"daughterZeus","lysithea":"loveZeus","elara":"loveZeus","dia":"loveZeus","carpo":"hora","valetudo":"valetudo","euporie":"hora","eupheme":"grandZeus","mneme":"muse","euanthe":"loveZeus","orthosie":"hora","helike":"nurseZeus","praxidike":"praxidike","thelxinoe":"muse","thyone":"loveZeus","ananke":"ananke","iocaste":"iocaste","hermippe":"loveZeus","philophrosyne":"grandZeus","pasithee":"grace","eurydome":"loveZeus","chaldene":"loveZeus","isonoe":"loveZeus","erinome":"loveZeus","kale":"grace","eirene":"hora","aitne":"loveZeus","eukelade":"muse","arche":"muse","taygete":"loveZeus","carme":"loveZeus","herse":"daughterZeus","kalyke":"loveZeus","hegemone":"grace","pasiphae":"pasiphae","sponde":"hora","megaclite":"loveZeus","sinope":"sinope","aoede":"muse","autonoe":"loveZeus","kore":"kore","pan":"pan","daphnis":"daphnis","atlas":"atlas","prometheus":"prometheus","pandora":"pandora","epimetheus":"epimetheus","janus":"janus","aegaeon":"aegaeon","methone":"alkyonid","anthe":"alkyonid","pallene":"alkyonid","telesto":"oceanid","calypso":"calypso","helene":"helene","polydeuces":"polydeuces","kiviuq":"inuit","ijiraq":"inuit","phoebe":"sisKronos","skathi":"norse","albiorix":"gallic","bebhionn":"gallic","erriapus":"gallic","skoll":"wolf","tarqeq":"inuit","siarnaq":"inuit","tarvos":"gallic","hyrrokkin":"norse","greip":"norse","mundilfari":"mundilfari","gridr":"norse","bergelmir":"norse","jarnsaxa":"norse","narvi":"narvi","suttungr":"norse","hati":"wolf","eggther":"norse","farbauti":"norse","thrymr":"norse","bestla":"norse","angrboda":"norse","aegir":"norse","beli":"norse","gerd":"norse","gunnlod":"norse","skrymir":"norse","alvaldi":"norse","kari":"norse","geirrod":"norse","fenrir":"wolf","surtur":"norse","loge":"norse","ymir":"ymir","thiazzi":"norse","fornjot":"norse","cordelia":"lear","ophelia":"hamlet","bianca":"shrew","cressida":"troilus","desdemona":"othello","juliet":"romeo","portia":"merchant","rosalind":"asyou","cupid":"timon","belinda":"popeHer","perdita":"winter","puck":"dream","mab":"romeo","francisco":"tempest","caliban":"tempest","stephano":"tempest","trinculo":"tempest","sycorax":"tempest","margaret":"muchado","prospero":"tempest","setebos":"tempest","ferdinand":"tempest","naiad":"naiad","thalassa":"thalassa","despina":"despina","galatea":"nereidOne","larissa":"larissa","hippocamp":"hippocamp","halimede":"nereidOne","sao":"nereidOne","laomedeia":"nereidOne","psamathe":"nereidOne","neso":"nereidOne","styx":"styx","kerberos":"kerberos","namaka":"namaka","hiiaka":"hiiaka","mk2":"mk2"});
+Object.assign(KNOWN,{"mars":"2","jupiter":"115+","saturn":"293+","uranus":"29+","neptune":"16","pluto":"5","haumea":"2","makemake":"1","eris":"1","earth":"1"});
+delete UNDRAWN.haumea;delete UNDRAWN.makemake;
+{const M2={"en":{"m_metis":"the first wife of Zeus, goddess of wisdom","m_nurseZeus":"a nymph who nursed the infant Zeus","m_daughterZeus":"a daughter of Zeus","m_grandZeus":"a granddaughter of Zeus","m_valetudo":"Roman goddess of health, a great-granddaughter of Jupiter","m_muse":"one of the Muses","m_hora":"one of the Horae, the goddesses of the seasons","m_grace":"one of the Graces","m_ananke":"Necessity, the goddess of what must be","m_iocaste":"Jocasta, mother and wife of Oedipus","m_pasiphae":"queen of Crete, wife of Minos","m_sinope":"a nymph who outwitted Zeus","m_kore":"Persephone, daughter of Zeus and Demeter","m_praxidike":"the goddess who exacts justice","m_pan":"god of shepherds and the wild","m_daphnis":"a Sicilian shepherd, the first pastoral singer","m_atlas":"the Titan who holds up the sky","m_prometheus":"the Titan who gave fire to mortals","m_pandora":"the first woman, who opened the jar of evils","m_epimetheus":"brother of Prometheus, husband of Pandora","m_janus":"the two-faced Roman god of doorways","m_aegaeon":"a hundred-handed giant","m_alkyonid":"a daughter of the giant Alkyoneus","m_oceanid":"a daughter of Oceanus and Tethys","m_calypso":"the nymph who kept Odysseus on her island","m_helene":"Helen of Troy, granddaughter of Kronos","m_polydeuces":"Pollux, brother of Helen and Castor","m_inuit":"from Inuit tradition","m_gallic":"from Celtic myth","m_ymir":"the first giant, from whose body the world was made","m_mundilfari":"father of the Sun and the Moon in Norse myth","m_narvi":"a son of Loki","m_wolf":"a wolf of Norse myth","m_norse":"a giant of Norse myth","m_lear":"from Shakespeare’s King Lear","m_hamlet":"from Shakespeare’s Hamlet","m_shrew":"from Shakespeare’s The Taming of the Shrew","m_troilus":"from Shakespeare’s Troilus and Cressida","m_othello":"from Shakespeare’s Othello","m_romeo":"from Shakespeare’s Romeo and Juliet","m_merchant":"from Shakespeare’s The Merchant of Venice","m_asyou":"from Shakespeare’s As You Like It","m_timon":"from Shakespeare’s Timon of Athens","m_popeHer":"the heroine of Pope’s The Rape of the Lock","m_winter":"from Shakespeare’s The Winter’s Tale","m_muchado":"from Shakespeare’s Much Ado About Nothing","m_naiad":"the nymphs of springs and rivers","m_thalassa":"the primeval goddess of the sea","m_despina":"a daughter of Poseidon and Demeter","m_nereidOne":"one of the Nereids, the nymphs of the sea","m_larissa":"a nymph loved by Poseidon","m_hippocamp":"the sea-horse that draws Poseidon’s chariot","m_kerberos":"the three-headed dog who guards Hades","m_styx":"the river of the underworld and its goddess","m_hiiaka":"Hawaiian goddess of hula, daughter of Haumea","m_namaka":"Hawaiian goddess of the sea, daughter of Haumea","m_mk2":"not yet named: S/2015 (136472) 1","moreM":"+{n} more"},"pl":{"m_metis":"pierwsza żona Zeusa, bogini mądrości","m_nurseZeus":"nimfa, która karmiła małego Zeusa","m_daughterZeus":"córka Zeusa","m_grandZeus":"wnuczka Zeusa","m_valetudo":"rzymska bogini zdrowia, prawnuczka Jowisza","m_muse":"jedna z Muz","m_hora":"jedna z Hor, bogiń pór roku","m_grace":"jedna z Charyt","m_ananke":"Konieczność, bogini tego, co musi się stać","m_iocaste":"Jokasta, matka i żona Edypa","m_pasiphae":"królowa Krety, żona Minosa","m_sinope":"nimfa, która przechytrzyła Zeusa","m_kore":"Persefona, córka Zeusa i Demeter","m_praxidike":"bogini wymierzająca sprawiedliwość","m_pan":"bóg pasterzy i dzikiej przyrody","m_daphnis":"sycylijski pasterz, pierwszy śpiewak sielanek","m_atlas":"Tytan, który dźwiga niebo","m_prometheus":"Tytan, który dał ludziom ogień","m_pandora":"pierwsza kobieta, która otworzyła beczkę z nieszczęściami","m_epimetheus":"brat Prometeusza, mąż Pandory","m_janus":"dwulicowy rzymski bóg bram","m_aegaeon":"sturęki olbrzym","m_alkyonid":"córka giganta Alkyoneusa","m_oceanid":"córka Okeanosa i Tetydy","m_calypso":"nimfa, która zatrzymała Odyseusza na swojej wyspie","m_helene":"Helena trojańska, wnuczka Kronosa","m_polydeuces":"Polluks, brat Heleny i Kastora","m_inuit":"z tradycji Inuitów","m_gallic":"z mitologii celtyckiej","m_ymir":"pierwszy olbrzym, z którego ciała powstał świat","m_mundilfari":"ojciec Słońca i Księżyca w mitologii nordyckiej","m_narvi":"syn Lokiego","m_wolf":"wilk z mitologii nordyckiej","m_norse":"olbrzym z mitologii nordyckiej","m_lear":"z „Króla Leara” Szekspira","m_hamlet":"z „Hamleta” Szekspira","m_shrew":"z „Poskromienia złośnicy” Szekspira","m_troilus":"z „Troilusa i Kresydy” Szekspira","m_othello":"z „Otella” Szekspira","m_romeo":"z „Romea i Julii” Szekspira","m_merchant":"z „Kupca weneckiego” Szekspira","m_asyou":"z „Jak wam się podoba” Szekspira","m_timon":"z „Tymona Ateńczyka” Szekspira","m_popeHer":"bohaterka „Porwania loku” Pope’a","m_winter":"z „Opowieści zimowej” Szekspira","m_muchado":"z „Wiele hałasu o nic” Szekspira","m_naiad":"nimfy źródeł i rzek","m_thalassa":"pierwotna bogini morza","m_despina":"córka Posejdona i Demeter","m_nereidOne":"jedna z Nereid, nimf morskich","m_larissa":"nimfa ukochana przez Posejdona","m_hippocamp":"morski koń ciągnący rydwan Posejdona","m_kerberos":"trójgłowy pies strzegący Hadesu","m_styx":"rzeka podziemnego świata i jej bogini","m_hiiaka":"hawajska bogini hula, córka Haumei","m_namaka":"hawajska bogini morza, córka Haumei","m_mk2":"jeszcze bez nazwy: S/2015 (136472) 1","moreM":"i {n} innych"},"cy":{"m_metis":"gwraig gyntaf Zeus, duwies doethineb","m_nurseZeus":"nymff a fagodd y baban Zeus","m_daughterZeus":"merch i Zeus","m_grandZeus":"wyres i Zeus","m_valetudo":"duwies iechyd Rufain, gor-wyres i Iau","m_muse":"un o’r Awenau","m_hora":"un o’r Horae, duwiesau’r tymhorau","m_grace":"un o’r Grasusau","m_ananke":"Rheidrwydd, duwies yr hyn sy’n rhaid","m_iocaste":"Jocasta, mam a gwraig Oedipus","m_pasiphae":"brenhines Creta, gwraig Minos","m_sinope":"nymff a gafodd y gorau ar Zeus","m_kore":"Persephone, merch Zeus a Demeter","m_praxidike":"y dduwies sy’n mynnu cyfiawnder","m_pan":"duw’r bugeiliaid a’r gwyllt","m_daphnis":"bugail o Sisili, y canwr bugeiliol cyntaf","m_atlas":"y Titan sy’n dal yr awyr i fyny","m_prometheus":"y Titan a roddodd dân i feidrolion","m_pandora":"y fenyw gyntaf, a agorodd y jar o ddrygau","m_epimetheus":"brawd Prometheus, gŵr Pandora","m_janus":"duw drysau Rhufain, â dau wyneb","m_aegaeon":"cawr â chant o ddwylo","m_alkyonid":"merch y cawr Alkyoneus","m_oceanid":"merch Oceanus a Tethys","m_calypso":"y nymff a gadwodd Odysseus ar ei hynys","m_helene":"Helen o Droea, wyres Kronos","m_polydeuces":"Pollux, brawd Helen a Castor","m_inuit":"o draddodiad yr Inuit","m_gallic":"o chwedloniaeth y Celtiaid","m_ymir":"y cawr cyntaf, y gwnaed y byd o’i gorff","m_mundilfari":"tad yr Haul a’r Lleuad ym mytholeg y Llychlynwyr","m_narvi":"mab i Loki","m_wolf":"blaidd o fytholeg y Llychlynwyr","m_norse":"cawr o fytholeg y Llychlynwyr","m_lear":"o King Lear gan Shakespeare","m_hamlet":"o Hamlet gan Shakespeare","m_shrew":"o The Taming of the Shrew gan Shakespeare","m_troilus":"o Troilus and Cressida gan Shakespeare","m_othello":"o Othello gan Shakespeare","m_romeo":"o Romeo and Juliet gan Shakespeare","m_merchant":"o The Merchant of Venice gan Shakespeare","m_asyou":"o As You Like It gan Shakespeare","m_timon":"o Timon of Athens gan Shakespeare","m_popeHer":"arwres The Rape of the Lock gan Pope","m_winter":"o The Winter’s Tale gan Shakespeare","m_muchado":"o Much Ado About Nothing gan Shakespeare","m_naiad":"nymffau’r ffynhonnau a’r afonydd","m_thalassa":"duwies gyntefig y môr","m_despina":"merch Poseidon a Demeter","m_nereidOne":"un o’r Nereidau, nymffau’r môr","m_larissa":"nymff a garwyd gan Poseidon","m_hippocamp":"y morfarch sy’n tynnu cerbyd Poseidon","m_kerberos":"y ci tri phen sy’n gwarchod Hades","m_styx":"afon yr isfyd a’i duwies","m_hiiaka":"duwies yr hwla yn Hawaii, merch Haumea","m_namaka":"duwies y môr yn Hawaii, merch Haumea","m_mk2":"heb ei henwi eto: S/2015 (136472) 1","moreM":"+{n} arall"},"de":{"m_metis":"die erste Gattin des Zeus, Göttin der Weisheit","m_nurseZeus":"eine Nymphe, die den kleinen Zeus nährte","m_daughterZeus":"eine Tochter des Zeus","m_grandZeus":"eine Enkelin des Zeus","m_valetudo":"römische Göttin der Gesundheit, Urenkelin Jupiters","m_muse":"eine der Musen","m_hora":"eine der Horen, der Göttinnen der Jahreszeiten","m_grace":"eine der Chariten","m_ananke":"Ananke, die Notwendigkeit, Göttin des Unabwendbaren","m_iocaste":"Iokaste, Mutter und Gattin des Ödipus","m_pasiphae":"Königin von Kreta, Gattin des Minos","m_sinope":"eine Nymphe, die Zeus überlistete","m_kore":"Persephone, Tochter des Zeus und der Demeter","m_praxidike":"die Göttin, die Gerechtigkeit vollstreckt","m_pan":"Gott der Hirten und der Wildnis","m_daphnis":"ein sizilischer Hirte, der erste Hirtensänger","m_atlas":"der Titan, der den Himmel trägt","m_prometheus":"der Titan, der den Menschen das Feuer brachte","m_pandora":"die erste Frau, die das Gefäß der Übel öffnete","m_epimetheus":"Bruder des Prometheus, Gatte der Pandora","m_janus":"der doppelgesichtige römische Gott der Tore","m_aegaeon":"ein hundertarmiger Riese","m_alkyonid":"eine Tochter des Giganten Alkyoneus","m_oceanid":"eine Tochter des Okeanos und der Tethys","m_calypso":"die Nymphe, die Odysseus auf ihrer Insel festhielt","m_helene":"Helena von Troja, Enkelin des Kronos","m_polydeuces":"Pollux, Bruder der Helena und des Kastor","m_inuit":"aus der Überlieferung der Inuit","m_gallic":"aus der keltischen Mythologie","m_ymir":"der erste Riese, aus dessen Leib die Welt entstand","m_mundilfari":"Vater von Sonne und Mond in der nordischen Mythologie","m_narvi":"ein Sohn Lokis","m_wolf":"ein Wolf der nordischen Mythologie","m_norse":"ein Riese der nordischen Mythologie","m_lear":"aus Shakespeares „König Lear“","m_hamlet":"aus Shakespeares „Hamlet“","m_shrew":"aus Shakespeares „Der Widerspenstigen Zähmung“","m_troilus":"aus Shakespeares „Troilus und Cressida“","m_othello":"aus Shakespeares „Othello“","m_romeo":"aus Shakespeares „Romeo und Julia“","m_merchant":"aus Shakespeares „Der Kaufmann von Venedig“","m_asyou":"aus Shakespeares „Wie es euch gefällt“","m_timon":"aus Shakespeares „Timon von Athen“","m_popeHer":"die Heldin aus Popes „Der Lockenraub“","m_winter":"aus Shakespeares „Das Wintermärchen“","m_muchado":"aus Shakespeares „Viel Lärm um nichts“","m_naiad":"die Nymphen der Quellen und Flüsse","m_thalassa":"die urzeitliche Göttin des Meeres","m_despina":"eine Tochter des Poseidon und der Demeter","m_nereidOne":"eine der Nereiden, der Meeresnymphen","m_larissa":"eine Nymphe, von Poseidon geliebt","m_hippocamp":"das Seepferd, das Poseidons Wagen zieht","m_kerberos":"der dreiköpfige Hund, der den Hades bewacht","m_styx":"der Fluss der Unterwelt und seine Göttin","m_hiiaka":"hawaiische Göttin des Hula, Tochter der Haumea","m_namaka":"hawaiische Göttin des Meeres, Tochter der Haumea","m_mk2":"noch ohne Namen: S/2015 (136472) 1","moreM":"+{n} weitere"},"es":{"m_metis":"la primera esposa de Zeus, diosa de la sabiduría","m_nurseZeus":"una ninfa que crió a Zeus niño","m_daughterZeus":"una hija de Zeus","m_grandZeus":"una nieta de Zeus","m_valetudo":"diosa romana de la salud, bisnieta de Júpiter","m_muse":"una de las musas","m_hora":"una de las Horas, diosas de las estaciones","m_grace":"una de las Gracias","m_ananke":"la Necesidad, diosa de lo inevitable","m_iocaste":"Yocasta, madre y esposa de Edipo","m_pasiphae":"reina de Creta, esposa de Minos","m_sinope":"una ninfa que burló a Zeus","m_kore":"Perséfone, hija de Zeus y Deméter","m_praxidike":"la diosa que impone la justicia","m_pan":"dios de los pastores y de lo salvaje","m_daphnis":"un pastor siciliano, el primer cantor bucólico","m_atlas":"el titán que sostiene el cielo","m_prometheus":"el titán que dio el fuego a los mortales","m_pandora":"la primera mujer, que abrió la jarra de los males","m_epimetheus":"hermano de Prometeo, esposo de Pandora","m_janus":"el dios romano de las puertas, de dos caras","m_aegaeon":"un gigante de cien brazos","m_alkyonid":"una hija del gigante Alcioneo","m_oceanid":"una hija de Océano y Tetis","m_calypso":"la ninfa que retuvo a Odiseo en su isla","m_helene":"Helena de Troya, nieta de Crono","m_polydeuces":"Pólux, hermano de Helena y de Cástor","m_inuit":"de la tradición inuit","m_gallic":"de la mitología celta","m_ymir":"el primer gigante, de cuyo cuerpo se hizo el mundo","m_mundilfari":"padre del Sol y de la Luna en la mitología nórdica","m_narvi":"un hijo de Loki","m_wolf":"un lobo de la mitología nórdica","m_norse":"un gigante de la mitología nórdica","m_lear":"de El rey Lear de Shakespeare","m_hamlet":"de Hamlet de Shakespeare","m_shrew":"de La fierecilla domada de Shakespeare","m_troilus":"de Troilo y Crésida de Shakespeare","m_othello":"de Otelo de Shakespeare","m_romeo":"de Romeo y Julieta de Shakespeare","m_merchant":"de El mercader de Venecia de Shakespeare","m_asyou":"de Como gustéis de Shakespeare","m_timon":"de Timón de Atenas de Shakespeare","m_popeHer":"la heroína de El rizo robado de Pope","m_winter":"de Cuento de invierno de Shakespeare","m_muchado":"de Mucho ruido y pocas nueces de Shakespeare","m_naiad":"las ninfas de las fuentes y los ríos","m_thalassa":"la diosa primordial del mar","m_despina":"una hija de Poseidón y Deméter","m_nereidOne":"una de las nereidas, ninfas del mar","m_larissa":"una ninfa amada por Poseidón","m_hippocamp":"el caballo marino que tira del carro de Poseidón","m_kerberos":"el perro de tres cabezas que guarda el Hades","m_styx":"el río del inframundo y su diosa","m_hiiaka":"diosa hawaiana del hula, hija de Haumea","m_namaka":"diosa hawaiana del mar, hija de Haumea","m_mk2":"aún sin nombre: S/2015 (136472) 1","moreM":"+{n} más"},"fr":{"m_metis":"la première épouse de Zeus, déesse de la sagesse","m_nurseZeus":"une nymphe qui nourrit Zeus enfant","m_daughterZeus":"une fille de Zeus","m_grandZeus":"une petite-fille de Zeus","m_valetudo":"déesse romaine de la santé, arrière-petite-fille de Jupiter","m_muse":"l’une des Muses","m_hora":"l’une des Heures, déesses des saisons","m_grace":"l’une des Grâces","m_ananke":"la Nécessité, déesse de ce qui doit être","m_iocaste":"Jocaste, mère et épouse d’Œdipe","m_pasiphae":"reine de Crète, épouse de Minos","m_sinope":"une nymphe qui déjoua Zeus","m_kore":"Perséphone, fille de Zeus et de Déméter","m_praxidike":"la déesse qui fait justice","m_pan":"dieu des bergers et des lieux sauvages","m_daphnis":"un berger de Sicile, le premier chanteur bucolique","m_atlas":"le Titan qui porte le ciel","m_prometheus":"le Titan qui donna le feu aux mortels","m_pandora":"la première femme, qui ouvrit la jarre des maux","m_epimetheus":"frère de Prométhée, époux de Pandore","m_janus":"le dieu romain des portes, à deux visages","m_aegaeon":"un géant aux cent bras","m_alkyonid":"une fille du géant Alcyonée","m_oceanid":"une fille d’Océan et de Téthys","m_calypso":"la nymphe qui retint Ulysse sur son île","m_helene":"Hélène de Troie, petite-fille de Cronos","m_polydeuces":"Pollux, frère d’Hélène et de Castor","m_inuit":"de la tradition inuite","m_gallic":"de la mythologie celtique","m_ymir":"le premier géant, dont le corps devint le monde","m_mundilfari":"père du Soleil et de la Lune dans la mythologie nordique","m_narvi":"un fils de Loki","m_wolf":"un loup de la mythologie nordique","m_norse":"un géant de la mythologie nordique","m_lear":"tiré du Roi Lear de Shakespeare","m_hamlet":"tiré de Hamlet de Shakespeare","m_shrew":"tiré de La Mégère apprivoisée de Shakespeare","m_troilus":"tiré de Troïlus et Cressida de Shakespeare","m_othello":"tiré d’Othello de Shakespeare","m_romeo":"tiré de Roméo et Juliette de Shakespeare","m_merchant":"tiré du Marchand de Venise de Shakespeare","m_asyou":"tiré de Comme il vous plaira de Shakespeare","m_timon":"tiré de Timon d’Athènes de Shakespeare","m_popeHer":"l’héroïne de La Boucle de cheveux enlevée de Pope","m_winter":"tiré du Conte d’hiver de Shakespeare","m_muchado":"tiré de Beaucoup de bruit pour rien de Shakespeare","m_naiad":"les nymphes des sources et des rivières","m_thalassa":"la déesse primordiale de la mer","m_despina":"une fille de Poséidon et de Déméter","m_nereidOne":"l’une des Néréides, nymphes de la mer","m_larissa":"une nymphe aimée de Poséidon","m_hippocamp":"le cheval marin qui tire le char de Poséidon","m_kerberos":"le chien à trois têtes qui garde les Enfers","m_styx":"le fleuve des Enfers et sa déesse","m_hiiaka":"déesse hawaïenne du hula, fille de Haumea","m_namaka":"déesse hawaïenne de la mer, fille de Haumea","m_mk2":"pas encore nommée : S/2015 (136472) 1","moreM":"+{n} autres"},"it":{"m_metis":"la prima moglie di Zeus, dea della saggezza","m_nurseZeus":"una ninfa che nutrì Zeus bambino","m_daughterZeus":"una figlia di Zeus","m_grandZeus":"una nipote di Zeus","m_valetudo":"dea romana della salute, pronipote di Giove","m_muse":"una delle Muse","m_hora":"una delle Ore, dee delle stagioni","m_grace":"una delle Grazie","m_ananke":"la Necessità, dea di ciò che deve essere","m_iocaste":"Giocasta, madre e moglie di Edipo","m_pasiphae":"regina di Creta, moglie di Minosse","m_sinope":"una ninfa che si prese gioco di Zeus","m_kore":"Persefone, figlia di Zeus e Demetra","m_praxidike":"la dea che fa giustizia","m_pan":"dio dei pastori e dei luoghi selvaggi","m_daphnis":"un pastore siciliano, il primo cantore bucolico","m_atlas":"il Titano che regge il cielo","m_prometheus":"il Titano che donò il fuoco ai mortali","m_pandora":"la prima donna, che aprì il vaso dei mali","m_epimetheus":"fratello di Prometeo, marito di Pandora","m_janus":"il dio romano delle porte, dai due volti","m_aegaeon":"un gigante dalle cento braccia","m_alkyonid":"una figlia del gigante Alcioneo","m_oceanid":"una figlia di Oceano e Teti","m_calypso":"la ninfa che trattenne Ulisse sulla sua isola","m_helene":"Elena di Troia, nipote di Crono","m_polydeuces":"Polluce, fratello di Elena e di Castore","m_inuit":"dalla tradizione inuit","m_gallic":"dalla mitologia celtica","m_ymir":"il primo gigante, dal cui corpo fu fatto il mondo","m_mundilfari":"padre del Sole e della Luna nella mitologia norrena","m_narvi":"un figlio di Loki","m_wolf":"un lupo della mitologia norrena","m_norse":"un gigante della mitologia norrena","m_lear":"da Re Lear di Shakespeare","m_hamlet":"da Amleto di Shakespeare","m_shrew":"da La bisbetica domata di Shakespeare","m_troilus":"da Troilo e Cressida di Shakespeare","m_othello":"da Otello di Shakespeare","m_romeo":"da Romeo e Giulietta di Shakespeare","m_merchant":"da Il mercante di Venezia di Shakespeare","m_asyou":"da Come vi piace di Shakespeare","m_timon":"da Timone d’Atene di Shakespeare","m_popeHer":"l’eroina del Ricciolo rapito di Pope","m_winter":"da Il racconto d’inverno di Shakespeare","m_muchado":"da Molto rumore per nulla di Shakespeare","m_naiad":"le ninfe delle sorgenti e dei fiumi","m_thalassa":"la dea primordiale del mare","m_despina":"una figlia di Poseidone e Demetra","m_nereidOne":"una delle Nereidi, le ninfe del mare","m_larissa":"una ninfa amata da Poseidone","m_hippocamp":"il cavallo marino che traina il carro di Poseidone","m_kerberos":"il cane a tre teste che custodisce l’Ade","m_styx":"il fiume degli inferi e la sua dea","m_hiiaka":"dea hawaiana dell’hula, figlia di Haumea","m_namaka":"dea hawaiana del mare, figlia di Haumea","m_mk2":"ancora senza nome: S/2015 (136472) 1","moreM":"+{n} altre"},"zh":{"m_metis":"宙斯的第一位妻子，智慧女神","m_nurseZeus":"哺育幼年宙斯的仙女","m_daughterZeus":"宙斯的女儿","m_grandZeus":"宙斯的孙女","m_valetudo":"罗马的健康女神，朱庇特的曾孙女","m_muse":"缪斯之一","m_hora":"时序女神荷赖之一","m_grace":"美惠女神之一","m_ananke":"必然女神阿南刻","m_iocaste":"伊俄卡斯忒，俄狄浦斯的母亲和妻子","m_pasiphae":"克里特王后，米诺斯之妻","m_sinope":"智胜宙斯的仙女","m_kore":"珀耳塞福涅，宙斯与得墨忒耳之女","m_praxidike":"执行正义的女神","m_pan":"牧人与山野之神","m_daphnis":"西西里的牧人，第一位田园歌手","m_atlas":"擎天的提坦阿特拉斯","m_prometheus":"把火带给凡人的提坦","m_pandora":"打开灾祸之瓶的第一个女人","m_epimetheus":"普罗米修斯的兄弟，潘多拉的丈夫","m_janus":"罗马的双面门神","m_aegaeon":"百臂巨人","m_alkyonid":"巨人阿尔库俄纽斯的女儿","m_oceanid":"俄刻阿诺斯与忒堤斯的女儿","m_calypso":"把奥德修斯留在岛上的仙女","m_helene":"特洛伊的海伦，克洛诺斯的孙女","m_polydeuces":"波吕丢刻斯，海伦与卡斯托耳的兄弟","m_inuit":"出自因纽特人的传说","m_gallic":"出自凯尔特神话","m_ymir":"第一个巨人，世界由他的身体造成","m_mundilfari":"北欧神话中太阳与月亮的父亲","m_narvi":"洛基之子","m_wolf":"北欧神话中的狼","m_norse":"北欧神话中的巨人","m_lear":"出自莎士比亚《李尔王》","m_hamlet":"出自莎士比亚《哈姆雷特》","m_shrew":"出自莎士比亚《驯悍记》","m_troilus":"出自莎士比亚《特洛伊罗斯与克瑞西达》","m_othello":"出自莎士比亚《奥赛罗》","m_romeo":"出自莎士比亚《罗密欧与朱丽叶》","m_merchant":"出自莎士比亚《威尼斯商人》","m_asyou":"出自莎士比亚《皆大欢喜》","m_timon":"出自莎士比亚《雅典的泰门》","m_popeHer":"蒲柏《卷发遇劫记》的女主角","m_winter":"出自莎士比亚《冬天的故事》","m_muchado":"出自莎士比亚《无事生非》","m_naiad":"泉水与河流的仙女","m_thalassa":"原始的海洋女神","m_despina":"波塞冬与得墨忒耳之女","m_nereidOne":"涅瑞伊得斯之一，海中仙女","m_larissa":"波塞冬所爱的仙女","m_hippocamp":"为波塞冬拉车的海马","m_kerberos":"看守冥府的三头犬","m_styx":"冥界之河及其女神","m_hiiaka":"夏威夷的草裙舞女神，妊神之女","m_namaka":"夏威夷的海洋女神，妊神之女","m_mk2":"尚未命名：S/2015 (136472) 1","moreM":"另有{n}颗"},"ja":{"m_metis":"ゼウスの最初の妻、知恵の女神","m_nurseZeus":"幼いゼウスを育てたニンフ","m_daughterZeus":"ゼウスの娘","m_grandZeus":"ゼウスの孫娘","m_valetudo":"ローマの健康の女神、ユピテルのひ孫","m_muse":"ムーサの一人","m_hora":"ホーラーの一人、季節の女神","m_grace":"カリスの一人","m_ananke":"アナンケー、避けられない運命の女神","m_iocaste":"イオカステー、オイディプスの母にして妻","m_pasiphae":"クレタの王妃、ミノスの妻","m_sinope":"ゼウスを出し抜いたニンフ","m_kore":"ペルセポネー、ゼウスとデメテルの娘","m_praxidike":"正義を執行する女神","m_pan":"牧人と野山の神","m_daphnis":"シチリアの牧人、最初の牧歌の歌い手","m_atlas":"天を支えるティーターン","m_prometheus":"人間に火を与えたティーターン","m_pandora":"災いの壺を開けた最初の女","m_epimetheus":"プロメテウスの兄弟、パンドラの夫","m_janus":"二つの顔をもつローマの門の神","m_aegaeon":"百の腕をもつ巨人","m_alkyonid":"巨人アルキュオネウスの娘","m_oceanid":"オケアノスとテテュスの娘","m_calypso":"オデュッセウスを島に引きとめたニンフ","m_helene":"トロイアのヘレネー、クロノスの孫","m_polydeuces":"ポリュデウケース、ヘレネーとカストールの兄弟","m_inuit":"イヌイットの伝承から","m_gallic":"ケルト神話から","m_ymir":"最初の巨人、その体から世界が作られた","m_mundilfari":"北欧神話で太陽と月の父","m_narvi":"ロキの息子","m_wolf":"北欧神話の狼","m_norse":"北欧神話の巨人","m_lear":"シェイクスピア『リア王』から","m_hamlet":"シェイクスピア『ハムレット』から","m_shrew":"シェイクスピア『じゃじゃ馬ならし』から","m_troilus":"シェイクスピア『トロイラスとクレシダ』から","m_othello":"シェイクスピア『オセロー』から","m_romeo":"シェイクスピア『ロミオとジュリエット』から","m_merchant":"シェイクスピア『ヴェニスの商人』から","m_asyou":"シェイクスピア『お気に召すまま』から","m_timon":"シェイクスピア『アテネのタイモン』から","m_popeHer":"ポープ『髪盗み』のヒロイン","m_winter":"シェイクスピア『冬物語』から","m_muchado":"シェイクスピア『から騒ぎ』から","m_naiad":"泉と川のニンフたち","m_thalassa":"太古の海の女神","m_despina":"ポセイドンとデメテルの娘","m_nereidOne":"ネーレーイスの一人、海のニンフ","m_larissa":"ポセイドンに愛されたニンフ","m_hippocamp":"ポセイドンの戦車を引く海馬","m_kerberos":"ハデスを守る三つ首の犬","m_styx":"冥界の川とその女神","m_hiiaka":"ハワイのフラの女神、ハウメアの娘","m_namaka":"ハワイの海の女神、ハウメアの娘","m_mk2":"まだ名前のない衛星：S/2015 (136472) 1","moreM":"ほか{n}個"},"vi":{"m_metis":"người vợ đầu tiên của Zeus, nữ thần trí tuệ","m_nurseZeus":"một tiên nữ đã nuôi Zeus thuở nhỏ","m_daughterZeus":"một người con gái của Zeus","m_grandZeus":"một người cháu gái của Zeus","m_valetudo":"nữ thần sức khỏe của La Mã, chắt gái của Jupiter","m_muse":"một trong các nàng Muse","m_hora":"một trong các Horae, nữ thần các mùa","m_grace":"một trong các nữ thần Duyên dáng","m_ananke":"Ananke, nữ thần của những điều tất yếu","m_iocaste":"Jocasta, mẹ và vợ của Oedipus","m_pasiphae":"hoàng hậu xứ Crete, vợ của Minos","m_sinope":"một tiên nữ đã lừa được Zeus","m_kore":"Persephone, con gái của Zeus và Demeter","m_praxidike":"nữ thần thực thi công lý","m_pan":"thần của người chăn cừu và chốn hoang dã","m_daphnis":"một người chăn cừu xứ Sicilia, người hát khúc đồng quê đầu tiên","m_atlas":"vị Titan đội cả bầu trời","m_prometheus":"vị Titan đã trao lửa cho loài người","m_pandora":"người phụ nữ đầu tiên, người đã mở chiếc bình tai họa","m_epimetheus":"em trai của Prometheus, chồng của Pandora","m_janus":"vị thần cửa hai mặt của La Mã","m_aegaeon":"một người khổng lồ trăm tay","m_alkyonid":"một người con gái của người khổng lồ Alkyoneus","m_oceanid":"một người con gái của Oceanus và Tethys","m_calypso":"tiên nữ đã giữ Odysseus trên hòn đảo của mình","m_helene":"Helen thành Troy, cháu gái của Kronos","m_polydeuces":"Pollux, anh em của Helen và Castor","m_inuit":"từ truyền thống của người Inuit","m_gallic":"từ thần thoại Celt","m_ymir":"người khổng lồ đầu tiên, thế giới được tạo nên từ thân thể ông","m_mundilfari":"cha của Mặt Trời và Mặt Trăng trong thần thoại Bắc Âu","m_narvi":"một người con trai của Loki","m_wolf":"một con sói trong thần thoại Bắc Âu","m_norse":"một người khổng lồ trong thần thoại Bắc Âu","m_lear":"từ vở Vua Lear của Shakespeare","m_hamlet":"từ vở Hamlet của Shakespeare","m_shrew":"từ vở Thuần hóa người đàn bà đanh đá của Shakespeare","m_troilus":"từ vở Troilus và Cressida của Shakespeare","m_othello":"từ vở Othello của Shakespeare","m_romeo":"từ vở Romeo và Juliet của Shakespeare","m_merchant":"từ vở Người lái buôn thành Venice của Shakespeare","m_asyou":"từ vở Như ý của Shakespeare","m_timon":"từ vở Timon thành Athens của Shakespeare","m_popeHer":"nữ nhân vật chính trong The Rape of the Lock của Pope","m_winter":"từ vở Truyện mùa đông của Shakespeare","m_muchado":"từ vở Có gì đâu mà ầm ĩ của Shakespeare","m_naiad":"các tiên nữ của suối và sông","m_thalassa":"nữ thần biển nguyên thủy","m_despina":"con gái của Poseidon và Demeter","m_nereidOne":"một trong các Nereid, tiên nữ biển","m_larissa":"một tiên nữ được Poseidon yêu","m_hippocamp":"con ngựa biển kéo cỗ xe của Poseidon","m_kerberos":"con chó ba đầu canh giữ Hades","m_styx":"dòng sông của âm phủ và nữ thần của nó","m_hiiaka":"nữ thần điệu hula của Hawaii, con gái của Haumea","m_namaka":"nữ thần biển của Hawaii, con gái của Haumea","m_mk2":"chưa được đặt tên: S/2015 (136472) 1","moreM":"+{n} mặt trăng khác"},"bg":{"m_metis":"първата съпруга на Зевс, богиня на мъдростта","m_nurseZeus":"нимфа, отгледала малкия Зевс","m_daughterZeus":"дъщеря на Зевс","m_grandZeus":"внучка на Зевс","m_valetudo":"римската богиня на здравето, правнучка на Юпитер","m_muse":"една от музите","m_hora":"една от орите, богините на сезоните","m_grace":"една от харитите","m_ananke":"Ананке, необходимостта, богинята на неизбежното","m_iocaste":"Йокаста, майка и съпруга на Едип","m_pasiphae":"кралицата на Крит, съпруга на Минос","m_sinope":"нимфа, която надхитрила Зевс","m_kore":"Персефона, дъщеря на Зевс и Деметра","m_praxidike":"богинята, която въздава справедливост","m_pan":"бог на пастирите и дивата природа","m_daphnis":"сицилиански пастир, първият певец на пасторали","m_atlas":"титанът, който крепи небето","m_prometheus":"титанът, който дал огъня на хората","m_pandora":"първата жена, която отворила делвата със злините","m_epimetheus":"брат на Прометей, съпруг на Пандора","m_janus":"двуликият римски бог на вратите","m_aegaeon":"сторък великан","m_alkyonid":"дъщеря на гиганта Алкионей","m_oceanid":"дъщеря на Океан и Тетида","m_calypso":"нимфата, която задържала Одисей на своя остров","m_helene":"Елена Троянска, внучка на Кронос","m_polydeuces":"Полидевк, брат на Елена и Кастор","m_inuit":"от преданията на инуитите","m_gallic":"от келтската митология","m_ymir":"първият великан, от чието тяло е направен светът","m_mundilfari":"баща на Слънцето и Луната в скандинавската митология","m_narvi":"син на Локи","m_wolf":"вълк от скандинавската митология","m_norse":"великан от скандинавската митология","m_lear":"от „Крал Лир“ на Шекспир","m_hamlet":"от „Хамлет“ на Шекспир","m_shrew":"от „Укротяване на опърничавата“ на Шекспир","m_troilus":"от „Троил и Кресида“ на Шекспир","m_othello":"от „Отело“ на Шекспир","m_romeo":"от „Ромео и Жулиета“ на Шекспир","m_merchant":"от „Венецианският търговец“ на Шекспир","m_asyou":"от „Както ви харесва“ на Шекспир","m_timon":"от „Тимон Атински“ на Шекспир","m_popeHer":"героинята на „Отвличането на къдрицата“ на Поуп","m_winter":"от „Зимна приказка“ на Шекспир","m_muchado":"от „Много шум за нищо“ на Шекспир","m_naiad":"нимфите на изворите и реките","m_thalassa":"първичната богиня на морето","m_despina":"дъщеря на Посейдон и Деметра","m_nereidOne":"една от нереидите, морските нимфи","m_larissa":"нимфа, обичана от Посейдон","m_hippocamp":"морският кон, който тегли колесницата на Посейдон","m_kerberos":"триглавото куче, което пази Хадес","m_styx":"реката на подземния свят и нейната богиня","m_hiiaka":"хавайската богиня на хула, дъщеря на Хаумея","m_namaka":"хавайската богиня на морето, дъщеря на Хаумея","m_mk2":"още без име: S/2015 (136472) 1","moreM":"и още {n}"},"pt":{"m_metis":"a primeira esposa de Zeus, deusa da sabedoria","m_nurseZeus":"uma ninfa que criou Zeus menino","m_daughterZeus":"uma filha de Zeus","m_grandZeus":"uma neta de Zeus","m_valetudo":"deusa romana da saúde, bisneta de Júpiter","m_muse":"uma das Musas","m_hora":"uma das Horas, deusas das estações","m_grace":"uma das Graças","m_ananke":"a Necessidade, deusa do inevitável","m_iocaste":"Jocasta, mãe e esposa de Édipo","m_pasiphae":"rainha de Creta, esposa de Minos","m_sinope":"uma ninfa que enganou Zeus","m_kore":"Perséfone, filha de Zeus e Deméter","m_praxidike":"a deusa que faz justiça","m_pan":"deus dos pastores e da natureza selvagem","m_daphnis":"um pastor siciliano, o primeiro cantor bucólico","m_atlas":"o titã que sustenta o céu","m_prometheus":"o titã que deu o fogo aos mortais","m_pandora":"a primeira mulher, que abriu o jarro dos males","m_epimetheus":"irmão de Prometeu, marido de Pandora","m_janus":"o deus romano das portas, de duas faces","m_aegaeon":"um gigante de cem braços","m_alkyonid":"uma filha do gigante Alcioneu","m_oceanid":"uma filha de Oceano e Tétis","m_calypso":"a ninfa que reteve Ulisses em sua ilha","m_helene":"Helena de Troia, neta de Cronos","m_polydeuces":"Pólux, irmão de Helena e de Castor","m_inuit":"da tradição inuíte","m_gallic":"da mitologia celta","m_ymir":"o primeiro gigante, de cujo corpo o mundo foi feito","m_mundilfari":"pai do Sol e da Lua na mitologia nórdica","m_narvi":"um filho de Loki","m_wolf":"um lobo da mitologia nórdica","m_norse":"um gigante da mitologia nórdica","m_lear":"de Rei Lear, de Shakespeare","m_hamlet":"de Hamlet, de Shakespeare","m_shrew":"de A Megera Domada, de Shakespeare","m_troilus":"de Troilo e Créssida, de Shakespeare","m_othello":"de Otelo, de Shakespeare","m_romeo":"de Romeu e Julieta, de Shakespeare","m_merchant":"de O Mercador de Veneza, de Shakespeare","m_asyou":"de Como Gostais, de Shakespeare","m_timon":"de Tímon de Atenas, de Shakespeare","m_popeHer":"a heroína de O Rapto da Madeixa, de Pope","m_winter":"de Conto de Inverno, de Shakespeare","m_muchado":"de Muito Barulho por Nada, de Shakespeare","m_naiad":"as ninfas das fontes e dos rios","m_thalassa":"a deusa primordial do mar","m_despina":"uma filha de Poseidon e Deméter","m_nereidOne":"uma das nereidas, ninfas do mar","m_larissa":"uma ninfa amada por Poseidon","m_hippocamp":"o cavalo-marinho que puxa a carruagem de Poseidon","m_kerberos":"o cão de três cabeças que guarda o Hades","m_styx":"o rio do mundo inferior e sua deusa","m_hiiaka":"deusa havaiana do hula, filha de Haumea","m_namaka":"deusa havaiana do mar, filha de Haumea","m_mk2":"ainda sem nome: S/2015 (136472) 1","moreM":"+{n} outras"}};Object.assign(T,M2.en,M2[LG]||{})}
+const FOOT={"en":["Only major moons are shown, and moon orbits are not to scale.","Every moon with an official name is here, on its real orbit from JPL’s elements: the small ones appear when you tap a giant planet or enter its system. Moon orbits are not to scale."],"pl":["Pokazano tylko główne księżyce, a ich orbity nie są w skali.","Są tu wszystkie księżyce z oficjalną nazwą, na prawdziwych orbitach według elementów JPL: małe pojawiają się po dotknięciu wielkiej planety lub w jej układzie. Orbity księżyców nie są w skali."],"cy":["Dim ond y prif leuadau a ddangosir, ac nid yw orbitau’r lleuadau wrth raddfa.","Mae pob lleuad ag enw swyddogol yma, ar ei horbit go iawn o elfennau JPL: daw’r rhai bach i’r golwg pan dapiwch gawr o blaned neu fynd i’w system. Nid yw orbitau’r lleuadau wrth raddfa."],"de":["Es werden nur die großen Monde gezeigt, und die Mondbahnen sind nicht maßstabsgetreu.","Jeder Mond mit offiziellem Namen ist dabei, auf seiner echten Bahn nach den Elementen des JPL: Die kleinen erscheinen, wenn du einen Riesenplaneten antippst oder sein System betrittst. Die Mondbahnen sind nicht maßstabsgetreu."],"es":["Solo se muestran las lunas principales, y las órbitas lunares no están a escala.","Aquí está cada luna con nombre oficial, en su órbita real según los elementos del JPL: las pequeñas aparecen al tocar un planeta gigante o al entrar en su sistema. Las órbitas lunares no están a escala."],"fr":["Seules les lunes principales sont représentées, et les orbites lunaires ne sont pas à l’échelle.","Toutes les lunes portant un nom officiel sont là, sur leur orbite réelle d’après les éléments du JPL : les petites apparaissent quand vous touchez une planète géante ou entrez dans son système. Les orbites lunaires ne sont pas à l’échelle."],"it":["Sono mostrate solo le lune principali e le loro orbite non sono in scala.","Ci sono tutte le lune con un nome ufficiale, sulla loro orbita reale secondo gli elementi del JPL: le piccole compaiono quando tocchi un pianeta gigante o entri nel suo sistema. Le orbite delle lune non sono in scala."],"zh":["只显示主要卫星，卫星轨道不按比例绘制。","所有拥有正式名称的卫星都在这里，按 JPL 的轨道根数沿真实轨道运行：轻触巨行星或进入它的卫星系统时，小卫星就会出现。卫星轨道不按比例绘制。"],"ja":["表示しているのは主要な衛星のみで、衛星の軌道は縮尺どおりではありません。","正式な名前をもつ衛星はすべて、JPL の軌道要素による本当の軌道で登場します。小さな衛星は、巨大惑星をタップするか、その衛星系に入ると現れます。衛星の軌道は縮尺どおりではありません。"],"vi":["Chỉ hiển thị các mặt trăng lớn, và quỹ đạo mặt trăng không theo tỷ lệ.","Mọi mặt trăng có tên chính thức đều có ở đây, trên quỹ đạo thật theo các yếu tố của JPL: các mặt trăng nhỏ hiện ra khi bạn chạm vào một hành tinh khổng lồ hoặc đi vào hệ của nó. Quỹ đạo mặt trăng không theo tỷ lệ."],"bg":["Показани са само големите луни, а орбитите на луните не са в мащаб.","Тук е всяка луна с официално име, по истинската си орбита според елементите на JPL: малките се появяват, когато докоснеш планета гигант или влезеш в системата ѝ. Орбитите на луните не са в мащаб."],"pt":["Só as luas principais são mostradas, e as órbitas das luas não estão em escala.","Toda lua com nome oficial está aqui, em sua órbita real segundo os elementos do JPL: as pequenas aparecem quando você toca um planeta gigante ou entra no sistema dele. As órbitas das luas não estão em escala."]};
+/*MYTH2-END*/
 const lab=(k,v)=>`<span class="fk">${esc(k)}</span>${esc(T.colon)}${v}`;
 function where(b){const out=[];if(WHERE[b.id])out.push(esc(T[WHERE[b.id]]));if(EXTRA[b.id])out.push(esc(T[EXTRA[b.id]]));if(SHOWER[b.id])out.push(lab(T.meteors,esc(T[SHOWER[b.id]])));return out}
 const myth=m=>MYTH[m.k]?T['m_'+MYTH[m.k]]:'';
@@ -7040,19 +7065,28 @@ const undrawn=b=>(UNDRAWN[b.id]||[]).map(k=>T['un_'+k]);
 // the moons in words: names (or links, through link(k, name)), and how many are known; mode 'short' gives a count past four moons
 function moons(b,link,mode){const s=b.moons.length,k=known(b),nm=m=>m.name.split(' ')[0];
   if(s){const partial=k!=null&&k!==0&&String(s)!==String(k);
-    if(mode==='short'&&s>4)return partial?esc(fill(T.many,{s,k})):'';
+    if(mode==='short'&&s>4&&(partial||s>6))return partial?esc(fill(T.many,{s,k})):'';   // all of a few moons by name (Pluto’s five), else the count
     if(mode==='count')return partial?esc(fill(T.many,{s,k})):'';
-    return lab(s===1?T.moon:T.moons,b.moons.map((m,j)=>link?link(j,nm(m)):esc(nm(m))).join(' · '))+(partial?` <span class="fn">(${esc(fill(T.shownOf,{s,k}))})</span>`:'')}
+    // a giant's small moons (its inner moonlets and irregular moons) follow the major ones under a fold, each still a link
+    const one=(m,j)=>link?link(j,nm(m)):esc(nm(m)),maj=[],sml=[];b.moons.forEach((m,j)=>(m.sm?sml:maj).push(one(m,j)));
+    const fold=sml.length?` <details class="fmore"><summary>${esc(fill(T.moreM||T.more,{n:sml.length}))}</summary>${sml.join(' · ')}</details>`:'';
+    return lab(s===1?T.moon:T.moons,maj.join(' · '))+fold+(partial?` <span class="fn">(${esc(fill(T.shownOf,{s,k}))})</span>`:'')}
   const u=undrawn(b);if(u.length)return lab(u.length===1?T.moon:T.moons,esc(u.join(T.sep||', '))+` <span class="fn">(${esc(T.notDrawn)})</span>`);
   if(k===0&&mode!=='short'&&mode!=='count')return esc(T.none);
   return ''}
 // the dial's info card: a "Family" row under the moons (the card already names the moons drawn)
 function dial(b,dl){if(!dl||!b)return;const old=dl.querySelector('.famrow');if(old)old.remove();
+  // the card's own list of moons: the major ones, then the small ones under a fold
+  if(b.moons&&b.moons.some(m=>m.sm)){const all=b.moons.map(m=>m.name).join(', ');dl.querySelectorAll('dd').forEach(dd=>{if(dd.textContent!==all)return;
+    const maj=b.moons.filter(m=>!m.sm).map(m=>esc(m.name)),sml=b.moons.filter(m=>m.sm).map(m=>esc(m.name));
+    dd.innerHTML=maj.join(', ')+` <details class="fmore"><summary>${esc(fill(T.moreM||T.more,{n:sml.length}))}</summary>${sml.join(', ')}</details>`})}
   const parts=where(b),m=moons(b,null,'count');if(m)parts.unshift(m);else{const u=undrawn(b);if(u.length)parts.unshift(moons(b,null,'full'))}
   if(!parts.length)return;
   const row=document.createElement('div');row.className='famrow';row.style.gridColumn='1/-1';
   row.innerHTML=`<dt>${esc(T.fam)}</dt><dd style="font-family:var(--f-body)">${parts.join(' · ')}</dd>`;dl.appendChild(row)}
-{const st=document.createElement('style');st.textContent='.fk{color:var(--bronze,#c9984f)}.fn{opacity:.85;white-space:nowrap}';document.head.appendChild(st)}
+{const st=document.createElement('style');st.textContent='.fk{color:var(--bronze,#c9984f)}.fn{opacity:.85;white-space:nowrap}.fmore{display:inline}.fmore[open]{display:block;margin-top:.2rem;max-height:min(34vh,15rem);overflow-y:auto;overscroll-behavior:contain}.fmore>summary{display:inline;cursor:pointer;color:var(--bronze,#c9984f);list-style:none;text-decoration:underline dotted rgba(201,152,79,.75);text-underline-offset:3px}.fmore>summary::-webkit-details-marker{display:none}.fmore>summary:focus-visible{outline:2px solid var(--bronze,#c9984f);outline-offset:1px}@media (pointer:coarse){.fmore>summary{display:inline-flex;align-items:center;min-height:var(--tap,44px);padding:0 .3em}}';document.head.appendChild(st)}
+// the dial's footnote said only the major moons were shown: now every named moon is
+{const f=document.querySelector('.foot'),x=FOOT[LG];if(f&&x&&f.innerHTML.includes(x[0]))f.innerHTML=f.innerHTML.replace(x[0],x[1])}
 window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,myth,known,undrawn,moons,dial};
 })();
 /*FAM-END*/</script>
@@ -7161,7 +7195,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       R: 58232,
       rot: 10.656,
       vowel: "u",
-      voice: "Cronos, pai do tempo: um “u” escuro e oco, cercado por oito luas.",
+      voice: "Cronos, pai do tempo: um “u” escuro e oco, cercado por suas muitas luas.",
       el: pl(9.53667594, 0.05386179, 2.48599187, 49.95424423, 92.59887831, 113.66242448, 1222.49362201),
       moons: [{ name: "Mimas", k: "mimas", P: 0.942, a: 185539, R: 198 }, { name: "Encélado", k: "enceladus", P: 1.37, a: 237948, R: 252 }, { name: "Tétis", k: "tethys", P: 1.888, a: 294619, R: 531 }, { name: "Dione", k: "dione", P: 2.737, a: 377396, R: 561 }, { name: "Reia", k: "rhea", P: 4.518, a: 527108, R: 764 }, { name: "Titã", k: "titan", P: 15.945, a: 1221870, R: 2575 }, { name: "Hipérion", k: "hyperion", P: 21.28, a: 1500880, R: 135 }, { name: "Jápeto", k: "iapetus", P: 79.32, a: 3560820, R: 735 }]
     },
@@ -7445,6 +7479,194 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       moons: []
     }
   ];
+  const MOONS_ADD = {
+    jupiter: [
+      { name: "Métis", k: "metis", P: 0.2948, a: 128e3, R: 21.5, e: 0, i: 0, O: 0, w: 0, M: 166, fr: 0, sm: 1, ph: "m e t i: s", my: "metis" },
+      { name: "Adrasteia", k: "adrastea", P: 0.2983, a: 129e3, R: 8.2, e: 0, i: 0, O: 0, w: 0, M: 214.5, fr: 0, sm: 1, ph: "a d r a s t e a:", my: "nurseZeus" },
+      { name: "Tebe", k: "thebe", P: 0.6761, a: 221900, R: 49.3, e: 0.018, i: 1.1, O: 340.4, w: 26.6, M: 182.1, fr: 0, sm: 1, ph: "th e b e:", my: "loveZeus" },
+      { name: "Temisto", k: "themisto", P: 129.9681, a: 7397e3, R: 4.5, e: 0.257, i: 44.3, O: 202.7, w: 236.3, M: 289.1, fr: 1, sm: 1, ph: "th e m i s t o:", my: "loveZeus" },
+      { name: "Leda", k: "leda", P: 240.3264, a: 11145200, R: 10.75, e: 0.162, i: 28.2, O: 216.9, w: 271.3, M: 232.6, fr: 1, sm: 1, ph: "l e d a:", my: "loveZeus" },
+      { name: "Ersa", k: "ersa", P: 248.6153, a: 11399400, R: 1.5, e: 0.117, i: 29, O: 113.7, w: 300.7, M: 270.8, fr: 1, sm: 1, ph: "e: r s a", my: "daughterZeus" },
+      { name: "Himalia", k: "himalia", P: 249.909, a: 11439e3, R: 85, e: 0.16, i: 28.4, O: 64.2, w: 321.1, M: 78.3, fr: 1, sm: 1, ph: "h i m a l i a:", my: "loveZeus" },
+      { name: "Pandia", k: "pandia", P: 251.2319, a: 11479600, R: 1.5, e: 0.178, i: 28.9, O: 249.8, w: 188.7, M: 158.5, fr: 1, sm: 1, ph: "p a n d i a:", my: "daughterZeus" },
+      { name: "Lisiteia", k: "lysithea", P: 258.5035, a: 11699100, R: 21.1, e: 0.117, i: 27.7, O: 9.2, w: 48.3, M: 328.5, fr: 1, sm: 1, ph: "l i s i th e a:", my: "loveZeus" },
+      { name: "Elara", k: "elara", P: 258.8861, a: 11710700, R: 39.95, e: 0.212, i: 27.8, O: 112.8, w: 129.9, M: 346.9, fr: 1, sm: 1, ph: "e l a r a:", my: "loveZeus" },
+      { name: "Dia", k: "dia", P: 277.2472, a: 12257900, R: 2, e: 0.232, i: 29.1, O: 293.9, w: 164.1, M: 320.9, fr: 1, sm: 1, ph: "d i a:", my: "loveZeus" },
+      { name: "Carpo", k: "carpo", P: 454.4, a: 17039500, R: 1.5, e: 0.415, i: 53.3, O: 52.1, w: 90.5, M: 336.6, fr: 1, sm: 1, ph: "k a r p o:", my: "hora" },
+      { name: "Valetudo", k: "valetudo", P: 522.0743, a: 18690100, R: 0.5, e: 0.217, i: 34.5, O: 291.2, w: 316.3, M: 90.5, fr: 1, sm: 1, ph: "f a l e t u d o:", my: "valetudo" },
+      { name: "Euporia", k: "euporie", P: -546.1778, a: 19261900, R: 1, e: 0.148, i: 145.5, O: 63.4, w: 109.5, M: 56.4, fr: 1, sm: 1, ph: "e u p o: r i e", my: "hora" },
+      { name: "Eupheme", k: "eupheme", P: -611.316, a: 20763400, R: 1, e: 0.234, i: 147.9, O: 227.5, w: 73.6, M: 339.8, fr: 1, sm: 1, ph: "e u f e: m e", my: "grandZeus" },
+      { name: "Mneme", k: "mneme", P: -613.6104, a: 20815800, R: 1, e: 0.24, i: 147.8, O: 0.9, w: 50.1, M: 236.1, fr: 1, sm: 1, ph: "m n e: m e", my: "muse" },
+      { name: "Euante", k: "euanthe", P: -613.9278, a: 20822900, R: 1.5, e: 0.243, i: 148.1, O: 265.2, w: 312.4, M: 353.5, fr: 1, sm: 1, ph: "e u a: n th e", my: "loveZeus" },
+      { name: "Harpalique", k: "harpalyke", P: -616.7833, a: 20887500, R: 2, e: 0.239, i: 147.8, O: 35.6, w: 104.3, M: 255.4, fr: 1, sm: 1, ph: "h a r p a l i k e:" },
+      { name: "Ortósia", k: "orthosie", P: -617.2347, a: 20897800, R: 1, e: 0.294, i: 144.2, O: 212.4, w: 244.7, M: 161.1, fr: 1, sm: 1, ph: "o r th o s i e:", my: "hora" },
+      { name: "Helique", k: "helike", P: -617.8625, a: 20911400, R: 2, e: 0.155, i: 154.4, O: 94.6, w: 305.1, M: 45.8, fr: 1, sm: 1, ph: "h e l i k e:", my: "nurseZeus" },
+      { name: "Praxidique", k: "praxidike", P: -618.7229, a: 20931100, R: 3.5, e: 0.245, i: 148.2, O: 281.3, w: 182.5, M: 128, fr: 1, sm: 1, ph: "p r a k s i d i k e:", my: "praxidike" },
+      { name: "Telxinoi", k: "thelxinoe", P: -620.5458, a: 20972300, R: 1, e: 0.229, i: 150.7, O: 174.9, w: 307, M: 275.1, fr: 1, sm: 1, ph: "th e l k s i n o e:", my: "muse" },
+      { name: "Tione", k: "thyone", P: -620.5875, a: 20972700, R: 2, e: 0.235, i: 147.6, O: 240.8, w: 105.1, M: 242.5, fr: 1, sm: 1, ph: "th i o n e:", my: "loveZeus" },
+      { name: "Ananke", k: "ananke", P: -623.1097, a: 21029500, R: 14.55, e: 0.238, i: 147.6, O: 13.7, w: 78.8, M: 271.7, fr: 1, sm: 1, ph: "a n a n k e:", my: "ananke" },
+      { name: "Iocasta", k: "iocaste", P: -624.5479, a: 21062300, R: 2.5, e: 0.223, i: 148.7, O: 268.9, w: 91.4, M: 182, fr: 1, sm: 1, ph: "i o k a: s t e", my: "iocaste" },
+      { name: "Hermipe", k: "hermippe", P: -626.3799, a: 21103600, R: 2, e: 0.22, i: 150.2, O: 330.3, w: 277.2, M: 158.6, fr: 1, sm: 1, ph: "h e r m i p e:", my: "loveZeus" },
+      { name: "Philophrosyne", k: "philophrosyne", P: -694.2042, a: 22600200, R: 1, e: 0.221, i: 146.1, O: 234.3, w: 0.9, M: 88.9, fr: 1, sm: 1, ph: "f i l o f r o s i n e:", my: "grandZeus" },
+      { name: "Pasite", k: "pasithee", P: -705.409, a: 22840800, R: 1, e: 0.274, i: 164.5, O: 318, w: 207.9, M: 237.8, fr: 1, sm: 1, ph: "p a s i: th e e", my: "grace" },
+      { name: "Euridome", k: "eurydome", P: -707.8569, a: 22894500, R: 1.5, e: 0.287, i: 148.9, O: 297.7, w: 223.4, M: 281.8, fr: 1, sm: 1, ph: "e u r i: d o m e", my: "loveZeus" },
+      { name: "Caldene", k: "chaldene", P: -709.3625, a: 22926300, R: 2, e: 0.261, i: 164.7, O: 134.5, w: 231.6, M: 275.3, fr: 1, sm: 1, ph: "k a l d e n e:", my: "loveZeus" },
+      { name: "Isonoe", k: "isonoe", P: -711.6604, a: 22976300, R: 2, e: 0.249, i: 164.9, O: 134.1, w: 131, M: 116.3, fr: 1, sm: 1, ph: "i s o n o e:", my: "loveZeus" },
+      { name: "Calicore", k: "kallichore", P: -713.5931, a: 23017100, R: 1.9, e: 0.253, i: 164.7, O: 23.9, w: 352.6, M: 66.8, fr: 1, sm: 1, ph: "k a l i k o r e:" },
+      { name: "Erinome", k: "erinome", P: -714.0542, a: 23027200, R: 1.5, e: 0.272, i: 164.3, O: 311.2, w: 359.9, M: 273.1, fr: 1, sm: 1, ph: "e r i n o m e:", my: "loveZeus" },
+      { name: "Cale", k: "kale", P: -715.016, a: 23047800, R: 1, e: 0.262, i: 164.6, O: 56.7, w: 69.2, M: 175.9, fr: 1, sm: 1, ph: "k a: l e", my: "grace" },
+      { name: "Eirene", k: "eirene", P: -715.191, a: 23051300, R: 2, e: 0.263, i: 164.7, O: 180, w: 86.4, M: 336.7, fr: 1, sm: 1, ph: "e i r e n e:", my: "hora" },
+      { name: "Aitne", k: "aitne", P: -715.5396, a: 23059400, R: 1.5, e: 0.273, i: 164.5, O: 358.4, w: 72.2, M: 120.6, fr: 1, sm: 1, ph: "a i: t n e", my: "loveZeus" },
+      { name: "Euquelade", k: "eukelade", P: -715.6868, a: 23062400, R: 2, e: 0.274, i: 164.7, O: 200.4, w: 290.1, M: 234.2, fr: 1, sm: 1, ph: "e u k e: l a d e", my: "muse" },
+      { name: "Arque", k: "arche", P: -717.1056, a: 23093200, R: 1.5, e: 0.263, i: 164.5, O: 333.3, w: 172.5, M: 34, fr: 1, sm: 1, ph: "a: r k e", my: "muse" },
+      { name: "Taigete", k: "taygete", P: -717.5917, a: 23103400, R: 2.5, e: 0.257, i: 164.7, O: 300.8, w: 207.7, M: 116.5, fr: 1, sm: 1, ph: "t a i g e t e:", my: "loveZeus" },
+      { name: "Carme", k: "carme", P: -719.2806, a: 23139200, R: 23.35, e: 0.261, i: 164.6, O: 115.5, w: 6.5, M: 259.5, fr: 1, sm: 1, ph: "k a r m e:", my: "loveZeus" },
+      { name: "Herse", k: "herse", P: -719.6264, a: 23146700, R: 1, e: 0.258, i: 164.4, O: 299.5, w: 344.1, M: 123.1, fr: 1, sm: 1, ph: "h e: r s e", my: "daughterZeus" },
+      { name: "Calique", k: "kalyke", P: -726.7007, a: 23298e3, R: 3.45, e: 0.261, i: 164.7, O: 37.7, w: 240.5, M: 224.9, fr: 1, sm: 1, ph: "k a l i k e:", my: "loveZeus" },
+      { name: "Hegemone", k: "hegemone", P: -728.7743, a: 23342600, R: 1.5, e: 0.357, i: 152.5, O: 311.5, w: 192.2, M: 241.1, fr: 1, sm: 1, ph: "h e g e: m o n e", my: "grace" },
+      { name: "Pasife", k: "pasiphae", P: -734.4215, a: 23463200, R: 28.9, e: 0.412, i: 148.3, O: 315.7, w: 172.8, M: 279.3, fr: 1, sm: 1, ph: "p a s i f a e:", my: "pasiphae" },
+      { name: "Esponde", k: "sponde", P: -737.9542, a: 23538700, R: 1, e: 0.323, i: 149.4, O: 109.3, w: 56.6, M: 177.4, fr: 1, sm: 1, ph: "s p o: n d e", my: "hora" },
+      { name: "Megaclite", k: "megaclite", P: -742.7715, a: 23640100, R: 3, e: 0.421, i: 149.9, O: 292.2, w: 309.9, M: 116.1, fr: 1, sm: 1, ph: "m e g a k l i t e:", my: "loveZeus" },
+      { name: "Cilene", k: "cyllene", P: -743.2062, a: 2365e4, R: 1, e: 0.421, i: 146.8, O: 253.6, w: 174.6, M: 153.3, fr: 1, sm: 1, ph: "k i l e n e:" },
+      { name: "Sinope", k: "sinope", P: -744.5951, a: 23679300, R: 17.5, e: 0.262, i: 157.3, O: 308, w: 354.3, M: 157.4, fr: 1, sm: 1, ph: "s i n o: p e", my: "sinope" },
+      { name: "Aoede", k: "aoede", P: -749.0708, a: 23773100, R: 2, e: 0.437, i: 155.7, O: 156.5, w: 43.1, M: 207.6, fr: 1, sm: 1, ph: "a o e: d e", my: "muse" },
+      { name: "Autonoe", k: "autonoe", P: -749.6097, a: 23785200, R: 2, e: 0.326, i: 150.7, O: 264.8, w: 61.2, M: 134, fr: 1, sm: 1, ph: "a u t o n o e:", my: "loveZeus" },
+      { name: "Caliroe", k: "callirrhoe", P: -749.791, a: 23789400, R: 4.8, e: 0.29, i: 144.9, O: 278.2, w: 13.5, M: 117.9, fr: 1, sm: 1, ph: "k a l i r h o e:" },
+      { name: "Coré", k: "kore", P: -769.4229, a: 24203300, R: 1, e: 0.338, i: 141.7, O: 324.2, w: 135.3, M: 40.6, fr: 1, sm: 1, ph: "k o: r e", my: "kore" }
+    ],
+    saturn: [
+      { name: "Pã", k: "pan", P: 0.5751, a: 133600, R: 14, e: 0, i: 0, O: 0, w: 0, M: 146.6, fr: 0, sm: 1, ph: "p a: n", my: "pan" },
+      { name: "Dafne", k: "daphnis", P: 0.5941, a: 136500, R: 3.86, e: 0, i: 0, O: 0, w: 0, M: 153.6, fr: 0, sm: 1, ph: "d a f n i: s", my: "daphnis" },
+      { name: "Atlas", k: "atlas", P: 0.6046, a: 137700, R: 15.1, e: 1e-3, i: 0, O: 0, w: 82.3, M: 289.1, fr: 0, sm: 1, ph: "a t l a: s", my: "atlas" },
+      { name: "Prometeu", k: "prometheus", P: 0.6159, a: 139400, R: 43.1, e: 2e-3, i: 0, O: 0, w: 341.9, M: 135.4, fr: 0, sm: 1, ph: "p r o m e th e u: s", my: "prometheus" },
+      { name: "Pandora", k: "pandora", P: 0.6314, a: 141700, R: 40.6, e: 4e-3, i: 0, O: 0, w: 217.9, M: 123.9, fr: 0, sm: 1, ph: "p a n d o r a:", my: "pandora" },
+      { name: "Epimeteu", k: "epimetheus", P: 0.697, a: 151400, R: 58.2, e: 0.02, i: 0.3, O: 189.8, w: 96.3, M: 197.2, fr: 0, sm: 1, ph: "e p i m e th e u: s", my: "epimetheus" },
+      { name: "Jano", k: "janus", P: 0.6974, a: 151500, R: 89.2, e: 7e-3, i: 0.2, O: 159.9, w: 11.1, M: 111.7, fr: 0, sm: 1, ph: "i a n u: s", my: "janus" },
+      { name: "Aegaeon", k: "aegaeon", P: 0.8081, a: 167500, R: 0.33, e: 0, i: 0, O: 0, w: 0, M: 4.4, fr: 0, sm: 1, ph: "a e g a e o: n", my: "aegaeon" },
+      { name: "Methone", k: "methone", P: 1.0095, a: 194700, R: 1.46, e: 2e-3, i: 0, O: 0, w: 315.5, M: 0, fr: 0, sm: 1, ph: "m e th o n e:", my: "alkyonid" },
+      { name: "Anthe", k: "anthe", P: 1.0389, a: 198100, R: 0.9, e: 2e-3, i: 0, O: 0, w: 293.4, M: 351.4, fr: 0, sm: 1, ph: "a: n th e", my: "alkyonid" },
+      { name: "Palene", k: "pallene", P: 1.1561, a: 212300, R: 2.24, e: 4e-3, i: 0.2, O: 304.3, w: 194.9, M: 2, fr: 0, sm: 1, ph: "p a l e n e:", my: "alkyonid" },
+      { name: "Telesto", k: "telesto", P: 1.8878, a: 295e3, R: 12.17, e: 1e-3, i: 1.2, O: 242.1, w: 66.2, M: 0, fr: 0, sm: 1, ph: "t e l e s t o:", my: "oceanid" },
+      { name: "Calipso", k: "calypso", P: 1.8878, a: 295e3, R: 9.64, e: 1e-3, i: 1.5, O: 326.6, w: 221.6, M: 0, fr: 0, sm: 1, ph: "k a l i: p s o", my: "calypso" },
+      { name: "Helene", k: "helene", P: 2.7369, a: 377600, R: 18, e: 7e-3, i: 0.2, O: 260.8, w: 194.3, M: 295.5, fr: 0, sm: 1, ph: "h e l e n e:", my: "helene" },
+      { name: "Polideuces", k: "polydeuces", P: 2.7369, a: 377600, R: 1.54, e: 0.019, i: 0.2, O: 167.5, w: 94.1, M: 359, fr: 0, sm: 1, ph: "p o l i d e u k e: s", my: "polydeuces" },
+      { name: "Kiviuq", k: "kiviuq", P: 448.9076, a: 11307400, R: 8.5, e: 0.275, i: 48, O: 352.7, w: 91.8, M: 183.2, fr: 1, sm: 1, ph: "k i f i u: k", my: "inuit" },
+      { name: "Ijiraq", k: "ijiraq", P: 451.1201, a: 11344700, R: 6.5, e: 0.293, i: 49.2, O: 152.5, w: 68.6, M: 83.4, fr: 1, sm: 1, ph: "i i r a: k", my: "inuit" },
+      { name: "Febe", k: "phoebe", P: -550.3039, a: 12929400, R: 106.5, e: 0.164, i: 175.2, O: 192.7, w: 240.3, M: 308, fr: 0, sm: 1, ph: "f o e b e:", my: "sisKronos" },
+      { name: "Paaliaq", k: "paaliaq", P: 685.7153, a: 14997700, R: 12.5, e: 0.378, i: 48.5, O: 353.2, w: 237.6, M: 318.2, fr: 1, sm: 1, ph: "p a l i a: k" },
+      { name: "Skathi", k: "skathi", P: -725.7313, a: 15575400, R: 4, e: 0.281, i: 151.6, O: 284.1, w: 202.3, M: 269.3, fr: 1, sm: 1, ph: "s k a: th i", my: "norse" },
+      { name: "Albiorix", k: "albiorix", P: 779.0701, a: 16329200, R: 14.3, e: 0.482, i: 36.8, O: 111.1, w: 62.8, M: 155, fr: 1, sm: 1, ph: "a l b i o r i: k s", my: "gallic" },
+      { name: "Bebhionn", k: "bebhionn", P: 829.6437, a: 17027300, R: 3, e: 0.459, i: 38.6, O: 197.7, w: 5.1, M: 128.4, fr: 1, sm: 1, ph: "b e f i: n", my: "gallic" },
+      { name: "Erriapo", k: "erriapus", P: 864.9236, a: 17506900, R: 5, e: 0.475, i: 37.1, O: 146.2, w: 279.8, M: 14.3, fr: 1, sm: 1, ph: "e r i a p u: s", my: "gallic" },
+      { name: "Skoll", k: "skoll", P: -873.5736, a: 17623400, R: 2.5, e: 0.463, i: 159.4, O: 294, w: 186.1, M: 181.2, fr: 1, sm: 1, ph: "s k o: l", my: "wolf" },
+      { name: "Tarqeq", k: "tarqeq", P: 882.8514, a: 17751e3, R: 3.5, e: 0.144, i: 48.7, O: 93.3, w: 72.2, M: 292.8, fr: 1, sm: 1, ph: "t a r k e: k", my: "inuit" },
+      { name: "Siarnaq", k: "siarnaq", P: 892.6799, a: 17881100, R: 19.65, e: 0.308, i: 47.8, O: 64, w: 68.4, M: 62.7, fr: 1, sm: 1, ph: "s i a: r n a k", my: "inuit" },
+      { name: "Tarvos", k: "tarvos", P: 917.984, a: 18216600, R: 7.5, e: 0.522, i: 37.8, O: 95.7, w: 282.9, M: 64.5, fr: 1, sm: 1, ph: "t a r f o: s", my: "gallic" },
+      { name: "Hyrrokkin", k: "hyrrokkin", P: -927.4569, a: 18340900, R: 4, e: 0.336, i: 149.9, O: 40.2, w: 264.8, M: 214.8, fr: 1, sm: 1, ph: "h i r o k i: n", my: "norse" },
+      { name: "Greip", k: "greip", P: -930.4389, a: 1838e4, R: 2.5, e: 0.317, i: 174.2, O: 335.8, w: 146.2, M: 355.9, fr: 1, sm: 1, ph: "g r e i: p", my: "norse" },
+      { name: "Mundilfari", k: "mundilfari", P: -946.2903, a: 18588200, R: 3.5, e: 0.211, i: 167.1, O: 79.2, w: 305.4, M: 299, fr: 1, sm: 1, ph: "m u n d i l f a r i:", my: "mundilfari" },
+      { name: "Gridr", k: "gridr", P: -997.3319, a: 19250600, R: 2, e: 0.187, i: 163.9, O: 330.8, w: 271.4, M: 197, fr: 1, sm: 1, ph: "g r i: d r", my: "norse" },
+      { name: "Bergelmir", k: "bergelmir", P: -998.6187, a: 19268100, R: 2.5, e: 0.145, i: 158.8, O: 207.9, w: 133.9, M: 255.7, fr: 1, sm: 1, ph: "b e r g e l m i: r", my: "norse" },
+      { name: "Jarnsaxa", k: "jarnsaxa", P: -999.1271, a: 19273500, R: 3, e: 0.218, i: 163, O: 9.2, w: 229.2, M: 175.5, fr: 1, sm: 1, ph: "i a r n s a k s a:", my: "norse" },
+      { name: "Narvi", k: "narvi", P: -999.9417, a: 19285e3, R: 3.5, e: 0.441, i: 142.2, O: 179, w: 177.9, M: 111.5, fr: 1, sm: 1, ph: "n a r f i:", my: "narvi" },
+      { name: "Suttungr", k: "suttungr", P: -1008.2451, a: 19391900, R: 3.5, e: 0.116, i: 175.7, O: 253.2, w: 65, M: 171, fr: 1, sm: 1, ph: "s u t u: n g", my: "norse" },
+      { name: "Hati", k: "hati", P: -1032.0236, a: 19695e3, R: 2.5, e: 0.372, i: 165.4, O: 316.3, w: 10.4, M: 270.6, fr: 1, sm: 1, ph: "h a t i:", my: "wolf" },
+      { name: "Eggther", k: "eggther", P: -1043.8035, a: 19844600, R: 3, e: 0.157, i: 165, O: 84.5, w: 130.1, M: 111.7, fr: 1, sm: 1, ph: "e g th e: r", my: "norse" },
+      { name: "Farbauti", k: "farbauti", P: -1079.1243, a: 20290700, R: 2.5, e: 0.249, i: 156.2, O: 138, w: 343.6, M: 9, fr: 1, sm: 1, ph: "f a r b a u t i:", my: "norse" },
+      { name: "Thrymr", k: "thrymr", P: -1082.2292, a: 20330500, R: 4, e: 0.467, i: 175, O: 247.3, w: 92.2, M: 216.2, fr: 1, sm: 1, ph: "th r u: m r", my: "norse" },
+      { name: "Bestla", k: "bestla", P: -1082.9444, a: 20337800, R: 3.5, e: 0.486, i: 138.3, O: 283, w: 85.6, M: 33.1, fr: 1, sm: 1, ph: "b e s t l a:", my: "norse" },
+      { name: "Angrboda", k: "angrboda", P: -1103.1986, a: 20591500, R: 2, e: 0.216, i: 177.7, O: 279.1, w: 104.2, M: 263, fr: 1, sm: 1, ph: "a n g r b o d a:", my: "norse" },
+      { name: "Aegir", k: "aegir", P: -1109.1278, a: 20664400, R: 3, e: 0.255, i: 166.1, O: 181.9, w: 244.7, M: 23.5, fr: 1, sm: 1, ph: "a i: g i r", my: "norse" },
+      { name: "Beli", k: "beli", P: -1112.2687, a: 20703700, R: 2, e: 0.087, i: 158.9, O: 258.7, w: 263.5, M: 191.7, fr: 1, sm: 1, ph: "b e l i:", my: "norse" },
+      { name: "Gerd", k: "gerd", P: -1131.9062, a: 20947500, R: 2, e: 0.517, i: 174.4, O: 260.4, w: 307.2, M: 49.5, fr: 1, sm: 1, ph: "g e: r d", my: "norse" },
+      { name: "Gunnlod", k: "gunnlod", P: -1147.7354, a: 21141800, R: 2, e: 0.251, i: 160.4, O: 293.3, w: 24.7, M: 311.4, fr: 1, sm: 1, ph: "g u n l o: d", my: "norse" },
+      { name: "Skrymir", k: "skrymir", P: -1172.7215, a: 21447400, R: 2, e: 0.437, i: 175.6, O: 177.7, w: 68.1, M: 68.9, fr: 1, sm: 1, ph: "s k r i m i: r", my: "norse" },
+      { name: "Alvaldi", k: "alvaldi", P: -1217.8042, a: 21993800, R: 3, e: 0.238, i: 177.4, O: 321.8, w: 188.1, M: 38.3, fr: 1, sm: 1, ph: "a l f a l d i:", my: "norse" },
+      { name: "Kari", k: "kari", P: -1220.9757, a: 22032100, R: 3, e: 0.469, i: 153, O: 288.3, w: 160.2, M: 83.1, fr: 1, sm: 1, ph: "k a r i:", my: "norse" },
+      { name: "Geirrod", k: "geirrod", P: -1240.0465, a: 22259400, R: 2, e: 0.539, i: 154.4, O: 127.9, w: 349.6, M: 202.2, fr: 1, sm: 1, ph: "g e i r o: d", my: "norse" },
+      { name: "Fenrir", k: "fenrir", P: -1245.9215, a: 22330800, R: 2, e: 0.137, i: 164.5, O: 234.6, w: 114.5, M: 38.6, fr: 1, sm: 1, ph: "f e n r i: r", my: "wolf" },
+      { name: "Surtur", k: "surtur", P: -1281.1396, a: 22748e3, R: 3, e: 0.448, i: 168.4, O: 255.3, w: 314.4, M: 9.9, fr: 1, sm: 1, ph: "s u r t u: r", my: "norse" },
+      { name: "Loge", k: "loge", P: -1295.5243, a: 22919200, R: 2.5, e: 0.191, i: 168.1, O: 333, w: 20.5, M: 32.1, fr: 1, sm: 1, ph: "l o g e:", my: "norse" },
+      { name: "Ymir", k: "ymir", P: -1298.6819, a: 22955600, R: 9.5, e: 0.338, i: 172.3, O: 204.5, w: 45.3, M: 167.5, fr: 1, sm: 1, ph: "i m i: r", my: "ymir" },
+      { name: "Thiazzi", k: "thiazzi", P: -1351.8319, a: 23577500, R: 2, e: 0.511, i: 158.8, O: 73.1, w: 303.2, M: 334.7, fr: 1, sm: 1, ph: "th i a: t s i", my: "norse" },
+      { name: "Fornjot", k: "fornjot", P: -1470.3618, a: 24936800, R: 3, e: 0.213, i: 170, O: 269.3, w: 321.9, M: 53.5, fr: 1, sm: 1, ph: "f o r n i o: t", my: "norse" }
+    ],
+    uranus: [
+      { name: "Cordélia", k: "cordelia", P: 0.3347, a: 49755, R: 20.73, e: 0, i: 0.2, O: 1.1, w: 0, M: 287.4, fr: 0, sm: 1, ph: "k o r d e: l i a", my: "lear" },
+      { name: "Ofélia", k: "ophelia", P: 0.3764, a: 53765, R: 22.31, e: 0.011, i: 0.2, O: 151.6, w: 19.3, M: 213.4, fr: 0, sm: 1, ph: "o f e: l i a", my: "hamlet" },
+      { name: "Bianca", k: "bianca", P: 0.4347, a: 59170, R: 26.56, e: 6e-3, i: 2.3, O: 272.5, w: 328, M: 109.1, fr: 0, sm: 1, ph: "b i a: n k a", my: "shrew" },
+      { name: "Créssida", k: "cressida", P: 0.4639, a: 61770, R: 40.66, e: 4e-3, i: 1.8, O: 308.2, w: 87.9, M: 0.5, fr: 0, sm: 1, ph: "k r e: s i d a", my: "troilus" },
+      { name: "Desdémona", k: "desdemona", P: 0.4736, a: 62663, R: 33.93, e: 7e-3, i: 3.1, O: 283.9, w: 137, M: 230, fr: 0, sm: 1, ph: "d e s d e m o: n a", my: "othello" },
+      { name: "Julieta", k: "juliet", P: 0.4931, a: 64362, R: 50.78, e: 6e-3, i: 3, O: 141, w: 274.9, M: 319.8, fr: 0, sm: 1, ph: "d i u: l i e t", my: "romeo" },
+      { name: "Pórcia", k: "portia", P: 0.5132, a: 66101, R: 69.21, e: 4e-3, i: 2.7, O: 146.7, w: 31.6, M: 310.1, fr: 0, sm: 1, ph: "p o: r t i a", my: "merchant" },
+      { name: "Rosalinda", k: "rosalind", P: 0.5583, a: 69930, R: 36, e: 3e-3, i: 1.7, O: 330, w: 231.8, M: 287.7, fr: 0, sm: 1, ph: "r o: s a l i n d", my: "asyou" },
+      { name: "Cupido", k: "cupid", P: 0.6125, a: 74396, R: 8.9, e: 7e-3, i: 2, O: 31.1, w: 168, M: 3.3, fr: 0, sm: 1, ph: "k u: p i d", my: "timon" },
+      { name: "Belinda", k: "belinda", P: 0.6236, a: 75258, R: 43.47, e: 2e-3, i: 1.4, O: 96.2, w: 58.6, M: 226.4, fr: 0, sm: 1, ph: "b e l i: n d a", my: "popeHer" },
+      { name: "Perdita", k: "perdita", P: 0.6382, a: 76418, R: 13.3, e: 5e-3, i: 1.6, O: 270.4, w: 296.9, M: 168, fr: 0, sm: 1, ph: "p e: r d i t a", my: "winter" },
+      { name: "Puck", k: "puck", P: 0.7618, a: 86007, R: 81, e: 9e-3, i: 1.1, O: 111.2, w: 337, M: 264.1, fr: 0, sm: 1, ph: "p u: k", my: "dream" },
+      { name: "Mab", k: "mab", P: 0.9229, a: 97737, R: 6, e: 6e-3, i: 1.8, O: 307.8, w: 318.6, M: 250.8, fr: 0, sm: 1, ph: "m a: b", my: "romeo" },
+      { name: "Francisco", k: "francisco", P: -267, a: 4275700, R: 11, e: 0.144, i: 146.8, O: 101.9, w: 137.6, M: 288.4, fr: 1, sm: 1, ph: "f r a n s i: s k o", my: "tempest" },
+      { name: "Caliban", k: "caliban", P: -580, a: 7167e3, R: 21, e: 0.2, i: 141.4, O: 174.9, w: 349.7, M: 241.2, fr: 1, sm: 1, ph: "k a: l i b a n", my: "tempest" },
+      { name: "Stephano", k: "stephano", P: -677, a: 7951400, R: 16, e: 0.235, i: 143.6, O: 193.3, w: 17.1, M: 164.4, fr: 1, sm: 1, ph: "s t e: f a n o", my: "tempest" },
+      { name: "Trinculo", k: "trinculo", P: -749, a: 8502600, R: 9, e: 0.22, i: 167.1, O: 196.5, w: 162.2, M: 55.6, fr: 1, sm: 1, ph: "t r i: n k u l o", my: "tempest" },
+      { name: "Sycorax", k: "sycorax", P: -1286, a: 12193200, R: 78.5, e: 0.52, i: 157, O: 267.1, w: 25.4, M: 332.1, fr: 1, sm: 1, ph: "s i: k o r a k s", my: "tempest" },
+      { name: "Margaret", k: "margaret", P: 1655, a: 14425e3, R: 10, e: 0.642, i: 60.5, O: 0.9, w: 90.7, M: 115.9, fr: 1, sm: 1, ph: "m a: r g a r e t", my: "muchado" },
+      { name: "Prospero", k: "prospero", P: -1974, a: 16221e3, R: 25, e: 0.441, i: 149.4, O: 324.5, w: 180.4, M: 197.6, fr: 1, sm: 1, ph: "p r o: s p e r o", my: "tempest" },
+      { name: "Setebos", k: "setebos", P: -2215, a: 17519800, R: 23.5, e: 0.579, i: 153.9, O: 244.7, w: 356.1, M: 148, fr: 1, sm: 1, ph: "s e: t e b o s", my: "tempest" },
+      { name: "Ferdinand", k: "ferdinand", P: -2788, a: 20421400, R: 10.5, e: 0.395, i: 169.2, O: 223.9, w: 166.9, M: 172.3, fr: 1, sm: 1, ph: "f e: r d i n a n d", my: "tempest" }
+    ],
+    neptune: [
+      { name: "Náiade", k: "naiad", P: 0.294, a: 48200, R: 29, e: 0, i: 4.7, O: 41.4, w: 0, M: 89.7, fr: 0, sm: 1, ph: "n a: i a d", my: "naiad" },
+      { name: "Talassa", k: "thalassa", P: 0.3111, a: 50100, R: 40, e: 0, i: 0.2, O: 130.6, w: 0, M: 165.7, fr: 0, sm: 1, ph: "th a l a s a:", my: "thalassa" },
+      { name: "Despina", k: "despina", P: 0.3347, a: 52500, R: 74, e: 0, i: 0, O: 0, w: 0, M: 125.1, fr: 0, sm: 1, ph: "d e s p i: n a", my: "despina" },
+      { name: "Galateia", k: "galatea", P: 0.4287, a: 62e3, R: 79, e: 0, i: 0, O: 0, w: 0, M: 86.7, fr: 0, sm: 1, ph: "g a l a t e a:", my: "nereidOne" },
+      { name: "Larissa", k: "larissa", P: 0.555, a: 73500, R: 96, e: 1e-3, i: 0.2, O: 312, w: 247.3, M: 165.5, fr: 0, sm: 1, ph: "l a r i: s a", my: "larissa" },
+      { name: "Hipocampo", k: "hippocamp", P: 0.9504, a: 105300, R: 17.4, e: 1e-3, i: 0.3, O: 0.5, w: 346.4, M: 286.5, fr: 0, sm: 1, ph: "h i p o k a: m p", my: "hippocamp" },
+      { name: "Halimede", k: "halimede", P: -1879, a: 16590500, R: 30.5, e: 0.521, i: 119.6, O: 198.5, w: 157.9, M: 135.8, fr: 1, sm: 1, ph: "h a l i m e d e:", my: "nereidOne" },
+      { name: "Sao", k: "sao", P: 2919, a: 22239900, R: 20, e: 0.296, i: 50.2, O: 41.8, w: 93.5, M: 178.5, fr: 1, sm: 1, ph: "s a: o", my: "nereidOne" },
+      { name: "Laomedeia", k: "laomedeia", P: 3168, a: 23499900, R: 20, e: 0.419, i: 36.9, O: 57.6, w: 146.2, M: 248.1, fr: 1, sm: 1, ph: "l a o m e d e i a:", my: "nereidOne" },
+      { name: "Psámata", k: "psamathe", P: -9149, a: 47646600, R: 19, e: 0.413, i: 127.8, O: 302.9, w: 148.2, M: 183.2, fr: 1, sm: 1, ph: "p s a: m a th e", my: "nereidOne" },
+      { name: "Neso", k: "neso", P: -9805, a: 49897800, R: 30, e: 0.455, i: 128.4, O: 55.4, w: 89.8, M: 13.8, fr: 1, sm: 1, ph: "n e: s o", my: "nereidOne" }
+    ],
+    pluto: [
+      { name: "Styx", k: "styx", P: 20.16, a: 43200, R: 5.2, e: 0.025, i: 0, O: 0, w: 322.5, M: 358.1, fr: 0, ph: "s t i: k s", my: "styx" },
+      { name: "Cérbero", k: "kerberos", P: 32.17, a: 58300, R: 6, e: 0.01, i: 0.4, O: 314.3, w: 32.1, M: 276.1, fr: 0, ph: "k e: r b e r o s", my: "kerberos" }
+    ],
+    haumea: [
+      { name: "Namaka", k: "namaka", P: 18.2783, a: 25506, R: 75, e: 0.2179, i: 69.005, O: 23.725, w: 118.35, M: 200.05, fr: 1, ph: "n a m a: k a", my: "namaka" },
+      { name: "Hiʻiaka", k: "hiiaka", P: 49.462, a: 49371, R: 185, e: 0.0542, i: 77.394, O: 13.11, w: 98.34, M: 130.1, fr: 1, ph: "h i i a: k a", my: "hiiaka" }
+    ],
+    makemake: [
+      { name: "MK2", k: "mk2", P: 18.023, a: 22250, R: 87.5, e: 0, i: 83.7, O: 0, w: 0, M: 0, fr: 1, ph: "e m k e i t u:", my: "mk2", approx: 1 }
+    ]
+  };
+  BODIES.forEach((b) => {
+    const x = MOONS_ADD[b.id];
+    if (x) x.forEach((m) => {
+      m.add = 1;
+      b.moons.push(m);
+    });
+  });
+  function moonKep(b, m) {
+    const D = Math.PI / 180, ob = m.fr ? 0 : (b.obl || 0) * D;
+    m.kep = { n: TAU / Math.abs(m.P), M0: (m.M || 0) * D, b2: Math.sqrt(1 - m.e * m.e), cO: Math.cos(m.O * D), sO: Math.sin(m.O * D), ci: Math.cos(m.i * D), si: Math.sin(m.i * D), cw: Math.cos(m.w * D), sw: Math.sin(m.w * D), co: Math.cos(ob), so: Math.sin(ob) };
+    const p = kepPos(m, J2000, { x: 0, y: 0, z: 0 });
+    m.ph0 = (Math.atan2(p.y, p.x) / TAU % 1 + 1) % 1;
+    if (!m.sm) m.orbitPt = (E) => kepAt(m, E, { x: 0, y: 0, z: 0 });
+  }
+  function kepAt(m, E, o) {
+    const K2 = m.kep, xv = m.a * (Math.cos(E) - m.e), yv = m.a * K2.b2 * Math.sin(E), x1 = K2.cw * xv - K2.sw * yv, y1 = K2.sw * xv + K2.cw * yv, x = K2.cO * x1 - K2.sO * y1 * K2.ci, y = K2.sO * x1 + K2.cO * y1 * K2.ci, z = y1 * K2.si;
+    o.x = x;
+    o.y = y * K2.co - z * K2.so;
+    o.z = y * K2.so + z * K2.co;
+    return o;
+  }
+  function kepPos(m, jd, o) {
+    const K2 = m.kep, e = m.e, M = K2.M0 + K2.n * (jd - J2000);
+    let E = M + e * Math.sin(M);
+    for (let k = 0; k < 4; k++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+    return kepAt(m, E, o);
+  }
   const HV = {
     mercury: { type: "ct", tilt: 1, vib: [6.2, 0.03], breath: 0.06, jit: 4e-3, syl: 0.42, rest: 1.4, ens: 0.2, words: "h e r m e: s", say: ["m", 1.3, 1.2, "Eu sou Hermes, o mensageiro dos deuses, Stilbon, o Cintilante. Dou a volta ao Sol em oitenta e oito dias, e nenhum errante é mais veloz do que eu."] },
     venus: { type: "soprano", tilt: 1.15, vib: [5.2, 0.035], breath: 0.1, jit: 4e-3, syl: 0.8, rest: 2.5, ens: 0.2, words: "a f r o d i t e:", say: ["f", 1.1, 0.9, "Eu sou Afrodite, a estrela da manhã e da tarde. Meu dia é mais longo que o meu ano, e eu giro ao contrário de todos os outros."] },
@@ -7485,11 +7707,16 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     (b.moons || []).forEach((m, k) => {
       m.ph0 = (k * 0.618034 + b.R * 1e-4) % 1;
       m.rank = k;
-      m.sizeN = Math.log10(m.R / 5) / Math.log10(2634 / 5);
+      m.sizeN = Math.max(-0.5, Math.log10(m.R / 5) / Math.log10(2634 / 5));
       m.flash = 0;
+      if (m.e !== void 0 && m.O !== void 0) moonKep(b, m);
     });
-    const sorted = [...b.moons].sort((x, y) => x.a - y.a);
+    const sorted = b.moons.filter((m) => !m.sm).sort((x, y) => x.a - y.a);
     sorted.forEach((m, k) => m.rank = k);
+    b.nMaj = sorted.length;
+    b.aMaj = b.nMaj ? sorted[b.nMaj - 1].a : 0;
+    b.aAll = Math.max(b.aMaj, ...b.moons.map((m) => m.a));
+    b.moons.filter((m) => m.sm).sort((x, y) => x.a - y.a).forEach((m, k) => m.rank = b.nMaj + k);
   });
   const S = {
     jd: jdNow(),
@@ -8253,7 +8480,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     vd.connect(o.frequency);
     const env = mkGain(0), amp = 0.1 * (0.4 + 0.6 * m.sizeN);
     env.gain.setValueAtTime(0, t);
-    const vs = (m.name.toLowerCase().match(/[aeiou]/g) || ["a"]).slice(0, 2), seg = 0.24;
+    const vs = ((m.ph || m.name.toLowerCase()).match(/[aeiou]/g) || ["a"]).slice(0, 2), seg = 0.24;
     const bps = [];
     for (let k = 0; k < 3; k++) {
       const bp = AC.createBiquadFilter();
@@ -8475,7 +8702,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     v.moonVol = mkGain(0, v.pan);
     v.moonBus.connect(v.moonVol);
     (b.moons || []).forEach((m) => {
-      m.out = mkGain(1, v.moonBus);
+      if (!m.sm) m.out = mkGain(1, v.moonBus);
       m.sv = null;
     });
     v.mode = null;
@@ -8708,7 +8935,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     }
     poolOwner = S.audition;
     if (poolOwner) {
-      byId[poolOwner].moons.slice(0, POOL.length).forEach((m, k) => {
+      byId[poolOwner].moons.slice(0, Math.min(POOL.length, byId[poolOwner].nMaj)).forEach((m, k) => {
         try {
           m.out.disconnect();
         } catch (e) {
@@ -8931,6 +9158,62 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     if (f > 6) f -= 12;
     return { names, key: { fifths: f, mode: MODE_NM[S.mode] || "none", pc: ({ C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[S.mode] + sh) % 12, name: keyName() }, title: document.title };
   };
+  const SMK = 0.5, MB = { all: null, top: [] };
+  function moonBudget() {
+    if (!MB.all) {
+      MB.all = [];
+      BODIES.forEach((b) => (b.moons || []).forEach((m) => MB.all.push(m)));
+    }
+    const all = MB.all, top = MB.top, N = MAXMOONS;
+    let n = 0;
+    for (let i = 0; i < all.length; i++) {
+      const m = all[i], l = m.lvl || 0;
+      m.okB = 0;
+      if (l <= 0) continue;
+      if (n < N) {
+        let j = n++;
+        while (j > 0 && top[j - 1].lvl < l) {
+          top[j] = top[j - 1];
+          j--;
+        }
+        top[j] = m;
+      } else if (top[N - 1].lvl < l) {
+        let j = N - 1;
+        while (j > 0 && top[j - 1].lvl < l) {
+          top[j] = top[j - 1];
+          j--;
+        }
+        top[j] = m;
+      }
+    }
+    for (let j = 0; j < n; j++) top[j].okB = 1;
+  }
+  function smRelease(m, now) {
+    const sv = m.sv;
+    if (!sv || sv.part) return;
+    if (sv.dead == null) {
+      sv.dead = now;
+      return;
+    }
+    if (now - sv.dead > 8) {
+      try {
+        sv.vol.disconnect();
+      } catch (e) {
+      }
+      delete P[sv.body.id];
+      m.sv = null;
+    }
+  }
+  const FOC = { p: null, g: null, on: false, want: false };
+  function smFocus(ang) {
+    if (!FOC.g) {
+      FOC.p = mkPanner(false);
+      FOC.g = mkGain(0, FOC.p);
+    }
+    setPos(FOC.p, Math.cos(ang), 0.1, -Math.sin(ang), 0.12);
+    FOC.want = true;
+    return FOC.g;
+  }
   function updateAudio() {
     if (window.MOTS && MOTS.midi.on) midiHolds();
     if (SYS.id) {
@@ -9013,22 +9296,40 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       tgt(v.moonVol.gain, mOn && !aud ? S.groups.moons.vol * Math.min(1, g) : 0, 0.12);
       (b.moons || []).forEach((m, k) => {
         const rate = S.playing ? S.speed / Math.abs(m.P) : 0, her = focus && k === S.audMoon;
+        if (m.sm && !her && !m.okB && !(m.sv && m.sv.part)) {
+          m.lvl = mOn && !aud ? moonRel(b, m) * SMK * Math.min(1, g) : 0;
+          if (m.sv) smRelease(m, now);
+          return;
+        }
         if (aud && m.slot !== void 0) {
           const slot = POOL[m.slot];
           tgt(slot.g.gain, mOn ? 1 : 0, 0.12);
           const th = her ? ang : rate > 0.5 ? ang + Math.PI * (0.25 + m.rank * 0.27) : TAU * ((S.jd - J2000) / m.P + m.ph0);
           setPos(slot.p, Math.cos(th), 0.1, -Math.sin(th), 0.12);
         }
-        const rel = her ? 1 : focus ? 0.3 : aud ? Math.max(0.35, moonRel(b, m)) : moonRel(b, m), lvl = aud ? rel : rel * Math.min(1, g);
-        const wantM = mOn && lvl > (m.sv && m.sv.part ? 0.025 : 0.035);
+        const rel = her ? 1 : focus ? 0.3 : aud ? Math.max(0.35, moonRel(b, m)) : moonRel(b, m) * (m.sm ? SMK : 1), lvl = aud ? rel : rel * Math.min(1, g);
+        m.lvl = mOn && (!aud || m.slot !== void 0 || her) ? lvl * (m.sv && m.sv.part ? 1.3 : 1) : 0;
+        const wantM = mOn && (her || m.okB) && lvl > (m.sv && m.sv.part ? 0.025 : 0.035);
         if (wantM && !m.sv) {
           const mb = moonBody(b, { m, id: "smoon:" + b.id + ":" + m.rank });
-          m.sv = { body: mb, vol: mkGain(0, m.out), part: null, rate: 0.3 };
+          m.sv = { body: mb, vol: mkGain(0, m.sm ? v.moonBus : m.out), part: null, rate: 0.3, dest: m.sm ? v.moonBus : m.out };
         }
         const sv = m.sv;
         if (!sv) return;
-        const mf = melodyPitch(moonBase(p.f), moonPhase(b, m));
-        P[sv.body.id] = { f: mf };
+        if (m.sm) {
+          const d = her ? smFocus(ang) : v.moonBus;
+          if (sv.dest !== d) {
+            try {
+              sv.vol.disconnect();
+            } catch (e) {
+            }
+            sv.vol.connect(d);
+            sv.dest = d;
+          }
+        }
+        const mf = melodyPitch(moonBase(p.f), moonPhase(b, m), m.P < 0), pf = P[sv.body.id];
+        if (pf) pf.f = mf;
+        else P[sv.body.id] = { f: mf };
         if (sv.part && sv.lkey !== lkey(S.voices)) {
           killPart(sv.part);
           sv.part = null;
@@ -9036,12 +9337,14 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
         if (wantM && !sv.part) {
           buildAny(sv.body, sv, mf);
           sv.born = now;
+          sv.dead = null;
         } else if (!wantM && sv.part && now - sv.born > 2.5) {
           killPart(sv.part);
           sv.part = null;
         }
         if (!sv.part) {
           tgt(sv.vol.gain, 0, 0.1);
+          if (m.sm) smRelease(m, now);
           return;
         }
         singAt(sv, mf, now);
@@ -9051,6 +9354,12 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     POOL.forEach((s, k) => {
       if (!poolOwner || k >= byId[poolOwner].moons.length) tgt(s.g.gain, 0, 0.1);
     });
+    if (FOC.g && FOC.on !== FOC.want) {
+      FOC.on = FOC.want;
+      tgt(FOC.g.gain, FOC.on ? 1 : 0, 0.12);
+    }
+    FOC.want = false;
+    moonBudget();
     updateAspectAudio(L, true);
     const sa = audioDir({ x: 0, y: 0, z: 0 }, L);
     setPos(sunV.pan, sa.x, sa.y, sa.z);
@@ -9145,7 +9454,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     const t = Math.log2(PY[S.mode]);
     return Object.values(PY).map((r) => ((Math.log2(r) - t) % 1 + 1) % 1).sort((a, c) => a - c);
   }
-  function melodyPitch(base, phase) {
+  function melodyPitch(base, phase, inv) {
     const d = modeDegrees(), t = Math.log2(PY[S.mode]) + keyShift(), l = Math.log2(base / C_BASE) - t;
     let best = 0, bd = 9;
     for (let o = Math.floor(l) - 1; o <= Math.floor(l) + 1; o++) d.forEach((x, i) => {
@@ -9155,7 +9464,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
         best = o * 7 + i;
       }
     });
-    const j = best + ARCH[Math.floor((phase % 1 + 1) % 1 * 8) % 8];
+    const j = best + (inv ? -1 : 1) * ARCH[Math.floor((phase % 1 + 1) % 1 * 8) % 8];
     return C_BASE * Math.pow(2, t + Math.floor(j / 7) + d[(j % 7 + 7) % 7]);
   }
   function moonPhase(b, m) {
@@ -9289,7 +9598,8 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     while (f > 1400) f /= 2;
     return quantize(f);
   }
-  function moonPos(b, m, jd) {
+  function moonPos(b, m, jd, out) {
+    if (m.kep) return kepPos(m, jd, out || { x: 0, y: 0, z: 0 });
     if (m.posAt) return m.posAt(jd);
     const th = TAU * ((jd - J2000) / m.P + m.ph0), e = (b.obl || 0) * DEG;
     return { x: m.a * Math.cos(th), y: m.a * Math.sin(th) * Math.cos(e), z: m.a * Math.sin(th) * Math.sin(e) };
@@ -9310,9 +9620,10 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     SYS.vp = "centre";
     SYS.sel = null;
     SYS.moons = b.moons.map((m, k) => ({ m, k, id: "moon:" + id + ":" + k, pos: moonPos(b, m, S.jd) }));
-    SYS.rmax = Math.max(...b.moons.map((m) => m.a)) * 1.15;
+    SYS.rmaj = Math.max(...b.moons.filter((m) => !m.sm).map((m) => m.a)) * 1.15;
+    SYS.rmax = Math.max(SYS.rmaj, Math.max(...b.moons.map((m) => m.a)) * 1.05);
     SYS.savedSpeed = S.speed;
-    const minP = Math.min(...b.moons.map((m) => Math.abs(m.P)));
+    const minP = Math.min(...b.moons.filter((m) => !m.sm).map((m) => Math.abs(m.P)));
     setSpeed(Math.max(0.02, minP / 4));
     if (!audioOn) startAudio();
     buildSystemVoices();
@@ -9334,7 +9645,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     renderAud();
   }
   function moonBody(b, sm) {
-    const m = sm.m, v0 = (m.name.toLowerCase().match(/[aeiou]/) || ["a"])[0];
+    const m = sm.m, v0 = ((m.ph || m.name.toLowerCase()).match(/[aeiou]/) || ["a"])[0];
     return {
       id: sm.id,
       name: m.name,
@@ -9346,8 +9657,8 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       vowel: v0 === "a" ? "ah" : v0,
       // nearly every major moon is tidally locked, so its day equals its orbit; Hyperion tumbles chaotically
       rot: m.name === "Hyperion" ? 13 * 24 : Math.abs(m.P) * 24,
-      hv: { type: "child", tilt: 1.1, vib: [5.6, 0.02], breath: 0.08, jit: m.name === "Hyperion" ? 0.02 : 4e-3, syl: 0.5, rest: 2.2, ens: 0, words: g2p(m.name) },
-      spec: typeof m.k === "string" ? m.k : null,
+      hv: { type: "child", tilt: 1.1, vib: [5.6, 0.02], breath: 0.08, jit: m.name === "Hyperion" ? 0.02 : 4e-3, syl: 0.5, rest: 2.2, ens: 0, words: m.ph || g2p(m.name) },
+      spec: typeof m.k === "string" && !m.add ? m.k : null,
       ...m.body || {}
     };
   }
@@ -9358,17 +9669,55 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     SYS.voices = SYS.moons.map((sm) => {
       const mb = moonBody(b, sm);
       P[mb.id] = { f: sysPitch(sm.m.P) };
-      const v = { pan: mkPanner(true), body: mb, part: null };
-      v.vol = mkGain(0, v.pan);
+      const v = { pan: null, vol: null, body: mb, part: null, sm: !!sm.m.sm, gRel: 0 };
+      if (!v.sm) {
+        v.pan = mkPanner(true);
+        v.vol = mkGain(0, v.pan);
+      }
       v.rate = Math.min(7, 6 * Math.pow(3.9 / Math.abs(mb.rot), 0.45));
       if (sm.m.name === "Hyperion") v.rate = 1.7;
       return v;
     });
     SYS.mode = lkey(S.voices);
+    SYS.ref = Math.max(...SYS.moons.map((sm) => sm.m.R / sm.m.a));
+    SYS.top = [];
+    SYS.moons.forEach((sm) => {
+      if (!sm.scr) sm.scr = { x: 0, y: 0, d: 0, moon: !!sm.m.sm, r: 0 };
+      sm.key = "moon:" + sm.k;
+    });
+  }
+  function sysNodes(v) {
+    if (!v.pan) {
+      v.pan = mkPanner(false);
+      v.vol = mkGain(0, v.pan);
+    }
+    v.idle = null;
+  }
+  function sysFree(v, now) {
+    if (!v.sm || !v.pan || v.part) return;
+    if (v.idle == null) {
+      v.idle = now;
+      return;
+    }
+    if (now - v.idle < 6) return;
+    const pan = v.pan;
+    try {
+      v.vol.disconnect();
+    } catch (e) {
+    }
+    try {
+      pan.disconnect();
+    } catch (e) {
+    }
+    const i = PANNERS.findIndex((x) => x.p === pan);
+    if (i >= 0) PANNERS.splice(i, 1);
+    v.pan = v.vol = null;
+    v.idle = null;
   }
   function killSystemVoices() {
     SYS.voices.forEach((v) => {
       killPart(v.part);
+      if (!v.pan) return;
       tgt(v.vol.gain, 0, 0.08);
       const pan = v.pan;
       setTimeout(() => {
@@ -9430,15 +9779,24 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       if (v.mode === "human") humanTick(v.part.h, pp.f, 1, now);
       if (v.part.L) linesTick(v.part, pp.f, now);
     });
-    const ref = Math.max(...SYS.moons.map((sm) => sm.m.R / sm.m.a));
-    const mAllowed = new Set(SYS.moons.map((sm) => [sm.k, SYS.vp === sm.k ? 9 : sm.m.R / Math.max(audioDir(sm.pos, L).d, 1)]).sort((a, c) => c[1] - a[1]).slice(0, MAXMOONS).map((x) => x[0]));
+    if (SYS.ref == null) SYS.ref = Math.max(...SYS.moons.map((sm) => sm.m.R / sm.m.a));
+    const ref = SYS.ref;
+    sysBudget(L);
     SYS.moons.forEach((sm, k) => {
-      const v = SYS.voices[k], mb = v.body, f = P[mb.id].f = sm.m.f || melodyPitch(sysPitch(sm.m.P), moonPhase(b, sm.m));
+      const v = SYS.voices[k];
+      if (!v) return;
       const isMe = SYS.vp === k;
+      if (v.sm && !sm.okB && !v.part && !isMe) {
+        v.gRel = 0;
+        sysFree(v, now);
+        return;
+      }
+      const mb = v.body, f = P[mb.id].f = sm.m.f || smFold(sm.m, melodyPitch(sysPitch(sm.m.P), moonPhase(b, sm.m), sm.m.P < 0));
+      if (v.sm) sysNodes(v);
       const a = audioDir(sm.pos, L);
       setPos(v.pan, a.x, a.y, a.z, 0.06);
-      const g = v.gRel = isMe ? 0.55 : Math.min(1.6, Math.pow(sm.m.R / Math.max(a.d, 1) / ref, law));
-      const want = !S.muted.has(mb.id) && mAllowed.has(k) && g > (v.part ? 0.025 : 0.035);
+      const g0 = isMe ? 0.55 : Math.min(1.6, Math.pow(sm.m.R / Math.max(a.d, 1) / ref, law)), g = v.gRel = v.sm && !isMe ? Math.min(0.35, g0 * SMK) : g0;
+      const want = !S.muted.has(mb.id) && (sm.okB || isMe) && g > (v.part ? 0.025 : 0.035);
       if (want && !v.part) {
         buildAny(mb, v, f);
         v.born = now;
@@ -9448,6 +9806,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       }
       if (!v.part) {
         tgt(v.vol.gain, 0, 0.1);
+        sysFree(v, now);
         return;
       }
       singAt(v, f, now);
@@ -9474,17 +9833,53 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     POOL.forEach((s) => tgt(s.g.gain, 0, 0.1));
     ASP.forEach((s) => tgt(s.g.gain, 0, 0.3));
   }
+  function sysBudget(L) {
+    const top = SYS.top || (SYS.top = []), N = MAXMOONS;
+    let n = 0;
+    for (let i = 0; i < SYS.moons.length; i++) {
+      const sm = SYS.moons[i], p = sm.pos, dx = p.x - L.x, dy = p.y - L.y, dz = p.z - L.z, l = SYS.vp === sm.k ? 9 : sm.m.R / Math.max(Math.sqrt(dx * dx + dy * dy + dz * dz), 1);
+      sm.okB = 0;
+      sm.bl = l;
+      if (n < N) {
+        let j = n++;
+        while (j > 0 && top[j - 1].bl < l) {
+          top[j] = top[j - 1];
+          j--;
+        }
+        top[j] = sm;
+      } else if (top[N - 1].bl < l) {
+        let j = N - 1;
+        while (j > 0 && top[j - 1].bl < l) {
+          top[j] = top[j - 1];
+          j--;
+        }
+        top[j] = sm;
+      }
+    }
+    for (let j = 0; j < n; j++) top[j].okB = 1;
+  }
+  function smFold(m, f) {
+    if (m.sm) while (f < 220) f *= 2;
+    return f;
+  }
+  function sysScale(r) {
+    const r0 = byId[SYS.id].R * 3, rj = SYS.rmaj || SYS.rmax, full = SYS.rmax <= rj * 1.0001, k = full ? 1 : 0.8;
+    if (r <= rj || full) return k * Math.log(1 + r / r0) / Math.log(1 + rj / r0);
+    return 0.8 + 0.2 * Math.log(r / rj) / Math.log(SYS.rmax / rj);
+  }
   function sysProj(x, y, z) {
-    const r = Math.hypot(x, y, z), r0 = byId[SYS.id].R * 3, s = r > 0 ? RR * 0.92 * Math.log(1 + r / r0) / Math.log(1 + SYS.rmax / r0) / r : 0;
+    const r = Math.hypot(x, y, z), s = r > 0 ? RR * 0.92 * sysScale(r) / r : 0;
     const X = x * s, Y = y * s, Z = z * s, c = Math.cos(S.az), sn = Math.sin(S.az), X2 = X * c - Y * sn, Y2 = X * sn + Y * c, st = Math.sin(S.tilt), ct = Math.cos(S.tilt);
     return { x: CX + X2, y: CY - (Y2 * st + Z * ct), d: Y2 * ct - Z * st };
   }
   function drawSystem(g, t) {
     const b = byId[SYS.id], pp = P[SYS.id];
-    SYS.moons.forEach((sm) => sm.pos = moonPos(b, sm.m, S.jd));
+    SYS.moons.forEach((sm) => sm.pos = moonPos(b, sm.m, S.jd, sm.pos));
     screen = {};
+    if (SYS.moons.length > b.nMaj) drawSmallOrbits(g, b);
     SYS.moons.forEach((sm) => {
       const m = sm.m;
+      if (m.sm) return;
       g.strokeStyle = SYS.sel === sm.k ? "rgba(201,152,79,.7)" : "rgba(233,225,204,.16)";
       g.lineWidth = 1;
       g.beginPath();
@@ -9542,7 +9937,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
         g.fillText("rumo ao Sol", sx, sy + 14);
       }
     }
-    SYS.moons.map((sm) => ({ sm, s: sysProj(sm.pos.x, sm.pos.y, sm.pos.z) })).sort((p, q) => q.s.d - p.s.d).forEach(({ sm, s }) => {
+    SYS.moons.filter((sm) => !sm.m.sm).map((sm) => ({ sm, s: sysProj(sm.pos.x, sm.pos.y, sm.pos.z) })).sort((p, q) => q.s.d - p.s.d).forEach(({ sm, s }) => {
       const v = SYS.voices[sm.k], r = Math.max(2.5, Math.min(9, 1.5 + 2.2 * Math.log10(Math.max(sm.m.R, 5) / 20))) * SK;
       screen["moon:" + sm.k] = s;
       if (v && v.part) {
@@ -9578,6 +9973,98 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     S.speed = Math.max(1 / 86400, d);
     $("speedOut").textContent = fmtSpeed(S.speed);
   }
+  function drawSmallOrbits(g, b) {
+    const n = LOWPOWER ? 24 : 48, c = Math.cos(S.az), sn = Math.sin(S.az), st = Math.sin(S.tilt), ct = Math.cos(S.tilt);
+    if (!SMO.cv) SMO.cv = document.createElement("canvas");
+    if (SMO.id !== SYS.id || SMO.az !== S.az || SMO.tilt !== S.tilt || SMO.RR !== RR || SMO.CX !== CX || SMO.CY !== CY || SMO.w !== cv.width || SMO.h !== cv.height) {
+      SMO.id = SYS.id;
+      SMO.az = S.az;
+      SMO.tilt = S.tilt;
+      SMO.RR = RR;
+      SMO.CX = CX;
+      SMO.CY = CY;
+      SMO.w = cv.width;
+      SMO.h = cv.height;
+      const L = SMO.cv;
+      if (L.width !== cv.width || L.height !== cv.height) {
+        L.width = cv.width;
+        L.height = cv.height;
+      }
+      const h = L.getContext("2d");
+      h.setTransform(1, 0, 0, 1, 0, 0);
+      h.clearRect(0, 0, L.width, L.height);
+      h.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
+      h.lineWidth = 1;
+      h.strokeStyle = "rgba(233,225,204,.07)";
+      h.beginPath();
+      SYS.moons.forEach((sm) => {
+        const m = sm.m;
+        if (!m.sm) return;
+        if (!m.orb3 || m.orb3.length !== 3 * (n + 1)) {
+          m.orb3 = new Float32Array(3 * (n + 1));
+          const o = { x: 0, y: 0, z: 0 };
+          for (let k = 0; k <= n; k++) {
+            kepAt(m, TAU * k / n, o);
+            m.orb3[3 * k] = o.x;
+            m.orb3[3 * k + 1] = o.y;
+            m.orb3[3 * k + 2] = o.z;
+          }
+        }
+        const O = m.orb3;
+        for (let k = 0; k <= n; k++) {
+          const x = O[3 * k], y = O[3 * k + 1], z = O[3 * k + 2], r = Math.sqrt(x * x + y * y + z * z), s = r > 0 ? RR * 0.92 * sysScale(r) / r : 0, X = x * s, Y = y * s, Z = z * s, Y2 = X * sn + Y * c, px = CX + X * c - Y * sn, py = CY - (Y2 * st + Z * ct);
+          if (k) h.lineTo(px, py);
+          else h.moveTo(px, py);
+        }
+      });
+      h.stroke();
+    }
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.drawImage(SMO.cv, 0, 0);
+    g.restore();
+    g.fillStyle = "rgba(233,225,204,.3)";
+    g.beginPath();
+    let lit = 0;
+    SYS.moons.forEach((sm) => {
+      const m = sm.m;
+      if (!m.sm) return;
+      const p = sm.pos, r = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z), s = r > 0 ? RR * 0.92 * sysScale(r) / r : 0, X = p.x * s, Y = p.y * s, Z = p.z * s, Y2 = X * sn + Y * c;
+      const q = sm.scr;
+      q.x = CX + X * c - Y * sn;
+      q.y = CY - (Y2 * st + Z * ct);
+      q.d = Y2 * ct - Z * st;
+      screen[sm.key] = q;
+      const v = SYS.voices[sm.k];
+      if (v && v.part || SYS.vp === sm.k) {
+        lit++;
+        return;
+      }
+      g.moveTo(q.x + 1.1 * SK, q.y);
+      g.arc(q.x, q.y, 1.1 * SK, 0, TAU);
+    });
+    g.fill();
+    if (lit) SYS.moons.forEach((sm) => {
+      const m = sm.m;
+      if (!m.sm) return;
+      const v = SYS.voices[sm.k], on = v && v.part, me = SYS.vp === sm.k;
+      if (!on && !me) return;
+      const q = sm.scr;
+      g.fillStyle = "rgba(236,228,208,.85)";
+      g.beginPath();
+      g.arc(q.x, q.y, (me ? 2.2 : 1.6) * SK, 0, TAU);
+      g.fill();
+      if (me) {
+        g.strokeStyle = "#62a597";
+        g.lineWidth = 1.5;
+        g.beginPath();
+        g.arc(q.x, q.y, 7 * SK, 0, TAU);
+        g.stroke();
+        qLabel({ t: m.name.split(" ")[0], x: q.x, y: q.y, off: 9 * SK, font: "".concat(12 * K, 'px "Alegreya Sans",sans-serif'), fill: "rgba(233,225,204,.85)", pri: 1, keep: true });
+      }
+    });
+  }
+  const SMO = { cv: null, id: null, az: 0, tilt: 0, RR: 0, CX: 0, CY: 0, w: 0, h: 0 };
   function sysInfoHTML() {
     const b = byId[SYS.id];
     const rows = SYS.moons.map((sm) => {
@@ -9602,6 +10089,31 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       renderInfo();
     };
     if (window.MOTS && MOTS.light && MOTS.light.sysRows) MOTS.light.sysRows($("sysRoster"), byId[SYS.id]);
+    foldSmall($("sysRoster"), byId[SYS.id]);
+  }
+  const SMT = { en: "More moons", pl: "Więcej księżyców", cy: "Rhagor o leuadau", de: "Weitere Monde", es: "Más lunas", fr: "Autres lunes", it: "Altre lune", zh: "更多卫星", ja: "ほかの衛星", vi: "Thêm mặt trăng", bg: "Още луни", pt: "Mais luas" };
+  function foldSmall(ro, b) {
+    if (!ro || !b || b.nMaj == null || b.nMaj >= b.moons.length) return;
+    if (!document.getElementById("smfoldCss")) {
+      const st = document.createElement("style");
+      st.id = "smfoldCss";
+      st.textContent = '.smfold>summary{cursor:pointer;padding:.45rem .4rem;min-height:2.4rem;display:flex;align-items:center;gap:.4rem;color:var(--bronze);font-family:var(--f-body);font-size:.9rem;list-style:none;border-radius:5px}.smfold>summary::-webkit-details-marker{display:none}.smfold>summary::before{content:"▸";transition:transform .15s}.smfold[open]>summary::before{transform:rotate(90deg)}.smfold>summary:hover{background:rgba(201,152,79,.08)}.smfold>summary:focus-visible{outline:2px solid var(--bronze);outline-offset:1px}';
+      document.head.appendChild(st);
+    }
+    const d = document.createElement("details");
+    d.className = "smfold";
+    const n = b.moons.length - b.nMaj;
+    d.innerHTML = "<summary>".concat(SMT[String(document.documentElement.lang || "en").slice(0, 2)] || SMT.en, " · ").concat(n, "</summary>");
+    ro.querySelectorAll(".vrow[data-moon]").forEach((row) => {
+      const m = b.moons[+row.dataset.moon];
+      if (m && m.sm) d.appendChild(row);
+    });
+    if (!d.querySelector(".vrow")) return;
+    d.open = SYS.fold === b.id || typeof SYS.vp === "number" && b.moons[SYS.vp] && b.moons[SYS.vp].sm;
+    d.ontoggle = () => {
+      SYS.fold = d.open ? b.id : null;
+    };
+    ro.appendChild(d);
   }
   function tickSysInfo() {
     SYS.moons.forEach((sm) => {
@@ -9944,6 +10456,10 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       g.fill();
       labObstacle(s.x - r, s.y - r, s.x + r, s.y + r);
       (b.moons || []).forEach((m, k) => {
+        if (m.sm) {
+          if (aud) drawSmallMoon(g, b, m, k, s, r);
+          return;
+        }
         const luna = b.id === "earth" && k === 0;
         const th = TAU * ((S.jd - J2000) / m.P + m.ph0), rad = luna ? aud ? r + 18 : r + 13 * K : aud ? r + 12 + m.rank * 9 : r + 4 + m.rank * 3.6, st = Math.sin(S.tilt);
         const mx = s.x + rad * Math.cos(th + S.az), my = s.y - rad * Math.sin(th + S.az) * st;
@@ -10738,7 +11254,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       el.hidden = true;
       return;
     }
-    const b = audMoonBody() || byId[S.audition], n = b.moons.length;
+    const b = audMoonBody() || byId[S.audition], n = b.nMaj != null ? b.nMaj : b.moons.length;
     el.hidden = false;
     $("audTxt").textContent = "Ouvindo só ".concat(b.kind === "comet" ? b.name : b.god).concat(n ? " e ".concat(n === 1 ? b.moons[0].name.split(" ")[0] : n + " luas") : "") + (S.audMoon != null && audMoonF() ? " · " + noteName(audMoonF()) : "");
   }
@@ -10791,6 +11307,37 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     $("audBtn").onclick = () => S.audition === b.id ? endAudition() : audition(b.id);
     if (window.MOTS && MOTS.light) MOTS.light.info(b, $("info").querySelector("dl"));
     if (window.MOTS_FAM) MOTS_FAM.dial(b, $("info").querySelector("dl"));
+  }
+  const SMV = { x: 0, y: 0, z: 0 };
+  function drawSmallMoon(g, b, m, k, s, r) {
+    const q = moonPos(b, m, S.jd, SMV), st = Math.sin(S.tilt);
+    const r0 = r + 12 + Math.max(0, b.nMaj - 1) * 9 + 7, span = 16, f = b.aAll > b.aMaj * 1.01 ? Math.log(Math.max(1, m.a / b.aMaj)) / Math.log(b.aAll / b.aMaj) : 0;
+    const rad = r0 + f * span, th = Math.atan2(q.y, q.x), mx = s.x + rad * Math.cos(th + S.az), my = s.y - rad * Math.sin(th + S.az) * st, foc = S.audMoon === k;
+    const ms = m.scr || (m.scr = { x: 0, y: 0, moon: true }), key = m.scrKey || (m.scrKey = "moon:" + b.id + ":" + k);
+    ms.x = mx;
+    ms.y = my;
+    ms.bx0 = void 0;
+    screen[key] = ms;
+    g.fillStyle = foc ? "rgba(255,240,205,.95)" : m.sv && m.sv.part ? "rgba(233,225,204,.6)" : "rgba(233,225,204,.28)";
+    g.beginPath();
+    g.arc(mx, my, foc ? 1.8 : 0.9, 0, TAU);
+    g.fill();
+    if (foc) {
+      g.strokeStyle = "#c9984f";
+      g.lineWidth = 1.3;
+      g.beginPath();
+      g.arc(mx, my, 6, 0, TAU);
+      g.stroke();
+      g.font = "".concat(11 * K, 'px "Alegreya Sans",sans-serif');
+      g.textAlign = "left";
+      g.textBaseline = "middle";
+      g.fillStyle = "rgba(233,225,204,.8)";
+      const nm = m.name.split(" ")[0];
+      txt(g, nm, mx + 8, my);
+      ms.bx0 = mx + 6;
+      ms.bx1 = mx + 9 + g.measureText(nm).width;
+      ms.by = my;
+    }
   }
   function humanDesc(b) {
     const h = b.hv;
@@ -13137,6 +13684,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     computePositions();
     let plucks = 0;
     if (!SYS.id) BODIES.forEach((b) => (b.moons || []).forEach((m) => {
+      if (m.sm) return;
       const k = Math.floor((S.jd - J2000) / Math.abs(m.P) + m.ph0);
       if (m.orb !== void 0 && k !== m.orb) {
         m.flash = 1;
