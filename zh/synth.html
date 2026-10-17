@@ -4839,12 +4839,14 @@ function info(b,dl){if(!dl)return;let row=dl.querySelector('#i_light');if(!row){
   const dd=row.querySelector('dd')||row;dd.textContent=readout(b);cardButton(b)}
 // the flight's readout line: the body the ship is with, or nearest to
 let nearLast='';
-// id: a body ('jupiter') or a moon ('jupiter:2'); the line ends with a Spectrum link that opens the body's sheet
-function near(id){const el=document.getElementById('lightTxt');if(!el)return;let h='';
-  if(id&&H){const pk=String(id).split(':'),b=H.byId[pk[0]],m=b&&pk.length>1&&b.moons?b.moons[+pk[1]]:null;
+// id: a body ('jupiter') or a moon ('jupiter:2'); the line ends with a Spectrum link that opens the body's sheet, and (o.about, the flight)
+// a Facts link that opens the body's card. o.byId: the page's bodies, so the line is written before the sound starts (H is set by attach)
+function near(id,o){const el=document.getElementById('lightTxt');if(!el)return;let h='';const BY=(H&&H.byId)||(o&&o.byId);
+  if(id&&BY){const pk=String(id).split(':'),b=BY[pk[0]],m=b&&pk.length>1&&b.moons?b.moons[+pk[1]]:null;
     if(m||b){const nm=m?m.name.split(' ')[0]:b.kind==='comet'?b.name.split(' ')[0]:(b.god||b.name),full=m?nm:b.kind==='comet'?b.name:(b.god&&b.god!==b.name?b.god+' · '+b.name:b.name),txt=!m&&b.kind!=='comet'?nm+' · '+readout(b):nm;
-      h=ESCH(txt)+(m&&m.add?'':`<button class="bslink" type="button" data-bs="${ESCH(m?m.k:b.id)}" data-nm="${ESCH(full)}">${ESCH(SP.spec)}</button>`)}}
-  if(h!==nearLast){nearLast=h;el.innerHTML=h}}
+      h=ESCH(txt)+`<span class="bsacts"><button class="bslink" type="button" data-bs="${ESCH(m?m.k:b.id)}" data-nm="${ESCH(full)}">${ESCH(SP.spec)}</button>`+
+        (o&&o.about&&!(b.kind==='planet'&&!m)?`<button class="bslink bsabout" type="button" data-about="${ESCH(id)}">${ESCH(SP.about)}</button>`:'')+'</span>'}}
+  if(h!==nearLast){if(el.contains(document.activeElement))try{document.activeElement.blur()}catch(e){}nearLast=h;el.innerHTML=h}}
 
 /* ---------- the spectrum of a planet, moon, minor body or comet: "Spectrum" on the dial's info card, the flight's readout and tap card.
    A sheet like the stars’ (fly_galaxy.js): its reflected light from 350 nm to 2.5 µm (a log-wavelength axis, so equal widths are equal
@@ -4981,7 +4983,23 @@ const SPX={
   w:{ice:'gelo',px:'piroxênio',ol:'olivina–piroxênio',chrom:'absorvedor azul',ray:'azul de Rayleigh',fe:'borda do Fe³⁺',sul:'borda do enxofre',veg:'clorofila',haze:'névoa',thol:'tolinas',uva:'absorvedor UV',hyd:'hidratação',slope:'inclinação vermelha'},
   cls:{S:'asteroide do tipo S',B:'asteroide do tipo B',C:'asteroide do tipo C',ice:'lua gelada',dark:'corpo escuro',comet:'cometa'}}
 };
-const SP=Object.assign({},SPX.en,SPX[LANG]||{});SP.w=Object.assign({},SPX.en.w,(SPX[LANG]||{}).w||{});SP.cls=Object.assign({},SPX.en.cls,(SPX[LANG]||{}).cls||{});
+// the small moons' reflectance classes (bodyspectra.json x_… templates, all class-typical), "Facts" on the flight's readout, and the short
+// "typical of its class" note for the sheet's header
+const SPX2={
+ en:{about:'Facts',est:' (typical of its class, not measured)',cls:{jinner:'dark red inner moon',irrC:'grey C-type irregular moon',irrD:'reddish D-type irregular moon',irrP:'P-type irregular moon',ringice:'icy ring moon',irrLR:'light-red irregular moon',irrN:'dark grey irregular moon',uinner:'dark inner moon',irrR:'red irregular moon',ninner:'dark inner moon',irrG:'grey irregular moon',pice:'icy moon',hice:'icy moon'}},
+ pl:{about:'Fakty',est:' (typowe dla klasy, nie zmierzone)',cls:{jinner:'ciemnoczerwony księżyc wewnętrzny',irrC:'szary nieregularny księżyc typu C',irrD:'czerwonawy nieregularny księżyc typu D',irrP:'nieregularny księżyc typu P',ringice:'lodowy księżyc pierścieni',irrLR:'jasnoczerwony księżyc nieregularny',irrN:'ciemnoszary księżyc nieregularny',uinner:'ciemny księżyc wewnętrzny',irrR:'czerwony księżyc nieregularny',ninner:'ciemny księżyc wewnętrzny',irrG:'szary księżyc nieregularny',pice:'lodowy księżyc',hice:'lodowy księżyc'}},
+ cy:{about:'Ffeithiau',est:' (nodweddiadol o’i dosbarth, heb ei fesur)',cls:{jinner:'lleuad fewnol goch dywyll',irrC:'lleuad afreolaidd lwyd math C',irrD:'lleuad afreolaidd gochlyd math D',irrP:'lleuad afreolaidd math P',ringice:'lleuad rewllyd y modrwyau',irrLR:'lleuad afreolaidd goch olau',irrN:'lleuad afreolaidd lwyd dywyll',uinner:'lleuad fewnol dywyll',irrR:'lleuad afreolaidd goch',ninner:'lleuad fewnol dywyll',irrG:'lleuad afreolaidd lwyd',pice:'lleuad rewllyd',hice:'lleuad rewllyd'}},
+ de:{about:'Steckbrief',est:' (typisch für seine Klasse, nicht gemessen)',cls:{jinner:'dunkelroter innerer Mond',irrC:'grauer irregulärer Mond vom C-Typ',irrD:'rötlicher irregulärer Mond vom D-Typ',irrP:'irregulärer Mond vom P-Typ',ringice:'eisiger Ringmond',irrLR:'hellroter irregulärer Mond',irrN:'dunkelgrauer irregulärer Mond',uinner:'dunkler innerer Mond',irrR:'roter irregulärer Mond',ninner:'dunkler innerer Mond',irrG:'grauer irregulärer Mond',pice:'Eismond',hice:'Eismond'}},
+ es:{about:'Datos',est:' (típico de su clase, no medido)',cls:{jinner:'luna interior rojo oscuro',irrC:'luna irregular gris de tipo C',irrD:'luna irregular rojiza de tipo D',irrP:'luna irregular de tipo P',ringice:'luna helada de los anillos',irrLR:'luna irregular rojo claro',irrN:'luna irregular gris oscuro',uinner:'luna interior oscura',irrR:'luna irregular roja',ninner:'luna interior oscura',irrG:'luna irregular gris',pice:'luna helada',hice:'luna helada'}},
+ fr:{about:'Fiche',est:' (typique de sa classe, non mesuré)',cls:{jinner:'lune intérieure rouge sombre',irrC:'lune irrégulière grise de type C',irrD:'lune irrégulière rougeâtre de type D',irrP:'lune irrégulière de type P',ringice:'lune glacée des anneaux',irrLR:'lune irrégulière rouge clair',irrN:'lune irrégulière gris foncé',uinner:'lune intérieure sombre',irrR:'lune irrégulière rouge',ninner:'lune intérieure sombre',irrG:'lune irrégulière grise',pice:'lune glacée',hice:'lune glacée'}},
+ it:{about:'Scheda',est:' (tipico della sua classe, non misurato)',cls:{jinner:'luna interna rosso scuro',irrC:'luna irregolare grigia di tipo C',irrD:'luna irregolare rossastra di tipo D',irrP:'luna irregolare di tipo P',ringice:'luna ghiacciata degli anelli',irrLR:'luna irregolare rosso chiaro',irrN:'luna irregolare grigio scuro',uinner:'luna interna scura',irrR:'luna irregolare rossa',ninner:'luna interna scura',irrG:'luna irregolare grigia',pice:'luna ghiacciata',hice:'luna ghiacciata'}},
+ zh:{about:'资料',est:'（按类别推定，未经实测）',cls:{jinner:'暗红色内侧卫星',irrC:'灰色 C 型不规则卫星',irrD:'偏红的 D 型不规则卫星',irrP:'P 型不规则卫星',ringice:'冰质环卫星',irrLR:'浅红色不规则卫星',irrN:'深灰色不规则卫星',uinner:'暗色内侧卫星',irrR:'红色不规则卫星',ninner:'暗色内侧卫星',irrG:'灰色不规则卫星',pice:'冰卫星',hice:'冰卫星'}},
+ ja:{about:'詳細',est:'（分類から推定、実測ではありません）',cls:{jinner:'暗赤色の内側衛星',irrC:'灰色のC型不規則衛星',irrD:'赤みがかったD型不規則衛星',irrP:'P型不規則衛星',ringice:'氷のリング衛星',irrLR:'淡い赤の不規則衛星',irrN:'暗い灰色の不規則衛星',uinner:'暗い内側衛星',irrR:'赤い不規則衛星',ninner:'暗い内側衛星',irrG:'灰色の不規則衛星',pice:'氷の衛星',hice:'氷の衛星'}},
+ vi:{about:'Thông tin',est:' (điển hình cho nhóm, không phải đo)',cls:{jinner:'mặt trăng trong màu đỏ sẫm',irrC:'mặt trăng dị thường xám kiểu C',irrD:'mặt trăng dị thường hơi đỏ kiểu D',irrP:'mặt trăng dị thường kiểu P',ringice:'mặt trăng băng trong vành đai',irrLR:'mặt trăng dị thường đỏ nhạt',irrN:'mặt trăng dị thường xám sẫm',uinner:'mặt trăng trong tối màu',irrR:'mặt trăng dị thường màu đỏ',ninner:'mặt trăng trong tối màu',irrG:'mặt trăng dị thường màu xám',pice:'mặt trăng băng',hice:'mặt trăng băng'}},
+ bg:{about:'Факти',est:' (типично за класа, не измерено)',cls:{jinner:'тъмночервен вътрешен спътник',irrC:'сив неправилен спътник от тип C',irrD:'червеникав неправилен спътник от тип D',irrP:'неправилен спътник от тип P',ringice:'леден спътник в пръстените',irrLR:'светлочервен неправилен спътник',irrN:'тъмносив неправилен спътник',uinner:'тъмен вътрешен спътник',irrR:'червен неправилен спътник',ninner:'тъмен вътрешен спътник',irrG:'сив неправилен спътник',pice:'леден спътник',hice:'леден спътник'}},
+ pt:{about:'Dados',est:' (típico da sua classe, não medido)',cls:{jinner:'lua interna vermelho-escura',irrC:'lua irregular cinza do tipo C',irrD:'lua irregular avermelhada do tipo D',irrP:'lua irregular do tipo P',ringice:'lua gelada dos anéis',irrLR:'lua irregular vermelho-clara',irrN:'lua irregular cinza-escura',uinner:'lua interna escura',irrR:'lua irregular vermelha',ninner:'lua interna escura',irrG:'lua irregular cinza',pice:'lua gelada',hice:'lua gelada'}}};
+const SP=Object.assign({},SPX.en,SPX[LANG]||{});SP.w=Object.assign({},SPX.en.w,(SPX[LANG]||{}).w||{});SP.cls=Object.assign({},SPX.en.cls,(SPX[LANG]||{}).cls||{},SPX2.en.cls,(SPX2[LANG]||{}).cls||{});
+SP.about=(SPX2[LANG]||SPX2.en).about;SP.est=(SPX2[LANG]||SPX2.en).est;
 const BS_BASE=LANG==='en'||!/\/(pl|cy|de|es|fr|it|zh|ja|vi|bg|pt)\/[^/]*$/.test(location.pathname)?'./':'../';
 let BSD=null,BSP=null;
 // the chord's nominal level: the bands' clusters (three sines and a little noise) come out ~3 dB under single sines, so 0.125 gives a held RMS near 0.08
@@ -5181,6 +5199,8 @@ const bcss=document.createElement('style');bcss.textContent=`
 .bslink:hover{border-color:var(--bronze,#c9984f);color:#f3d9a4}
 .bslam{appearance:none;background:transparent;border:1px solid rgba(201,152,79,.35);border-radius:6px;color:var(--bronze,#c9984f);font-family:var(--f-display,Georgia,serif);font-size:1rem;min-width:2.2rem;min-height:2.2rem;cursor:pointer;padding:0}
 .bslam:hover{border-color:var(--bronze,#c9984f)}
+.bsacts{white-space:nowrap}
+@media (pointer:coarse){.bslink{display:inline-flex;align-items:center;justify-content:center;min-height:var(--tap,44px);min-width:var(--tap,44px);padding:0 .7em;margin:.1rem 0 .1rem .4em;vertical-align:middle;line-height:1.2}.bslam{min-width:var(--tap,44px);min-height:var(--tap,44px)}}
 @media (max-width:620px){.bsheet{font-size:.78rem;padding:.5rem .7rem .6rem}.bsheet canvas{height:10rem}.bsheet .bsr{display:none}.bsheet .bsb button{padding:.3rem .7rem}}
 @media (max-height:520px){.bsheet{bottom:.4rem;max-height:calc(100vh - .8rem);width:min(46rem,calc(100vw - 7rem))}.bsheet canvas{height:7.5rem}.bsheet .bsr{display:none}}
 @media (prefers-reduced-motion:reduce){.bsheet{transition:none}}`;document.head.appendChild(bcss);
@@ -5201,7 +5221,7 @@ function open(ref){if(!ref||!ref.id)return;ensureSheet();stopHear();BS={ref,C:nu
 function render(){const {ref,C}=BS,nm=ESCH(ref.name||ref.id),comet=C.lines.some(L=>L.em),list=ESCH(bandList(C));
   const t1=C.lines.length?uf(comet?SP.t1c:SP.t1,{n:'<b>'+nm+'</b>',list}):uf(SP.t1n,{n:'<b>'+nm+'</b>'});
   const txt=(t1+' '+ESCH(uf(SP.rule,{hi:fmt(C.hiHz,0),lo:fmt(C.loHz,0)}))+' '+ESCH(SP.dop)+(C.typical?' '+ESCH(uf(SP.typ,{c:SP.cls[C.cls]||C.cls})):'')).replace(/(\d) (µm|nm|Hz)/g,'$1\u00a0$2');
-  BSH.innerHTML=`<div class="bsh"><b>${nm}</b><small>${ESCH(SP.title)}</small><button class="bsx" data-a="x" aria-label="${ESCH(SP.close)}">×</button></div><canvas aria-label="${ESCH(SP.title)}"></canvas><p class="bst">${txt}</p><p class="bsr">${ESCH(C.refs.join(' · '))}</p>`+
+  BSH.innerHTML=`<div class="bsh"><b>${nm}</b><small>${ESCH(SP.title+(C.typical?SP.est:''))}</small><button class="bsx" data-a="x" aria-label="${ESCH(SP.close)}">×</button></div><canvas aria-label="${ESCH(SP.title)}"></canvas><p class="bst">${txt}</p><p class="bsr">${ESCH(C.refs.join(' · '))}</p>`+
     `<div class="bsb"><button data-a="chord">${ESCH(SP.hearChord)}</button><button data-a="sweep">${ESCH(SP.hearSweep)}</button><button data-a="x">${ESCH(SP.close)}</button></div>`;
   BCV=BSH.querySelector('canvas');draw();
   // the sheet sings as it opens: its lines held and looping until Stop or close (not when the page's volume is at nothing)
@@ -5275,7 +5295,10 @@ function hearSweep(){if(!BS||!BS.C)return;const ac=sctx();if(!ac)return;stopHear
   g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(A[0],t+.02);g.gain.setValueCurveAtTime(A,t+.02,dur-.04);g.gain.setTargetAtTime(0,t+dur,.05);o.start(t);o2.start(t);o.stop(t+dur+.4);o2.stop(t+dur+.4);
   BH={kind:'sweep',ac,t0:t,dur,srcs:[o,o2],out,vol,lv:pageVol(),end:setTimeout(()=>{const back=!!(BS&&BS.want);stopHear();if(back&&BS&&BSH&&!BSH.hidden)hearChord()},(dur+.5)*1000)};setBtn('sweep',true);duck(true);hearTick('sweep')}
 function stopHear(){if(!BH)return;const h=BH;BH=null;clearTimeout(h.end);cancelAnimationFrame(h.raf);const t=h.ac.currentTime,g=h.vol||h.out;try{g.gain.cancelScheduledValues(t);g.gain.setTargetAtTime(0,t,.04)}catch(e){}
-  setTimeout(()=>{if(h.gr)chordKill(h.gr,h.ac,.02);if(h.srcs)h.srcs.forEach(s=>{try{s.stop()}catch(e){}});try{h.out.disconnect()}catch(e){}try{if(h.vol)h.vol.disconnect()}catch(e){}},300);setBtn('chord',false);setBtn('sweep',false);duck(false);draw()}
+  setTimeout(()=>{if(h.gr)chordKill(h.gr,h.ac,.02);if(h.srcs)h.srcs.forEach(s=>{try{s.stop()}catch(e){}});try{h.out.disconnect()}catch(e){}try{if(h.vol)h.vol.disconnect()}catch(e){}
+    // the sheet's own context (made when a sheet played before the page's sound started) is put to sleep once silent: left running
+    // without a sound, compat.js's watchdog took it for a broken output and reloaded the page
+    if(h.ac===SAC&&!(BH&&BH.ac===SAC))try{SAC.suspend()}catch(e){}},300);setBtn('chord',false);setBtn('sweep',false);duck(false);draw()}
 /* the measurement window: a body's chord rendered offline as the sheet plays it (8 s, fade in 0.5 s, held, fade out), with its RMS (all and held),
    peak, the largest sample-to-sample step (a click would be > 0.1), its spectral peaks (Hz) and a 1/6-octave profile 100–1000 Hz */
 function renderBody(id,secs){return bsData().then(D=>{const C=BODYSPEC.chord(D,id,{gamma:1.25,level:BS_LEVEL}),sr=44100,dur=secs||8,ac=new OfflineAudioContext(1,Math.round(sr*(dur+.5)),sr);
@@ -5289,8 +5312,8 @@ function renderBody(id,secs){return bsData().then(D=>{const C=BODYSPEC.chord(D,i
 // the hosts' hooks: a Spectrum button on the dial's info card, λ buttons on the moons of the dial's system view, a link on the flight's readout line
 function cardButton(b){const acts=document.querySelector('#info .acts');if(!acts||acts.querySelector('[data-bs]'))return;const bt=document.createElement('button');bt.className='btn';bt.dataset.bs=b.id;bt.textContent=SP.spec;
   bt.onclick=()=>open({id:b.id,name:b.kind==='comet'?b.name:(b.god&&b.god!==b.name?b.god+' · '+b.name:b.name)});acts.appendChild(bt)}
-// (an added moon, m.add, has no measured spectrum here: no λ)
-function sysRows(roster,planet){if(!roster||!planet)return;roster.querySelectorAll('.vrow[data-moon]').forEach(row=>{const m=planet.moons[+row.dataset.moon];if(!m||m.add||row.querySelector('.bslam'))return;const slot=row.lastElementChild&&row.lastElementChild.tagName==='SPAN'&&!row.lastElementChild.textContent?row.lastElementChild:row;
+// (the small moons, m.add, have their class's spectrum: bodyspectra.json x_… templates, marked class-typical)
+function sysRows(roster,planet){if(!roster||!planet)return;if(window.MOTS_FAM&&MOTS_FAM.sysFacts)try{MOTS_FAM.sysFacts(roster,planet)}catch(e){}roster.querySelectorAll('.vrow[data-moon]').forEach(row=>{const m=planet.moons[+row.dataset.moon];if(!m||row.querySelector('.bslam'))return;const slot=row.lastElementChild&&row.lastElementChild.tagName==='SPAN'&&!row.lastElementChild.textContent?row.lastElementChild:row;
   const bt=document.createElement('button');bt.className='bslam';bt.type='button';bt.textContent='λ';const nm=m.name.split(' ')[0];bt.title=bt.ariaLabel=SP.spec+': '+nm;bt.setAttribute('aria-label',SP.spec+': '+nm);bt.onclick=e=>{e.stopPropagation();open({id:m.k,name:nm})};slot.appendChild(bt)})}
 document.addEventListener('click',e=>{const b=e.target.closest('.bslink');if(!b)return;e.preventDefault();e.stopPropagation();open({id:b.dataset.bs,name:b.dataset.nm})});
 

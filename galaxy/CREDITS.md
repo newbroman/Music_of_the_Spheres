@@ -313,10 +313,32 @@ own sources in the file. The main ones:
   al. 1995, Icarus 118, 223; Feldman, P. D., Cochran, A. L. & Combi, M. R. 2004, in *Comets II*; Lamy, P. L. et al. 2004,
   in *Comets II* (nuclei); Cremonese, G. et al. 1997, ApJ 490, L199 (Hale–Bopp's sodium tail); Capaccioni, F. et al. 2015,
   Science 347, aaa0628 (67P).
+- The 145 small named moons (class templates `x_…` in the file, each moon pointing at its group's class through `alias`, all
+  marked class-typical: the app says "typical of its class, not measured"): Grav, T. et al. 2003, Icarus 166, 33 (colours of the
+  irregular satellites); Grav, T. & Bauer, J. 2007, Icarus 191, 267 (Saturn's irregulars: the light-red Inuit and Gallic groups,
+  the grey Norse group); Grav, T., Holman, M. J. & Fraser, W. C. 2004, ApJ 613, L77 (Uranus's and Neptune's irregulars);
+  Bhatt, M. et al. 2017, A&A 608, A67 (Jupiter's irregulars: the grey C-type Himalia group, the reddish Carme and Ananke groups);
+  Jarvis, K. S. et al. 2000, Icarus 145, 445 and Brown, M. E. & Rhoden, A. R. 2014, ApJ 793, L44 (Himalia); Thomas, P. C. et
+  al. 1998, Icarus 135, 360 (Jupiter's dark red inner moons); Buratti, B. J. et al. 2019, Science 364, eaat2349 (Saturn's icy ring
+  moons); Romon, J. et al. 2001, A&A 376, 310 (Sycorax and Caliban, red); Karkoschka, E. 2001, Icarus 151, 51 and 2003, Icarus
+  162, 400 (the dark inner moons of Uranus and Neptune); Weaver, H. A. et al. 2016, Science 351, aae0030 (Styx, Kerberos);
+  Fraser, W. C. & Brown, M. E. 2009, ApJ 695, L1 (Namaka); Parker, A. H. et al. 2016, ApJ 825, L9 (MK2). Measured spectra of their
+  own: Phoebe (Clark, R. N. et al. 2005, Nature 435, 66, Cassini VIMS; Owen, T. C. et al. 1999, Icarus 139, 379) and Hiʻiaka
+  (Barkume, K. M., Brown, M. E. & Schaller, E. L. 2006, ApJ 640, L87).
 - Band shapes of ices and minerals: the USGS Spectral Library version 7 (Kokaly, R. F. et al. 2017, USGS Data Series 1035)
   and the RELAB spectral library (Brown University).
 
 The table is CC0; cite the papers above for the numbers.
+
+## The facts cards (`bodyfacts_<lang>.json`)
+
+The cards of the asteroids, dwarf planets, comets and moons (built by `/tmp/claude-0/facts/build_facts.py`, numbers in
+`facts_data.py`, words in twelve languages in `facts_i18n.py`): JPL Small-Body Database (ssd-api.jpl.nasa.gov/sbdb.api: orbits,
+sizes, rotation, albedo, density, GM, spectral class, discovery); JPL Solar System Dynamics planetary satellites (discovery
+circumstances, ssd.jpl.nasa.gov/sats/discovery.html, and physical parameters, /sats/phys_par/); Wikipedia infoboxes for
+triaxial shapes, albedos and masses, keeping only values that cite NASA/JPL or peer-reviewed papers (Thomas 1998 and 2010,
+Nimmo et al. 2011, Verbiscer et al. 2007, Karkoschka 2001 and 2003, Vernazza et al. 2021, Weaver et al. 2016, Buratti et al.
+2019, Jacobson 2022); mission dates from the NASA, ESA, CNSA and UAE Space Agency mission pages. A field is left out rather than guessed.
 
 ## The black holes (`blackholes.json`)
 

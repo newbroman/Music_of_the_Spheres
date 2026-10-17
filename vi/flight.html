@@ -2653,12 +2653,14 @@ function info(b,dl){if(!dl)return;let row=dl.querySelector('#i_light');if(!row){
   const dd=row.querySelector('dd')||row;dd.textContent=readout(b);cardButton(b)}
 // the flight's readout line: the body the ship is with, or nearest to
 let nearLast='';
-// id: a body ('jupiter') or a moon ('jupiter:2'); the line ends with a Spectrum link that opens the body's sheet
-function near(id){const el=document.getElementById('lightTxt');if(!el)return;let h='';
-  if(id&&H){const pk=String(id).split(':'),b=H.byId[pk[0]],m=b&&pk.length>1&&b.moons?b.moons[+pk[1]]:null;
+// id: a body ('jupiter') or a moon ('jupiter:2'); the line ends with a Spectrum link that opens the body's sheet, and (o.about, the flight)
+// a Facts link that opens the body's card. o.byId: the page's bodies, so the line is written before the sound starts (H is set by attach)
+function near(id,o){const el=document.getElementById('lightTxt');if(!el)return;let h='';const BY=(H&&H.byId)||(o&&o.byId);
+  if(id&&BY){const pk=String(id).split(':'),b=BY[pk[0]],m=b&&pk.length>1&&b.moons?b.moons[+pk[1]]:null;
     if(m||b){const nm=m?m.name.split(' ')[0]:b.kind==='comet'?b.name.split(' ')[0]:(b.god||b.name),full=m?nm:b.kind==='comet'?b.name:(b.god&&b.god!==b.name?b.god+' · '+b.name:b.name),txt=!m&&b.kind!=='comet'?nm+' · '+readout(b):nm;
-      h=ESCH(txt)+(m&&m.add?'':`<button class="bslink" type="button" data-bs="${ESCH(m?m.k:b.id)}" data-nm="${ESCH(full)}">${ESCH(SP.spec)}</button>`)}}
-  if(h!==nearLast){nearLast=h;el.innerHTML=h}}
+      h=ESCH(txt)+`<span class="bsacts"><button class="bslink" type="button" data-bs="${ESCH(m?m.k:b.id)}" data-nm="${ESCH(full)}">${ESCH(SP.spec)}</button>`+
+        (o&&o.about&&!(b.kind==='planet'&&!m)?`<button class="bslink bsabout" type="button" data-about="${ESCH(id)}">${ESCH(SP.about)}</button>`:'')+'</span>'}}
+  if(h!==nearLast){if(el.contains(document.activeElement))try{document.activeElement.blur()}catch(e){}nearLast=h;el.innerHTML=h}}
 
 /* ---------- the spectrum of a planet, moon, minor body or comet: "Spectrum" on the dial's info card, the flight's readout and tap card.
    A sheet like the stars’ (fly_galaxy.js): its reflected light from 350 nm to 2.5 µm (a log-wavelength axis, so equal widths are equal
@@ -2795,7 +2797,23 @@ const SPX={
   w:{ice:'gelo',px:'piroxênio',ol:'olivina–piroxênio',chrom:'absorvedor azul',ray:'azul de Rayleigh',fe:'borda do Fe³⁺',sul:'borda do enxofre',veg:'clorofila',haze:'névoa',thol:'tolinas',uva:'absorvedor UV',hyd:'hidratação',slope:'inclinação vermelha'},
   cls:{S:'asteroide do tipo S',B:'asteroide do tipo B',C:'asteroide do tipo C',ice:'lua gelada',dark:'corpo escuro',comet:'cometa'}}
 };
-const SP=Object.assign({},SPX.en,SPX[LANG]||{});SP.w=Object.assign({},SPX.en.w,(SPX[LANG]||{}).w||{});SP.cls=Object.assign({},SPX.en.cls,(SPX[LANG]||{}).cls||{});
+// the small moons' reflectance classes (bodyspectra.json x_… templates, all class-typical), "Facts" on the flight's readout, and the short
+// "typical of its class" note for the sheet's header
+const SPX2={
+ en:{about:'Facts',est:' (typical of its class, not measured)',cls:{jinner:'dark red inner moon',irrC:'grey C-type irregular moon',irrD:'reddish D-type irregular moon',irrP:'P-type irregular moon',ringice:'icy ring moon',irrLR:'light-red irregular moon',irrN:'dark grey irregular moon',uinner:'dark inner moon',irrR:'red irregular moon',ninner:'dark inner moon',irrG:'grey irregular moon',pice:'icy moon',hice:'icy moon'}},
+ pl:{about:'Fakty',est:' (typowe dla klasy, nie zmierzone)',cls:{jinner:'ciemnoczerwony księżyc wewnętrzny',irrC:'szary nieregularny księżyc typu C',irrD:'czerwonawy nieregularny księżyc typu D',irrP:'nieregularny księżyc typu P',ringice:'lodowy księżyc pierścieni',irrLR:'jasnoczerwony księżyc nieregularny',irrN:'ciemnoszary księżyc nieregularny',uinner:'ciemny księżyc wewnętrzny',irrR:'czerwony księżyc nieregularny',ninner:'ciemny księżyc wewnętrzny',irrG:'szary księżyc nieregularny',pice:'lodowy księżyc',hice:'lodowy księżyc'}},
+ cy:{about:'Ffeithiau',est:' (nodweddiadol o’i dosbarth, heb ei fesur)',cls:{jinner:'lleuad fewnol goch dywyll',irrC:'lleuad afreolaidd lwyd math C',irrD:'lleuad afreolaidd gochlyd math D',irrP:'lleuad afreolaidd math P',ringice:'lleuad rewllyd y modrwyau',irrLR:'lleuad afreolaidd goch olau',irrN:'lleuad afreolaidd lwyd dywyll',uinner:'lleuad fewnol dywyll',irrR:'lleuad afreolaidd goch',ninner:'lleuad fewnol dywyll',irrG:'lleuad afreolaidd lwyd',pice:'lleuad rewllyd',hice:'lleuad rewllyd'}},
+ de:{about:'Steckbrief',est:' (typisch für seine Klasse, nicht gemessen)',cls:{jinner:'dunkelroter innerer Mond',irrC:'grauer irregulärer Mond vom C-Typ',irrD:'rötlicher irregulärer Mond vom D-Typ',irrP:'irregulärer Mond vom P-Typ',ringice:'eisiger Ringmond',irrLR:'hellroter irregulärer Mond',irrN:'dunkelgrauer irregulärer Mond',uinner:'dunkler innerer Mond',irrR:'roter irregulärer Mond',ninner:'dunkler innerer Mond',irrG:'grauer irregulärer Mond',pice:'Eismond',hice:'Eismond'}},
+ es:{about:'Datos',est:' (típico de su clase, no medido)',cls:{jinner:'luna interior rojo oscuro',irrC:'luna irregular gris de tipo C',irrD:'luna irregular rojiza de tipo D',irrP:'luna irregular de tipo P',ringice:'luna helada de los anillos',irrLR:'luna irregular rojo claro',irrN:'luna irregular gris oscuro',uinner:'luna interior oscura',irrR:'luna irregular roja',ninner:'luna interior oscura',irrG:'luna irregular gris',pice:'luna helada',hice:'luna helada'}},
+ fr:{about:'Fiche',est:' (typique de sa classe, non mesuré)',cls:{jinner:'lune intérieure rouge sombre',irrC:'lune irrégulière grise de type C',irrD:'lune irrégulière rougeâtre de type D',irrP:'lune irrégulière de type P',ringice:'lune glacée des anneaux',irrLR:'lune irrégulière rouge clair',irrN:'lune irrégulière gris foncé',uinner:'lune intérieure sombre',irrR:'lune irrégulière rouge',ninner:'lune intérieure sombre',irrG:'lune irrégulière grise',pice:'lune glacée',hice:'lune glacée'}},
+ it:{about:'Scheda',est:' (tipico della sua classe, non misurato)',cls:{jinner:'luna interna rosso scuro',irrC:'luna irregolare grigia di tipo C',irrD:'luna irregolare rossastra di tipo D',irrP:'luna irregolare di tipo P',ringice:'luna ghiacciata degli anelli',irrLR:'luna irregolare rosso chiaro',irrN:'luna irregolare grigio scuro',uinner:'luna interna scura',irrR:'luna irregolare rossa',ninner:'luna interna scura',irrG:'luna irregolare grigia',pice:'luna ghiacciata',hice:'luna ghiacciata'}},
+ zh:{about:'资料',est:'（按类别推定，未经实测）',cls:{jinner:'暗红色内侧卫星',irrC:'灰色 C 型不规则卫星',irrD:'偏红的 D 型不规则卫星',irrP:'P 型不规则卫星',ringice:'冰质环卫星',irrLR:'浅红色不规则卫星',irrN:'深灰色不规则卫星',uinner:'暗色内侧卫星',irrR:'红色不规则卫星',ninner:'暗色内侧卫星',irrG:'灰色不规则卫星',pice:'冰卫星',hice:'冰卫星'}},
+ ja:{about:'詳細',est:'（分類から推定、実測ではありません）',cls:{jinner:'暗赤色の内側衛星',irrC:'灰色のC型不規則衛星',irrD:'赤みがかったD型不規則衛星',irrP:'P型不規則衛星',ringice:'氷のリング衛星',irrLR:'淡い赤の不規則衛星',irrN:'暗い灰色の不規則衛星',uinner:'暗い内側衛星',irrR:'赤い不規則衛星',ninner:'暗い内側衛星',irrG:'灰色の不規則衛星',pice:'氷の衛星',hice:'氷の衛星'}},
+ vi:{about:'Thông tin',est:' (điển hình cho nhóm, không phải đo)',cls:{jinner:'mặt trăng trong màu đỏ sẫm',irrC:'mặt trăng dị thường xám kiểu C',irrD:'mặt trăng dị thường hơi đỏ kiểu D',irrP:'mặt trăng dị thường kiểu P',ringice:'mặt trăng băng trong vành đai',irrLR:'mặt trăng dị thường đỏ nhạt',irrN:'mặt trăng dị thường xám sẫm',uinner:'mặt trăng trong tối màu',irrR:'mặt trăng dị thường màu đỏ',ninner:'mặt trăng trong tối màu',irrG:'mặt trăng dị thường màu xám',pice:'mặt trăng băng',hice:'mặt trăng băng'}},
+ bg:{about:'Факти',est:' (типично за класа, не измерено)',cls:{jinner:'тъмночервен вътрешен спътник',irrC:'сив неправилен спътник от тип C',irrD:'червеникав неправилен спътник от тип D',irrP:'неправилен спътник от тип P',ringice:'леден спътник в пръстените',irrLR:'светлочервен неправилен спътник',irrN:'тъмносив неправилен спътник',uinner:'тъмен вътрешен спътник',irrR:'червен неправилен спътник',ninner:'тъмен вътрешен спътник',irrG:'сив неправилен спътник',pice:'леден спътник',hice:'леден спътник'}},
+ pt:{about:'Dados',est:' (típico da sua classe, não medido)',cls:{jinner:'lua interna vermelho-escura',irrC:'lua irregular cinza do tipo C',irrD:'lua irregular avermelhada do tipo D',irrP:'lua irregular do tipo P',ringice:'lua gelada dos anéis',irrLR:'lua irregular vermelho-clara',irrN:'lua irregular cinza-escura',uinner:'lua interna escura',irrR:'lua irregular vermelha',ninner:'lua interna escura',irrG:'lua irregular cinza',pice:'lua gelada',hice:'lua gelada'}}};
+const SP=Object.assign({},SPX.en,SPX[LANG]||{});SP.w=Object.assign({},SPX.en.w,(SPX[LANG]||{}).w||{});SP.cls=Object.assign({},SPX.en.cls,(SPX[LANG]||{}).cls||{},SPX2.en.cls,(SPX2[LANG]||{}).cls||{});
+SP.about=(SPX2[LANG]||SPX2.en).about;SP.est=(SPX2[LANG]||SPX2.en).est;
 const BS_BASE=LANG==='en'||!/\/(pl|cy|de|es|fr|it|zh|ja|vi|bg|pt)\/[^/]*$/.test(location.pathname)?'./':'../';
 let BSD=null,BSP=null;
 // the chord's nominal level: the bands' clusters (three sines and a little noise) come out ~3 dB under single sines, so 0.125 gives a held RMS near 0.08
@@ -2995,6 +3013,8 @@ const bcss=document.createElement('style');bcss.textContent=`
 .bslink:hover{border-color:var(--bronze,#c9984f);color:#f3d9a4}
 .bslam{appearance:none;background:transparent;border:1px solid rgba(201,152,79,.35);border-radius:6px;color:var(--bronze,#c9984f);font-family:var(--f-display,Georgia,serif);font-size:1rem;min-width:2.2rem;min-height:2.2rem;cursor:pointer;padding:0}
 .bslam:hover{border-color:var(--bronze,#c9984f)}
+.bsacts{white-space:nowrap}
+@media (pointer:coarse){.bslink{display:inline-flex;align-items:center;justify-content:center;min-height:var(--tap,44px);min-width:var(--tap,44px);padding:0 .7em;margin:.1rem 0 .1rem .4em;vertical-align:middle;line-height:1.2}.bslam{min-width:var(--tap,44px);min-height:var(--tap,44px)}}
 @media (max-width:620px){.bsheet{font-size:.78rem;padding:.5rem .7rem .6rem}.bsheet canvas{height:10rem}.bsheet .bsr{display:none}.bsheet .bsb button{padding:.3rem .7rem}}
 @media (max-height:520px){.bsheet{bottom:.4rem;max-height:calc(100vh - .8rem);width:min(46rem,calc(100vw - 7rem))}.bsheet canvas{height:7.5rem}.bsheet .bsr{display:none}}
 @media (prefers-reduced-motion:reduce){.bsheet{transition:none}}`;document.head.appendChild(bcss);
@@ -3015,7 +3035,7 @@ function open(ref){if(!ref||!ref.id)return;ensureSheet();stopHear();BS={ref,C:nu
 function render(){const {ref,C}=BS,nm=ESCH(ref.name||ref.id),comet=C.lines.some(L=>L.em),list=ESCH(bandList(C));
   const t1=C.lines.length?uf(comet?SP.t1c:SP.t1,{n:'<b>'+nm+'</b>',list}):uf(SP.t1n,{n:'<b>'+nm+'</b>'});
   const txt=(t1+' '+ESCH(uf(SP.rule,{hi:fmt(C.hiHz,0),lo:fmt(C.loHz,0)}))+' '+ESCH(SP.dop)+(C.typical?' '+ESCH(uf(SP.typ,{c:SP.cls[C.cls]||C.cls})):'')).replace(/(\d) (µm|nm|Hz)/g,'$1\u00a0$2');
-  BSH.innerHTML=`<div class="bsh"><b>${nm}</b><small>${ESCH(SP.title)}</small><button class="bsx" data-a="x" aria-label="${ESCH(SP.close)}">×</button></div><canvas aria-label="${ESCH(SP.title)}"></canvas><p class="bst">${txt}</p><p class="bsr">${ESCH(C.refs.join(' · '))}</p>`+
+  BSH.innerHTML=`<div class="bsh"><b>${nm}</b><small>${ESCH(SP.title+(C.typical?SP.est:''))}</small><button class="bsx" data-a="x" aria-label="${ESCH(SP.close)}">×</button></div><canvas aria-label="${ESCH(SP.title)}"></canvas><p class="bst">${txt}</p><p class="bsr">${ESCH(C.refs.join(' · '))}</p>`+
     `<div class="bsb"><button data-a="chord">${ESCH(SP.hearChord)}</button><button data-a="sweep">${ESCH(SP.hearSweep)}</button><button data-a="x">${ESCH(SP.close)}</button></div>`;
   BCV=BSH.querySelector('canvas');draw();
   // the sheet sings as it opens: its lines held and looping until Stop or close (not when the page's volume is at nothing)
@@ -3089,7 +3109,10 @@ function hearSweep(){if(!BS||!BS.C)return;const ac=sctx();if(!ac)return;stopHear
   g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(A[0],t+.02);g.gain.setValueCurveAtTime(A,t+.02,dur-.04);g.gain.setTargetAtTime(0,t+dur,.05);o.start(t);o2.start(t);o.stop(t+dur+.4);o2.stop(t+dur+.4);
   BH={kind:'sweep',ac,t0:t,dur,srcs:[o,o2],out,vol,lv:pageVol(),end:setTimeout(()=>{const back=!!(BS&&BS.want);stopHear();if(back&&BS&&BSH&&!BSH.hidden)hearChord()},(dur+.5)*1000)};setBtn('sweep',true);duck(true);hearTick('sweep')}
 function stopHear(){if(!BH)return;const h=BH;BH=null;clearTimeout(h.end);cancelAnimationFrame(h.raf);const t=h.ac.currentTime,g=h.vol||h.out;try{g.gain.cancelScheduledValues(t);g.gain.setTargetAtTime(0,t,.04)}catch(e){}
-  setTimeout(()=>{if(h.gr)chordKill(h.gr,h.ac,.02);if(h.srcs)h.srcs.forEach(s=>{try{s.stop()}catch(e){}});try{h.out.disconnect()}catch(e){}try{if(h.vol)h.vol.disconnect()}catch(e){}},300);setBtn('chord',false);setBtn('sweep',false);duck(false);draw()}
+  setTimeout(()=>{if(h.gr)chordKill(h.gr,h.ac,.02);if(h.srcs)h.srcs.forEach(s=>{try{s.stop()}catch(e){}});try{h.out.disconnect()}catch(e){}try{if(h.vol)h.vol.disconnect()}catch(e){}
+    // the sheet's own context (made when a sheet played before the page's sound started) is put to sleep once silent: left running
+    // without a sound, compat.js's watchdog took it for a broken output and reloaded the page
+    if(h.ac===SAC&&!(BH&&BH.ac===SAC))try{SAC.suspend()}catch(e){}},300);setBtn('chord',false);setBtn('sweep',false);duck(false);draw()}
 /* the measurement window: a body's chord rendered offline as the sheet plays it (8 s, fade in 0.5 s, held, fade out), with its RMS (all and held),
    peak, the largest sample-to-sample step (a click would be > 0.1), its spectral peaks (Hz) and a 1/6-octave profile 100–1000 Hz */
 function renderBody(id,secs){return bsData().then(D=>{const C=BODYSPEC.chord(D,id,{gamma:1.25,level:BS_LEVEL}),sr=44100,dur=secs||8,ac=new OfflineAudioContext(1,Math.round(sr*(dur+.5)),sr);
@@ -3103,8 +3126,8 @@ function renderBody(id,secs){return bsData().then(D=>{const C=BODYSPEC.chord(D,i
 // the hosts' hooks: a Spectrum button on the dial's info card, λ buttons on the moons of the dial's system view, a link on the flight's readout line
 function cardButton(b){const acts=document.querySelector('#info .acts');if(!acts||acts.querySelector('[data-bs]'))return;const bt=document.createElement('button');bt.className='btn';bt.dataset.bs=b.id;bt.textContent=SP.spec;
   bt.onclick=()=>open({id:b.id,name:b.kind==='comet'?b.name:(b.god&&b.god!==b.name?b.god+' · '+b.name:b.name)});acts.appendChild(bt)}
-// (an added moon, m.add, has no measured spectrum here: no λ)
-function sysRows(roster,planet){if(!roster||!planet)return;roster.querySelectorAll('.vrow[data-moon]').forEach(row=>{const m=planet.moons[+row.dataset.moon];if(!m||m.add||row.querySelector('.bslam'))return;const slot=row.lastElementChild&&row.lastElementChild.tagName==='SPAN'&&!row.lastElementChild.textContent?row.lastElementChild:row;
+// (the small moons, m.add, have their class's spectrum: bodyspectra.json x_… templates, marked class-typical)
+function sysRows(roster,planet){if(!roster||!planet)return;if(window.MOTS_FAM&&MOTS_FAM.sysFacts)try{MOTS_FAM.sysFacts(roster,planet)}catch(e){}roster.querySelectorAll('.vrow[data-moon]').forEach(row=>{const m=planet.moons[+row.dataset.moon];if(!m||row.querySelector('.bslam'))return;const slot=row.lastElementChild&&row.lastElementChild.tagName==='SPAN'&&!row.lastElementChild.textContent?row.lastElementChild:row;
   const bt=document.createElement('button');bt.className='bslam';bt.type='button';bt.textContent='λ';const nm=m.name.split(' ')[0];bt.title=bt.ariaLabel=SP.spec+': '+nm;bt.setAttribute('aria-label',SP.spec+': '+nm);bt.onclick=e=>{e.stopPropagation();open({id:m.k,name:nm})};slot.appendChild(bt)})}
 document.addEventListener('click',e=>{const b=e.target.closest('.bslink');if(!b)return;e.preventDefault();e.stopPropagation();open({id:b.dataset.bs,name:b.dataset.nm})});
 
@@ -5662,13 +5685,113 @@ function dial(b,dl){if(!dl||!b)return;const old=dl.querySelector('.famrow');if(o
     const maj=b.moons.filter(m=>!m.sm).map(m=>esc(m.name)),sml=b.moons.filter(m=>m.sm).map(m=>esc(m.name));
     dd.innerHTML=maj.join(', ')+` <details class="fmore"><summary>${esc(fill(T.moreM||T.more,{n:sml.length}))}</summary>${sml.join(', ')}</details>`})}
   const parts=where(b),m=moons(b,null,'count');if(m)parts.unshift(m);else{const u=undrawn(b);if(u.length)parts.unshift(moons(b,null,'full'))}
-  if(!parts.length)return;
+  if(!parts.length){dialFacts(b,dl);return}
   const row=document.createElement('div');row.className='famrow';row.style.gridColumn='1/-1';
-  row.innerHTML=`<dt>${esc(T.fam)}</dt><dd style="font-family:var(--f-body)">${parts.join(' · ')}</dd>`;dl.appendChild(row)}
+  row.innerHTML=`<dt>${esc(T.fam)}</dt><dd style="font-family:var(--f-body)">${parts.join(' · ')}</dd>`;dl.appendChild(row);dialFacts(b,dl)}
 {const st=document.createElement('style');st.textContent='.fk{color:var(--bronze,#c9984f)}.fn{opacity:.85;white-space:nowrap}.fmore{display:inline}.fmore[open]{display:block;margin-top:.2rem;max-height:min(34vh,15rem);overflow-y:auto;overscroll-behavior:contain}.fmore>summary{display:inline;cursor:pointer;color:var(--bronze,#c9984f);list-style:none;text-decoration:underline dotted rgba(201,152,79,.75);text-underline-offset:3px}.fmore>summary::-webkit-details-marker{display:none}.fmore>summary:focus-visible{outline:2px solid var(--bronze,#c9984f);outline-offset:1px}@media (pointer:coarse){.fmore>summary{display:inline-flex;align-items:center;min-height:var(--tap,44px);padding:0 .3em}}';document.head.appendChild(st)}
 // the dial's footnote said only the major moons were shown: now every named moon is
 {const f=document.querySelector('.foot'),x=FOOT[LG];if(f&&x&&f.innerHTML.includes(x[0]))f.innerHTML=f.innerHTML.replace(x[0],x[1])}
-window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,myth,known,undrawn,moons,dial};
+/*FACTS-START*/
+/* ---------- facts: what a curious visitor wants to know about a body that is not a full planet (an asteroid, a dwarf planet, a comet,
+   any moon): its kind and taxonomic class, size and shape, day, albedo, density and mass, orbit, discovery, the spacecraft and
+   telescopes that explored it, a notable fact or two and its god. The words and numbers are galaxy/bodyfacts_<lang>.json, built by
+   /tmp/claude-0/facts/build_facts.py from JPL's SBDB and satellite tables and cited summaries (sources there); orbits, the small moons'
+   sizes and the myths of the moons come from the page's own BODIES and from this file. Fetched once (precached offline), shown as a
+   summary line and a "More" fold: on the flight's tapped card (fly_family.js), the dial's info card and the dial's moon rows. ---------- */
+const FBASE=LG==='en'||!/\/(pl|cy|de|es|fr|it|zh|ja|vi|bg|pt)\/[^/]*$/.test(location.pathname)?'./':'../';
+const FX={D:null,P:null};
+function factsData(){if(FX.D)return Promise.resolve(FX.D);
+  if(!FX.P)FX.P=fetch(FBASE+'galaxy/bodyfacts_'+LG+'.json').then(r=>{if(!r.ok)throw new Error('bodyfacts '+r.status);return r.json()}).then(d=>FX.D=d).catch(e=>{FX.P=null;throw e});return FX.P}
+// fetch early, quietly, so the cards have it when they open
+setTimeout(()=>{factsData().catch(()=>{})},1200);
+const LOC={en:'en-GB',pl:'pl-PL',cy:'cy-GB',de:'de-DE',es:'es-ES',fr:'fr-FR',it:'it-IT',zh:'zh-CN',ja:'ja-JP',vi:'vi-VN',bg:'bg-BG',pt:'pt-BR'}[LG]||'en-GB';
+const CJK=LG==='zh'||LG==='ja';
+const num=(n,d)=>{try{return Number(n).toLocaleString(LOC,{maximumFractionDigits:d})}catch(e){return String(+Number(n).toFixed(d))}};
+const sz=n=>num(n,n<10?2:n<100?1:0);
+const SUP={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+function sci(x){const e=Math.floor(Math.log10(x)),m=x/Math.pow(10,e);return num(m,2)+' × 10'+String(e).split('').map(c=>SUP[c]).join('')}
+const tpl=(t,o)=>fill(t,o);
+// a moon by its key (selene, himalia …) and its planet, from the page's bodies
+function findMoon(bodies,k){for(const b of bodies||[])for(const m of b.moons||[])if(m.k===k)return {m,p:b};return null}
+const bodyName=b=>b.kind==='comet'?b.name.split(' ')[0]:b.god;
+/** the facts of a body as HTML: ctx {b} for a body of the Sun (BODIES), {m, p} for a moon (and its planet); mode 'pop' | 'dial' | 'row'.
+ *  The dial's card shows the orbit and the day already, so mode 'dial' leaves them out. '' when there is nothing (or not loaded yet). */
+function factsHTML(ctx,mode){const D=FX.D;if(!D||!ctx)return '';const m=ctx.m,b=ctx.b,key=m?m.k:b&&b.id;const f=key&&D.B[key];if(!f)return '';
+  const L=D.L,U=L.u,LB=L.lab,rows=[],row=(k,v)=>{if(v)rows.push(`<div><dt>${esc(LB[k])}</dt><dd>${v}</dd></div>`)};
+  // size and shape
+  let size='';const ap=f.approx||(m&&f.short&&m.approx)?'≈ ':'';
+  if(f.dim2)size=tpl(U.lobes,{a:f.dim2[0].map(sz).join(' × '),b:f.dim2[1].map(sz).join(' × ')});
+  else if(f.dim)size=ap+tpl(U.dims,{d:f.dim.map(sz).join(' × ')});
+  else if(f.d)size=ap+tpl(U.across,{n:sz(f.d)});
+  else if(m&&m.R)size=(m.approx||f.short?'≈ ':'')+tpl(U.across,{n:sz(m.R*2)});
+  if(f.kind==='comet'&&size)size=LB.nucleus+' '+size;
+  // the summary: kind and class, or the moon's group and direction; then the size
+  const sum=[];
+  if(f.kind!=='moon')sum.push(esc(L.kind[f.kind])+(f.ty?' · '+esc(tpl(L.ty,{c:f.ty})):''));
+  if(f.grp)sum.push(esc(f.grp));
+  if(m&&f.short&&m.P)sum.push(esc(m.P<0?U.retro:U.pro));
+  if(size)sum.push(esc(size));
+  // the day
+  let rot='';if(f.rot==='sync')rot=U.sync;else if(f.rot==='chaos')rot=U.chaos;else if(typeof f.rot==='number'){const h=Math.abs(f.rot);rot=h<48?tpl(U.h,{n:num(h,h<10?2:1)}):tpl(U.d,{n:num(h/24,1)});if(f.rot<0)rot+=' · '+U.retro}
+  // the orbit: around the Sun from the body's elements, around the planet from the moon's table
+  let orb='';
+  if(m&&m.a){const a=m.a,P=Math.abs(m.P||0),bits=[tpl(U.mean,{a:a>=1e6||(CJK&&a>=1e5)?tpl(U.mkm,{n:CJK?num(a/1e4,0):num(a/1e6,1)}):tpl(U.km,{n:num(a,0)})})];
+    if(P)bits.push(tpl(U.every,{P:P<1?tpl(U.h,{n:num(P*24,1)}):P<730?tpl(U.d,{n:num(P,P<10?2:P<100?1:0)}):tpl(U.y,{n:num(P/365.25,1)})}));
+    if(m.P<0&&!f.short)bits.push(U.retro);if(m.e>=.1)bits.push(tpl(U.ecc,{e:num(m.e,2)}));orb=bits.join(' · ')}
+  else if(b&&b.el){const el=b.el,Py=b.Pyears,bits=[];if(el.a)bits.push(tpl(U.mean,{a:num(el.a,el.a<10?2:el.a<100?1:0)+' '+U.au}));
+    if(Py)bits.push(tpl(U.every,{P:Py<2?tpl(U.d,{n:num(Py*365.25,0)}):tpl(U.y,{n:num(Py,Py<20?1:0)})}));
+    if(el.i!=null)bits.push(tpl(U.tilt,{i:num(el.i,1)})+(el.i>90?' · '+U.retro:''));if(el.e!=null)bits.push(tpl(U.ecc,{e:num(el.e,2)}));orb=bits.join(' · ')}
+  const disc=f.disc?esc(f.disc[0]+' · '+f.disc[1]+(f.disc[2]?' ('+f.disc[2]+')':'')):'';
+  const cr=f.craft?f.craft.map(c=>esc(c[0])+(CJK?'（':' (')+esc(c[1]+' '+c[2])+(CJK?'）':')')).join(CJK?'、':'; '):'';
+  // the spectrum, when it is its class's and not its own
+  const W=window.MOTS&&MOTS.light&&MOTS.light.spectrum&&MOTS.light.spectrum.words;
+  const spec=f.tc&&W?esc((W.cls&&W.cls[f.tc]||f.tc)+W.est):'';
+  if(mode!=='dial')row('rot',esc(rot));
+  if(f.alb!=null)row('alb',esc(num(f.alb,3)));
+  if(f.rho!=null)row('rho',esc(tpl(U.rho,{n:num(f.rho,2)})));
+  if(f.m!=null)row('mass',esc(tpl(U.mass,{n:sci(f.m)})));
+  if(mode!=='dial')row('orbit',esc(orb));
+  row('disc',disc);row('craft',cr);
+  if(f.note)row('note',esc(f.note));
+  if(f.myth)row('myth',esc(f.myth));
+  const open=innerWidth>620&&innerHeight>560;
+  const nm=m?m.name.split(' ')[0]:b?bodyName(b):'';
+  const head=`<div class="bfs">${sum.join(' · ')}</div>`;
+  const sp=spec?`<div class="bfsp"><span class="fk">${esc(LB.spec)}</span>${esc(T.colon||': ')}${spec}</div>`:'';
+  return `<div class="bfacts" data-k="${esc(key)}">${head}${sp}${rows.length?`<details class="bfmore"${open?' open':''}><summary>${esc(LB.more)}${mode==='dial'?' · '+esc(nm):''}</summary><dl class="bfdl">${rows.join('')}</dl></details>`:''}</div>`}
+const FCSS=document.createElement('style');FCSS.textContent=`
+.bfacts{font-family:var(--f-body);font-size:.84rem;line-height:1.42;color:var(--vellum-dim,#bdb4a0);margin:.15rem 0 .45rem;overflow-wrap:anywhere}
+.bfacts .bfs{color:var(--vellum,#e9e1cc)}
+.bfacts .bfsp{margin-top:.1rem}
+.bfmore>summary{cursor:pointer;color:var(--bronze,#c9984f);list-style:none;display:inline-flex;align-items:center;gap:.35rem;margin-top:.15rem;border-radius:5px}
+.bfmore>summary::-webkit-details-marker{display:none}
+.bfmore>summary::before{content:"▸";display:inline-block;transition:transform .15s}
+.bfmore[open]>summary::before{transform:rotate(90deg)}
+.bfmore>summary:focus-visible{outline:2px solid var(--bronze,#c9984f);outline-offset:1px}
+.bfdl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.12rem .7rem;margin:.15rem 0 0}
+.bfdl>div{display:contents}
+.bfdl dt{color:var(--bronze,#c9984f);font-size:.92em;white-space:nowrap}
+.bfdl dd{margin:0;color:var(--vellum,#e9e1cc)}
+.info .bfacts,.bfdial .bfacts{font-size:.9rem}
+.info .bfdial dl.bfdl{grid-template-columns:auto minmax(0,1fr);gap:.3rem .9rem;align-items:baseline}
+.info .bfdial .bfdl dt{font-size:.72rem;color:var(--bronze,#c9984f)}
+.info .bfdial .bfdl dd{font-family:var(--f-body);font-size:.92rem;color:var(--vellum,#e9e1cc)}
+.bfdial{grid-column:1/-1}
+.bfrow{padding:.1rem .5rem .4rem 1.6rem}
+@media (max-width:620px){.bfdl,.info .bfdial dl.bfdl{gap:.15rem .55rem}.bfdl dt{white-space:normal;max-width:6.6rem}}
+@media (pointer:coarse){.bfmore>summary{min-height:var(--tap,44px);min-width:var(--tap,44px);padding:0 .3em}}
+@media (prefers-reduced-motion:reduce){.bfmore>summary::before{transition:none}}`;document.head.appendChild(FCSS);
+// the dial's info card (a body of the Sun that is not a planet): a full-width row with its facts, under the family row
+function dialFacts(b,dl){if(!dl||!b||b.kind==='planet')return;const old=dl.querySelector('.bfdial');if(old)old.remove();
+  const put=()=>{if(!dl.isConnected||dl.querySelector('.bfdial'))return;const h=factsHTML({b},'dial');if(!h)return;const r=document.createElement('div');r.className='bfdial';r.innerHTML=h;dl.appendChild(r)};
+  if(FX.D)put();else factsData().then(put).catch(()=>{})}
+// the dial's moon rows (inside a planet's system): the facts of the moon in focus, under its row (after foldSmall has moved the rows)
+function sysFacts(roster,planet){if(!roster||!planet)return;
+  const put=()=>{if(!roster.isConnected)return;roster.querySelectorAll('.bfrow').forEach(x=>x.remove());const row=roster.querySelector('.vrow.sel[data-moon]');if(!row)return;
+    const m=planet.moons[+row.dataset.moon];if(!m)return;const h=factsHTML({m,p:planet},'row');if(!h)return;const d=document.createElement('div');d.className='bfrow';d.innerHTML=h;row.after(d)};
+  Promise.resolve().then(()=>{if(FX.D)put();else factsData().then(put).catch(()=>{})})}
+/*FACTS-END*/
+window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,myth,known,undrawn,moons,dial,factsData,factsHTML,dialFacts,sysFacts,findMoon};
 })();
 </script>
 <script>
@@ -9026,7 +9149,7 @@ function readout(ns){
   // the light line names the nearest planet; beyond the planets the galaxy module writes the interstellar line instead
   // (a moon of the planet the ship is with, when its surface is the nearest: the line names the moon, and its Spectrum link opens the moon's)
   const nw=ns.who==='sun'?null:ns.who,nearId=nw&&nw.includes(':')&&ship.anchor===nw.split(':')[0]?nw:ship.anchor||(nw?nw.split(':')[0]:null);
-  if(window.MOTS&&MOTS.light)MOTS.light.near(window.FLYG&&FLYG.far&&FLYG.far()?null:nearId);
+  if(window.MOTS&&MOTS.light)MOTS.light.near(window.FLYG&&FLYG.far&&FLYG.far()?null:nearId,{byId,about:true});
   const v=(ship.speed||0)*AU_KM/MAG*(ship.anchor?1:MAG), c=299792.458;
   const sp=v>c?(v/c).toFixed(v/c<10?1:0)+'× tốc độ ánh sáng':Math.round(v).toLocaleString('vi-VN')+' km/s';
   const dist=ship.pos.length();
@@ -9042,7 +9165,7 @@ function pickBody(px,py,rad){const r=renderer.domElement.getBoundingClientRect()
   const test=(id,pos,rr)=>{pv3.copy(pos).project(camera);if(pv3.z>1||pv3.z<-1)return;const x=r.left+(pv3.x*.5+.5)*W,y=r.top+(-pv3.y*.5+.5)*Hh,rp=rr/Math.max(camera.position.distanceTo(pos),1e-9)*k,d=Math.max(0,Math.hypot(x-px,y-py)-rp);if(d<rad&&d<bs){bs=d;best=id}};
   BODIES.forEach(b=>{const o=OBJ[b.id];if(!o||!o.pos)return;test(b.id,o.pos,o.r);if(ship.anchor===b.id||(ship.ap&&ship.ap.id.startsWith(b.id+':')))o.moons.forEach((mm,j)=>{if(!mm.sm||o.smOn)test(b.id+':'+j,mm.wp,mm.r)})});
   return best}
-function bodyRef(id){const pk=id.split(':'),b=byId[pk[0]];if(pk.length>1){const m=b.moons[+pk[1]],nm=m.name.split(' ')[0];return {id:m.k,name:nm,go:id,b:null,nospec:!!m.add}}return {id:b.id,name:b.kind==='comet'?b.name:(b.god&&b.god!==b.name?b.god+' · '+b.name:b.name),go:id,b}}
+function bodyRef(id){const pk=id.split(':'),b=byId[pk[0]];if(pk.length>1){const m=b.moons[+pk[1]],nm=m.name.split(' ')[0];return {id:m.k,name:nm,go:id,b:null}}return {id:b.id,name:b.kind==='comet'?b.name:(b.god&&b.god!==b.name?b.god+' · '+b.name:b.name),go:id,b}}
 function hideBodyPop(){if(bpop)bpop.hidden=true;bpopId=null}
 function openBodyPop(id,px,py){const L=window.MOTS&&MOTS.light;if(!L||!L.spectrum)return;const ref=bodyRef(id),W=L.spectrum.words;
   if(!bpop){bpop=document.createElement('div');bpop.className='gpop bspop';bpop.setAttribute('role','dialog');bpop.hidden=true;document.body.appendChild(bpop);
@@ -9051,8 +9174,11 @@ function openBodyPop(id,px,py){const L=window.MOTS&&MOTS.light;if(!L||!L.spectru
   bpopId=id;const facts=ref.b?L.readout(ref.b):'';
   bpop.innerHTML=`<div class="gph"><b>${esc3(ref.name)}</b><button class="gx" data-a="x" aria-label="${esc3(W.close)}">×</button></div>${facts?`<div class="gpf">${esc3(facts)}</div>`:''}<div class="gpb"><button class="chip" data-a="go">${esc3(W.go)}</button>${ref.nospec?'':`<button class="chip" data-a="spec">${esc3(W.spec)}</button>`}</div>`;
   famPop(bpop,id);   // fly_family.js: its moons, its parent, where it lives
+  famFacts(bpop,id);   // fly_family.js + family.js: its facts (kind, size, day, discovery, missions, a notable fact, its god)
   bpop.setAttribute('aria-label',ref.name);bpop.hidden=false;
   if(innerWidth>620&&px!=null){const r=bpop.getBoundingClientRect(),x=Math.max(8,Math.min(innerWidth-r.width-8,px+14)),y=Math.max(8,Math.min(innerHeight-r.height-8,py-r.height/2));bpop.style.left=x+'px';bpop.style.top=y+'px'}else{bpop.style.left='';bpop.style.top=''}}
+// the readout's Facts link (light.js writes it beside Spectrum) opens the same card
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('.bsabout');if(!b)return;e.preventDefault();e.stopPropagation();resumeAudio();const r=b.getBoundingClientRect();openBodyPop(b.dataset.about,r.left+r.width/2,r.top)});
 canvas.addEventListener('pointerdown',e=>{tap3={x:e.clientX,y:e.clientY,t:performance.now()}},{passive:true});
 canvas.addEventListener('pointerup',e=>{if(!tap3)return;const d=Math.hypot(e.clientX-tap3.x,e.clientY-tap3.y),dt=performance.now()-tap3.t;tap3=null;if(d>8||dt>550)return;
   if(window.FLYG&&FLYG.ST&&FLYG.ST.gf>=.02)return;   // out among the stars the galaxy module picks
@@ -10910,9 +11036,12 @@ function autopilot(dt){const gp=ship.gap;if(!gp)return;trackStar(gp);
 const orbQ=new THREE.Quaternion(),orbRel=new THREE.Vector3();
 function orbitStep(dt){const o=ST.orbit;if(!o)return;if(keys.size||hold||ship.cruise||lookDrag||ship.ap||ship.gap){stopOrbit();return}
   if(o.gp&&trackStar(o.gp)){o.centre.add(trackV);ship.pos.add(trackV)}
-  orbRel.copy(ship.pos).sub(o.centre);orbQ.setFromAxisAngle(o.axis,o.rate*dt);orbRel.applyQuaternion(orbQ);ship.pos.copy(o.centre).add(orbRel);camera.position.copy(ship.pos);ship.vel.set(0,0,0)}
+  orbRel.copy(ship.pos).sub(o.centre);orbQ.setFromAxisAngle(o.axis,o.rate*dt);orbRel.applyQuaternion(orbQ);ship.pos.copy(o.centre).add(orbRel);camera.position.copy(ship.pos);ship.vel.set(0,0,0);
+  // (ORBIT-VIEW) the view turns with the ship, so the object keeps its place in the window as the ship circles it (before, only the ship moved
+  // and the object slid out of view); at the start the view first swings onto it, should the eye have been elsewhere
+  camera.quaternion.premultiply(orbQ);if(o.aim){o.aim.premultiply(orbQ);if(camera.quaternion.angleTo(o.aim)>.002)camera.quaternion.slerp(o.aim,1-Math.exp(-dt*2.5));else o.aim=null}}
 function startOrbit(gp){if(!gp||!gp.look)return;ship.drift=null;ship.ap=null;ship.gap=null;ship.cruise=false;ship.vel.set(0,0,0);
-  const up=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);ST.orbit={centre:gp.look.clone(),axis:up,rate:2*Math.PI/40,gp};cardButtons()}
+  const up=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);ST.orbit={centre:gp.look.clone(),axis:up,rate:2*Math.PI/40,gp,aim:aimQ(gp,null,new THREE.Quaternion(),tiltFrac())};cardButtons()}
 function stopOrbit(){if(!ST.orbit)return;ST.orbit=null;cardButtons()}
 // parked beside a star: the ship rides along with it (its proper motion and radial velocity, at the sim's time speed), so when time runs fast the star
 // stays where it is in the window instead of sliding away; any control ends it
@@ -12130,7 +12259,8 @@ const FAMF=(()=>{
 .famlink:hover{color:var(--bronze)}
 .famlink:focus-visible{outline:2px solid var(--bronze);outline-offset:1px}
 @media (pointer:coarse){.famlink{display:inline-flex;align-items:center;justify-content:center;min-height:var(--tap,44px);min-width:var(--tap,44px);padding:0 .3em;vertical-align:middle}.fam{line-height:1.25}}
-html.mots-proj .readout .fam{display:none}`;
+html.mots-proj .readout .fam{display:none}
+.bspop{max-height:calc(100vh - 16px);overflow-y:auto;overscroll-behavior:contain}`;
   document.head.appendChild(css);
   const G=()=>window.GALAXY;
   const link=(fam,name)=>`<button type="button" class="famlink" data-fam="${esc(fam)}" title="${esc(fill(T.go,{n:name}))}">${esc(name)}</button>`;
@@ -12172,6 +12302,21 @@ html.mots-proj .readout .fam{display:none}`;
     // on a phone the card sits on the bottom band; with the family line it can reach down over the readout: lift it clear
     requestAnimationFrame(()=>{if(el.hidden||innerWidth>620)return;const ro=document.querySelector('.hud.bc .readout');if(!ro)return;
       const a=el.getBoundingClientRect(),b=ro.getBoundingClientRect();if(a.bottom>b.top-6&&b.height)el.style.bottom=Math.round(innerHeight-b.top+8)+'px'})}
+
+  /* ---- the facts of a tapped body that is not a full planet (family.js factsHTML; the data load once, then the card fills in) ---- */
+  function ctxOf(id){if(!id||id==='sun')return null;if(id.includes(':')){const [pid,k]=id.split(':'),p=byId[pid],m=p&&p.moons[+k];return m?{m,p}:null}
+    const b=byId[id];return b&&b.kind!=='planet'?{b}:null}
+  // keep the card on the screen: on a phone it sits on the bottom band and grows upwards, so its height is capped and it scrolls
+  function fit(el){if(!el||el.hidden)return;const r=el.getBoundingClientRect();
+    if(innerWidth<=620){el.style.maxHeight=Math.max(140,Math.floor(r.bottom-8))+'px'}
+    else{el.style.maxHeight=(innerHeight-16)+'px';const h=el.getBoundingClientRect().height,t=parseFloat(el.style.top);if(!isNaN(t)&&t+h>innerHeight-8)el.style.top=Math.max(8,innerHeight-8-h)+'px'}}
+  function facts(el,id){if(!el||!F.factsHTML)return;const old=el.querySelector('.bfacts');if(old)old.remove();const ctx=ctxOf(id);
+    const put=()=>{if(el.hidden||(typeof bpopId!=='undefined'&&bpopId!==id)||el.querySelector('.bfacts'))return;const h=ctx?F.factsHTML(ctx,'pop'):'';
+      if(h){const d=document.createElement('div');d.innerHTML=h;const n=d.firstChild,btns=el.querySelector('.gpb');if(btns)btns.before(n);else el.appendChild(n);
+        const det=n.querySelector('details');if(det)det.addEventListener('toggle',()=>fit(el))}
+      requestAnimationFrame(()=>requestAnimationFrame(()=>fit(el)))};
+    if(!ctx){put();return}
+    F.factsData().then(put).catch(()=>put())}
 
   /* ---- among the stars ---- */
   const conNm=ab=>{const c=G()&&G().constellation(ab);if(!c)return null;return LG==='en'?c.la:(c[LG]||c.la)};
@@ -12225,14 +12370,69 @@ html.mots-proj .readout .fam{display:none}`;
     if(k==='star'){const r=rowById(v);if(r){FLYG.hidePop();FLYG.travel({star:r})}}
     else if(k==='gal'){const r=G().galaxy(v);if(r){FLYG.hidePop();FLYG.travel({galaxy:r})}}
     else if(k==='con'){FLYG.hidePop();if(typeof openConCard==='function')openConCard(v)}},true);
-  return {readout,pop,card,gpop,solar,galactic,focus:()=>sig};
+  return {readout,pop,card,gpop,solar,galactic,facts,fit,focus:()=>sig};
 })();
 // hooks for fly3d.js and fly_galaxy.js (hoisted; quiet if the family module is missing or not yet set up)
 function famReadout(ns){try{if(FAMF)FAMF.readout(ns)}catch(e){}}
 function famPop(el,id){try{if(FAMF)FAMF.pop(el,id)}catch(e){}}
 function famCard(el,gp){try{if(FAMF)FAMF.card(el,gp)}catch(e){}}
 function famGPop(el,body){try{if(FAMF)FAMF.gpop(el,body)}catch(e){}}
+function famFacts(el,id){try{if(FAMF)FAMF.facts(el,id)}catch(e){}}
 MOTS.app.fam=FAMF;
+
+/* ---------- the speed of time, from the header: tap "1.0 days / s" for a small panel with the Time slider and one-tap speeds ----------
+   The Time slider lived only inside the Travel panel, so in flight there seemed to be no way to change it. The header's speed now opens this
+   panel (the same setTime as the slider, so both stay in step); Escape, a tap outside or the × closes it. */
+{
+const TT={en:['Change the speed of time','Close'],pl:['Zmień tempo czasu','Zamknij'],cy:['Newid cyflymder amser','Cau'],de:['Tempo der Zeit ändern','Schließen'],
+  es:['Cambiar la velocidad del tiempo','Cerrar'],fr:['Changer la vitesse du temps','Fermer'],it:['Cambia la velocità del tempo','Chiudi'],zh:['调整时间速度','关闭'],
+  ja:['時間の速さを変える','閉じる'],vi:['Đổi tốc độ thời gian','Đóng'],bg:['Промени скоростта на времето','Затвори'],pt:['Mudar a velocidade do tempo','Fechar']};
+const TL=TT[(document.documentElement.lang||'en').slice(0,2)]||TT.en;
+const PRE=[1/86400,1/24,1,7,30.44,365.25];
+const css=document.createElement('style');css.textContent=`
+#timeTxt.tt-on{cursor:pointer;border-bottom:1px dotted currentColor;padding:2px 0}
+#timeTxt.tt-on::after{content:" ▾";font-size:.8em;opacity:.8}
+#timeTxt.tt-on:hover,#timeTxt.tt-on:focus-visible{color:#f3d9a4;outline:none}
+.ttPop{position:fixed;z-index:60;min-width:min(92vw,330px);max-width:92vw;padding:.8rem .9rem .9rem;border-radius:14px;background:rgba(12,14,30,.96);border:1px solid rgba(201,152,79,.55);
+  box-shadow:0 10px 30px rgba(0,0,0,.55);color:#e9e1cc;font-family:"Alegreya Sans",system-ui,sans-serif;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.ttPop[hidden]{display:none}
+.ttPop .tth{display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-bottom:.4rem;font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:#c9984f}
+.ttPop .tth output{font:500 1rem "IBM Plex Mono",ui-monospace,monospace;letter-spacing:0;text-transform:none;color:#f3d9a4}
+.ttPop .ttx{appearance:none;border:0;background:transparent;color:#c9b98f;font-size:1.2rem;width:44px;height:44px;margin:-10px -10px -10px 0;cursor:pointer;border-radius:50%}
+.ttPop .ttx:hover{color:#f3d9a4;background:rgba(201,152,79,.1)}
+.ttPop input[type=range]{width:100%;margin:.3rem 0 .6rem;accent-color:#c9984f;min-height:32px}
+.ttPop .ttc{display:flex;flex-wrap:wrap;gap:.4rem}
+.ttPop .ttc button{appearance:none;flex:1 1 auto;min-height:40px;padding:0 .7rem;border-radius:999px;border:1px solid rgba(201,152,79,.45);background:transparent;color:#e9e1cc;font:inherit;font-size:.88rem;cursor:pointer;white-space:nowrap}
+.ttPop .ttc button[aria-pressed="true"]{background:rgba(201,152,79,.18);color:#f3d9a4;border-color:#c9984f}
+@media (pointer:coarse){.ttPop .ttc button{min-height:44px}}
+@media (hover:hover){.ttPop .ttc button:hover{border-color:#c9984f;color:#f3d9a4}}`;
+document.head.appendChild(css);
+const tt=document.getElementById('timeTxt'),sl=document.getElementById('speed');
+if(tt&&sl){
+  const labTxt=(()=>{const l=document.querySelector('label[for="speed"]');return l&&l.firstChild?l.firstChild.textContent.trim():'Time'})();
+  tt.classList.add('tt-on');tt.setAttribute('role','button');tt.tabIndex=0;tt.title=TL[0];tt.setAttribute('aria-label',TL[0]);tt.setAttribute('aria-haspopup','dialog');tt.setAttribute('aria-expanded','false');
+  const pop=document.createElement('div');pop.className='ttPop';pop.hidden=true;pop.setAttribute('role','dialog');pop.setAttribute('aria-label',TL[0]);
+  pop.innerHTML=`<div class="tth"><span></span><output></output><button type="button" class="ttx">×</button></div><input type="range" min="0" max="1000"><div class="ttc"></div>`;
+  pop.querySelector('.tth span').textContent=labTxt;const out=pop.querySelector('output'),rng=pop.querySelector('input'),chips=pop.querySelector('.ttc'),xb=pop.querySelector('.ttx');
+  xb.title=TL[1];xb.setAttribute('aria-label',TL[1]);rng.setAttribute('aria-label',labTxt);
+  PRE.forEach(d=>{const b=document.createElement('button');b.type='button';b.dataset.d=d;b.textContent=fmtSpeed(d);b.onclick=()=>{setTime(d);SYS.savedSpeed=null;sync()};chips.appendChild(b)});
+  document.body.appendChild(pop);
+  const sync=()=>{rng.value=sl.value;out.textContent=fmtSpeed(S.speed);tt.textContent=fmtSpeed(S.speed);
+    chips.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(Math.abs(Math.log(+b.dataset.d/S.speed))<.04)))};
+  rng.addEventListener('input',()=>{sl.value=rng.value;sl.dispatchEvent(new Event('input'));sync()});
+  const place=()=>{const r=tt.getBoundingClientRect(),W=pop.offsetWidth||330;pop.style.top=Math.round(r.bottom+8)+'px';pop.style.left=Math.round(Math.max(8,Math.min(innerWidth-W-8,r.left-12)))+'px'};
+  let iv=0;
+  const open=v=>{pop.hidden=!v;tt.setAttribute('aria-expanded',String(v));clearInterval(iv);if(v){sync();place();iv=setInterval(()=>{if(!pop.hidden)sync()},500);rng.focus({preventScroll:true})}};
+  tt.addEventListener('click',e=>{e.stopPropagation();open(pop.hidden)});
+  tt.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();open(pop.hidden)}});
+  xb.onclick=()=>{open(false);tt.focus({preventScroll:true})};
+  // the flight's own keys must not fire while the panel is used (W, S, arrows on the slider)
+  pop.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){open(false);tt.focus({preventScroll:true})}});
+  ['pointerdown','mousedown','touchstart','wheel'].forEach(t=>pop.addEventListener(t,e=>e.stopPropagation(),{passive:true}));
+  document.addEventListener('pointerdown',e=>{if(!pop.hidden&&!pop.contains(e.target)&&e.target!==tt)open(false)},true);
+  addEventListener('resize',()=>{if(!pop.hidden)place()});
+}
+}
 
 })();
 </script>
