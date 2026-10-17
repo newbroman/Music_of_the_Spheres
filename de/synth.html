@@ -4868,7 +4868,8 @@ function near(id,o){const el=document.getElementById('lightTxt');if(!el)return;l
     function spectrum(D, id, o) { const b = rec(D, id); if (!b) return null; o = o || {}; const n = o.n || 400, lo = o.lo || D.meta.lo, hi = o.hi || D.meta.hi, nm = new Float32Array(n), R = new Float32Array(n), T = new Float32Array(n); let mx = 0;
       for (let i = 0; i < n; i++) { const w = lo * Math.pow(hi / lo, i / (n - 1)); nm[i] = w; R[i] = refl(b, w); T[i] = sunT(D, w); if (R[i] > mx) mx = R[i]; }
       return { b, n, lo, hi, nm, R, T, Rmax: mx }; }
-    /** "Hear its lines" for a body: {id, kind, typical, cls, refs, lines (its own bands, strongest first), sun (the Sun's lines, the bed), rms, level,
+    /** "Hear its lines" for a body: {id, kind, typical, cls, q ('m' measured spectrum, 'c' measured colours, 't' typical of its class), src (its
+     *  short source), nf (filters, for 'c'), w (the measured range nm, or null: all), pts (the filter points, for 'c'), refs (full citations), lines (its own bands, strongest first), sun (the Sun's lines, the bed), rms, level,
      *  dop, abs: true, hiHz, loHz}; each line {n, nm, w (depth, or emission strength / 2, 0..1), wn, f0, f (× Doppler), cents (its width, ≤ 700),
      *  broad (≥ 5 nm: a cluster), sym, em, edge, amp (w^gamma), a (absolute amplitude)}. The own bands sum as sines to an RMS of opts.level
      *  (0.09); the Sun's lines opts.bed dB (−16) under them, or −6 dB when a body has none of its own. opts.rv km/s × opts.exag: Doppler. */
@@ -4879,7 +4880,8 @@ function near(id,o){const el=document.getElementById('lightTxt');if(!el)return;l
       const sun = D.sun.map(L => mk(L[0], L[1], L[2], L[3], 'a')).sort((x, y) => y.w - x.w).slice(0, o.maxSun || 21), sq = a => a.reduce((s, L) => s + L.amp * L.amp, 0);
       const q = sq(own), bl = lv * Math.pow(10, (q ? (o.bed == null ? -16 : o.bed) : -6) / 20), A = q ? lv / Math.sqrt(q / 2) : 0, As = bl / Math.sqrt(sq(sun) / 2);
       own.forEach(L => { L.a = A * L.amp; }); sun.forEach(L => { L.a = As * L.amp; });
-      return { id, kind: b.k, typical: !!b.t, cls: b.cls || null, refs: b.r, lines: own, sun, rms: Math.sqrt((q ? lv * lv : 0) + bl * bl), level: lv, dop, abs: true, hiHz: fOf(D.meta.lo) * dop, loHz: fOf(D.meta.hi) * dop }; }
+      const qq = b.q || (b.t ? 't' : 'm');
+      return { id, kind: b.k, typical: qq === 't', cls: b.cls || null, q: qq, src: b.s || null, nf: b.n || 0, w: b.w || null, pts: qq === 'c' ? b.c.slice(1, -1) : null, refs: (b.r || []).map(x => (D.refs && D.refs[x]) || x), lines: own, sun, rms: Math.sqrt((q ? lv * lv : 0) + bl * bl), level: lv, dop, abs: true, hiHz: fOf(D.meta.lo) * dop, loHz: fOf(D.meta.hi) * dop }; }
     return { spectrum, chord, refl, sunT, fOf, rec };
   })();
   /*BODYCHORD-END*/
@@ -4996,8 +4998,25 @@ const SPX2={
  vi:{about:'Thông tin',est:' (điển hình cho nhóm, không phải đo)',cls:{jinner:'mặt trăng trong màu đỏ sẫm',irrC:'mặt trăng dị thường xám kiểu C',irrD:'mặt trăng dị thường hơi đỏ kiểu D',irrP:'mặt trăng dị thường kiểu P',ringice:'mặt trăng băng trong vành đai',irrLR:'mặt trăng dị thường đỏ nhạt',irrN:'mặt trăng dị thường xám sẫm',uinner:'mặt trăng trong tối màu',irrR:'mặt trăng dị thường màu đỏ',ninner:'mặt trăng trong tối màu',irrG:'mặt trăng dị thường màu xám',pice:'mặt trăng băng',hice:'mặt trăng băng'}},
  bg:{about:'Факти',est:' (типично за класа, не измерено)',cls:{jinner:'тъмночервен вътрешен спътник',irrC:'сив неправилен спътник от тип C',irrD:'червеникав неправилен спътник от тип D',irrP:'неправилен спътник от тип P',ringice:'леден спътник в пръстените',irrLR:'светлочервен неправилен спътник',irrN:'тъмносив неправилен спътник',uinner:'тъмен вътрешен спътник',irrR:'червен неправилен спътник',ninner:'тъмен вътрешен спътник',irrG:'сив неправилен спътник',pice:'леден спътник',hice:'леден спътник'}},
  pt:{about:'Dados',est:' (típico da sua classe, não medido)',cls:{jinner:'lua interna vermelho-escura',irrC:'lua irregular cinza do tipo C',irrD:'lua irregular avermelhada do tipo D',irrP:'lua irregular do tipo P',ringice:'lua gelada dos anéis',irrLR:'lua irregular vermelho-clara',irrN:'lua irregular cinza-escura',uinner:'lua interna escura',irrR:'lua irregular vermelha',ninner:'lua interna escura',irrG:'lua irregular cinza',pice:'lua gelada',hice:'lua gelada'}}};
+// the three honest labels of a body's spectrum (bodyspectra.json q): a measured spectrum (with its source), measured colours (n filters),
+// or typical of its class (SPX2 est); and the sheet's sentence for colours and for a spectrum measured over part of the range
+const SPX3={
+ en:{qm:'measured spectrum',qc:'measured colours ({n} filters)',tq:'Only its colours have been measured, in {n} filters: the dots are the filters and the line joins them. Beyond the first and last filter nothing was measured, so the curve is held flat there (dashed).',tw:'Its spectrum was measured from {lo} to {hi}; beyond that the curve is held flat (dashed).'},
+ pl:{qm:'zmierzone widmo',qc:'zmierzone barwy (filtrów: {n})',tq:'Zmierzono tylko barwy, w {n} filtrach: kropki to filtry, a linia je łączy. Poza pierwszym i ostatnim filtrem nic nie zmierzono, więc krzywa biegnie tam płasko (linia przerywana).',tw:'Widmo zmierzono od {lo} do {hi}; poza tym zakresem krzywa biegnie płasko (linia przerywana).'},
+ cy:{qm:'sbectrwm wedi’i fesur',qc:'lliwiau wedi’u mesur ({n} hidlydd)',tq:'Dim ond y lliwiau a fesurwyd, mewn {n} hidlydd: y dotiau yw’r hidlyddion ac mae’r llinell yn eu cysylltu. Y tu hwnt i’r hidlydd cyntaf a’r olaf ni fesurwyd dim, felly mae’r gromlin yn wastad yno (llinell doriad).',tw:'Mesurwyd y sbectrwm o {lo} i {hi}; y tu hwnt i hynny mae’r gromlin yn wastad (llinell doriad).'},
+ de:{qm:'gemessenes Spektrum',qc:'gemessene Farben ({n} Filter)',tq:'Gemessen sind nur die Farben, in {n} Filtern: Die Punkte sind die Filter, die Linie verbindet sie. Jenseits des ersten und letzten Filters wurde nichts gemessen, dort bleibt die Kurve flach (gestrichelt).',tw:'Das Spektrum wurde von {lo} bis {hi} gemessen; darüber hinaus bleibt die Kurve flach (gestrichelt).'},
+ es:{qm:'espectro medido',qc:'colores medidos ({n} filtros)',tq:'Solo se han medido sus colores, en {n} filtros: los puntos son los filtros y la línea los une. Más allá del primer y del último filtro no se midió nada, así que la curva se mantiene plana (a trazos).',tw:'Su espectro se midió de {lo} a {hi}; fuera de ese rango la curva se mantiene plana (a trazos).'},
+ fr:{qm:'spectre mesuré',qc:'couleurs mesurées ({n} filtres)',tq:'Seules ses couleurs ont été mesurées, dans {n} filtres : les points sont les filtres et la ligne les relie. Au-delà du premier et du dernier filtre, rien n’a été mesuré : la courbe y reste plate (en tirets).',tw:'Son spectre a été mesuré de {lo} à {hi} ; au-delà, la courbe reste plate (en tirets).'},
+ it:{qm:'spettro misurato',qc:'colori misurati ({n} filtri)',tq:'Sono stati misurati solo i suoi colori, in {n} filtri: i punti sono i filtri e la linea li unisce. Oltre il primo e l’ultimo filtro non si è misurato nulla, quindi la curva resta piatta (tratteggiata).',tw:'Il suo spettro è stato misurato da {lo} a {hi}; oltre, la curva resta piatta (tratteggiata).'},
+ zh:{qm:'实测光谱',qc:'实测颜色（{n} 个滤光片）',tq:'只测量了它在 {n} 个滤光片中的颜色：圆点是各滤光片，连线把它们连起来。第一个和最后一个滤光片之外没有测量，所以曲线在那里保持水平（虚线）。',tw:'它的光谱实测范围为 {lo} 至 {hi}；范围之外曲线保持水平（虚线）。'},
+ ja:{qm:'実測スペクトル',qc:'実測の色（{n} フィルター）',tq:'測定されているのは {n} フィルターでの色だけです。点がフィルター、線がそれらを結びます。最初と最後のフィルターの外側は測定がないため、曲線は平らにしてあります（破線）。',tw:'スペクトルは {lo} から {hi} まで測定されています。その外側では曲線を平らにしてあります（破線）。'},
+ vi:{qm:'quang phổ đo được',qc:'màu đo được ({n} bộ lọc)',tq:'Chỉ có màu của nó được đo, qua {n} bộ lọc: các chấm là các bộ lọc và đường nối chúng lại. Ngoài bộ lọc đầu và cuối không có số đo nào, nên đường cong được giữ phẳng ở đó (nét đứt).',tw:'Quang phổ của nó được đo từ {lo} đến {hi}; ngoài khoảng đó đường cong được giữ phẳng (nét đứt).'},
+ bg:{qm:'измерен спектър',qc:'измерени цветове ({n} филтъра)',tq:'Измерени са само цветовете, в {n} филтъра: точките са филтрите, а линията ги свързва. Отвъд първия и последния филтър нищо не е измерено, затова там кривата е равна (с пунктир).',tw:'Спектърът е измерен от {lo} до {hi}; извън този обхват кривата е равна (с пунктир).'},
+ pt:{qm:'espectro medido',qc:'cores medidas ({n} filtros)',tq:'Só as suas cores foram medidas, em {n} filtros: os pontos são os filtros e a linha os une. Além do primeiro e do último filtro nada foi medido, então a curva fica plana ali (tracejada).',tw:'Seu espectro foi medido de {lo} a {hi}; além disso, a curva fica plana (tracejada).'}};
 const SP=Object.assign({},SPX.en,SPX[LANG]||{});SP.w=Object.assign({},SPX.en.w,(SPX[LANG]||{}).w||{});SP.cls=Object.assign({},SPX.en.cls,(SPX[LANG]||{}).cls||{},SPX2.en.cls,(SPX2[LANG]||{}).cls||{});
-SP.about=(SPX2[LANG]||SPX2.en).about;SP.est=(SPX2[LANG]||SPX2.en).est;
+SP.about=(SPX2[LANG]||SPX2.en).about;SP.est=(SPX2[LANG]||SPX2.en).est;Object.assign(SP,SPX3.en,SPX3[LANG]||{});
+// the label of a body's spectrum: kind ('m' | 'c' | 't'), its words, and its source (for the sheet and the facts card)
+const qLabel=(q,n,cls)=>q==='c'?uf(SP.qc,{n}):q==='t'?((SP.cls[cls]||cls||'')+SP.est).trim():SP.qm;SP.qLabel=qLabel;
 const BS_BASE=LANG==='en'||!/\/(pl|cy|de|es|fr|it|zh|ja|vi|bg|pt)\/[^/]*$/.test(location.pathname)?'./':'../';
 let BSD=null,BSP=null;
 // the chord's nominal level: the bands' clusters (three sines and a little noise) come out ~3 dB under single sines, so 0.125 gives a held RMS near 0.08
@@ -5183,6 +5202,11 @@ const bcss=document.createElement('style');bcss.textContent=`
 .bsheet .bsh{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .6rem;margin-bottom:.4rem;position:relative;padding-right:2.2rem}
 .bsheet .bsh b{font-family:var(--f-display,Georgia,serif);font-weight:400;color:var(--bronze,#c9984f);font-size:1.25em}
 .bsheet .bsh small{color:var(--vellum-dim,#aea791);font-family:var(--f-mono,ui-monospace,monospace);font-size:.72rem}
+.bsheet .bsq{flex:1 1 100%;font-size:.74rem;line-height:1.3;color:var(--vellum-dim,#aea791);overflow-wrap:anywhere}
+.bsheet .bsq::before{content:"";display:inline-block;width:.55em;height:.55em;border-radius:50%;margin-right:.4em;vertical-align:.05em;border:1px solid var(--bronze,#c9984f)}
+.bsheet .bsq-m{color:#f3d9a4}.bsheet .bsq-m::before{background:var(--bronze,#c9984f)}
+.bsheet .bsq-c::before{background:linear-gradient(90deg,var(--bronze,#c9984f) 50%,transparent 50%)}
+.bsheet .bsq-t{font-style:italic}
 .bsheet .bsx{appearance:none;background:transparent;border:0;color:var(--vellum-dim,#aea791);font-size:1.3rem;line-height:1;cursor:pointer;min-width:var(--tap,2.75rem);min-height:var(--tap,2.75rem);position:absolute;right:-.7rem;top:-.55rem;display:inline-flex;align-items:center;justify-content:center}
 .bsheet .bsx:hover{color:var(--bronze,#c9984f)}
 .bsheet canvas{display:block;width:100%;height:12rem;border-radius:8px;background:#030409;border:1px solid rgba(201,152,79,.18)}
@@ -5218,8 +5242,11 @@ function open(ref){if(!ref||!ref.id)return;ensureSheet();stopHear();BS={ref,C:nu
     if(!C){BSH.querySelector('.bst').textContent=SP.fail;return}BS.C=C;BS.sp=sp;BS.D=D;render()}).catch(()=>{if(BSH)BSH.querySelector('.bst').textContent=SP.fail})}
 function render(){const {ref,C}=BS,nm=ESCH(ref.name||ref.id),comet=C.lines.some(L=>L.em),list=ESCH(bandList(C));
   const t1=C.lines.length?uf(comet?SP.t1c:SP.t1,{n:'<b>'+nm+'</b>',list}):uf(SP.t1n,{n:'<b>'+nm+'</b>'});
-  const txt=(t1+' '+ESCH(uf(SP.rule,{hi:fmt(C.hiHz,0),lo:fmt(C.loHz,0)}))+' '+ESCH(SP.dop)+(C.typical?' '+ESCH(uf(SP.typ,{c:SP.cls[C.cls]||C.cls})):'')).replace(/(\d) (µm|nm|Hz)/g,'$1\u00a0$2');
-  BSH.innerHTML=`<div class="bsh"><b>${nm}</b><small>${ESCH(SP.title+(C.typical?SP.est:''))}</small><button class="bsx" data-a="x" aria-label="${ESCH(SP.close)}">×</button></div><canvas aria-label="${ESCH(SP.title)}"></canvas><p class="bst">${txt}</p><p class="bsr">${ESCH(C.refs.join(' · '))}</p>`+
+  const qs=C.q==='c'?' '+ESCH(uf(SP.tq,{n:C.nf})):C.q==='m'&&C.w?' '+ESCH(uf(SP.tw,{lo:wl(C.w[0]),hi:wl(C.w[1])})):'';
+  const txt=(t1+qs+' '+ESCH(uf(SP.rule,{hi:fmt(C.hiHz,0),lo:fmt(C.loHz,0)}))+' '+ESCH(SP.dop)+(C.typical?' '+ESCH(uf(SP.typ,{c:SP.cls[C.cls]||C.cls})):'')).replace(/(\d) (µm|nm|Hz)/g,'$1\u00a0$2');
+  // the label: measured spectrum (and its source), measured colours (n filters), or typical of its class
+  const lab=C.q==='t'?SP.est.trim().replace(/^[（(]|[)）]$/g,''):qLabel(C.q,C.nf),badge=`<span class="bsq bsq-${C.q}">${ESCH(lab)}${C.src?' · '+ESCH(C.src):''}</span>`;
+  BSH.innerHTML=`<div class="bsh"><b>${nm}</b><small>${ESCH(SP.title+(C.typical?SP.est:''))}</small>${badge}<button class="bsx" data-a="x" aria-label="${ESCH(SP.close)}">×</button></div><canvas aria-label="${ESCH(SP.title+' · '+lab)}"></canvas><p class="bst">${txt}</p><p class="bsr">${ESCH(C.refs.join(' · '))}</p>`+
     `<div class="bsb"><button data-a="chord">${ESCH(SP.hearChord)}</button><button data-a="sweep">${ESCH(SP.hearSweep)}</button><button data-a="x">${ESCH(SP.close)}</button></div>`;
   BCV=BSH.querySelector('canvas');draw();
   // the sheet sings as it opens: its lines held and looping until Stop or close (not when the page's volume is at nothing)
@@ -5245,7 +5272,10 @@ function draw(){if(!BSH||BSH.hidden||!BCV)return;const dpr=Math.min(2,devicePixe
   // the reflectance curve (relative), its fill, the Sun's lines dimming it a little
   const yOf=r=>top+curveH*(1-Math.min(1.05,r/sp.Rmax));c.beginPath();c.moveTo(0,top+curveH);for(let i=0;i<n;i++)c.lineTo(xOf(sp.nm[i]),yOf(sp.R[i]));c.lineTo(W,top+curveH);c.closePath();
   const grd=c.createLinearGradient(0,top,0,top+curveH);grd.addColorStop(0,'rgba(201,152,79,.38)');grd.addColorStop(1,'rgba(201,152,79,.04)');c.fillStyle=grd;c.fill();
-  c.beginPath();for(let i=0;i<n;i++){const x=xOf(sp.nm[i]),y=yOf(sp.R[i]*(.85+.15*sp.T[i]));i?c.lineTo(x,y):c.moveTo(x,y)}c.strokeStyle='rgba(233,225,204,.85)';c.lineWidth=1.2;c.stroke();
+  // solid where it was measured, dashed where the curve is only held flat beyond the measured range (C.w); colours: the filters as dots
+  const inW=nm=>!C.w||(nm>=C.w[0]-.5&&nm<=C.w[1]+.5),pass=inside=>{c.beginPath();let on=false;for(let i=0;i<n;i++){const ok=inW(sp.nm[i])===inside||(i&&inW(sp.nm[i-1])===inside);if(!ok){on=false;continue}const x=xOf(sp.nm[i]),y=yOf(sp.R[i]*(.85+.15*sp.T[i]));on?c.lineTo(x,y):c.moveTo(x,y);on=true}c.stroke()};
+  c.lineWidth=1.2;c.strokeStyle='rgba(233,225,204,.85)';pass(true);if(C.w){c.save();c.setLineDash([4,4]);c.strokeStyle='rgba(233,225,204,.45)';pass(false);c.restore()}
+  if(C.pts)C.pts.forEach(p=>{const x=xOf(p[0]),y=yOf(p[1]);c.beginPath();c.arc(x,y,3.4,0,Math.PI*2);c.fillStyle='#f3d9a4';c.fill();c.lineWidth=1;c.strokeStyle='#030409';c.stroke()});
   // the visible / infrared boundary and the region names
   c.font=MONO;c.fillStyle='rgba(174,167,145,.75)';const xv0=xOf(380),xv1=xOf(750);c.fillRect(xv0,stripY-2,1,stripH+4);c.fillRect(xv1,stripY-2,1,stripH+4);
   c.textAlign='left';c.fillText(SP.ir,Math.min(W-c.measureText(SP.ir).width-3,xv1+4),stripY+stripH-4);c.textAlign='center';if(xv1-xv0>60)c.fillText(SP.vis,(xv0+xv1)/2,stripY+stripH-4);c.textAlign='left';c.fillText(SP.uv,2,stripY+stripH-4);
@@ -10447,7 +10477,8 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     function spectrum(D, id, o) { const b = rec(D, id); if (!b) return null; o = o || {}; const n = o.n || 400, lo = o.lo || D.meta.lo, hi = o.hi || D.meta.hi, nm = new Float32Array(n), R = new Float32Array(n), T = new Float32Array(n); let mx = 0;
       for (let i = 0; i < n; i++) { const w = lo * Math.pow(hi / lo, i / (n - 1)); nm[i] = w; R[i] = refl(b, w); T[i] = sunT(D, w); if (R[i] > mx) mx = R[i]; }
       return { b, n, lo, hi, nm, R, T, Rmax: mx }; }
-    /** "Hear its lines" for a body: {id, kind, typical, cls, refs, lines (its own bands, strongest first), sun (the Sun's lines, the bed), rms, level,
+    /** "Hear its lines" for a body: {id, kind, typical, cls, q ('m' measured spectrum, 'c' measured colours, 't' typical of its class), src (its
+     *  short source), nf (filters, for 'c'), w (the measured range nm, or null: all), pts (the filter points, for 'c'), refs (full citations), lines (its own bands, strongest first), sun (the Sun's lines, the bed), rms, level,
      *  dop, abs: true, hiHz, loHz}; each line {n, nm, w (depth, or emission strength / 2, 0..1), wn, f0, f (× Doppler), cents (its width, ≤ 700),
      *  broad (≥ 5 nm: a cluster), sym, em, edge, amp (w^gamma), a (absolute amplitude)}. The own bands sum as sines to an RMS of opts.level
      *  (0.09); the Sun's lines opts.bed dB (−16) under them, or −6 dB when a body has none of its own. opts.rv km/s × opts.exag: Doppler. */
@@ -10458,7 +10489,8 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       const sun = D.sun.map(L => mk(L[0], L[1], L[2], L[3], 'a')).sort((x, y) => y.w - x.w).slice(0, o.maxSun || 21), sq = a => a.reduce((s, L) => s + L.amp * L.amp, 0);
       const q = sq(own), bl = lv * Math.pow(10, (q ? (o.bed == null ? -16 : o.bed) : -6) / 20), A = q ? lv / Math.sqrt(q / 2) : 0, As = bl / Math.sqrt(sq(sun) / 2);
       own.forEach(L => { L.a = A * L.amp; }); sun.forEach(L => { L.a = As * L.amp; });
-      return { id, kind: b.k, typical: !!b.t, cls: b.cls || null, refs: b.r, lines: own, sun, rms: Math.sqrt((q ? lv * lv : 0) + bl * bl), level: lv, dop, abs: true, hiHz: fOf(D.meta.lo) * dop, loHz: fOf(D.meta.hi) * dop }; }
+      const qq = b.q || (b.t ? 't' : 'm');
+      return { id, kind: b.k, typical: qq === 't', cls: b.cls || null, q: qq, src: b.s || null, nf: b.n || 0, w: b.w || null, pts: qq === 'c' ? b.c.slice(1, -1) : null, refs: (b.r || []).map(x => (D.refs && D.refs[x]) || x), lines: own, sun, rms: Math.sqrt((q ? lv * lv : 0) + bl * bl), level: lv, dop, abs: true, hiHz: fOf(D.meta.lo) * dop, loHz: fOf(D.meta.hi) * dop }; }
     return { spectrum, chord, refl, sunT, fOf, rec };
   })();
   /*BODYCHORD-END*/

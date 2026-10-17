@@ -313,7 +313,7 @@ own sources in the file. The main ones:
   al. 1995, Icarus 118, 223; Feldman, P. D., Cochran, A. L. & Combi, M. R. 2004, in *Comets II*; Lamy, P. L. et al. 2004,
   in *Comets II* (nuclei); Cremonese, G. et al. 1997, ApJ 490, L199 (Hale–Bopp's sodium tail); Capaccioni, F. et al. 2015,
   Science 347, aaa0628 (67P).
-- The 145 small named moons (class templates `x_…` in the file, each moon pointing at its group's class through `alias`, all
+- The small named moons without a measurement of their own (class templates `x_…` in the file, each moon pointing at its group's class through `alias`, all
   marked class-typical: the app says "typical of its class, not measured"): Grav, T. et al. 2003, Icarus 166, 33 (colours of the
   irregular satellites); Grav, T. & Bauer, J. 2007, Icarus 191, 267 (Saturn's irregulars: the light-red Inuit and Gallic groups,
   the grey Norse group); Grav, T., Holman, M. J. & Fraser, W. C. 2004, ApJ 613, L77 (Uranus's and Neptune's irregulars);
@@ -325,6 +325,32 @@ own sources in the file. The main ones:
   Fraser, W. C. & Brown, M. E. 2009, ApJ 695, L1 (Namaka); Parker, A. H. et al. 2016, ApJ 825, L9 (MK2). Measured spectra of their
   own: Phoebe (Clark, R. N. et al. 2005, Nature 435, 66, Cassini VIMS; Owen, T. C. et al. 1999, Icarus 139, 379) and Hiʻiaka
   (Barkume, K. M., Brown, M. E. & Schaller, E. L. 2006, ApJ 640, L87).
+- **Measured data (v2, 2026-10-17; `bodyspec_measured.py`).** Every body now carries `q`, the label the app shows: a measured
+  spectrum of the body itself (with its short source `s`), its measured colours (`n` filters), or typical of its class.
+  - Asteroids (Ceres, Pallas, Juno, Vesta, Hygiea, Eros): the published reflectance spectra themselves, downloaded on 2026-10-17
+    from the MIT SMASS / MITHNEOS archive (http://smass.mit.edu/catalog.php; files a000001.dm04, a000002.sp89, a000003.sp96,
+    a000004.sp86, a000010.sp28, a000433.sp15 + sp16, cached in `data/bodyspec_raw/`): visible part Bus, S. J. & Binzel, R. P.
+    2002, Icarus 158, 146 (SMASSII); near-infrared IRTF SpeX, MIT–Hawaii Near-Earth Object Spectroscopic Survey (Binzel, R. P.
+    et al. 2019, Icarus 324, 41). Acknowledgement requested by MITHNEOS: "All (or part) of the data utilized in this publication
+    were obtained and made available by the MITHNEOS MIT-Hawaii Near-Earth Object Spectroscopic Survey. The IRTF is operated by
+    the University of Hawaii under contract 80HQTR19D0030 with the National Aeronautics and Space Administration. The MIT
+    component of this work is supported by NASA grant 80NSSC18K0849." Resampled to 25 nm (450–950 nm) and 75 nm (to 2.45 µm);
+    bands measured on the curve by continuum removal; scaled by the geometric albedo at 550 nm; below 450 nm Ceres and Vesta keep
+    their earlier curated ultraviolet (McCord et al. 1970 for Vesta), the others are continued at their 450–500 nm slope (dashed).
+  - Colours of the irregular satellites (B, V, R, I; a weighted least-squares solution over all the papers, measurements with
+    σ > 0.15 mag left out; solar colours B−V 0.65, V−R 0.36, V−I 0.70, R−I 0.34): Graykowski, A. & Jewitt, D. 2018, AJ 155,
+    184 (Table 3); Grav, T. et al. 2003, Icarus 166, 33 (Table 2); Grav, T. & Bauer, J. 2007, Icarus 191, 267 (Table 2); Grav,
+    T., Holman, M. J. & Fraser, W. C. 2004, ApJ 613, L77; Maris, M. et al. 2001, AJ 121, 2800 and 2007, A&A 472, 311; Rettig,
+    T. W., Walsh, K. & Consolmagno, G. 2001, Icarus 154, 313 (Himalia and Elara, as quoted without uncertainties).
+  - Spectra built from published slopes and band depths: Sharkey, B. N. L. et al. 2023, PSJ 4, 223 (Pasiphae, Sinope,
+    Lysithea, Ananke: 1–2 µm slopes; Sycorax and Caliban: 0.63–0.81 µm slopes, Sycorax's 0.7-µm band) and 2021, PSJ 2, 191
+    (Nereid's water-ice bands); Bhatt, M. et al. 2017, A&A 608, A67 (Himalia, 0.8–2.4 µm, digitised from their Fig. 4);
+    Sharkey, B. N. L. et al. 2025, PSJ (Himalia, JWST); Filacchione, G. et al. 2012, Icarus 220, 1064 and 2013, ApJ 766, 76
+    (Cassini VIMS: Mimas, Tethys, Dione, Rhea, Hyperion, Atlas, Prometheus, Pandora, Janus, Epimetheus, Calypso, Telesto,
+    Helene; the major moons' visible slopes digitised from the 2013 Fig. 1); Alvarez-Candal, A. et al. 2020, A&A 643, A114
+    (Makemake's and Eris's CH₄ band depths to 1.72 µm and their colours).
+  - Albedos in filters of the inner moons of Uranus and Neptune: Belyakov, M. et al. 2024, PSJ 5, 119 (JWST NIRCam F140M and
+    F210M); Showalter, M. R. & Lissauer, J. J. 2006, Science 311, 973 (visual albedos, SOM Table S2); Karkoschka, E. 2003.
 - Band shapes of ices and minerals: the USGS Spectral Library version 7 (Kokaly, R. F. et al. 2017, USGS Data Series 1035)
   and the RELAB spectral library (Brown University).
 
@@ -436,6 +462,9 @@ Python 3.13, numpy 2.5, pandas 3.0, galpy 1.12.0 (Bovy 2015), curl. No Astropy. 
 > listed under starradio.json (Zic et al. 2020; Lynch et al. 2017; Lim et al. 1998; Peterson et al. 2010; Pardo et al. 2004…).
 > Planets', moons' and comets' spectra: Karkoschka 1994, 1998; Clark & McCord 1979, 1980; Fink & Larson 1979; Turnbull et
 > al. 2006; Grundy & Fink 1996; DeMeo et al. 2009; Cochran & Cochran 2002; the Kurucz et al. 1984 solar atlas; USGS and RELAB.
+> Measured asteroid spectra: Bus & Binzel 2002 (SMASSII) and the MITHNEOS MIT–Hawaii survey (IRTF SpeX). Moons' colours and
+> spectra: Graykowski & Jewitt 2018; Grav et al. 2003, 2004; Grav & Bauer 2007; Maris et al. 2001, 2007; Sharkey et al. 2021,
+> 2023; Bhatt et al. 2017; Filacchione et al. 2012, 2013 (Cassini VIMS); Belyakov et al. 2024 (JWST); Alvarez-Candal et al. 2020.
 >
 > Black holes: GRAVITY Collaboration 2018–2022; EHT Collaboration 2022; Peißker et al. 2022; El-Badry et al. 2023 (Gaia
 > BH1, BH2); Gaia Collaboration, Panuzzo et al. 2024 (Gaia BH3); Miller-Jones et al. 2021 (Cygnus X-1); Radhika et al. 2016
