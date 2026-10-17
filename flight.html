@@ -11536,19 +11536,21 @@ function hud(){const bc=document.querySelector('.hud.bc');if(!bc)return;
   chipsEl=document.createElement('div');chipsEl.className='chips gchips';chipsEl.id='galChips';
   // into the travel ribbon (fly3d.js) after the planets' course and moons; without it, above the course chips as before
   {const row=$('rbRow');if(row)row.insertBefore(chipsEl,row.querySelector('.rb-end'));else bc.insertBefore(chipsEl,$('courseChips'))}
-  chipsEl.onclick=e=>{const c=e.target.closest('.chip');if(!c)return;if(typeof resumeAudio==='function')resumeAudio();if(c.dataset.g==='bh'){BHX.open=!BHX.open;chipsKey='';galChips();if(BHX.open)setTimeout(()=>{const f=chipsEl.querySelector('.bhc');if(f&&f.scrollIntoView)try{f.scrollIntoView({block:'nearest',inline:'start',behavior:'smooth'})}catch(e){}},30);return}if(c.dataset.bh){travelG({bh:G().blackhole(c.dataset.bh)});return}travelG(c.dataset.g)};
+  chipsEl.onclick=e=>{const c=e.target.closest('.chip');if(!c)return;if(typeof resumeAudio==='function')resumeAudio();
+    // (GY-CHIP) the Galactic year from the ribbon: above the Milky Way it starts at once; from anywhere else the ship flies up and it plays on arrival
+    if(c.dataset.g==='gyear'){const F=window.FLYG&&FLYG.gyear;if(!F)return;try{if(F.GY.on){F.stop();chipsKey='';galChips();return}F.GY.dismissed=false;if((ST.gv||0)>=.9){F.start();chipsKey='';galChips();return}F.GY.want=true;travelG('above')}catch(err){console.warn('gyear',err)}return}if(c.dataset.g==='bh'){BHX.open=!BHX.open;chipsKey='';galChips();if(BHX.open)setTimeout(()=>{const f=chipsEl.querySelector('.bhc');if(f&&f.scrollIntoView)try{f.scrollIntoView({block:'nearest',inline:'start',behavior:'smooth'})}catch(e){}},30);return}if(c.dataset.bh){travelG({bh:G().blackhole(c.dataset.bh)});return}travelG(c.dataset.g)};
   // the "Interstellar ▶" chip on the planets' course row, past the last planet
   $('courseChips').addEventListener('click',e=>{const c=e.target.closest('.chip');if(c&&c.dataset.c==='g:helio'){e.stopPropagation();if(typeof resumeAudio==='function')resumeAudio();travelG('helio')}},true);
   if(!$('rbRow')&&window.MOTS&&MOTS.fade)try{MOTS.fade(chipsEl)}catch(e){}}
 // the ribbon's interstellar stops, outward from the planets, in groups (labels from fly3d.js RBT): the edge of the Sun's realm, the stars
 // (and the black holes, which open in place), the Galaxy, the Local Group, then Home; each with a small icon tinted like its panel swatch
-const GSW={helio:'#9fb0ff',oort:'#aabcd4',acen:'#ffd9a0',sirius:'#dfe8ff',vela:'#9fd3ff',gc:'#ffb060',above:'#c9984f',mag:'#cfdcff',m31:'#f0d6b0',m33:'#bcd3ff',lg:'#e0c080',home:'#4a90d9'};
-const GIC={helio:'helio',oort:'oort',acen:'star',sirius:'star',vela:'pulsar',gc:'gc',above:'disc',mag:'gal',m31:'gal',m33:'gal',lg:'lg',home:'home'};
-const RBO=[[null,['helio','oort']],[1,['acen','sirius','vela','bh']],[2,['gc','above']],[3,['mag','m31','m33','lg']],[-1,['home']]];
+const GSW={helio:'#9fb0ff',oort:'#aabcd4',acen:'#ffd9a0',sirius:'#dfe8ff',vela:'#9fd3ff',gc:'#ffb060',above:'#c9984f',gyear:'#e9d093',mag:'#cfdcff',m31:'#f0d6b0',m33:'#bcd3ff',lg:'#e0c080',home:'#4a90d9'};
+const GIC={helio:'helio',oort:'oort',acen:'star',sirius:'star',vela:'pulsar',gc:'gc',above:'disc',gyear:'disc',mag:'gal',m31:'gal',m33:'gal',lg:'lg',home:'home'};
+const RBO=[[null,['helio','oort']],[1,['acen','sirius','vela','bh']],[2,['gc','above','gyear']],[3,['mag','m31','m33','lg']],[-1,['home']]];
 const bhSw=b=>b.id==='sgra'?'#ffb060':b.kind==='none'?'#7d8aa6':b.host?'#e7c58f':'#b08cff';
 function galChips(){if(!chipsEl)return;const r=ST.r,show=r>60||!!ship.gap||(ST.ready&&!!$('rbRow')),gb=ship.gap&&ship.gap.bh;const key=show+':'+(ship.gap?ship.gap.id:'')+':'+ST.ready+':'+BHX.open+':'+(gb?gb.id:'');
   if(key!==chipsKey){chipsKey=key;const hasBH=ST.ready&&bhRows().length,gl=typeof RBT!=='undefined'?RBT:[];
-    const one=id=>`<button class="chip${ship.gap&&ship.gap.id===id?' on':''}" data-g="${id}" data-ic="${GIC[id]}" style="--c:${GSW[id]}">${DN(id)}</button>`;
+    const one=id=>`<button class="chip${ship.gap&&ship.gap.id===id?' on':''}${id==='gyear'?' gychip'+(window.FLYG&&FLYG.gyear&&FLYG.gyear.GY.on?' on':''):''}" data-g="${id}" data-ic="${GIC[id]}" style="--c:${GSW[id]}">${id==='gyear'?'♪ '+ESC(window.GYEAR&&GYEAR.TX&&GYEAR.TX.title||'Galactic year'):DN(id)}</button>`;
     const bh=()=>hasBH?`<button class="chip bhchip${BHX.open?' on':''}" data-g="bh" data-ic="bh" style="--c:#ffb060" aria-expanded="${BHX.open}">${ESC(TBH.bh)} ${BHX.open?'◂':'▸'}</button>`+(BHX.open?bhRows().map(b=>`<button class="chip bhc${gb===b?' on':''}" data-bh="${b.id}" data-ic="bh" style="--c:${bhSw(b)}">${ESC(bhName(b))}</button>`).join(''):''):'';
     chipsEl.innerHTML=!show?'':!$('rbRow')?DEST.map(id=>one(id)+(id==='gc'?bh():'')).join(''):
       RBO.map(([g,ids])=>(g==null?'':`<span class="rb-g${g<0?' rb-sep':''}" aria-hidden="${g<0}">${g<0?'':ESC(gl[g]||'')}</span>`)+ids.map(id=>id==='bh'?bh():one(id)).join('')).join('')}
@@ -12935,6 +12937,12 @@ function panelButton(){if(document.getElementById('gyGo'))return true;const dv=d
   const b=document.createElement('button');b.type='button';b.className='chip';b.id='gyGo';b.textContent=TXY.play;b.style.marginTop='.4rem';
   b.onclick=()=>{if(typeof resumeAudio==='function')resumeAudio();GY.dismissed=false;if((F.ST.gv||0)>=.9)start();else{GY.want=true;F.travel('above')}};f.after(b);return true}
 const f0=F.frame;F.frame=function(){const r=f0.apply(this,arguments);try{frame();if(!GY.pb)GY.pb=panelButton()}catch(e){console.warn(e)}return r};
+// (GY-PLACE) on a phone the card sits just above the travel ribbon (whose height follows the readout under it), never over it, and takes at most
+// 30 % of the screen, so the ribbon's ♪ Galactic year button (which also stops it) and the turning orbits above both stay in sight
+setInterval(()=>{const c=GY.card;if(!c||!c.classList.contains('on'))return;const ph=innerWidth<=620&&innerHeight>520;
+  if(!ph){if(c.style.bottom){c.style.bottom='';c.style.maxHeight=''}return}
+  const rb=document.getElementById('rbRow'),r=rb&&rb.getBoundingClientRect();if(!r||!r.height)return;
+  const b=Math.round(innerHeight-r.top+8)+'px';if(c.style.bottom!==b)c.style.bottom=b;c.style.maxHeight='30vh'},300);
 F.gyear={GY,start,stop,state:()=>GY.P?GY.P.state():null,model:()=>GY.M,player:()=>GY.P,draw,card:()=>GY.card,setSec:s=>{GY.sec=s;if(GY.P)GY.P.setSec(s);ui(true)},setFrame:f=>{GY.frame=f;ui(true)}};
 return F.gyear;
 })();
