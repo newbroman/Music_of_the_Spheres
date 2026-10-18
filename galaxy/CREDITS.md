@@ -443,6 +443,20 @@ velocity from `localgroup.json`, and for the star-forming ones by its Hα streng
 - Rosolowsky E. & Simon J. D. 2008, ApJ 675, 1213 — the M33 metallicity project.
 - Hunter D. A. & Elmegreen B. G. 2004, AJ 128, 2170 — Hα and star formation in irregular galaxies.
 
+## The deep-sky objects (`deepsky.json`, `dsfacts_<lang>.json`)
+
+Built by `build_deepsky.py` (downloads cached in `data/deepsky/`). 165 objects placed in 3-D and 64 galaxies beyond the Local Group (searchable, not drawn); every distance carries its source key (`dr`) and a quality flag (`dq`).
+
+- **Positions, sizes, magnitudes, types: OpenNGC** — Mattia Verga, https://github.com/mattiaverga/OpenNGC (`NGC.csv`, `addendum.csv`), **licence CC BY-SA 4.0** (stated in its README: “OpenNGC is released under CC-BY-SA-4.0 license”). OpenNGC itself credits NED (NASA/IPAC), HyperLEDA, SIMBAD (CDS), HEASARC and Harold Corwin’s NGC/IC notes. Because of the share-alike term, `deepsky.json` is released under CC BY-SA 4.0 as well, with this attribution.
+- **Barnard’s dark objects:** Barnard, E. E. 1927, *A Photographic Atlas of Selected Regions of the Milky Way* (Carnegie Institution), machine-readable as VizieR VII/220A (J2000 positions, diameters), via CDS.
+- **Open clusters:** Hunt, E. L. & Reffert, S. 2023, A&A 673, A114 (Gaia DR3), VizieR J/A+A/673/A114 — distances (dist50, 16–84 %), log ages, member counts.
+- **Globular clusters:** Baumgardt, H. & Vasiliev, E. 2021, MNRAS 505, 5957 — distances and radial velocities from H. Baumgardt’s Galactic globular cluster database (`orbits_table.txt`).
+- **Planetary nebulae:** González-Santamaría, I. et al. 2021, A&A 656, A51 (central stars in Gaia EDR3), VizieR J/A+A/656/A51; Bailer-Jones, C. A. L. et al. 2021, AJ 161, 147 (VizieR I/352) for NGC 246, NGC 3132, NGC 3195; Meaburn et al. 2008 (NGC 6302).
+- **Nebulae by their stars or clusters:** Menten et al. 2007 (Orion Nebula Cluster, VLBA); Schaefer et al. 2016 (σ Orionis, for IC 434 and the Horsehead); Gaia DR3 parallaxes (Gaia Collaboration, Vallenari et al. 2023) of HD 37903, HD 200775, AE Aur, HD 164492A, BD+60 2522, WR 136, HD 217086, ξ Per; Kuhn et al. 2020 (North America and Pelican); Xu et al. 2011 (M17); Dzib et al. 2018 (Barnard 59, the Pipe; Corona Australis); Alves et al. 2001 (Barnard 68); Corradi et al. 1997 (the Coalsack); Fesen et al. 2021 (the Cygnus Loop); Yu et al. 2019 (IC 443); the ATNF Pulsar Catalogue (the Crab and Vela remnants at their pulsars’ parallaxes; Trimble 1973 for the Crab’s expansion distance); Pietrzyński et al. 2019 (the LMC, for the Tarantula).
+- **Galaxies beyond the Local Group:** Cosmicflows-4, Tully, R. B. et al. 2023, ApJ 944, 94 (VizieR J/ApJ/944/94; Cepheid, TRGB or maser distances when available); Freedman et al. 2001 (M81, M100); Mei et al. 2007 (the Virgo cluster); Radburn-Smith et al. 2011; Karachentsev et al. 2013; Hughes et al. 1998.
+- **Emission lines:** Esteban, C. et al. 2004, MNRAS 355, 229 (the Orion Nebula, measured); O’Dell, C. R., Henney, W. J. & Sabbadin, F. 2009, AJ 137, 3815 (the Ring, measured); Esteban, C. et al. 2005, ApJ 618, L95 ([O II], [O III] of M8, M16, M17, M20); Osterbrock & Ferland 2006 (Case B ratios; typical H II-region and planetary spectra); Fesen, Blair & Kirshner 1985 (shocked gas); Davidson & Fesen 1985 (the Crab’s filaments, approximate).
+- **Names** in the twelve languages and the facts: written for the app from the established names in each language (Wikipedia in each language, national astronomy societies), CC0. The Horsehead’s outline is a drawing for the app (not an image).
+
 ## Software
 
 Python 3.13, numpy 2.5, pandas 3.0, galpy 1.12.0 (Bovy 2015), curl. No Astropy. Build scripts: `common.py`,
@@ -470,6 +484,10 @@ Python 3.13, numpy 2.5, pandas 3.0, galpy 1.12.0 (Bovy 2015), curl. No Astropy. 
 > BH1, BH2); Gaia Collaboration, Panuzzo et al. 2024 (Gaia BH3); Miller-Jones et al. 2021 (Cygnus X-1); Radhika et al. 2016
 > (V404 Cygni); Cantrell et al. 2010 (A0620−00); Bender et al. 2005 (M31*); van den Bosch & de Zeeuw 2010 (M32); Gebhardt
 > et al. 2001 (M33); Abbott et al. 2016 (GW150914, synthesised from its parameters).
+>
+> Deep sky: OpenNGC (Mattia Verga, CC BY-SA 4.0); Barnard 1927 via VizieR/CDS; distances Hunt & Reffert 2023, Baumgardt &
+> Vasiliev 2021, González-Santamaría et al. 2021, Cosmicflows-4 (Tully et al. 2023) and the papers listed under deepsky.json;
+> line ratios Esteban et al. 2004, 2005; O’Dell, Henney & Sabbadin 2009.
 >
 > Constellation figures: IAU and Sky & Telescope (MacRobert, Sinnott & Fienberg), digitised by the Stellarium team
 > (modern_iau sky culture), CC BY-SA 4.0; myths after Eratosthenes, Hyginus, Aratus and Ovid; origins after Ridpath, *Star Tales*.

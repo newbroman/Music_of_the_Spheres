@@ -3310,6 +3310,15 @@ const TA={
    r6:'Neste aparelho o acorde usa suas {n} estrelas mais brilhantes.',sign:'Signo do zodíaco',pick:'Constelações',find:'Encontrar uma constelação',none:'Nada encontrado',figs:'Figuras',close:'Fechar',
    load:'Carregando as constelações…',rec:'voz gravada',dev:'voz do aparelho',all:'Todas as 88 constelações',hearCon:'Suas estrelas como uma melodia lenta ao longo da figura, com o acorde respirando entre elas; seu mito como introdução.'}};
 const TX=Object.assign({},TA.en,TA[LANG]||{});
+// the deep-sky objects within the figure (galaxy/deepsky.json; GALAXY.dsoInCon where the page has the engine): their names in each language
+const DSW={en:'Nebulae, clusters and galaxies here',pl:'Mgławice, gromady i galaktyki',cy:'Nifylau, clystyrau a galaethau yma',de:'Nebel, Sternhaufen und Galaxien hier',es:'Nebulosas, cúmulos y galaxias',fr:'Nébuleuses, amas et galaxies',it:'Nebulose, ammassi e galassie',zh:'这里的星云、星团和星系',ja:'ここにある星雲・星団・銀河',vi:'Tinh vân, cụm sao và thiên hà ở đây',bg:'Мъглявини, купове и галактики тук',pt:'Nebulosas, aglomerados e galáxias aqui'};
+const DSMORE={en:'and {n} more',pl:'i {n} innych',cy:'a {n} arall',de:'und {n} weitere',es:'y {n} más',fr:'et {n} autres',it:'e altri {n}',zh:'另有 {n} 个',ja:'ほか {n} 件',vi:'và {n} thiên thể khác',bg:'и още {n}',pt:'e mais {n}'};
+let DSP=null;
+function dsoData(){if(DSP)return DSP;const g=window.GALAXY;DSP=(g&&g.ready&&g.data&&g.data.deepsky?Promise.resolve(g.data.deepsky):fetch(BASE+'galaxy/deepsky.json').then(r=>r.ok?r.json():null)).catch(()=>null);return DSP}
+function dsoFill(c){const el=CARD&&CARD.querySelector('.cdso');if(!el)return;dsoData().then(J=>{if(!J||!CS||CS.c!==c)return;const g=window.GALAXY;
+  const list=(g&&g.dsoInCon&&g.ready?g.dsoInCon(c.ab):J.objs.filter(o=>o.con===c.ab&&!o.part&&!o.part0&&o.t!=='lg'&&o.t!=='rad').sort((a,b)=>(a.m?0:1)-(b.m?0:1)||(a.v!=null?a.v:9)-(b.v!=null?b.v:9)));if(!list.length)return;
+  const nm=o=>{const v=J.nm&&J.nm[o.id];return (v&&LANG!=='en'&&v[LANG])||o.n},fly=!!(window.FLYG&&FLYG.ds),top=list.slice(0,10);
+  el.innerHTML=`<b>${esc(DSW[LANG]||DSW.en)}</b> `+top.map(o=>{const des=o.des&&o.des[0]&&o.des[0]!==nm(o)?` <small>${esc(o.des[0])}</small>`:'';return fly?`<button type="button" class="cdsl" data-a="dso" data-id="${esc(o.id)}">${esc(nm(o))}${des}</button>`:`<a class="cdsl" href="flight.html#ds=${encodeURIComponent(o.id)}">${esc(nm(o))}${des}</a>`}).join(' · ')+(list.length>top.length?' · '+esc(fill(DSMORE[LANG]||DSMORE.en,{n:list.length-top.length})):'');el.hidden=false})}
 /* ---------- the data ---------- */
 let DATA=null,LINES=null,LP=null,MAN=null,MANP=null;
 function load(){if(LP)return LP;
@@ -3459,6 +3468,9 @@ function css(){if(document.getElementById('conStyle'))return;const st=document.c
 .ccard label.cdep input{width:1.15rem;height:1.15rem;accent-color:var(--bronze,#c9984f);margin:0}
 .ccard .cfacts{margin:.6rem 0 0;font-size:.82rem;color:var(--vellum-dim,#aea791)}
 .ccard .cfacts b{color:var(--vellum,#e9e1cc);font-weight:600}
+.ccard .cdso{margin:.5rem 0 0;font-size:.82rem;line-height:1.55;color:var(--vellum-dim,#aea791)}.ccard .cdso b{color:var(--vellum,#e9e1cc);font-weight:600;display:block;margin-bottom:.1rem}
+.ccard .cdsl{appearance:none;background:transparent;border:0;padding:0;margin:0;font:inherit;color:var(--vellum,#e9e1cc);cursor:pointer;text-decoration:underline dotted rgba(201,152,79,.75);text-underline-offset:3px}.ccard .cdsl small{color:var(--vellum-dim,#aea791);font-size:.86em}.ccard .cdsl:hover{color:var(--bronze,#c9984f)}
+@media (pointer:coarse){.ccard .cdsl{display:inline-flex;align-items:center;min-height:var(--tap,44px)}}
 .ccard details{margin-top:.55rem;border-top:1px solid rgba(201,152,79,.18);padding-top:.35rem}
 .ccard summary{cursor:pointer;min-height:var(--tap,2.75rem);display:flex;align-items:center;color:var(--bronze,#c9984f);font-size:.88rem}
 .ccard details ul{margin:.2rem 0 0;padding-left:1.1rem;font-size:.82rem;color:var(--vellum-dim,#aea791)}
@@ -3483,7 +3495,8 @@ function build(){if(CARD)return;css();const d=document.createElement('div');d.cl
     if(a==='mode'){OPT.mode=b.dataset.v;saveOpt();if(PL&&PL.mode)play();else syncCard()}
     else if(a==='play'){if(PL&&PL.mode&&PL.c===CS.c){PL.stop(.8);syncCard()}else play()}
     else if(a==='say'){if(SPK.on)stopSpeak();else speak(CS.c,CS.spec)}
-    else if(a==='act'){const x=(CS.spec.acts||[])[+b.dataset.i];if(x)x.fn(CS.c,b)}});
+    else if(a==='act'){const x=(CS.spec.acts||[])[+b.dataset.i];if(x)x.fn(CS.c,b)}
+    else if(a==='dso'&&window.FLYG&&FLYG.ds){const id=b.dataset.id,o=window.GALAXY&&GALAXY.dso(id);close();if(o&&o.far)FLYG.ds.look(id);else FLYG.ds.travel(id)}});
   d.addEventListener('change',e=>{if(e.target.dataset.a==='depth'){OPT.depth=e.target.checked;saveOpt();if(PL&&PL.mode==='chord')play()}});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&CARD&&!CARD.hidden){e.stopPropagation();close()}},true);
   document.addEventListener('pointerdown',e=>{if(CARD&&!CARD.hidden&&!CARD.contains(e.target)&&!(CS&&CS.spec.keepOpen&&CS.spec.keepOpen(e)))close()},true)}
@@ -3506,9 +3519,10 @@ ${L?`<div class="cmyth"><q>${esc(L.t)}<span class="ctag" hidden></span></q><butt
 <div class="crow"><span class="cseg" role="group" aria-label="${esc(TX.hear)}"><button type="button" data-a="mode" data-v="melody">${esc(TX.mel)}</button><button type="button" data-a="mode" data-v="chord">${esc(TX.chd)}</button></span>
 <button type="button" class="cbtn go" data-a="play"></button><label class="cdep"><input type="checkbox" data-a="depth"${OPT.depth?' checked':''}> ${esc(TX.depth)}</label></div>
 <p class="cfacts">${esc(TX.apart)}<br><b>${esc(fill(TX.near,{s:starName(c,c.near),ly:lyOf(c,c.near)}))}</b> · <b>${esc(fill(TX.far,{s:starName(c,c.far),ly:lyOf(c,c.far)}))}</b></p>
+<p class="cdso" hidden></p>
 ${(spec.acts||[]).length?`<div class="cacts">${spec.acts.map((a,i)=>`<button type="button" class="cbtn" data-a="act" data-i="${i}">${esc(a.t)}</button>`).join('')}</div>`:''}
 <details><summary>${esc(TX.how)}</summary><ul><li>${esc(TX.r1)}</li><li>${esc(TX.r2)}</li><li>${esc(TX.r3)}</li><li>${esc(TX.r4)}</li><li>${esc(fill(TX.r5,{s:'3.5'}))}</li>${capN<n?`<li>${esc(fill(TX.r6,{n:capN}))}</li>`:''}</ul></details>`;
-  CV=CARD.querySelector('canvas');CV.dataset.top='30';CV.dataset.bot='22';syncCard();draw(CV,c,null,true)}
+  CV=CARD.querySelector('canvas');CV.dataset.top='30';CV.dataset.bot='22';syncCard();draw(CV,c,null,true);dsoFill(c)}
 function syncCard(){if(!CARD||CARD.hidden||!CS)return;const on=!!(PL&&PL.mode&&PL.c===CS.c);
   CARD.querySelectorAll('[data-a="mode"]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===OPT.mode)));
   const p=CARD.querySelector('[data-a="play"]');if(p){p.textContent=on?'■ '+TX.stop:'▶ '+TX.hear;p.classList.toggle('on',on);p.setAttribute('aria-pressed',String(on))}
@@ -3973,7 +3987,7 @@ const s=document.createElement('style');s.id='motsPulseCss';s.textContent=css;(d
       - go (optional; without it the item has no "Show me" button): p = the page ('index.html' is the dial, 'flight.html', 'dance.html',
         'synth.html', 'meditate.html', 'help.html'); h = a hash the page itself understands ('galaxy' on synth, 'tour' on the dial,
         a section id on help); a = an action run on arrival by ACT below (add a new one there if needed):
-          lang · tour · lines · zodiac · find · fly:<destination id> (gc, above, sirius, acen, lg, m31 …) · moons (fly to Jupiter) · style:<dance style id>
+          lang · tour · lines · zodiac · find · fly:<destination id> (gc, above, sirius, acen, lg, m31 …) · moons (fly to Jupiter) · style:<dance style id> · ds:<deep-sky id> (b33, m42 …)
           · ringtone · con · scape
    2. That's all: the version is the newest d in the list, so the change is picked up by itself. Rebuild (release.sh).
       A visitor whose localStorage 'mots.whatsnew.seen' is older than the newest d sees the items newer than it, once, on whichever page
@@ -3982,6 +3996,20 @@ const s=document.createElement('style');s.id='motsPulseCss';s.textContent=css;(d
 (()=>{
 "use strict";
 const WN=[
+ {id:'deepsky',d:'2026-10-18',s:'✺',go:{p:'flight.html',a:'ds:b33'},t:{
+  en:['Nebulae and clusters','The Horsehead, the Orion Nebula, the Ring, the Pleiades and every Messier and Caldwell object now stand in the Flight at their real places and sizes. Search for one by any name or number, fly there, and hear its spectrum: bright lines held as notes.'],
+  pl:['Mgławice i gromady','Koński Łeb, Mgławica w Orionie, Pierścień, Plejady i wszystkie obiekty Messiera i Caldwella stoją teraz w Locie w swoich prawdziwych miejscach i rozmiarach. Wyszukaj dowolny po nazwie lub numerze, leć tam i posłuchaj jego widma: jasne linie trzymane jako nuty.'],
+  cy:['Nifylau a chlystyrau','Mae Pen y Ceffyl, Nifwl Orion, y Fodrwy, y Pleiades a phob gwrthrych Messier a Caldwell bellach yn Hedfan yn eu lleoedd a’u meintiau go iawn. Chwiliwch am un wrth unrhyw enw neu rif, hedfanwch yno, a gwrandewch ar ei sbectrwm: llinellau llachar yn cael eu dal fel nodau.'],
+  de:['Nebel und Sternhaufen','Pferdekopf, Orionnebel, Ringnebel, Plejaden und alle Messier- und Caldwell-Objekte stehen jetzt im Flug an ihren wahren Orten in wahrer Größe. Suche einen unter jedem Namen oder jeder Nummer, fliege hin und höre sein Spektrum: helle Linien als gehaltene Töne.'],
+  es:['Nebulosas y cúmulos','La Cabeza de Caballo, la nebulosa de Orión, la del Anillo, las Pléyades y todos los objetos de Messier y Caldwell están ya en el Vuelo, en su lugar y a su tamaño reales. Búscalos por cualquier nombre o número, vuela allí y oye su espectro: líneas brillantes sostenidas como notas.'],
+  fr:['Nébuleuses et amas','La Tête de Cheval, la nébuleuse d’Orion, l’Anneau, les Pléiades et tous les objets de Messier et de Caldwell sont désormais dans le Vol, à leur vraie place et à leur vraie taille. Cherchez-en un par n’importe quel nom ou numéro, volez-y et écoutez son spectre : des raies brillantes tenues comme des notes.'],
+  it:['Nebulose e ammassi','La Testa di Cavallo, la Nebulosa di Orione, l’Anello, le Pleiadi e tutti gli oggetti di Messier e Caldwell sono ora nel Volo, al loro posto e alla loro grandezza reali. Cercane uno con qualsiasi nome o numero, vola lì e ascolta il suo spettro: righe luminose tenute come note.'],
+  zh:['星云与星团','马头星云、猎户座大星云、环状星云、昴星团以及全部梅西耶和科德韦尔天体，现在都以真实的位置和大小出现在“飞行”中。用任何名称或编号搜索，飞过去，听它的光谱：明亮的谱线化作持续的音。'],
+  ja:['星雲と星団','馬頭星雲、オリオン大星雲、環状星雲、プレアデス星団、そしてすべてのメシエ天体とコールドウェル天体が、本当の位置と大きさで「飛行」に加わりました。名前や番号で探して飛んでいき、スペクトルを聴いてみてください。明るい輝線が持続音として響きます。'],
+  vi:['Tinh vân và cụm sao','Tinh vân Đầu Ngựa, Tinh vân Lạp Hộ, Chiếc Nhẫn, Tua Rua và mọi thiên thể Messier, Caldwell giờ đã có trong phần Bay, đúng vị trí và kích thước thật. Hãy tìm bằng bất kỳ tên hay số hiệu nào, bay tới và nghe phổ của nó: các vạch sáng ngân thành nốt nhạc.'],
+  bg:['Мъглявини и купове','Конската глава, Мъглявината Орион, Пръстеновидната, Плеядите и всички обекти на Месие и Колдуел вече са в Полета на истинските си места и в истинския си размер. Потърси някой по име или номер, полети натам и чуй спектъра му: ярки линии, задържани като тонове.'],
+  pt:['Nebulosas e aglomerados','A Cabeça de Cavalo, a Nebulosa de Órion, a do Anel, as Plêiades e todos os objetos de Messier e Caldwell agora estão no Voo, em seus lugares e tamanhos reais. Procure qualquer um por nome ou número, voe até lá e ouça seu espectro: linhas brilhantes sustentadas como notas.']
+ }},
  {id:'gyear',d:'2026-10-17',s:'☉',go:{p:'flight.html',a:'gyear'},t:{
   en:['The Galactic year','The Sun and its neighbours go round the Milky Way as music: each star’s orbit, its swing and its bob through the disc are a chord, and stars caught by the bar keep its time. Above the Milky Way in the Flight, press “Play the Galactic year”; also a preset on the Galactic Synthesiser and a Meditate soundscape.'],
   pl:['Rok galaktyczny','Słońce i jego sąsiedzi okrążają Drogę Mleczną jako muzyka: orbita każdej gwiazdy, jej kołysanie i falowanie przez dysk to akord, a gwiazdy schwytane przez poprzeczkę trzymają jej rytm. Nad Drogą Mleczną w Locie naciśnij „Zagraj rok galaktyczny”; jest też preset w Syntezatorze Galaktycznym i pejzaż w Medytacji.'],
@@ -4303,6 +4331,8 @@ const ACT={
   // the flight: set course for Jupiter, whose ribbon then shows its major moons and “More moons ▸”
   moons:()=>when(()=>window.MOTS&&MOTS.app&&MOTS.app.travel&&MOTS.app._probe,()=>{try{MOTS.app.travel('jupiter')}catch(e){}},20000),
   fly:id=>when(()=>window.FLYG&&FLYG.ST&&FLYG.ST.ready,()=>{try{FLYG.travel(id)}catch(e){}},40000),
+  // a deep-sky object: fly to it (fly_deepsky.js), e.g. ds:b33 the Horsehead
+  ds:id=>when(()=>window.FLYG&&FLYG.ST&&FLYG.ST.ready&&FLYG.ds,()=>{try{FLYG.ds.travel(id)}catch(e){}},40000),
   // the Galactic year: fly above the Milky Way and play it on arrival (fly_gyear.js)
   gyear:()=>when(()=>window.FLYG&&FLYG.ST&&FLYG.ST.ready&&FLYG.gyear,()=>{try{FLYG.gyear.GY.want=true;FLYG.gyear.GY.dismissed=false;FLYG.travel('above')}catch(e){}},40000),
   style:v=>when(()=>document.querySelector(`#style button[data-v="${v}"]`),b=>{
@@ -5878,10 +5908,10 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
   };
 
   /* ───────── 1. data ───────── */
-  const D = { stars: null, pulsars: null, radio: null, frb: null, rotation: null, sunorbit: null, seismo: null, localgroup: null, names: null, starradio: null, bodyspectra: null, blackholes: null, constellations: null, galaxyspectra: null };
-  const G = { version: '0.8.0', K, data: D, ready: false, large: false };
+  const D = { stars: null, pulsars: null, radio: null, frb: null, rotation: null, sunorbit: null, seismo: null, localgroup: null, names: null, starradio: null, bodyspectra: null, blackholes: null, constellations: null, galaxyspectra: null, deepsky: null };
+  const G = { version: '0.9.0', K, data: D, ready: false, large: false };
   const FILES = ['stars', 'pulsars', 'radio', 'frb', 'rotation', 'sunorbit', 'seismo'];
-  const OPTIONAL = ['localgroup', 'names', 'starradio', 'bodyspectra', 'blackholes', 'constellations', 'galaxyspectra'];   // steps 4b/4c/4f and the constellations: the Local Group, the search names, the stars' radio table, the bodies' spectra, the black holes, the constellation figures; a page without them still works
+  const OPTIONAL = ['localgroup', 'names', 'starradio', 'bodyspectra', 'blackholes', 'constellations', 'galaxyspectra', 'deepsky'];   // steps 4b/4c/4f and the constellations: the Local Group, the search names, the stars' radio table, the bodies' spectra, the black holes, the constellation figures; a page without them still works
   let fetchFn = (u) => fetch(u).then(r => { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); });
   G.setFetch = (f) => { fetchFn = f; };  // tests supply a file-reading shim
   let baseUrl = '';
@@ -6001,6 +6031,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     G.filters.cache.clear();
     G.starVoice.cache.clear(); G.spectrum.cache.clear(); G.starRGB.cache.clear(); if (G.lineChord) G.lineChord.cache.clear(); if (G.galaxyPop) { G.galaxyPop.cache.clear(); G.galaxySpectrum.cache.clear(); }
     srch.index = null; T.byHip = null;
+    (D.deepsky ? D.deepsky.objs : []).forEach(o => { delete o.__st; delete o.__col; }); buildDS();
   }
   /** The members of a catalogued system placed with their primary (step 5, interstellar Flight at close range). The rows of a
    *  system (`sys`) carry independent parallaxes and radial velocities whose errors (0.1 pc, 10 km/s) dwarf the system's real size
@@ -6777,6 +6808,123 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       bed: { f0: sp.f0 * dop, amp: A * lv * Math.pow(10, -22 / 20) }, hiHz: GS_F(sp.lo) * dop, loHz: GS_F(sp.hi) * dop };
   };
 
+
+  /* ───────── 4i. the deep-sky objects (deepsky.json: the Messier and Caldwell lists and well-known extras) ─────────
+     Every object is placed by its RA/Dec and its cited distance with the same transform as the stars (eqToGal, heliocentric galactic
+     pc). Its size is its catalogued angular size at that distance (rpc: the major semi-axis in pc). The sound rules, all stated:
+     an emission nebula or a planetary is its bright lines, each a held note at its wavelength lowered forty octaves (unfolded, as every
+     star: Hα 656.3 nm → 415.5 Hz, [O III] 500.7 → 544.6, Hβ 486.1 → 560.9), each line's power ∝ its intensity (amplitude ∝ √I); a
+     reflection nebula is its star's absorption-line chord tilted to the blue (× (550/λ)²: dust scatters blue light more); a supernova
+     remnant its lines over synchrotron noise; a cluster its stars' Wien tones (catalogue members when the bundled stars reach it, else
+     the typical stars of its age); a dark nebula is silence: the stars behind it dimmed to a hush. */
+  const DS = { rows: [], all: [], byId: new Map(), X: null, Y: null, Z: null, link: new Map(), F: new Map() };
+  function buildDS() {
+    const J = D.deepsky; DS.rows = []; DS.all = []; DS.byId.clear(); DS.link.clear(); DS.F.clear(); if (!J) return;
+    DS.all = J.objs; J.objs.forEach(o => { DS.byId.set(o.id, o); if (o.lg || o.rad) { const k = (o.lg ? 'g:' : 'r:') + (o.lg || o.rad); DS.link.set(k, (DS.link.get(k) || []).concat(o.des, o.alt || [])); }
+      if (o.rad && o.t !== 'rad') { const k = 'r:' + o.rad; DS.link.set(k, (DS.link.get(k) || []).concat(o.des)); } });
+    DS.rows = J.objs.filter(o => o.d > 0 && o.ra != null && !o.far);
+    const n = DS.rows.length; DS.X = new Float64Array(n); DS.Y = new Float64Array(n); DS.Z = new Float64Array(n);
+    DS.rows.forEach((o, i) => { const lb = G.eqToGal(o.ra, o.dec, {}); o.gl = lb.l; o.gb = lb.b; const L = lb.l * DEG, B = lb.b * DEG, cb = Math.cos(B); DS.X[i] = o.d * cb * Math.cos(L); DS.Y[i] = o.d * cb * Math.sin(L); DS.Z[i] = o.d * Math.sin(B); o.__d = i; });
+    J.objs.forEach(o => { if (o.far && o.ra != null && o.gl == null) { const lb = G.eqToGal(o.ra, o.dec, {}); o.gl = lb.l; o.gb = lb.b; } });
+  }
+  G.DS_KIND = { hii: 'emission', rn: 'reflection', pn: 'planetary', snr: 'remnant', dn: 'dark', oc: 'open', gc: 'globular', sc: 'starcloud', ast: 'asterism', dbl: 'double', gal: 'galaxy', lg: 'galaxy', rad: 'galaxy' };
+  /** Every deep-sky row (deepsky.json objs: drawn, far, and the links to localgroup.json / radio.json), or [] without the table. */
+  G.deepsky = () => DS.all;
+  /** The rows placed in 3-D (a distance, not a far galaxy), with gl, gb (galactic l, b) set. */
+  G.dsoPlaced = () => DS.rows;
+  /** A row by id ('m42', 'b33', 'ic434') or designation ('M 42', 'M42', 'NGC 1976', 'Barnard 33', 'C 99'), or null. */
+  G.dso = function (q) { if (q && typeof q === 'object') return q; const s = String(q || '').toLowerCase(); if (DS.byId.has(s)) return DS.byId.get(s); const f = s.replace(/\s+/g, '');
+    for (const o of DS.all) { if (o.des.some(x => x.toLowerCase().replace(/\s+/g, '') === f) || (o.n && o.n.toLowerCase() === s)) return o; } return null; };
+  /** The deep-sky ids linked to a Local Group galaxy (`g:m31`) or a radio row (`r:cena`): their designations, for the search. */
+  G.dsoLinks = k => DS.link.get(k) || [];
+  /** Heliocentric galactic position (pc). */
+  G.dsoPos = function (o, out) { out = out || {}; const i = o.__d; if (i != null && DS.rows[i] === o) { out.x = DS.X[i]; out.y = DS.Y[i]; out.z = DS.Z[i]; return out; }
+    const lb = G.eqToGal(o.ra, o.dec, {}), L = lb.l * DEG, B = lb.b * DEG, cb = Math.cos(B), d = o.d || 0; out.x = d * cb * Math.cos(L); out.y = d * cb * Math.sin(L); out.z = d * Math.sin(B); return out; };
+  /** Its sky frame (n north, e east, u away from the Sun; galactic unit vectors) and its axes on the sky: a (major axis, at pa E of N), b. */
+  G.dsoFrame = function (o) { let f = DS.F.get(o); if (f) return f; const F = G.skyFrame(o.ra, o.dec), p = (o.pa || 0) * DEG, c = Math.cos(p), s = Math.sin(p);
+    f = { n: F.n, e: F.e, u: F.u, a: { x: F.n.x * c + F.e.x * s, y: F.n.y * c + F.e.y * s, z: F.n.z * c + F.e.z * s }, b: { x: -F.n.x * s + F.e.x * c, y: -F.n.y * s + F.e.y * c, z: -F.n.z * s + F.e.z * c } }; DS.F.set(o, f); return f; };
+  /** Size: {a, b (semi-axes pc), r (the larger, pc), arcmin (major axis as catalogued)}; a point source (asterism, double star) has 0. */
+  G.dsoSize = function (o) { const d = o.d || 0, A = o.a || 0, B = o.b || A, k = Math.tan(1 / 120 * DEG); return { a: d * Math.tan(A / 120 * DEG), b: d * Math.tan(B / 120 * DEG), r: d * Math.tan(A / 120 * DEG), arcmin: A }; };
+  /** Default surface brightness (V mag/arcsec²) for a type without a catalogued magnitude (APPROX, typical of the type). */
+  const DS_SB = { hii: 21.5, rn: 21.5, pn: 19.5, snr: 23.5, oc: 21, gc: 19.5, sc: 21, dn: 99 };
+  /** Mean surface brightness (V mag per arcsec²) over its catalogued ellipse: v + 2.5 log10(π a b / 4) (a, b in arcsec), else typical. */
+  G.dsoSB = function (o) { if (o.sb != null) return o.sb; if (o.v != null && o.a) { const A = o.a * 60, B = (o.b || o.a) * 60; return o.v + 2.5 * Math.log10(Math.PI * A * B / 4); } return DS_SB[o.t] != null ? DS_SB[o.t] : 22; };
+  /** Integrated apparent magnitude seen from L (pc): its V (or the typical surface brightness × its area) moved by the inverse square. */
+  G.dsoMag = function (o, L) { const p = G.dsoPos(o, gTmp), d = Math.hypot(p.x - L.x, p.y - L.y, p.z - L.z) || 1e-6; let v = o.v;
+    if (v == null) { const A = (o.a || 1) * 60, B = (o.b || o.a || 1) * 60; v = G.dsoSB(o) - 2.5 * Math.log10(Math.PI * A * B / 4); } return v + 5 * Math.log10(d / (o.d || d)); };
+  /** The emission lines of a nebula (planetary, H II region, remnant): [{n, nm, key, I (relative to Hβ = 100), meas (true if measured for
+   *  this object), f (Hz, forty octaves down, unfolded)}], strongest first, and {tpl, src (its reference key), measured ('all' | [keys]),
+   *  sync (a synchrotron continuum)}. Null for objects without lines. */
+  G.dsoLines = function (o) { const J = D.deepsky; if (!J) return null; let k = o.lines; if (!k) { if (o.t === 'hii') k = 'hii'; else if (o.t === 'pn') k = 'pn'; else if (o.t === 'snr') k = 'shock'; else return null; }
+    const T = J.tpl[k], M = J.tmeta[k]; if (!T) return null; const out = [];
+    J.lines.forEach(([n, nm, key]) => { const I = T[key]; if (!(I > 0)) return; out.push({ n, nm, key, I, meas: M.meas === 'all' || (Array.isArray(M.meas) && M.meas.indexOf(key) >= 0), f: K.C_KMS * 1e12 / nm / Math.pow(2, K.OCT_LIGHT) }); });
+    out.sort((a, b) => b.I - a.I); return { tpl: k, src: M.src, measured: M.meas, sync: !!M.sync, lines: out }; };
+  /** The colour of its light, honest to its type (gamma-encoded sRGB 0..1): emission lines summed through the CIE colour-matching functions
+   *  (core: all lines; edge: the low-ionisation lines Hα, [N II], [S II], [O I] that glow at the rim); a reflection nebula its star's light
+   *  × (550/λ)²; a cluster its stars' (a typical star of its age); a dark nebula black. {core, edge}. */
+  G.dsoColor = function (o) { if (o.__col) return o.__col; const lin = v => Math.pow(v, 2.2);
+    // each line's photons in the colour a broadband camera records them (wavelengthRGB, linear), weighted by its intensity — the photographs'
+    // convention: Hα red, Hβ blue-cyan, [O III] teal — so an H II region reads red-pink and a planetary's [O III] core teal
+    const mix = list => { let r = 0, g = 0, b = 0; list.forEach(([nm, w]) => { const c = G.wavelengthRGB(nm); r += lin(c[0]) * w; g += lin(c[1]) * w; b += lin(c[2]) * w; });
+      const m = Math.max(r, g, b) || 1; return [r, g, b].map(v => gam(v / m)); };
+    let core = [1, 1, 1], edge = null; const L = G.dsoLines(o);
+    if (L) { const hi = /^(O3b|O3c|O3a|HeII|Ne3|Hb|Hg|Hd)$/, lo = /^(Ha|N2b|N2c|S2a|S2b|O1a|O1b|Hb|N1)$/;
+      core = mix(L.lines.filter(x => o.t === 'pn' ? hi.test(x.key) : true).map(x => [x.nm, x.I])); edge = mix(L.lines.filter(x => lo.test(x.key)).map(x => [x.nm, x.I])); }
+    else if (o.t === 'rn') { const T0 = (o.star && o.star.T) || 15000; let r = 0, g = 0, b = 0; for (let nm = 380; nm <= 720; nm += 5) { const w = G.planck(nm, T0) * Math.pow(550 / nm, 2), c = G.wavelengthRGB(nm); r += lin(c[0]) * w; g += lin(c[1]) * w; b += lin(c[2]) * w; } const m = Math.max(r, g, b) || 1; core = [r, g, b].map(v => gam(v / m)); }
+    else if (o.t === 'dn') core = [0, 0, 0];
+    else { const s = G.dsoStars(o); let r = 0, g = 0, b = 0, w = 0; s.stars.forEach(x => { const c = G.starRGB(x.T); r += c[0] * x.w; g += c[1] * x.w; b += c[2] * x.w; w += x.w; }); core = w ? [r / w, g / w, b / w] : [1, 1, 1]; }
+    if (L) core = core.map(v => v + (1 - v) * .2);   // a little white: the nebular continuum and the eye's own blending of the lines
+    o.__col = { core, edge: edge || core }; return o.__col; };
+  /** A cluster's stars for the chord: its catalogue members when the bundled stars reach it (within its radius on the sky and ±25 % in
+   *  distance), brightest first, else the typical stars of a cluster of its age (log age; globulars 12 Gyr): {members (bool), stars: [{T, w
+   *  (weight: relative light), n (name or null), f (Hz, its Wien tone)}]} at most 8. Also used for the colour of star clouds. */
+  const AGE_T = [[6.5, [36000, 30000, 24000, 3600]], [7.0, [27000, 22000, 17000, 3800]], [7.5, [19000, 15000, 12000, 4000]], [8.0, [14000, 11500, 9500, 4500]], [8.5, [10500, 9000, 7800, 4700]], [9.0, [8000, 7200, 6500, 4800]], [9.5, [6600, 6200, 5800, 4700]], [10.2, [9000, 6300, 5600, 4500, 3900]]];
+  G.dsoStars = function (o) { if (o.__st) return o.__st; let members = false, stars = [];
+    if (o.t === 'oc' && o.d < 700 && T.rows) { const rad = Math.max(o.r50 ? o.r50 * 1.6 : 0, (o.a || 10) / 2) / 60, F = G.dirGal(o.gl != null ? o.gl : G.eqToGal(o.ra, o.dec).l, o.gb != null ? o.gb : G.eqToGal(o.ra, o.dec).b), cr = Math.cos(rad * DEG);
+      for (let i = 1; i < T.n; i++) { const r = T.rows[i]; if (!(r.d > o.d * .75 && r.d < o.d * 1.25)) continue; const dd = Math.hypot(T.X[i], T.Y[i], T.Z[i]) || 1; if ((T.X[i] * F.x + T.Y[i] * F.y + T.Z[i] * F.z) / dd < cr) continue; stars.push({ T: r.T || 6000, w: Math.pow(10, -.4 * (r.mag || 6)), n: r.n || r.bf || null, row: r }); }
+      stars.sort((a, b) => b.w - a.w); stars = stars.slice(0, 8); members = stars.length >= 3; }
+    if (!members) { const ag = o.t === 'gc' ? 10.1 : (o.age || 8); let row = AGE_T[0]; for (const r of AGE_T) if (ag >= r[0] - .25) row = r; stars = row[1].map((T0, i) => ({ T: T0, w: i === row[1].length - 1 && T0 < 4200 ? .6 : 1 / (1 + i * .5), n: null })); }
+    const mx = Math.max.apply(null, stars.map(s => s.w)) || 1; stars.forEach(s => { s.w /= mx; s.f = G.starTone(s.T); });
+    o.__st = { members, stars }; return o.__st; };
+  /** "Hear its lines" for a deep-sky object, in the chord-graph format (abs: true; L.a absolute amplitudes summing to opts.level RMS, 0.09):
+   *  {id, kind, lines: [{n, nm, w, wn, f0, f, cents, broad, sym, dir, em, amp, a, I?, meas?, T?}], rms, level, dop, rv, exag, abs: true,
+   *  em (true: bright lines), arp (a cluster: enter one by one), sync (add synchrotron noise), hush (a dark nebula: silence), typical (not
+   *  measured for this object), src (reference key), bed: {f0, amp} | null}. opts.exag × its radial velocity (globulars) for the Doppler. */
+  G.dsoLineChord = function (q, opts) {
+    const o = G.dso(q); if (!o) return null; const op = opts || {}, lv = op.level == null ? .09 : op.level, exag = op.exag || 1, rv = o.rv || 0, dop = G.doppler(rv, exag), mx = op.max || 16;
+    const out = { id: o.id, kind: G.DS_KIND[o.t] || o.t, lines: [], rms: 0, level: lv, dop, rv, exag, abs: true, em: false, arp: false, sync: false, hush: false, typical: true, src: null, bed: null };
+    const mk = (n, nm, w, wn, extra) => { const f0 = K.C_KMS * 1e12 / nm / Math.pow(2, K.OCT_LIGHT), h = Math.max(.05, wn) / 2; return Object.assign({ n, nm, w: Math.min(1, w), wn, f0, f: f0 * dop, cents: Math.min(700, 1200 * Math.log2((nm + h) / (nm - h))), broad: wn >= 5, sym: 1, dir: 1, em: false, amp: Math.min(1, w) }, extra || {}); };
+    const L = G.dsoLines(o);
+    if (L) { const Imax = L.lines[0].I; L.lines.filter(x => x.I >= Imax * .01).slice(0, mx).forEach(x => out.lines.push(mk(x.n, x.nm, Math.sqrt(x.I / Imax), .1, { em: true, I: x.I, meas: x.meas, key: x.key })));
+      out.em = true; out.sync = L.sync; out.src = L.src; out.typical = !(L.measured === 'all' || (Array.isArray(L.measured) && L.measured.length)); out.partial = Array.isArray(L.measured) && L.measured.length > 0; }
+    else if (o.t === 'rn') { const T0 = (o.star && o.star.T) || 15000, C = G.lineChord({ T: T0, sp: '', id: -1 }, { gamma: 1.25 }); C.lines.slice(0, mx).forEach(x => { const blue = Math.pow(550 / x.nm, 2); out.lines.push(mk(x.n, x.nm, Math.min(1, x.w * blue / 1.6), x.wn, { broad: x.broad, dir: x.dir })); });
+      out.bed = { f0: G.starTone(T0 * 1.25) * dop, amp: lv * Math.pow(10, -18 / 20) }; out.T = T0; }
+    else if (o.t === 'oc' || o.t === 'gc' || o.t === 'sc') { const S = G.dsoStars(o); S.stars.forEach(x => { const lam = K.WIEN_M_K / x.T * 1e9; out.lines.push(mk(x.n || (Math.round(x.T / 100) * 100 + ' K'), lam, Math.sqrt(x.w), .1, { T: x.T, f0: x.f, f: x.f * dop })); }); out.arp = true; out.members = S.members; out.typical = !S.members; }
+    else if (o.t === 'dn') { out.hush = true; const P = o.parentglow && G.dso(o.parentglow), PL = P && G.dsoLines(P); if (!PL) return out;
+      // a dark nebula silhouetted against a glowing one (the Horsehead on IC 434): the glow's bright lines around it, quiet and reddened as
+      // through the dust's edge (A_V = 1 × (550/λ)^1.7, APPROX), at a quarter of the level, under the hush
+      const Imax = PL.lines[0].I; PL.lines.filter(x => x.I >= Imax * .01).slice(0, mx).forEach(x => { const t = Math.pow(10, -.4 * Math.pow(550 / x.nm, 1.7)); out.lines.push(mk(x.n, x.nm, Math.sqrt(x.I / Imax) * t, .1, { em: true, I: x.I, meas: x.meas, key: x.key })); });
+      out.em = true; out.glow = P.id; out.src = PL.src; const q2 = out.lines.reduce((s, x) => s + x.amp * x.amp, 0), A = q2 ? lv * .25 / Math.sqrt(q2 / 2) : 0; out.lines.forEach(x => { x.a = A * x.amp; }); out.rms = lv * .25; return out; }
+    else return out;
+    const q2 = out.lines.reduce((s, x) => s + x.amp * x.amp, 0), A = q2 ? lv / Math.sqrt(q2 / 2) : 0; out.lines.forEach(x => { x.a = A * x.amp; }); out.rms = q2 ? lv : 0; return out; };
+  /** For drawing the Spectrum sheet: {kind, lo, hi, n, nm (Float32Array), I (the light at each wavelength, 0..1 of its maximum), cont
+   *  (the continuum alone, same scale), lines (dsoLines or the chord's), T (a reflection nebula's or a cluster's dominant temperature)}. */
+  G.dsoSpectrum = function (q, opts) {
+    const o = G.dso(q); if (!o) return null; const op = opts || {}, n = op.n || 512, lo = op.lo || 360, hi = op.hi || 750, nm = new Float32Array(n), I = new Float32Array(n), cont = new Float32Array(n);
+    const L = G.dsoLines(o), kind = G.DS_KIND[o.t] || o.t; let Tc = 0;
+    for (let i = 0; i < n; i++) nm[i] = lo + (hi - lo) * i / (n - 1);
+    if (L) { const Imax = L.lines[0].I, wd = 0.9; for (let i = 0; i < n; i++) { let s = L.sync ? .045 * Math.pow(nm[i] / 500, .7) : .012; cont[i] = s; L.lines.forEach(x => { const u = (nm[i] - x.nm) / wd; if (u > -5 && u < 5) s += x.I / Imax * Math.exp(-.5 * u * u); }); I[i] = s; } }
+    else if (o.t === 'rn') { Tc = (o.star && o.star.T) || 15000; const sp = G.spectrum({ T: Tc, sp: '', id: -1 }, { n, lo, hi }); let m = 0; for (let i = 0; i < n; i++) { const v = sp.planck[i] * Math.pow(550 / nm[i], 2); cont[i] = v; I[i] = v * sp.trans[i]; if (v > m) m = v; } for (let i = 0; i < n; i++) { cont[i] /= m; I[i] /= m; } }
+    else if (o.t === 'dn') { Tc = 5200; let m = 0; for (let i = 0; i < n; i++) { const v = G.planck(nm[i], Tc) * Math.pow(10, -.4 * 3 * Math.pow(550 / nm[i], 1.7)); cont[i] = v; if (v > m) m = v; } for (let i = 0; i < n; i++) { cont[i] /= m * 6; I[i] = cont[i]; } }
+    else { const S = G.dsoStars(o); let m = 0; for (let i = 0; i < n; i++) { let v = 0; S.stars.forEach(x => { v += x.w * G.planck(nm[i], x.T) / G.planck(K.WIEN_M_K / x.T * 1e9, x.T); }); cont[i] = v; I[i] = v; if (v > m) m = v; } for (let i = 0; i < n; i++) { cont[i] /= m || 1; I[i] /= m || 1; } Tc = S.stars[0] ? S.stars[0].T : 6000; }
+    return { id: o.id, kind, lo, hi, n, nm, I, cont, lines: L ? L.lines : null, sync: !!(L && L.sync), T: Tc };
+  };
+  /** The deep-sky objects within a constellation (IAU abbreviation): drawn ones and far galaxies, Messier first, then by brightness. */
+  G.dsoInCon = function (ab) { return DS.all.filter(o => o.con === ab && !o.part && !o.part0 && o.t !== 'lg' && o.t !== 'rad').sort((a, b) => (a.m ? 0 : 1) - (b.m ? 0 : 1) || (a.v != null ? a.v : 9) - (b.v != null ? b.v : 9)); };
+  /** Its facts table for a language (dsfacts_<lang>.json, loaded by the page), set by the page: G.dsoFacts = {...}. */
+  G.dsoFact = (o, lang) => { const f = G.dsoFacts && G.dsoFacts[lang]; return (f && f[o.id]) || null; };
+  G.dsoFacts = {};
+
   /* ───────── 4c. search (names.json + the catalogues) ───────── */
   const srch = { index: null, greek: null, con: null };
   const GREEK_FALLBACK = 'α alpha,β beta,γ gamma,δ delta,ε epsilon,ζ zeta,η eta,θ theta,ι iota,κ kappa,λ lambda,μ mu,ν nu,ξ xi,ο omicron,π pi,ρ rho,σ sigma,τ tau,υ upsilon,φ phi,χ chi,ψ psi,ω omega';
@@ -6787,7 +6935,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     t = t.replace(/ł/g, 'l').replace(/đ/g, 'd').replace(/ø/g, 'o').replace(/ß/g, 'ss').replace(/æ/g, 'ae').replace(/œ/g, 'oe').replace(/[’'`´]/g, '').replace(/[¹²³⁰-⁹]/g, '').replace(/[-_.,;:/()\[\]]+/g, ' ');
     const gk = greekTable(); t = t.replace(/[α-ω]/g, c => ' ' + gk.sym[c] + ' ');
     // Latin spellings of the letters (alf, bet, alpha…) as whole words, and a letter glued to a digit (alpha1)
-    t = t.replace(/\b([a-z]+)(\d)?\b/g, (m, w, dgt) => (gk.name[w] ? gk.name[w] : w));
+    t = t.replace(/\b([a-z]+)(\d)?\b/g, (m, w, dgt) => (gk.name[w] ? gk.name[w] : m));   // a Greek letter's digit goes (alpha1 → alpha); any other word keeps it (M1, C9)
     return t.replace(/\s+/g, ' ').trim();
   };
   function greekTable() { if (srch.greek) return srch.greek; const sym = {}, name = {}; const rows = (D.names && D.names.greek) || GREEK_FALLBACK.split(',').map(x => { const p = x.split(' '); return { s: p[0], n: p.slice(1) }; });
@@ -6808,19 +6956,26 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       if (r.gaia) keys.push('gaia ' + r.gaia, r.gaia, 'gaia dr3 ' + r.gaia);
       push('star', r, keys, r.n || r.bf || (r.hip ? 'HIP ' + r.hip : r.gl || ('HYG ' + r.id)), r.mag); }
     for (let i = 0; i < T.np; i++) { const p = T.prow[i], keys = [p.j, 'psr ' + p.j, p.b, p.b && 'psr ' + p.b, p.nm], o = OB[p.j]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('pulsar', p, keys, p.b || p.j, T.PM[i]); }
-    for (let i = 0; i < T.nr; i++) { if (D.blackholes && T.rrow[i].id === 'sgra') continue; const r = T.rrow[i], keys = [r.n].concat(r.alt || []), o = OB[r.id]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('radio', r, keys, r.n, T.RM[i]); }
-    for (let i = 0; i < T.ng; i++) { const g = T.grow[i], keys = [g.n, g.id].concat(g.alt || []), o = OB[g.id]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('galaxy', g, keys, g.n, g.mag); }
+    for (let i = 0; i < T.nr; i++) { if (D.blackholes && T.rrow[i].id === 'sgra') continue; const r = T.rrow[i], keys = [r.n].concat(r.alt || [], dsKeys(G.dsoLinks('r:' + r.id))), o = OB[r.id]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('radio', r, keys, r.n, T.RM[i]); }
+    for (let i = 0; i < T.ng; i++) { const g = T.grow[i], keys = [g.n, g.id].concat(g.alt || [], dsKeys(G.dsoLinks('g:' + g.id))), o = OB[g.id]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x))); push('galaxy', g, keys, g.n, g.mag); }
     // the black holes (step 4f): their names, other names, localized names, the words for "black hole" in the twelve languages, and 
     G.blackholes().forEach(b => { const keys = [b.n, b.id].concat(b.alt || [], BH_WORDS); if (b.nm) Object.keys(b.nm).forEach(l => keys.push(b.nm[l])); const o = OB[b.id]; if (o) Object.keys(o).forEach(l => o[l].split(',').forEach(x => keys.push(x)));
       push('blackhole', b, keys, b.n, b.id === 'sgra' ? -60 : -50 - Math.log10(b.M || b.M_lim || 1)); });   // Sgr A* first, then the heaviest
+    // the deep-sky objects (deepsky.json): every designation with and without its space (M42, NGC 2024, B33, Barnard 33, C 99, Caldwell 99),
+    // the names and other names, and the names in the twelve languages; brighter and Messier objects first among equals
+    const DN = (D.deepsky && D.deepsky.nm) || {};
+    DS.all.forEach(o => { if (o.t === 'lg' || o.t === 'rad') return; const keys = [o.n].concat(o.alt || [], dsKeys(o.des)); const nn = DN[o.id]; if (nn) Object.keys(nn).forEach(l => keys.push(nn[l]));
+      push('dso', o, keys, o.n, (o.v != null ? o.v : 8) - 6 - (o.m ? 1 : 0) - (nn ? 1 : 0)); });
     // the constellations themselves: choosing one lists its stars
     Object.keys(con).forEach(ab => { if (ab !== con[ab].ab) return; const c = con[ab]; push('constellation', c, conNames(ab), c.la, -99); });
     srch.index = ix; return ix;
   }
+  // a designation in every spelling: as written, without the space, and Messier / Caldwell / Barnard written out
+  function dsKeys(des) { const out = []; (des || []).forEach(x => { out.push(x, x.replace(/\s+/g, '')); let m = x.match(/^M (\d+)$/); if (m) out.push('Messier ' + m[1]); m = x.match(/^C (\d+)$/); if (m) out.push('Caldwell ' + m[1]); m = x.match(/^Barnard (\d+)$/); if (m) out.push('B ' + m[1], 'B' + m[1]); }); return out; }
   /** Search the catalogues: stars (IAU names, Bayer/Flamsteed in any spelling — "alpha Cen", "α Cen", "Alpha Centauri", "61 Cyg",
    *  HIP/HD/Gliese/Gaia numbers, the localized names of famous stars), pulsars, radio sources, the Local Group galaxies and the
    *  constellations (in all twelve languages). Accent- and case-insensitive. Returns at most opts.n (default 12) of
-   *  {kind: 'star'|'pulsar'|'radio'|'galaxy'|'constellation', row, name, score}, best first (exact > prefix > word prefix >
+   *  {kind: 'star'|'pulsar'|'radio'|'galaxy'|'dso'|'blackhole'|'constellation', row, name, score}, best first (exact > prefix > word prefix >
    *  substring, then brighter first). For a constellation, G.constellationStars(row) lists its stars. */
   G.search = function (q, opts) {
     const o = opts || {}, N = o.n || 12, f = G.fold(q); if (!f) return [];
@@ -6831,13 +6986,14 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
         if (words.length > 1) { const kw = k.split(' '); if (words.every(w => kw.some(x => x.startsWith(w)))) { if (best < 2) best = 2; continue; } }
         if ((' ' + k).indexOf(' ' + f) >= 0) { if (best < 2) best = 2; continue; } if (f.length >= 3 && k.indexOf(f) >= 0 && best < 1) best = 1; }
       if (best) out.push({ kind: e.kind, row: e.row, name: e.name, score: best, mag: e.mag }); }
-    out.sort((a, b) => b.score - a.score || (a.kind === 'constellation' ? -1 : b.kind === 'constellation' ? 1 : 0) || a.mag - b.mag); out.length = Math.min(out.length, N); return out;
+    out.sort((a, b) => b.score - a.score || (a.kind === 'constellation' ? -1 : b.kind === 'constellation' ? 1 : 0) || (a.kind === 'radio' && b.kind === 'dso' ? 1 : a.kind === 'dso' && b.kind === 'radio' ? -1 : 0) || a.mag - b.mag); out.length = Math.min(out.length, N); return out;   // a nebula before its radio name (M1 before Taurus A)
   };
   /** The stars of a constellation (record or abbreviation), brightest first. */
   G.constellationStars = function (c) { const ab = typeof c === 'string' ? c : c.ab, out = []; for (let i = 1; i < T.n; i++) { const r = T.rows[i]; if (r.con === ab) out.push(r); } out.sort((a, b) => a.mag - b.mag); return out; };
   /** A localized display name for a catalogue object in language `lang`: names.json first, else the catalogue's own. */
   G.nameOf = function (kind, row, lang) { const nm = D.names || {}; if (kind === 'star') { const v = (nm.stars || {})[row.n] || (row.bf && (nm.stars || {})[row.bf]); if (v && v[lang] && lang !== 'en') return v[lang]; return row.n || row.bf || (row.hip ? 'HIP ' + row.hip : row.gl || ('HYG ' + row.id)); }
     if (kind === 'blackhole') { if (row.nm && row.nm[lang]) return row.nm[lang]; const ob = (nm.objects || {})[row.id]; if (ob && ob[lang]) return ob[lang].split(',')[0].trim(); return row.n; }
+    if (kind === 'dso') { const v = D.deepsky && D.deepsky.nm[row.id]; return (v && v[lang] && lang !== 'en') ? v[lang] : row.n; }
     if (kind === 'constellation') return row[lang] || row.la; const o = (nm.objects || {})[kind === 'pulsar' ? row.j : row.id]; if (o && o[lang]) return o[lang].split(',')[0].trim(); return kind === 'pulsar' ? (row.b || row.j) : row.n; };
 
   /* ───────── 4g. the constellation figures (constellations.json: the sounds of the constellations) ─────────
@@ -11267,6 +11423,7 @@ function labels(){const far=ST.r>FAR_AU;
   if(GL.crab&&ST.crabPos)placeG(GL.crab,ST.crabPos.x,ST.crabPos.y,ST.crabPos.z,ST.dSunPc>.3&&ST.dSunPc<3000);
   for(const id in GALPOS){const el=GL['g_'+id];if(!el)continue;const p=GALPOS[id],tg=ship.gap&&ship.gap.gal&&ship.gap.gal.id===id,big=id==='m31'||id==='m33'||id==='lmc'||id==='smc',dShip=p.distanceTo(gcam.position);
     placeG(el,p.x,p.y,p.z,ST.dSunPc>2500&&(big||tg||dShip<60000)&&(!ST.card||!ST.card.gal||ST.card.gal.id!==id||dShip>2e5)&&!(BHX.row&&BHX.row.host===id&&dShip<5000));if(!el.hidden&&!tg&&clash())el.hidden=true;el.classList.toggle('target',!!tg)}
+  dsLabels();
   return true}
 
 
@@ -11356,7 +11513,7 @@ function onReady(){const g=G();buildStars();try{buildHomeSky()}catch(e){console.
   if(vela){const p=g.pulsars().indexOf(vela);ST.velaPos=galToScene(T.PX[p],T.PY[p],T.PZ[p],new THREE.Vector3());ST.velaRow=vela;glbl('vela',TX.vela,'minor',e=>popFromLabel({kind:'pulsar',row:vela},e))}
   if(crab){const p=g.pulsars().indexOf(crab);ST.crabPos=galToScene(T.PX[p],T.PY[p],T.PZ[p],new THREE.Vector3());glbl('crab',TX.crab,'minor',e=>popFromLabel({kind:'pulsar',row:crab},e))}
   glbl('helio',TX.helioLbl,'minor',()=>travelG('helio'));
-  buildGalaxies();['m31','m33','lmc','smc','m110','m32','sagittariusdsph','fornax','ic10','ngc6822'].forEach(id=>{const r=g.galaxy(id);if(r&&GALPOS[id])glbl('g_'+id,galName(r),'minor gal',e=>popFromLabel({kind:'galaxy',row:r},e))});
+  buildGalaxies();try{dsBuild()}catch(e){console.warn('deep sky',e)}['m31','m33','lmc','smc','m110','m32','sagittariusdsph','fornax','ic10','ngc6822'].forEach(id=>{const r=g.galaxy(id);if(r&&GALPOS[id])glbl('g_'+id,galName(r),'minor gal',e=>popFromLabel({kind:'galaxy',row:r},e))});
   ST.ready=true;buildPanel();loadLargeIfChosen()}
 const loading=G()?G().load(BASE).then(onReady).catch(e=>console.warn('flight: galaxy data',e&&e.message||e)):null;
 
@@ -11366,6 +11523,7 @@ const DN=id=>TX[id]||TL[id]||id;
 const STAR_OF={acen:'Rigil Kentaurus',sirius:'Sirius'};
 function goalOf(id){const g=G(),out={id,goal:new THREE.Vector3(),look:new THREE.Vector3(),stand:1,name:TX.nm[id]||TL.nm[id]||id,cap:id};
   if(typeof id==='object'&&id.bh)return goalBH(id.bh,out);
+  if(typeof id==='object'&&id.dso)return dsGoal(id.dso,out);
   if(id==='gc'&&g.blackhole&&g.blackhole('sgra')){const o=goalBH(g.blackhole('sgra'),out);o.id='gc';return o}
   const outward=ship.pos.length()>1e-6?ship.pos.clone().normalize():new THREE.Vector3(0,.3,-1).normalize();
   if(typeof id==='object'&&id.star){const row=id.star;out.id='star';out.row=row;starScene(row,SV);const p=new THREE.Vector3(SV.x,SV.y,SV.z).multiplyScalar(AU_PC);
@@ -11405,7 +11563,7 @@ function travelG(id){if(!ST.ready){toast('…');return}const gp=goalOf(id);if(!g
 const lookM=new THREE.Matrix4(),lookQ=new THREE.Quaternion(),UP=new THREE.Vector3(0,1,0),tiltQ=new THREE.Quaternion(),XAXIS=new THREE.Vector3(1,0,0);
 // a star moves (proper motion and radial velocity, at the sim's time speed): the goal, the look-at and the orbit's centre follow it
 const trackV=new THREE.Vector3();
-function trackStar(gp){if(!gp||!gp.anchor||!gp.row||gp.gal)return;starScene(gp.row,SV);trackV.set(SV.x,SV.y,SV.z).multiplyScalar(AU_PC).sub(gp.anchor);if(trackV.lengthSq()<1e-20)return;gp.goal.add(trackV);gp.look.add(trackV);gp.anchor.add(trackV);return trackV}
+function trackStar(gp){if(!gp||!gp.anchor||!gp.row||gp.gal||gp.dso)return;starScene(gp.row,SV);trackV.set(SV.x,SV.y,SV.z).multiplyScalar(AU_PC).sub(gp.anchor);if(trackV.lengthSq()<1e-20)return;gp.goal.add(trackV);gp.look.add(trackV);gp.anchor.add(trackV);return trackV}
 // the cockpit's aim at a destination: look at it, and (gp.tilt) pitch down a little so the star sits above the centre, clear of the arrival card
 function aimQ(gp,lookAt,out,frac){const upv=gp.up?gp.up:gp.id==='above'||gp.id==='gc'||gp.id==='mag'?new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z):UP;lookM.lookAt(ship.pos,lookAt||gp.look,upv);out.setFromRotationMatrix(lookM);
   if(gp.tilt){const H=renderer.domElement.clientHeight||innerHeight,pxr=H/(2*Math.tan(gcam.fov*Math.PI/360));out.multiply(tiltQ.setFromAxisAngle(XAXIS,-Math.atan((frac==null?TILT:frac)*H/pxr)))}
@@ -11450,7 +11608,7 @@ function drift(dt){const d=ship.drift;if(!d)return;if(keys.size||hold||ship.crui
   driftRel.copy(ship.pos).sub(d.centre);driftQ.setFromAxisAngle(d.axis,d.rate*dt);driftRel.applyQuaternion(driftQ);ship.pos.copy(d.centre).add(driftRel);
   lookM.lookAt(ship.pos,d.look,d.axis);lookQ.setFromRotationMatrix(lookM);camera.quaternion.slerp(lookQ,1-Math.exp(-dt*1.5));camera.position.copy(ship.pos)}
 function nearestBodyAU(){let best=ship.pos.length()-SUN_R;for(const b of BODIES){const o=OBJ[b.id];if(!o.pos)continue;const d=ship.pos.distanceTo(o.pos)-o.r;if(d<best)best=d}
-  if(ST.nearStarAU<best)best=ST.nearStarAU;if(ST.nearGalAU<best)best=ST.nearGalAU;if(BHX.nearAU<best)best=BHX.nearAU;return Math.max(best,1e-7)}
+  if(ST.nearStarAU<best)best=ST.nearStarAU;if(ST.nearGalAU<best)best=ST.nearGalAU;if(BHX.nearAU<best)best=BHX.nearAU;if(DSX.nearAU<best)best=DSX.nearAU;return Math.max(best,1e-7)}
 // the nearest star to the ship (every ~100 ms; the Sun is index 0)
 function scanStars(now){if(!ST.ready||now-ST.lastScan<100)return;ST.lastScan=now;const g=G(),T=g.tables(),L=shipGal(),t=tYr();let bi=-1,bd=1e30;const near=NEAR.list,nr2=NEAR_PC[1]*NEAR_PC[1];near.length=0;
   for(let i=0;i<T.n;i++){const dx=T.X[i]+T.VX[i]*t-L.x,dy=T.Y[i]+T.VY[i]*t-L.y,dz=T.Z[i]+T.VZ[i]*t-L.z,d2=dx*dx+dy*dy+dz*dz;if(d2<bd){bd=d2;bi=i}if(d2<nr2&&i>0)near.push(T.rows[i])}
@@ -11460,7 +11618,7 @@ function scanStars(now){if(!ST.ready||now-ST.lastScan<100)return;ST.lastScan=now
   if(bi>0){const keep=Math.max(2.5*g.starRadiusAU(T.rows[bi]),1e-4);if(ST.nearStarAU<keep){starScene(T.rows[bi],SV);const c=new THREE.Vector3(SV.x,SV.y,SV.z).multiplyScalar(AU_PC);const off=ship.pos.clone().sub(c);if(off.lengthSq()<1e-18)off.set(0,.3,-1);ship.pos.copy(c).add(off.normalize().multiplyScalar(keep));camera.position.copy(ship.pos);ST.nearStarAU=keep}}}
 
 /* ---------- the manual flight's speed law: the planets' law, with the cap lifted once past them, and the stars counted as bodies ---------- */
-function base(ns){const r=ship.pos.length(),d=Math.min(ns.d,ST.nearStarAU,ST.nearGalAU,BHX.nearAU),cap=40*Math.max(1,r/73);return Math.min(cap,Math.max(2e-6,d*.55))*ST.throttle}
+function base(ns){const r=ship.pos.length(),d=Math.min(ns.d,ST.nearStarAU,ST.nearGalAU,BHX.nearAU,DSX.nearAU),cap=40*Math.max(1,r/73);return Math.min(cap,Math.max(2e-6,d*.55))*ST.throttle}
 
 /* ---------- each frame ---------- */
 let lastCam={far:0},slowT=0,mwScale=1;
@@ -11473,7 +11631,7 @@ function frame(dt,t,ns){const r=ship.pos.length();ST.r=r;try{homeSkyTick()}catch
   if(ST.ready){const L=shipGal();ST.dSunPc=Math.hypot(L.x,L.y,L.z);ST.zPc=L.z+G().K.Z0;
     ST.gv=sm(0,1,Math.max((Math.abs(ST.zPc)-700)/3000,(ST.dSunPc*.38-700)/3000));
     const farF=1-sm(30000,150000,ST.dSunPc);ST.farF=farF;   // the catalogue stars and pulsars fade out as the whole Galaxy shrinks to a disc (they would all pile into one pixel)
-    STARS.material.uniforms.uFade.value=ST.gf*farF;STARS.material.uniforms.uT.value=tYr();nearFrame();MW.material.uniforms.uFade.value=ST.gf;MW.material.uniforms.uBoost.value=ST.gv;MW.material.uniforms.uAlpha.value=clamp(Math.pow(100000/Math.max(ST.dSunPc,1),2),.35,1)*(.4+.6*BHX.gcFar);OORT.material.opacity=ST.gf*.85*(1-sm(.6,4,ST.dSunPc));PULS.material.opacity=ST.gf*.8*(1-ST.gv*.6)*farF;GCGLOW.material.opacity=.3*sm(100,2500,ST.dSunPc)*clamp(Math.pow(200000/Math.max(ST.dSunPc,1),2),0,1)*BHX.gcFar;galaxyFrame();
+    STARS.material.uniforms.uFade.value=ST.gf*farF;STARS.material.uniforms.uT.value=tYr();nearFrame();MW.material.uniforms.uFade.value=ST.gf;MW.material.uniforms.uBoost.value=ST.gv;MW.material.uniforms.uAlpha.value=clamp(Math.pow(100000/Math.max(ST.dSunPc,1),2),.35,1)*(.4+.6*BHX.gcFar);OORT.material.opacity=ST.gf*.85*(1-sm(.6,4,ST.dSunPc));PULS.material.opacity=ST.gf*.8*(1-ST.gv*.6)*farF;GCGLOW.material.opacity=.3*sm(100,2500,ST.dSunPc)*clamp(Math.pow(200000/Math.max(ST.dSunPc,1),2),0,1)*BHX.gcFar;galaxyFrame();dsFrame();
     const hp=sm(25,60,r)*(1-sm(300,900,r));HELIO.material.opacity=.75*hp;HELIO2.material.opacity=.05*hp*(r<120?1:0);HELIO.visible=hp>.01;HELIO2.visible=HELIO2.material.opacity>.002;
     thresholds(r)}
   applyFades();
@@ -11532,7 +11690,7 @@ function hud(){const bc=document.querySelector('.hud.bc');if(!bc)return;
   capEl=document.createElement('div');capEl.className='gcap';capEl.id='galCap';capEl.setAttribute('aria-live','polite');bc.insertBefore(capEl,bc.firstChild);
   cardEl=document.createElement('div');cardEl.className='gcard';cardEl.id='galCard';cardEl.hidden=true;cardEl.setAttribute('aria-live','polite');bc.insertBefore(cardEl,capEl);
   cardEl.onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;if(typeof resumeAudio==='function')resumeAudio();if(bhCardAction(a,b))return;
-    if(a==='x')hideCard();else if(a==='orbit'){if(ST.orbit)stopOrbit();else startOrbit(ST.card)}else if(a==='next'){if(ST.card&&ST.card.gal)nextGalaxy();else nextStar()}else if(a==='home')travelG('home')
+    if(a==='x')hideCard();else if(a==='orbit'){if(ST.orbit)stopOrbit();else startOrbit(ST.card)}else if(a==='next'){if(ST.card&&ST.card.dso)dsNext();else if(ST.card&&ST.card.gal)nextGalaxy();else nextStar()}else if(a==='home')travelG('home')
     else if(a==='voice'){const u=$('galVoice');if(u){u.hidden=!u.hidden;b.setAttribute('aria-expanded',String(!u.hidden));b.textContent=(b.dataset.l||TV.voice)+(u.hidden?' ▾':' ▴')}}else if(a==='spec'||a==='radio'){const body=cardBody(ST.card);if(body)openSheet(a,body)}};
   chipsEl=document.createElement('div');chipsEl.className='chips gchips';chipsEl.id='galChips';
   // into the travel ribbon (fly3d.js) after the planets' course and moons; without it, above the course chips as before
@@ -11581,7 +11739,7 @@ function hearLine(gp){const S2=TX.st,row=gp.row;if(gp.bh)return bhHearLine(gp.bh
   if(gp.id==='vela'||(row&&row.P0!=null)){let f=0;try{f=G().pulsarSound(row).f}catch(e){}return uf(S2.hear.pulsar,{n:fmtN(f,f<10?1:0)})}
   if(GA&&GA.quake&&GA.quake.row===row)return uf(S2.hear.quake,{oct:GA.quake.oct});
   return S2.hear[OPT.mode]||S2.hear.tone}
-function card(gp){if(!cardEl||!gp)return;ST.card=gp;cardEl.classList.remove('bhcard');const S2=TX.st,cap=gp.cap!=='star'&&gp.cap!=='gal'?(TX.cap[gp.cap]||TL.cap[gp.cap]||''):'',isStar=!!(gp.row&&gp.row.T!=null&&gp.row.P0==null&&!gp.gal&&gp.id!=='gc');
+function card(gp){if(!cardEl||!gp)return;if(gp.dso){dsCard(gp);return}ST.card=gp;cardEl.classList.remove('bhcard');const S2=TX.st,cap=gp.cap!=='star'&&gp.cap!=='gal'?(TX.cap[gp.cap]||TL.cap[gp.cap]||''):'',isStar=!!(gp.row&&gp.row.T!=null&&gp.row.P0==null&&!gp.gal&&gp.id!=='gc');
   const nm=gp.id==='vela'||gp.id==='gc'?TX[gp.id]:gp.name;cardEl.innerHTML=`<div class="gch"><b>${ESC(nm)}</b><button class="gx" data-a="x" aria-label="${ESC(S2.close)}">×</button></div>`+(cap?`<div class="gcp">${cap}</div>`:'')+
     `<div class="gcf">${starFacts(gp).join(' · ')}</div><div class="gcl" id="galHear">${hearLine(gp)}</div>`+(isStar?`<button class="gcvt" data-a="voice" aria-expanded="false">${ESC(TV.voice)} ▾</button><ul class="gcv" id="galVoice" hidden>${voiceRules(gp.row).map(x=>`<li>${x}</li>`).join('')}</ul>`:'')+
     `<div class="gcb"><button class="chip" data-a="orbit">${ESC(S2.orbit)}</button><button class="chip" data-a="next">${ESC(gp.gal?TL.nextGal:S2.next)}</button>${gp.id!=='gc'?`<button class="chip" data-a="spec">${ESC(TV.spec)}</button>`:''}<button class="chip" data-a="radio">${ESC(TV.radio)}</button><button class="chip" data-a="home">${ESC(S2.home)}</button></div>`;
@@ -11591,7 +11749,7 @@ function cardButtons(){if(!cardEl||cardEl.hidden)return;const b=cardEl.querySele
 function refreshHear(){const el=$('galHear');if(el&&ST.card&&!cardEl.hidden){const t=hearLine(ST.card);if(el.innerHTML!==t)el.innerHTML=t}}
 function hideCard(){if(!cardEl)return;cardEl.classList.remove('on');cardEl.hidden=true;ST.card=null}
 function arrive(gp){ST.caps.push(gp.cap);ST.park=gp.anchor?gp:null;arriveShow(gp);if(ST.park)gp.aim=aimQ(gp,null,new THREE.Quaternion(),tiltFrac())}
-function arriveShow(gp){if(gp.bh){bhArrive(gp);return}
+function arriveShow(gp){if(gp.bh){bhArrive(gp);return}if(gp.dso){dsCard(gp);speakName(gp);return}
   if(gp.row)ST.visited[gp.row.id!=null?gp.row.id:gp.name]=true;if(gp.id==='gc')ST.visited.gc=true;
   if(gp.gal&&gp.id!=='mag'){card(gp);if(gp.gal.id==='m31')speakAndromeda();else speakName(gp)}
   else if(gp.cap==='star'||gp.cap==='acen'||gp.cap==='sirius'||gp.id==='vela'||gp.id==='gc'||gp.id==='pulsar'||gp.id==='radio'){card(gp);speakName(gp)}else caption(gp.cap,gp)}
@@ -11663,11 +11821,12 @@ function searchFor(q){SR.q=q;SR.sel=0;const g=G();if(!g||!g.ready){SR.res=[];ren
 function subOf(r){const g=G(),S2=TL.srch,K=S2.kind;const row=r.row;
   if(r.kind==='star'){const sp=String(row.sp||'').replace(/\.\.\./,'').trim(),bits=[K.star];if(sp)bits.push(sp);if(row.d)bits.push(fmtN(row.d*PC_LY,row.d*PC_LY<100?1:0)+' '+TX.ly);return bits.join(' · ')}
   if(r.kind==='pulsar'){const bits=[K.pulsar];if(row.P0)bits.push(fmtN(row.P0*1000,row.P0<.1?2:0)+' ms');if(row.d)bits.push(fmtPc(row.d*1000));return bits.join(' · ')}
+  if(r.kind==='dso')return dsSub(r);
   if(r.kind==='galaxy')return gkWord(row)+' · '+fmtPc(row.d*1000);
   if(r.kind==='blackhole')return bhFacts(row).join(' · ');
   if(r.kind==='radio')return K.radio+(row.d_kpc?' · '+fmtPc(row.d_kpc*1000):'');
   if(r.kind==='constellation')return uf(S2.con,{n:g.constellationStars(row).length});return ''}
-function dispName(r){if(r.kind==='blackhole'){const nm=bhName(r.row);return ESC(nm)+(r.row.n!==nm?` <small>${ESC(r.row.n)}</small>`:'')}const g=G(),loc=g.nameOf(r.kind,r.row,LANG),row=r.row;let own='';
+function dispName(r){if(r.kind==='dso')return dsDisp(r);if(r.kind==='blackhole'){const nm=bhName(r.row);return ESC(nm)+(r.row.n!==nm?` <small>${ESC(r.row.n)}</small>`:'')}const g=G(),loc=g.nameOf(r.kind,r.row,LANG),row=r.row;let own='';
   if(r.kind==='star'){own=[row.n,row.bf].filter(x=>x&&x!==loc).join(' · ');if(!own&&!row.n&&!row.bf)own=row.hip?'HIP '+row.hip:(row.gl||'')}
   else if(r.kind==='constellation')own=row.la!==loc?row.la:'';else if(r.kind==='galaxy')own=row.n!==loc?row.n:(row.alt&&row.alt[0]!==loc?row.alt[0]:'');else if(r.kind==='pulsar')own=row.j!==loc?row.j:'';
   return ESC(loc)+(own?` <small>${ESC(own)}</small>`:'')}
@@ -11677,8 +11836,8 @@ function renderSug(){const sug=$('gSug'),inp=$('gQ');if(!sug)return;const S2=TL.
   if(!SR.res.length&&SR.q.trim().length>=2&&!SR.con)h+=`<div class="gsnone">${ESC(S2.none)}</div>`;
   SR.res.forEach((r,i)=>{const far=r.kind==='galaxy'||r.kind==='constellation';h+=`<div class="gsr" role="option" data-i="${i}" aria-selected="${i===SR.sel}"><button class="gsm" data-a="fly" title="${ESC(r.kind==='constellation'?S2.kind.con:S2.fly)}"><span class="gsn">${dispName(r)}</span><span class="gss">${ESC(subOf(r))}</span></button>${r.kind==='constellation'?conB():`<button class="gsj" data-a="jump" title="${ESC(S2.jump)}" aria-label="${ESC(S2.jump)}">⤼</button>`}</div>`});
   sug.innerHTML=h;if(inp)inp.setAttribute('aria-expanded',String(!!h));const el=sug.querySelector('[aria-selected="true"]');if(el&&el.scrollIntoView)try{el.scrollIntoView({block:'nearest'})}catch(e){}}
-function specOf(r){if(r.kind==='blackhole')return {bh:r.row};if(r.kind==='star')return {star:r.row};if(r.kind==='galaxy')return r.row.id==='mw'?'gc':{galaxy:r.row};if(r.kind==='pulsar')return {pulsar:r.row};if(r.kind==='radio')return {radio:r.row};return null}
-function pick(r,jump){if(r.kind==='constellation'){SR.con=r.row;searchFor(SR.q);return}const spec=specOf(r);if(!spec)return;if(typeof resumeAudio==='function')resumeAudio();
+function specOf(r){if(r.kind==='dso')return r.row.far?null:{dso:r.row};if(r.kind==='blackhole')return {bh:r.row};if(r.kind==='star')return {star:r.row};if(r.kind==='galaxy')return r.row.id==='mw'?'gc':{galaxy:r.row};if(r.kind==='pulsar')return {pulsar:r.row};if(r.kind==='radio')return {radio:r.row};return null}
+function pick(r,jump){if(r.kind==='constellation'){SR.con=r.row;searchFor(SR.q);return}if(r.kind==='dso'&&r.row.far){if(typeof resumeAudio==='function')resumeAudio();dsLook(r.row);if(typeof closeNav==='function')closeNav();setTimeout(()=>openPop({kind:'dso',row:r.row}),400);return}const spec=specOf(r);if(!spec)return;if(typeof resumeAudio==='function')resumeAudio();
   if(jump)jumpTo(spec);else travelG(spec);if(typeof closeNav==='function')closeNav()}
 function jumpTo(id){const gp=goalOf(id);if(!gp)return;if(!(gp.bh&&BHX.row===gp.bh))bhRestoreTime();ship.speed=0;ship.last=null;ship.gap=null;ship.ap=null;ship.drift=null;ship.cruise=false;ship.vel.set(0,0,0);ST.orbit=null;hideCard();ship.pos.copy(gp.goal);camera.position.copy(ship.pos);aimQ(gp,null,camera.quaternion);ST.lastScan=0;
   if(gp.id!=='home'&&gp.id!=='helio'&&gp.id!=='oort'){AS.dirty=true;toast(uf(TX.arrived,{n:gp.name}));arrive(gp)}}
@@ -11961,13 +12120,14 @@ function pickAt(px,py,rad){if(!ST.ready||!STARS)return null;const g=G(),T=g.tabl
     if(PULS){const pp=PULS.geometry.attributes.position.array;for(let i=0;i<T.np;i++){const x=pp[i*3],y=pp[i*3+1],z=pp[i*3+2],dd=Math.hypot(x-L.x,y-L.y,z-L.z),d0=(T.prow[i].d||1)*1000;test(x,y,z,T.PM[i]+5*Math.log10(Math.max(dd,1e-9)/d0)+2,()=>({kind:'pulsar',row:T.prow[i]}))}
       for(let i=0;i<T.nr;i++){const k=T.np+i,x=pp[k*3],y=pp[k*3+1],z=pp[k*3+2],r=T.rrow[i],dd=Math.hypot(x-L.x,y-L.y,z-L.z),d0=r.d_kpc!=null?r.d_kpc*1000:r.d_Mpc*1e6;test(x,y,z,T.RM[i]+5*Math.log10(Math.max(dd,1e-9)/d0)+2,()=>({kind:'radio',row:r}))}}}
   for(const id in GALPOS){const p=GALPOS[id],r=g.galaxy(id);if(!r)continue;const dd=p.distanceTo(L);if(dd<50)continue;test(p.x,p.y,p.z,r.M+5*Math.log10(dd/10)-1,()=>({kind:'galaxy',row:r}))}
+  {const h=dsPick(px,py,rad,bs);if(h){best=h.b;bs=h.s}}
   if(best&&best.kind==='radio'&&best.row.id==='sgra'&&g.blackhole&&g.blackhole('sgra'))best={kind:'bh',row:g.blackhole('sgra')};
   if(g.blackholes){const h=bhPick(px,py,rad,{s:bs,hit:null});if(h)best=h}
   return best}
-function bodyName(b){const g=G();if(!b)return '';if(b.kind==='bh')return bhName(b.row);if(b.kind==='star')return b.row.sun?TV.sun:g.nameOf('star',b.row,LANG);if(b.kind==='galaxy')return galName(b.row);return g.nameOf(b.kind,b.row,LANG)}
-function bodyPos(b,out){const g=G(),T=g.tables();if(b.kind==='bh'){const p=bhSceneAU(b.row);out.x=p.x/AU_PC;out.y=p.y/AU_PC;out.z=p.z/AU_PC;return out}if(b.kind==='star'){g.posAt(b.row,tYr(),TMPG);return galToScene(TMPG.x,TMPG.y,TMPG.z,out)}if(b.kind==='galaxy'){const p=GALPOS[b.row.id];if(p){out.x=p.x;out.y=p.y;out.z=p.z;return out}const q=g.galaxyPos(b.row,{});return galToScene(q.x,q.y,q.z,out)}
+function bodyName(b){const g=G();if(!b)return '';if(b.kind==='bh')return bhName(b.row);if(b.kind==='star')return b.row.sun?TV.sun:g.nameOf('star',b.row,LANG);if(b.kind==='galaxy')return galName(b.row);if(b.kind==='dso')return dsName(b.row);return g.nameOf(b.kind,b.row,LANG)}
+function bodyPos(b,out){const g=G(),T=g.tables();if(b.kind==='dso'){const p=DSX.pos.get(b.row);if(p){out.x=p.x;out.y=p.y;out.z=p.z;return out}const q=g.dsoPos(b.row,{});return galToScene(q.x,q.y,q.z,out)}if(b.kind==='bh'){const p=bhSceneAU(b.row);out.x=p.x/AU_PC;out.y=p.y/AU_PC;out.z=p.z/AU_PC;return out}if(b.kind==='star'){g.posAt(b.row,tYr(),TMPG);return galToScene(TMPG.x,TMPG.y,TMPG.z,out)}if(b.kind==='galaxy'){const p=GALPOS[b.row.id];if(p){out.x=p.x;out.y=p.y;out.z=p.z;return out}const q=g.galaxyPos(b.row,{});return galToScene(q.x,q.y,q.z,out)}
   if(b.kind==='pulsar'){const k=g.pulsars().indexOf(b.row);return galToScene(T.PX[k],T.PY[k],T.PZ[k],out)}const k=g.radio().indexOf(b.row);return galToScene(T.RX[k],T.RY[k],T.RZ[k],out)}
-function bodyFacts(b){const S2=TX.st,g=G(),row=b.row,bits=[];if(b.kind==='bh'){const d=bhSceneAU(row).distanceTo(ship.pos);const f=bhFacts(row).map(ESC);f.splice(f.length-1,0,uf(TV.fromShip,{d:fmtDist(Math.max(0,d))}));return f}bodyPos(b,SV);const dShip=Math.hypot(SV.x-gcam.position.x,SV.y-gcam.position.y,SV.z-gcam.position.z)*AU_PC;
+function bodyFacts(b){if(b.kind==='dso')return dsPopFacts(b);const S2=TX.st,g=G(),row=b.row,bits=[];if(b.kind==='bh'){const d=bhSceneAU(row).distanceTo(ship.pos);const f=bhFacts(row).map(ESC);f.splice(f.length-1,0,uf(TV.fromShip,{d:fmtDist(Math.max(0,d))}));return f}bodyPos(b,SV);const dShip=Math.hypot(SV.x-gcam.position.x,SV.y-gcam.position.y,SV.z-gcam.position.z)*AU_PC;
   if(b.kind==='star'){const sp=String(row.sp||'').replace(/\.\.\./,'').trim();if(sp)bits.push(ESC(sp));bits.push(ESC(typeWord(row)));if(row.T)bits.push(fmtN(Math.round(row.T),0)+' K')}
   else if(b.kind==='pulsar'){bits.push(S2.kind.P);try{const ps=g.pulsarSound(row);bits.push(fmtN(ps.f,ps.f<10?2:0)+' Hz')}catch(e){}}
   else if(b.kind==='radio'){bits.push(row.id==='sgra'?S2.kind.BH:TL.srch.kind.radio)}
@@ -11975,14 +12135,14 @@ function bodyFacts(b){const S2=TX.st,g=G(),row=b.row,bits=[];if(b.kind==='bh'){c
   bits.push(uf(TV.fromShip,{d:fmtDist(Math.max(0,dShip))}));
   if(b.kind==='star'&&row.d)bits.push(uf(TV.fromHome,{d:fmtDist(row.d*AU_PC)}));else if(b.kind==='galaxy')bits.push(uf(TV.fromHome,{d:fmtPc(row.d*1000)}));else if(row.d||row.d_kpc)bits.push(uf(TV.fromHome,{d:fmtDist((row.d||row.d_kpc)*1000*AU_PC)}));
   return bits}
-function specOfBody(b){if(b.kind==='bh')return {bh:b.row};if(b.kind==='star')return b.row.sun?'home':{star:b.row};if(b.kind==='galaxy')return b.row.id==='mw'?'gc':{galaxy:b.row};if(b.kind==='pulsar')return {pulsar:b.row};return {radio:b.row}}
+function specOfBody(b){if(b.kind==='dso')return b.row.far?null:{dso:b.row};if(b.kind==='bh')return {bh:b.row};if(b.kind==='star')return b.row.sun?'home':{star:b.row};if(b.kind==='galaxy')return b.row.id==='mw'?'gc':{galaxy:b.row};if(b.kind==='pulsar')return {pulsar:b.row};return {radio:b.row}}
 function ensurePop(){if(popEl)return;popEl=document.createElement('div');popEl.className='gpop';popEl.id='galPop';popEl.hidden=true;popEl.setAttribute('role','dialog');document.body.appendChild(popEl);
   popEl.onclick=e=>{const b=e.target.closest('button');if(!b)return;if(typeof resumeAudio==='function')resumeAudio();const a=b.dataset.a,body=ST.pop;
     if(a==='x')hidePop();else if(a==='go'){hidePop();travelG(specOfBody(body))}else if(a==='jump'){hidePop();jumpTo(specOfBody(body))}else if(a==='solo'){solo(body,6);if(body.kind==='bh')toast(TBH.alone)}else if(a==='spec')openSheet('spec',body.kind==='bh'&&isBinary(body.row)?{kind:'star',row:compRow(body.row)}:body);else if(a==='radio')openSheet('radio',body)};
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(sheetEl&&!sheetEl.hidden)closeSheet();else hidePop()}})}
 function openPop(body,px,py){if(!body)return;ensurePop();ST.pop=body;const nm=bodyName(body);
   popEl.innerHTML=`<div class="gph"><b>${ESC(nm)}</b><button class="gx" data-a="x" aria-label="${ESC(TX.st.close)}">×</button></div><div class="gpf">${bodyFacts(body).join(' · ')}</div>`+
-    `<div class="gpb"><button class="chip" data-a="go">${ESC(TV.go)}</button><button class="chip" data-a="jump">${ESC(TV.jump)}</button><button class="chip" data-a="solo">${ESC(TV.solo)}</button>${body.kind==='bh'&&body.row.kind==='none'?'':`<button class="chip" data-a="spec">${ESC(TV.spec)}</button>`}${body.kind==='bh'?'':`<button class="chip" data-a="radio">${ESC(TV.radio)}</button>`}</div>`;
+    `<div class="gpb">${body.kind==='dso'?dsPopButtons(body):`<button class="chip" data-a="go">${ESC(TV.go)}</button><button class="chip" data-a="jump">${ESC(TV.jump)}</button><button class="chip" data-a="solo">${ESC(TV.solo)}</button>${body.kind==='bh'&&body.row.kind==='none'?'':`<button class="chip" data-a="spec">${ESC(TV.spec)}</button>`}${body.kind==='bh'?'':`<button class="chip" data-a="radio">${ESC(TV.radio)}</button>`}`}</div>`;
   famGPop(popEl,body);
   popEl.setAttribute('aria-label',uf(TV.about,{n:nm}));popEl.hidden=false;
   if(innerWidth>620&&px!=null){const r=popEl.getBoundingClientRect(),x=clamp(px+14,8,innerWidth-r.width-8),y=clamp(py-r.height/2,8,innerHeight-r.height-8);popEl.style.left=x+'px';popEl.style.top=y+'px'}else{popEl.style.left='';popEl.style.top=''}}
@@ -12000,24 +12160,24 @@ function ensureSheet(){if(sheetEl)return;sheetEl=document.createElement('div');s
   sheetEl.onclick=e=>{const b=e.target.closest('button');if(!b)return;if(typeof resumeAudio==='function')resumeAudio();const a=b.dataset.a;if(a==='x')closeSheet();else if(a==='chord'){if(HEAR&&HEAR.kind==='chord'){if(ST.sheet)ST.sheet.want=false;stopHear()}else hearChord()}else if(a==='hear'){if(HEAR&&HEAR.kind!=='chord'){const k=HEAR.kind,st=HEAR.stretch;if(ST.sheet)ST.sheet.want=false;stopHear();if(k==='gw'&&st>1)bhHear('gw',ST.sheet.body,1)}else hear()}else if(a==='hear4'){const was=HEAR&&HEAR.kind==='gw'&&HEAR.stretch>1;stopHear();if(!was)bhHear('gw',ST.sheet.body,4)}else if(a==='other'){openSheet(ST.sheet.kind==='spec'?'radio':'spec',ST.sheet.body)}};
   addEventListener('resize',()=>{if(sheetEl&&!sheetEl.hidden)drawSheet()})}
 // the sheet's stated rule: for a star's spectrum the black body, its class, the line chord (with its Doppler shift) and the sweep
-function sheetText(kind,body){const isStar=body.kind==='star';let txt='',ref='';
+function sheetText(kind,body){if(body.kind==='dso')return dsSheetText(body.row);const isStar=body.kind==='star';let txt='',ref='';
   if(kind==='spec'&&body.kind==='galaxy'&&G().galaxyPop(body.row))return galSheetText(body.row);
   if(kind==='spec'){if(isStar){const sp=G().spectrum(body.row);txt=uf(TV.sp.bb,{T:fmtN(sp.T,0),nm:fmtN(sp.peak_nm,0),f:fmtN(sp.f0,0)})+' · '+uf(TV.sp.lines,{c:sp.cls,a:/^[AFMO]/.test(sp.cls)?'an':'a'})+'. '+(chordOf(body.row).lines.length?ESC(uf(TV.sp.chord,{dop:dopWord(body.row)}))+' ':'')+TV.sp.rule}else txt=TV.sp.rule}
   else{const r=radioText(body);txt=r.txt;ref=r.ref}
   return {txt,ref}}
 // the drawn range of a star's spectrum: 380–750 nm, opened down to the Balmer limit when its chord has lines below 380 nm (the hot stars)
-function specRange(body){if(body.kind==='galaxy'&&G().galaxyPop(body.row)){const m=G().data.galaxyspectra.meta;return {lo:m.lo,hi:m.hi}}let lo=380;if(body.kind==='star'){const C=chordOf(body.row);let mn=1e9;C.lines.forEach(L=>{if(L.nm<mn)mn=L.nm});if(mn<380)lo=Math.min(lo,Math.floor(G().BALMER_LIMIT_NM-3))}return {lo,hi:750}}
+function specRange(body){if(body.kind==='dso')return {lo:360,hi:750};if(body.kind==='galaxy'&&G().galaxyPop(body.row)){const m=G().data.galaxyspectra.meta;return {lo:m.lo,hi:m.hi}}let lo=380;if(body.kind==='star'){const C=chordOf(body.row);let mn=1e9;C.lines.forEach(L=>{if(L.nm<mn)mn=L.nm});if(mn<380)lo=Math.min(lo,Math.floor(G().BALMER_LIMIT_NM-3))}return {lo,hi:750}}
 function openSheet(kind,body){if(kind==='gw'||kind==='outburst'||body.kind==='bh')return bhOpenSheet(kind==='radio'?'spec':kind,body);ensureSheet();stopHear();ST.sheet={kind,body};const nm=bodyName(body),isStar=body.kind==='star';
-  const isGal=body.kind==='galaxy'&&!!G().galaxyPop(body.row),{txt,ref}=sheetText(kind,body),hasChord=kind==='spec'&&(isStar||isGal)&&chordOf(body.row).lines.length>0,title=kind==='spec'?(isGal?TG.title:TV.sp.title.replace('380',String(specRange(body).lo))):TV.rd.title,hcL=isGal?TG.hearChord:TV.hearChord;
+  const isGal=body.kind==='galaxy'&&!!G().galaxyPop(body.row),{txt,ref}=sheetText(kind,body),isDs=body.kind==='dso',hasChord=kind==='spec'&&(isDs||((isStar||isGal)&&chordOf(body.row).lines.length>0)),title=isDs?dsSheetTitle(body.row):kind==='spec'?(isGal?TG.title:TV.sp.title.replace('380',String(specRange(body).lo))):TV.rd.title,hcL=isDs?dsHearLabel(body.row):isGal?TG.hearChord:TV.hearChord;
   sheetEl.innerHTML=`<div class="gsh"><b>${ESC(nm)}</b><small>${ESC(title)}</small><button class="gx" data-a="x" aria-label="${ESC(TX.st.close)}">×</button></div><canvas id="galSheetCv" aria-label="${ESC(title)}"></canvas><p class="gst">${txt}</p>${ref?`<p class="gsr2">${ESC(ref)}</p>`:''}`+
-    `<div class="gsb">${hasChord?`<button class="chip" data-a="chord" data-t="${ESC(hcL)}">${ESC(hcL)}</button>`:''}<button class="chip" data-a="hear">${ESC(kind==='spec'?(hasChord?TV.hearSweep:TV.hearSpec):TV.hearRadio)}</button><button class="chip" data-a="other">${ESC(kind==='spec'?TV.radio:TV.spec)}</button><button class="chip" data-a="x">${ESC(TX.st.close)}</button></div>`;
+    `<div class="gsb">${hasChord?`<button class="chip" data-a="chord" data-t="${ESC(hcL)}">${ESC(hcL)}</button>`:''}<button class="chip" data-a="hear">${ESC(kind==='spec'?(hasChord?TV.hearSweep:TV.hearSpec):TV.hearRadio)}</button>${isDs?'':`<button class="chip" data-a="other">${ESC(kind==='spec'?TV.radio:TV.spec)}</button>`}<button class="chip" data-a="x">${ESC(TX.st.close)}</button></div>`;
   sheetCv=sheetEl.querySelector('canvas');sheetEl.hidden=false;hidePop();if(cardEl&&!cardEl.hidden)cardEl.style.visibility='hidden';drawSheet();
   // a star's spectrum sings as it opens: its lines held and looping until Stop or close (not when the page's volume is at nothing)
   if(hasChord){ST.sheet.want=true;if(AC&&S.vol>0)hearChord()}}
 function closeSheet(){stopHear();if(sheetEl)sheetEl.hidden=true;ST.sheet=null;if(cardEl)cardEl.style.visibility=''}
 function drawSheet(){if(!sheetEl||sheetEl.hidden||!ST.sheet||!sheetCv)return;const dpr=Math.min(2,devicePixelRatio||1),W=sheetCv.clientWidth||320,H=sheetCv.clientHeight||176;if(sheetCv.width!==Math.round(W*dpr)){sheetCv.width=Math.round(W*dpr);sheetCv.height=Math.round(H*dpr)}
   const c=sheetCv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,H);c.fillStyle='#030409';c.fillRect(0,0,W,H);
-  if(ST.sheet.kind==='gw')drawGW(c,W,H,ST.sheet.body);else if(ST.sheet.kind==='outburst')drawOutburst(c,W,H,ST.sheet.body);else if(ST.sheet.body.kind==='bh')drawBHSpectrum(c,W,H,ST.sheet.body);else if(ST.sheet.kind==='spec'&&ST.sheet.body.kind==='galaxy'&&G().galaxyPop(ST.sheet.body.row))drawGalSpectrum(c,W,H,ST.sheet.body);else if(ST.sheet.kind==='spec')drawSpectrum(c,W,H,ST.sheet.body);else drawRadio(c,W,H,ST.sheet.body)}
+  if(ST.sheet.kind==='gw')drawGW(c,W,H,ST.sheet.body);else if(ST.sheet.kind==='outburst')drawOutburst(c,W,H,ST.sheet.body);else if(ST.sheet.body.kind==='dso'){dsDraw(c,W,H,ST.sheet.body);dsDrawCursor(c,W,H)}else if(ST.sheet.body.kind==='bh')drawBHSpectrum(c,W,H,ST.sheet.body);else if(ST.sheet.kind==='spec'&&ST.sheet.body.kind==='galaxy'&&G().galaxyPop(ST.sheet.body.row))drawGalSpectrum(c,W,H,ST.sheet.body);else if(ST.sheet.kind==='spec')drawSpectrum(c,W,H,ST.sheet.body);else drawRadio(c,W,H,ST.sheet.body)}
 const MONO='500 10px "IBM Plex Mono",ui-monospace,monospace',SANS='12px "Alegreya Sans","Gill Sans",system-ui,sans-serif';
 function drawSpectrum(c,W,H,body){const g=G();const star=body.kind==='star'?body.row:{T:body.row.T||5000,sp:'',id:0},rng=specRange(body),sp=g.spectrum(star,{n:Math.max(128,Math.min(1024,Math.round(W))),lo:rng.lo,hi:rng.hi}),lo=sp.lo,hi=sp.hi,xOf=nm=>(nm-lo)/(hi-lo)*W;
   const stripY=H*.62,stripH=H*.19,curveH=stripY-44,n=sp.n,C=body.kind==='star'?chordOf(body.row):null;
@@ -12159,7 +12319,7 @@ function chordOf(row,exag){if(isGalRow(row))return G().galaxyLineChord(row,{exag
 const isGalRow=r=>!!(r&&r.__g!=null&&r.k);const GAL_CHORD_LV=.095;
 // the words for the Doppler part of the sheet's rule
 function dopWord(row){if(row.rv==null)return TV.sp.dopNone;const d=G().doppler(row.rv,ST.exag),c=1200*Math.log2(d);return uf(TV.sp.dop,{rv:fmtN(row.rv,1).replace('-','−'),x:ST.exag,c:(c>0?'+':'')+fmtN(c,Math.abs(c)<10?1:0).replace('-','−')})}
-function hearChord(){const sh=ST.sheet;if(!sh||!AC||!(sh.body.kind==='star'||(sh.body.kind==='galaxy'&&G().galaxyPop(sh.body.row))))return;const out=hearBus();if(!out)return;stopHear();const t=AC.currentTime,row=sh.body.row,C=chordOf(row),dur=1e9;
+function hearChord(){const sh=ST.sheet;if(sh&&sh.body.kind==='dso'){dsHearChord();return}if(!sh||!AC||!(sh.body.kind==='star'||(sh.body.kind==='galaxy'&&G().galaxyPop(sh.body.row))))return;const out=hearBus();if(!out)return;stopHear();const t=AC.currentTime,row=sh.body.row,C=chordOf(row),dur=1e9;
   // held and looping until Stop or close, breathing gently (±1 dB over nine seconds)
   const br=mkGain(.89,out),lfo=AC.createOscillator();lfo.frequency.value=.11;const ld=mkGain(.11,br.gain);lfo.connect(ld);lfo.start(t);
   const gr=chordGraph(AC,noiseBus,C,t+.02);gr.master.connect(br);gr.master.gain.setValueAtTime(0,t);gr.master.gain.linearRampToValueAtTime(1,t+.5);
@@ -12178,7 +12338,7 @@ const TMPG2={x:0,y:0,z:0};
 function galStandPc(r){const big=r.disc&&r.disc.rmax,rh=r.rhpc||((r.rh||5)/60*Math.PI/180*r.d*1000);return big?r.disc.rmax*1000*(r.k==='spiral'?1.7:2.4):Math.max(6*rh,r.k==='compact'?4*rh:0,400)}
 function linesBuild(row){const pan=mkPan(GA.starG),vg=mkGain(0,pan),C=chordOf(row),gr=chordGraph(AC,noiseBus,C,AC.currentTime+.05,{rms:CHORD_RMS});gr.master.connect(vg);gr.master.gain.setValueAtTime(1,AC.currentTime);return {row,pan,vg,gr,exag:ST.exag}}
 function linesKill(q){try{q.vg.gain.setTargetAtTime(0,AC.currentTime,.3)}catch(e){}setTimeout(()=>{chordKill(q.gr,AC,.1);try{q.pan.disconnect()}catch(e){}},1400)}
-function hear(){const sh=ST.sheet;if(!sh||!AC)return;if(bhSheetKind(sh)){bhHear(sh.kind==='gw'?'gw':sh.kind==='outburst'?'outburst':'bh',sh.body,1);return}const out=hearBus();if(!out)return;stopHear();const t=AC.currentTime,nodes=[],srcs=[];
+function hear(){const sh=ST.sheet;if(!sh||!AC)return;if(bhSheetKind(sh)){bhHear(sh.kind==='gw'?'gw':sh.kind==='outburst'?'outburst':'bh',sh.body,1);return}if(sh.kind==='spec'&&sh.body.kind==='dso'){dsHearSweep();return}const out=hearBus();if(!out)return;stopHear();const t=AC.currentTime,nodes=[],srcs=[];
   if(sh.kind==='spec'){const gs=sh.body.kind==='galaxy'?G().galaxySpectrum(sh.body.row,{n:1024}):null,star=sh.body.kind==='star'?sh.body.row:{T:sh.body.row.T||5000,sp:'',id:0},sp=gs||G().spectrum(star,{n:256}),dur=gs?8.5:7.5,n=sp.n,F=new Float32Array(n),A=new Float32Array(n);
     // a galaxy's sweep: its continuum (with the 4000-Å step) through its dark lines, and its bright emission lines as swells (×(1 + 0.3·excess), at most ×2.2)
     for(let i=0;i<n;i++){const nm=sp.lo+(sp.hi-sp.lo)*i/(n-1);F[i]=C_KMS*1e12/nm/Math.pow(2,40);A[i]=gs?.15*Math.pow(gs.cont[i],.5)*Math.pow(gs.trans[i],1.6)*Math.min(2.2,1+.3*gs.em[i]):.15*Math.pow(sp.planck[i],.7)*Math.pow(sp.trans[i],1.6)}
@@ -12225,7 +12385,7 @@ function playClip(id,onFail,opts){if(!AC||!S.speak){onFail&&onFail();return}cons
 // a label click: the popover beside the label
 function popFromLabel(body,e){if(e&&e.stopPropagation)e.stopPropagation();const el=e&&e.currentTarget||null;const r=el&&el.getBoundingClientRect?el.getBoundingClientRect():null;openPop(body,r?r.right:innerWidth/2,r?r.top+r.height/2:innerHeight/2)}
 // the body an arrival card is about
-function cardBody(gp){if(!gp)return null;if(gp.bh)return isBinary(gp.bh)?{kind:'star',row:compRow(gp.bh)}:{kind:'bh',row:gp.bh};if(gp.gal)return {kind:'galaxy',row:gp.gal};if(gp.id==='gc')return {kind:'radio',row:G().radio().find(x=>x.id==='sgra')};if(gp.row&&gp.row.P0!=null)return {kind:'pulsar',row:gp.row};if(gp.id==='radio')return {kind:'radio',row:gp.row};if(gp.row)return {kind:'star',row:gp.row};return null}
+function cardBody(gp){if(!gp)return null;if(gp.dso)return {kind:'dso',row:gp.dso};if(gp.bh)return isBinary(gp.bh)?{kind:'star',row:compRow(gp.bh)}:{kind:'bh',row:gp.bh};if(gp.gal)return {kind:'galaxy',row:gp.gal};if(gp.id==='gc')return {kind:'radio',row:G().radio().find(x=>x.id==='sgra')};if(gp.row&&gp.row.P0!=null)return {kind:'pulsar',row:gp.row};if(gp.id==='radio')return {kind:'radio',row:gp.row};if(gp.row)return {kind:'star',row:gp.row};return null}
 /* the measurement window: one star's voice alone, rendered offline for `secs` seconds exactly as the live slot builds it (tone mode, full
    loudness, no Doppler), with its spectral centroid and spread (Hz), the fundamental (autocorrelation), the amplitude-modulation rate and depth,
    RMS and peak — so the voices can be compared star by star */
@@ -12602,23 +12762,466 @@ function aimMeasure(b){if(!b||!ST.ready)return null;const cv=renderer.domElement
   if(b.kind==='bh'){const p=bhSceneAU(b.row);dAU=p.distanceTo(ship.pos);if(BHX.row===b.row){x=p.x-ship.pos.x;y=p.y-ship.pos.y;z=p.z-ship.pos.z;cam=nearCam()}else{x=p.x/AU_PC;y=p.y/AU_PC;z=p.z/AU_PC}}
   else{bodyPos(b,SV);x=SV.x;y=SV.y;z=SV.z;dAU=Math.hypot(x-gcam.position.x,y-gcam.position.y,z-gcam.position.z)*AU_PC}
   pvG.set(x,y,z).project(cam);if(!(pvG.z<=1&&pvG.z>=-1))return null;
-  let rPc=0;if(b.kind==='galaxy'){const r=b.row;rPc=r.disc&&r.disc.rmax?r.disc.rmax*1000*.55:(r.rhpc||((r.rh||5)/60*Math.PI/180*(r.d||1)*1000))*1.5}
+  let rPc=0;if(b.kind==='dso')rPc=dsMeasureR(b.row);if(b.kind==='galaxy'){const r=b.row;rPc=r.disc&&r.disc.rmax?r.disc.rmax*1000*.55:(r.rhpc||((r.rh||5)/60*Math.PI/180*(r.d||1)*1000))*1.5}
   return {x:(pvG.x*.5+.5)*W,y:(-pvG.y*.5+.5)*H,dAU,rpx:rPc?rPc*AU_PC/Math.max(dAU,1e-9)*k:0,inside:!!rPc&&dAU<rPc*AU_PC*1.2}}
 // the candidates near a screen point: the catalogue's own pick (the brightest star, pulsar, radio source, black hole or galaxy within the radius),
 // and any galaxy whose disc the point lies on
 function aimPick(cx,cy,tol){if(!ST.ready)return [];const out=[],h=pickAt(cx,cy,tol);if(h)out.push(h);
   const g=G();if(g.galaxy&&ST.gf>=.02)for(const id in GALPOS){const r=g.galaxy(id);if(!r||(h&&h.row===r))continue;const b={kind:'galaxy',row:r},m=aimMeasure(b);if(m&&!m.inside&&m.rpx>2&&Math.hypot(m.x-cx,m.y-cy)<m.rpx+tol)out.push(b)}
+  if(ST.gf>=.02){let k=0;for(const o of DSX.rows){if(k>=3)break;if(h&&h.row===o)continue;const b={kind:'dso',row:o},m=aimMeasure(b);if(m&&!m.inside&&m.rpx>4&&Math.hypot(m.x-cx,m.y-cy)<m.rpx+tol){out.push(b);k++}}}
   return out}
 function aimInfo(b){const S2=TX.st,row=b.row;let kind='';
   if(b.kind==='star'){const sp=row.sun?'G2V':String(row.sp||'').replace(/\.\.\./,'').trim().split(/\s+/)[0];kind=(sp?sp+' · ':'')+typeWord(row)}
   else if(b.kind==='bh')kind=TBH.kind[row.kind]||TBH.kind.smbh;
   else if(b.kind==='galaxy')kind=gkWord(row);
+  else if(b.kind==='dso')kind=dsKindWord(row);
   else if(b.kind==='pulsar')kind=S2.kind.P;
   else kind=row.id==='sgra'?S2.kind.BH:TL.srch.kind.radio;
   return {name:bodyName(b),kind,spec:specOfBody(b)}}
 
 /* ---------- the test window ---------- */
-function aimLabel(b){if(!b||!b.row)return null;if(b.kind==='star'){const e=NAMED.find(x=>x.row===b.row);return e?e.el:null}if(b.kind==='galaxy')return GL['g_'+b.row.id]||null;if(b.row.id==='sgra')return GL.sgra||null;return null}
+function aimLabel(b){if(!b||!b.row)return null;if(b.kind==='star'){const e=NAMED.find(x=>x.row===b.row);return e?e.el:null}if(b.kind==='galaxy')return GL['g_'+b.row.id]||null;if(b.kind==='dso')return DSX.lbl.get(b.row)||null;if(b.row.id==='sgra')return GL.sgra||null;return null}
+/* ================= DEEP SKY (fly_deepsky.js): nebulae and clusters in the interstellar Flight =================
+   Spliced by build_fly.py into fly_galaxy.js at the DEEPSKY marker, inside the FLYG closure (so it shares the ship, the galactic scene,
+   the labels, the picking, the cards and the Spectrum sheet). Data: GALAXY.deepsky() (galaxy/deepsky.json: the Messier and Caldwell lists
+   and well-known extras, each with a cited distance) and galaxy/dsfacts_<lang>.json (one line per famous object).
+   Drawing: each placed object is one soft sprite at its true 3-D place and its true physical size (its catalogued angular size at its
+   distance), drawn in the sky plane as seen from the Sun (so arriving along the line of sight from Earth you see it as in a photograph;
+   from the side it softens into a cloud of the same size). Colour honest to its type (GALAXY.dsoColor): an H II region its lines as a
+   camera records them (Hα red, Hβ blue, [O III] teal), a planetary [O III] teal inside and red [N II]/Hα at the rim, a reflection
+   nebula its star's light made bluer, a remnant red filaments (the Crab its blue-white synchrotron glow inside them); a dark nebula is a
+   sprite that dims what lies behind it (the Horsehead a silhouette against IC 434's red glow); a cluster its stars (points with a
+   luminosity function of its age) and, for a globular, the glow of the stars too faint to see one by one. Brightness: the object's surface
+   brightness while it is resolved, and the inverse square of the distance once it shrinks to a point (its flux kept), so it is visible
+   from far away according to its real brightness and size. Sound: the Spectrum sheet's chord (GALAXY.dsoLineChord), bright lines held
+   (the opposite of a star's absorption), a reflection nebula its star's lines bluer, a remnant over synchrotron noise, a cluster its stars
+   as an arpeggio settling into a chord, a dark nebula a hush. */
+/*DS-TEXTS*/const TX_DS={
+en:{kind:{emission:'emission nebula',reflection:'reflection nebula',planetary:'planetary nebula',remnant:'supernova remnant',dark:'dark nebula',open:'open cluster',globular:'globular cluster',starcloud:'star cloud',asterism:'asterism',double:'double star',galaxy:'galaxy'},
+ lit:{emission:'Lit by the ultraviolet light of {s}: hydrogen glows red, oxygen teal.',emission0:'Lit by the ultraviolet light of its hot young stars: hydrogen glows red, oxygen teal.',reflection:'Dust reflecting the light of {s}: blue, because dust scatters blue light more than red.',planetary:'Lit by the hot core of the dying star at its centre: oxygen glows teal, hydrogen and nitrogen red.',remnant:'Gas heated by the blast wave of an exploded star.',pler:'Lit from within by its pulsar: electrons spiralling in its magnetic field glow blue-white, inside red filaments.',dark:'No light of its own: its dust blocks the stars behind it.',cluster:'The light of its own stars.',galaxy:'The light of its hundreds of billions of stars.'},
+ across:'{n} light-years across',far:'Beyond the Local Group, {d} away: farther than this flight goes. You can look towards it.',unsure:'distance uncertain',
+ found:'Found by {w} in {y}.',ancient:'Known since antiquity ({w}).',msr:'No. {n} in Messier’s catalogue.',cld:'Caldwell {n}.',
+ con:'In {c}',psr:'Its pulsar: {p}',parent:'Part of {p}',parts:'Includes {p}',radio:'Its radio source: {p}',glow:'In front of {p}',sil:'Silhouetted here: {p}',
+ hear:'Hear its lines',hush:'Hear the hush',stars:'Hear its stars',look:'Look there',next:'Next nebula',dsoTitle:'Deep sky',
+ sheet:{emission:'Bright lines · 360–750 nm',reflection:'Reflected starlight · 360–750 nm',dark:'Starlight behind the dust',cluster:'Its stars · their light',remnant:'Bright lines and synchrotron light'},
+ sp:{darkglow:'Behind it glows {p}: its bright lines come through around the dust, quieter, the blue ones dimmed most.',rule:'Each bright line is a held note at its wavelength lowered forty octaves (Hα 656.3 nm → 415 Hz, [O III] 500.7 nm → 545 Hz), its power in proportion to the line’s strength: the opposite of a star, whose lines are dark gaps in its light.',
+  meas:'Measured line ratios: {r}.',part:'Measured: [O II] and [O III] ({r}); hydrogen from atomic physics (Case B); the other lines typical.',typ:'Typical lines of a {k}, not measured for this object ({r}).',
+  sync:'Under the lines, synchrotron light (electrons spiralling in magnetic fields), heard as a soft noise.',beat:'Hα and the two [N II] lines lie a few hertz apart, so they beat slowly.',
+  refl:'The light of {s} ({T} K) scattered by dust: the star’s own absorption lines, heard as its chord, tilted towards the high notes (dust scatters blue light more than red).',
+  dark:'A dark nebula gives no light of its own. It is heard as the silence it makes: the stars behind it dimmed to a hush, the high notes going first (dust dims blue light more than red).',
+  cl:'Its stars, each at its own note (the peak of its light lowered forty octaves), entering one by one and held as a chord: {list}.',clm:'its catalogue members',clt:'the typical stars of a cluster {a} old',
+  legend:'bright line · height = strength',legC:'continuum',myr:'{n} million years',gyr:'{n} billion years'}},
+pl:{kind:{emission:'mgławica emisyjna',reflection:'mgławica refleksyjna',planetary:'mgławica planetarna',remnant:'pozostałość po supernowej',dark:'ciemna mgławica',open:'gromada otwarta',globular:'gromada kulista',starcloud:'obłok gwiazd',asterism:'asteryzm',double:'gwiazda podwójna',galaxy:'galaktyka'},
+ lit:{emission:'Oświetlana ultrafioletem {s}: wodór świeci na czerwono, tlen na turkusowo.',emission0:'Oświetlana ultrafioletem gorących młodych gwiazd: wodór świeci na czerwono, tlen na turkusowo.',reflection:'Pył odbijający światło {s}: niebieski, bo pył rozprasza niebieskie światło silniej niż czerwone.',planetary:'Oświetlana gorącym jądrem umierającej gwiazdy w środku: tlen świeci na turkusowo, wodór i azot na czerwono.',remnant:'Gaz rozgrzany falą uderzeniową wybuchu gwiazdy.',pler:'Oświetlana od środka przez swój pulsar: elektrony krążące w polu magnetycznym świecą biało-niebiesko wewnątrz czerwonych włókien.',dark:'Nie ma własnego światła: jej pył zasłania gwiazdy za nią.',cluster:'Światło jej własnych gwiazd.',galaxy:'Światło setek miliardów jej gwiazd.'},
+ across:'średnica {n} lat świetlnych',far:'Poza Grupą Lokalną, {d} stąd: dalej, niż sięga ten lot. Możesz spojrzeć w jej stronę.',unsure:'odległość niepewna',
+ found:'Odkrył(a) {w} w {y} r.',ancient:'Znana od starożytności ({w}).',msr:'Nr {n} w katalogu Messiera.',cld:'Caldwell {n}.',
+ con:'W gwiazdozbiorze {c}',psr:'Jej pulsar: {p}',parent:'Część: {p}',parts:'Obejmuje: {p}',radio:'Jej źródło radiowe: {p}',glow:'Przed: {p}',sil:'Na jej tle: {p}',
+ hear:'Posłuchaj jej linii',hush:'Posłuchaj ciszy',stars:'Posłuchaj jej gwiazd',look:'Spójrz tam',next:'Następna mgławica',dsoTitle:'Głębokie niebo',
+ sheet:{emission:'Jasne linie · 360–750 nm',reflection:'Odbite światło gwiazdy · 360–750 nm',dark:'Światło gwiazd za pyłem',cluster:'Jej gwiazdy · ich światło',remnant:'Jasne linie i światło synchrotronowe'},
+ sp:{darkglow:'Za nią świeci {p}: jej jasne linie przebijają się wokół pyłu, ciszej, najbardziej przygaszone są niebieskie.',rule:'Każda jasna linia to trzymana nuta o długości fali obniżonej o czterdzieści oktaw (Hα 656,3 nm → 415 Hz, [O III] 500,7 nm → 545 Hz), jej moc proporcjonalna do siły linii: odwrotnie niż u gwiazdy, której linie są ciemnymi przerwami w jej świetle.',
+  meas:'Zmierzone stosunki linii: {r}.',part:'Zmierzone: [O II] i [O III] ({r}); wodór z fizyki atomowej (przypadek B); pozostałe linie typowe.',typ:'Typowe linie dla obiektu typu {k}, nie zmierzone dla tego obiektu ({r}).',
+  sync:'Pod liniami światło synchrotronowe (elektrony krążące w polach magnetycznych), słyszalne jako cichy szum.',beat:'Hα i dwie linie [N II] dzieli kilka herców, więc powoli dudnią.',
+  refl:'Światło {s} ({T} K) rozproszone przez pył: własne linie absorpcyjne gwiazdy, słyszalne jako jej akord, przechylony ku wysokim nutom (pył silniej rozprasza światło niebieskie niż czerwone).',
+  dark:'Ciemna mgławica nie ma własnego światła. Słychać ją jako ciszę, którą tworzy: gwiazdy za nią przygaszone do szeptu, najpierw znikają wysokie nuty (pył silniej przyciemnia światło niebieskie niż czerwone).',
+  cl:'Jej gwiazdy, każda na własnej nucie (szczyt jej światła obniżony o czterdzieści oktaw), wchodzą po kolei i brzmią razem jako akord: {list}.',clm:'jej członkowie z katalogu',clt:'typowe gwiazdy gromady w wieku {a}',
+  legend:'jasna linia · wysokość = siła',legC:'kontinuum',myr:'{n} mln lat',gyr:'{n} mld lat'}},
+cy:{kind:{emission:'nifwl allyrru',reflection:'nifwl adlewyrchu',planetary:'nifwl planedol',remnant:'gweddillion uwchnofa',dark:'nifwl tywyll',open:'clwstwr agored',globular:'clwstwr crwn',starcloud:'cwmwl sêr',asterism:'asterism',double:'seren ddwbl',galaxy:'galaeth'},
+ lit:{emission:'Wedi’i oleuo gan olau uwchfioled {s}: mae hydrogen yn disgleirio’n goch, ocsigen yn wyrddlas.',emission0:'Wedi’i oleuo gan olau uwchfioled ei sêr ifainc poeth: mae hydrogen yn disgleirio’n goch, ocsigen yn wyrddlas.',reflection:'Llwch yn adlewyrchu golau {s}: glas, am fod llwch yn gwasgaru golau glas yn fwy na choch.',planetary:'Wedi’i oleuo gan graidd poeth y seren sy’n marw yn ei ganol: mae ocsigen yn disgleirio’n wyrddlas, hydrogen a nitrogen yn goch.',remnant:'Nwy wedi’i gynhesu gan don chwyth seren a ffrwydrodd.',pler:'Wedi’i oleuo o’r tu mewn gan ei bwlsar: mae electronau sy’n troelli yn ei faes magnetig yn disgleirio’n wyn-las, y tu mewn i ffilamentau coch.',dark:'Dim golau ei hun: mae ei lwch yn cuddio’r sêr y tu ôl iddo.',cluster:'Golau ei sêr ei hun.',galaxy:'Golau ei channoedd o biliynau o sêr.'},
+ across:'{n} blwyddyn golau ar draws',far:'Y tu hwnt i’r Grŵp Lleol, {d} i ffwrdd: ymhellach nag y mae’r daith hon yn mynd. Gallwch edrych tuag ati.',unsure:'pellter ansicr',
+ found:'Darganfuwyd gan {w} yn {y}.',ancient:'Yn hysbys ers yr hen fyd ({w}).',msr:'Rhif {n} yng nghatalog Messier.',cld:'Caldwell {n}.',
+ con:'Yn {c}',psr:'Ei bwlsar: {p}',parent:'Rhan o {p}',parts:'Yn cynnwys {p}',radio:'Ei ffynhonnell radio: {p}',glow:'O flaen {p}',sil:'Yn silwét yma: {p}',
+ hear:'Gwrando ar ei linellau',hush:'Gwrando ar y tawelwch',stars:'Gwrando ar ei sêr',look:'Edrych yno',next:'Nifwl nesaf',dsoTitle:'Awyr ddofn',
+ sheet:{emission:'Llinellau llachar · 360–750 nm',reflection:'Golau seren wedi’i adlewyrchu · 360–750 nm',dark:'Golau sêr y tu ôl i’r llwch',cluster:'Ei sêr · eu golau',remnant:'Llinellau llachar a golau syncrotron'},
+ sp:{darkglow:'Y tu ôl iddo mae {p} yn disgleirio: daw ei linellau llachar drwodd o amgylch y llwch, yn dawelach, a’r rhai glas wedi pylu fwyaf.',rule:'Mae pob llinell lachar yn nodyn hir ar ei thonfedd wedi’i gostwng ddeugain wythfed (Hα 656.3 nm → 415 Hz, [O III] 500.7 nm → 545 Hz), ei grym yn ôl cryfder y llinell: y gwrthwyneb i seren, y mae ei llinellau’n fylchau tywyll yn ei golau.',
+  meas:'Cymarebau llinellau wedi’u mesur: {r}.',part:'Wedi’u mesur: [O II] ac [O III] ({r}); hydrogen o ffiseg atomig (Achos B); y llinellau eraill yn nodweddiadol.',typ:'Llinellau nodweddiadol {k}, heb eu mesur ar gyfer y gwrthrych hwn ({r}).',
+  sync:'O dan y llinellau, golau syncrotron (electronau’n troelli mewn meysydd magnetig), i’w glywed fel sŵn tawel.',beat:'Mae Hα a dwy linell [N II] ychydig hertz ar wahân, felly maen nhw’n curo’n araf.',
+  refl:'Golau {s} ({T} K) wedi’i wasgaru gan lwch: llinellau amsugno’r seren ei hun, i’w clywed fel ei chord, wedi’i ogwyddo at y nodau uchel (mae llwch yn gwasgaru golau glas yn fwy na choch).',
+  dark:'Does gan nifwl tywyll ddim golau ei hun. Fe’i clywir fel y tawelwch y mae’n ei greu: y sêr y tu ôl iddo wedi pylu i sibrwd, a’r nodau uchel yn mynd gyntaf (mae llwch yn pylu golau glas yn fwy na choch).',
+  cl:'Ei sêr, pob un ar ei nodyn ei hun (brig ei golau wedi’i ostwng ddeugain wythfed), yn dod i mewn fesul un ac yn dal fel cord: {list}.',clm:'aelodau o’r catalog',clt:'sêr nodweddiadol clwstwr {a} oed',
+  legend:'llinell lachar · uchder = cryfder',legC:'continwwm',myr:'{n} miliwn o flynyddoedd',gyr:'{n} biliwn o flynyddoedd'}},
+de:{kind:{emission:'Emissionsnebel',reflection:'Reflexionsnebel',planetary:'Planetarischer Nebel',remnant:'Supernovaüberrest',dark:'Dunkelnebel',open:'offener Sternhaufen',globular:'Kugelsternhaufen',starcloud:'Sternwolke',asterism:'Asterismus',double:'Doppelstern',galaxy:'Galaxie'},
+ lit:{emission:'Vom ultravioletten Licht von {s} angeregt: Wasserstoff leuchtet rot, Sauerstoff türkis.',emission0:'Vom ultravioletten Licht seiner heißen jungen Sterne angeregt: Wasserstoff leuchtet rot, Sauerstoff türkis.',reflection:'Staub, der das Licht von {s} zurückwirft: blau, weil Staub blaues Licht stärker streut als rotes.',planetary:'Vom heißen Kern des sterbenden Sterns in seiner Mitte angeregt: Sauerstoff leuchtet türkis, Wasserstoff und Stickstoff rot.',remnant:'Gas, erhitzt von der Druckwelle eines explodierten Sterns.',pler:'Von innen von seinem Pulsar erleuchtet: Elektronen, die in seinem Magnetfeld kreisen, leuchten bläulich weiß, umgeben von roten Filamenten.',dark:'Kein eigenes Licht: Sein Staub verdeckt die Sterne dahinter.',cluster:'Das Licht seiner eigenen Sterne.',galaxy:'Das Licht ihrer Hunderte Milliarden Sterne.'},
+ across:'{n} Lichtjahre Durchmesser',far:'Jenseits der Lokalen Gruppe, {d} entfernt: weiter, als dieser Flug reicht. Du kannst in ihre Richtung schauen.',unsure:'Entfernung unsicher',
+ found:'Entdeckt von {w}, {y}.',ancient:'Seit der Antike bekannt ({w}).',msr:'Nr. {n} in Messiers Katalog.',cld:'Caldwell {n}.',
+ con:'Im Sternbild {c}',psr:'Sein Pulsar: {p}',parent:'Teil von {p}',parts:'Enthält {p}',radio:'Seine Radioquelle: {p}',glow:'Vor {p}',sil:'Davor als Silhouette: {p}',
+ hear:'Seine Linien hören',hush:'Die Stille hören',stars:'Seine Sterne hören',look:'Dorthin schauen',next:'Nächster Nebel',dsoTitle:'Deep Sky',
+ sheet:{emission:'Helle Linien · 360–750 nm',reflection:'Zurückgeworfenes Sternlicht · 360–750 nm',dark:'Sternlicht hinter dem Staub',cluster:'Seine Sterne · ihr Licht',remnant:'Helle Linien und Synchrotronlicht'},
+ sp:{darkglow:'Dahinter leuchtet {p}: Seine hellen Linien dringen rings um den Staub durch, leiser, die blauen am stärksten gedämpft.',rule:'Jede helle Linie ist ein gehaltener Ton bei ihrer um vierzig Oktaven abgesenkten Wellenlänge (Hα 656,3 nm → 415 Hz, [O III] 500,7 nm → 545 Hz), ihre Leistung im Verhältnis zur Linienstärke: das Gegenteil eines Sterns, dessen Linien dunkle Lücken in seinem Licht sind.',
+  meas:'Gemessene Linienverhältnisse: {r}.',part:'Gemessen: [O II] und [O III] ({r}); Wasserstoff aus der Atomphysik (Fall B); die übrigen Linien typisch.',typ:'Typische Linien eines Objekts der Art {k}, für dieses Objekt nicht gemessen ({r}).',
+  sync:'Unter den Linien Synchrotronlicht (Elektronen, die in Magnetfeldern kreisen), als leises Rauschen zu hören.',beat:'Hα und die beiden [N II]-Linien liegen wenige Hertz auseinander, daher schweben sie langsam.',
+  refl:'Das Licht von {s} ({T} K), vom Staub gestreut: die Absorptionslinien des Sterns selbst, als sein Akkord zu hören, zu den hohen Tönen geneigt (Staub streut blaues Licht stärker als rotes).',
+  dark:'Ein Dunkelnebel hat kein eigenes Licht. Man hört ihn als die Stille, die er schafft: die Sterne dahinter zu einem Hauch gedämpft, die hohen Töne zuerst (Staub dämpft blaues Licht stärker als rotes).',
+  cl:'Seine Sterne, jeder auf seinem eigenen Ton (das Maximum seines Lichts, vierzig Oktaven tiefer), setzen nacheinander ein und klingen als Akkord: {list}.',clm:'Mitglieder aus dem Katalog',clt:'typische Sterne eines Haufens von {a}',
+  legend:'helle Linie · Höhe = Stärke',legC:'Kontinuum',myr:'{n} Mio. Jahren',gyr:'{n} Mrd. Jahren'}},
+es:{kind:{emission:'nebulosa de emisión',reflection:'nebulosa de reflexión',planetary:'nebulosa planetaria',remnant:'resto de supernova',dark:'nebulosa oscura',open:'cúmulo abierto',globular:'cúmulo globular',starcloud:'nube estelar',asterism:'asterismo',double:'estrella doble',galaxy:'galaxia'},
+ lit:{emission:'Iluminada por la luz ultravioleta de {s}: el hidrógeno brilla en rojo, el oxígeno en turquesa.',emission0:'Iluminada por la luz ultravioleta de sus estrellas jóvenes y calientes: el hidrógeno brilla en rojo, el oxígeno en turquesa.',reflection:'Polvo que refleja la luz de {s}: azul, porque el polvo dispersa más la luz azul que la roja.',planetary:'Iluminada por el núcleo caliente de la estrella moribunda de su centro: el oxígeno brilla en turquesa, el hidrógeno y el nitrógeno en rojo.',remnant:'Gas calentado por la onda expansiva de una estrella que estalló.',pler:'Iluminada desde dentro por su púlsar: electrones que giran en su campo magnético brillan en blanco azulado, dentro de filamentos rojos.',dark:'Sin luz propia: su polvo tapa las estrellas que hay detrás.',cluster:'La luz de sus propias estrellas.',galaxy:'La luz de sus cientos de miles de millones de estrellas.'},
+ across:'{n} años luz de diámetro',far:'Más allá del Grupo Local, a {d}: más lejos de lo que llega este vuelo. Puedes mirar hacia ella.',unsure:'distancia incierta',
+ found:'Descubierta por {w} en {y}.',ancient:'Conocida desde la Antigüedad ({w}).',msr:'N.º {n} del catálogo de Messier.',cld:'Caldwell {n}.',
+ con:'En {c}',psr:'Su púlsar: {p}',parent:'Parte de {p}',parts:'Incluye {p}',radio:'Su fuente de radio: {p}',glow:'Delante de {p}',sil:'Recortada aquí: {p}',
+ hear:'Oír sus líneas',hush:'Oír el silencio',stars:'Oír sus estrellas',look:'Mirar hacia allí',next:'Siguiente nebulosa',dsoTitle:'Cielo profundo',
+ sheet:{emission:'Líneas brillantes · 360–750 nm',reflection:'Luz estelar reflejada · 360–750 nm',dark:'Luz estelar tras el polvo',cluster:'Sus estrellas · su luz',remnant:'Líneas brillantes y luz sincrotrón'},
+ sp:{darkglow:'Detrás brilla {p}: sus líneas brillantes llegan alrededor del polvo, más suaves, y las azules más atenuadas.',rule:'Cada línea brillante es una nota sostenida en su longitud de onda bajada cuarenta octavas (Hα 656,3 nm → 415 Hz, [O III] 500,7 nm → 545 Hz), con una potencia proporcional a la intensidad de la línea: lo contrario de una estrella, cuyas líneas son huecos oscuros en su luz.',
+  meas:'Cocientes de líneas medidos: {r}.',part:'Medidas: [O II] y [O III] ({r}); el hidrógeno según la física atómica (caso B); las demás líneas, típicas.',typ:'Líneas típicas de una {k}, no medidas en este objeto ({r}).',
+  sync:'Bajo las líneas, luz sincrotrón (electrones que giran en campos magnéticos), que se oye como un ruido suave.',beat:'Hα y las dos líneas de [N II] distan pocos hercios, así que baten despacio.',
+  refl:'La luz de {s} ({T} K) dispersada por el polvo: las propias líneas de absorción de la estrella, que se oyen como su acorde, inclinado hacia las notas agudas (el polvo dispersa más la luz azul que la roja).',
+  dark:'Una nebulosa oscura no tiene luz propia. Se oye como el silencio que crea: las estrellas de detrás apagadas hasta un susurro, primero las notas agudas (el polvo atenúa más la luz azul que la roja).',
+  cl:'Sus estrellas, cada una en su nota (el pico de su luz bajado cuarenta octavas), entran una a una y se sostienen como acorde: {list}.',clm:'sus miembros de catálogo',clt:'las estrellas típicas de un cúmulo de {a}',
+  legend:'línea brillante · altura = intensidad',legC:'continuo',myr:'{n} millones de años',gyr:'{n} mil millones de años'}},
+fr:{kind:{emission:'nébuleuse en émission',reflection:'nébuleuse par réflexion',planetary:'nébuleuse planétaire',remnant:'rémanent de supernova',dark:'nébuleuse obscure',open:'amas ouvert',globular:'amas globulaire',starcloud:'nuage d’étoiles',asterism:'astérisme',double:'étoile double',galaxy:'galaxie'},
+ lit:{emission:'Éclairée par le rayonnement ultraviolet de {s} : l’hydrogène brille en rouge, l’oxygène en turquoise.',emission0:'Éclairée par l’ultraviolet de ses jeunes étoiles chaudes : l’hydrogène brille en rouge, l’oxygène en turquoise.',reflection:'De la poussière qui réfléchit la lumière de {s} : bleue, car la poussière diffuse davantage le bleu que le rouge.',planetary:'Éclairée par le cœur brûlant de l’étoile mourante en son centre : l’oxygène brille en turquoise, l’hydrogène et l’azote en rouge.',remnant:'Du gaz chauffé par l’onde de choc d’une étoile qui a explosé.',pler:'Éclairée de l’intérieur par son pulsar : des électrons qui spiralent dans son champ magnétique brillent d’un blanc bleuté, dans des filaments rouges.',dark:'Aucune lumière propre : sa poussière masque les étoiles derrière elle.',cluster:'La lumière de ses propres étoiles.',galaxy:'La lumière de ses centaines de milliards d’étoiles.'},
+ across:'{n} années-lumière de diamètre',far:'Au-delà du Groupe local, à {d} : plus loin que ne va ce vol. Vous pouvez regarder dans sa direction.',unsure:'distance incertaine',
+ found:'Découverte par {w} en {y}.',ancient:'Connue depuis l’Antiquité ({w}).',msr:'N° {n} du catalogue de Messier.',cld:'Caldwell {n}.',
+ con:'Dans {c}',psr:'Son pulsar : {p}',parent:'Fait partie de {p}',parts:'Comprend {p}',radio:'Sa source radio : {p}',glow:'Devant {p}',sil:'Se découpe ici : {p}',
+ hear:'Écouter ses raies',hush:'Écouter le silence',stars:'Écouter ses étoiles',look:'Regarder par là',next:'Nébuleuse suivante',dsoTitle:'Ciel profond',
+ sheet:{emission:'Raies brillantes · 360–750 nm',reflection:'Lumière stellaire réfléchie · 360–750 nm',dark:'La lumière des étoiles derrière la poussière',cluster:'Ses étoiles · leur lumière',remnant:'Raies brillantes et rayonnement synchrotron'},
+ sp:{darkglow:'Derrière elle brille {p} : ses raies brillantes passent autour de la poussière, plus douces, les bleues les plus atténuées.',rule:'Chaque raie brillante est une note tenue à sa longueur d’onde abaissée de quarante octaves (Hα 656,3 nm → 415 Hz, [O III] 500,7 nm → 545 Hz), sa puissance proportionnelle à l’intensité de la raie : l’inverse d’une étoile, dont les raies sont des creux sombres dans sa lumière.',
+  meas:'Rapports de raies mesurés : {r}.',part:'Mesurées : [O II] et [O III] ({r}) ; l’hydrogène par la physique atomique (cas B) ; les autres raies typiques.',typ:'Raies typiques d’une {k}, non mesurées pour cet objet ({r}).',
+  sync:'Sous les raies, la lumière synchrotron (des électrons qui spiralent dans des champs magnétiques), qu’on entend comme un léger bruit.',beat:'Hα et les deux raies [N II] sont à quelques hertz l’une de l’autre : elles battent lentement.',
+  refl:'La lumière de {s} ({T} K) diffusée par la poussière : les propres raies d’absorption de l’étoile, entendues comme son accord, inclinées vers les aigus (la poussière diffuse davantage le bleu que le rouge).',
+  dark:'Une nébuleuse obscure n’a pas de lumière propre. On l’entend comme le silence qu’elle crée : les étoiles derrière elle atténuées jusqu’au murmure, les aigus d’abord (la poussière atténue davantage le bleu que le rouge).',
+  cl:'Ses étoiles, chacune sur sa note (le pic de sa lumière abaissé de quarante octaves), entrent l’une après l’autre et tiennent un accord : {list}.',clm:'ses membres catalogués',clt:'les étoiles typiques d’un amas de {a}',
+  legend:'raie brillante · hauteur = intensité',legC:'continuum',myr:'{n} millions d’années',gyr:'{n} milliards d’années'}},
+it:{kind:{emission:'nebulosa a emissione',reflection:'nebulosa a riflessione',planetary:'nebulosa planetaria',remnant:'resto di supernova',dark:'nebulosa oscura',open:'ammasso aperto',globular:'ammasso globulare',starcloud:'nube stellare',asterism:'asterismo',double:'stella doppia',galaxy:'galassia'},
+ lit:{emission:'Illuminata dalla luce ultravioletta di {s}: l’idrogeno brilla di rosso, l’ossigeno di verde-azzurro.',emission0:'Illuminata dalla luce ultravioletta delle sue stelle giovani e calde: l’idrogeno brilla di rosso, l’ossigeno di verde-azzurro.',reflection:'Polvere che riflette la luce di {s}: blu, perché la polvere diffonde la luce blu più di quella rossa.',planetary:'Illuminata dal nucleo caldo della stella morente al centro: l’ossigeno brilla di verde-azzurro, idrogeno e azoto di rosso.',remnant:'Gas riscaldato dall’onda d’urto di una stella esplosa.',pler:'Illuminata dall’interno dalla sua pulsar: elettroni che spiraleggiano nel suo campo magnetico brillano di bianco-azzurro, dentro filamenti rossi.',dark:'Nessuna luce propria: la sua polvere nasconde le stelle che ha dietro.',cluster:'La luce delle sue stelle.',galaxy:'La luce delle sue centinaia di miliardi di stelle.'},
+ across:'{n} anni luce di diametro',far:'Oltre il Gruppo Locale, a {d}: più lontano di dove arriva questo volo. Puoi guardare nella sua direzione.',unsure:'distanza incerta',
+ found:'Scoperta da {w} nel {y}.',ancient:'Nota fin dall’antichità ({w}).',msr:'N. {n} del catalogo di Messier.',cld:'Caldwell {n}.',
+ con:'In {c}',psr:'La sua pulsar: {p}',parent:'Parte di {p}',parts:'Comprende {p}',radio:'La sua sorgente radio: {p}',glow:'Davanti a {p}',sil:'Qui si staglia: {p}',
+ hear:'Ascolta le sue righe',hush:'Ascolta il silenzio',stars:'Ascolta le sue stelle',look:'Guarda lì',next:'Nebulosa successiva',dsoTitle:'Cielo profondo',
+ sheet:{emission:'Righe luminose · 360–750 nm',reflection:'Luce stellare riflessa · 360–750 nm',dark:'Luce stellare dietro la polvere',cluster:'Le sue stelle · la loro luce',remnant:'Righe luminose e luce di sincrotrone'},
+ sp:{darkglow:'Dietro brilla {p}: le sue righe luminose arrivano attorno alla polvere, più deboli, le blu le più attenuate.',rule:'Ogni riga luminosa è una nota tenuta alla sua lunghezza d’onda abbassata di quaranta ottave (Hα 656,3 nm → 415 Hz, [O III] 500,7 nm → 545 Hz), con una potenza proporzionale all’intensità della riga: il contrario di una stella, le cui righe sono vuoti scuri nella sua luce.',
+  meas:'Rapporti tra righe misurati: {r}.',part:'Misurate: [O II] e [O III] ({r}); l’idrogeno dalla fisica atomica (caso B); le altre righe tipiche.',typ:'Righe tipiche di una {k}, non misurate per questo oggetto ({r}).',
+  sync:'Sotto le righe, la luce di sincrotrone (elettroni che spiraleggiano in campi magnetici), udibile come un lieve fruscio.',beat:'Hα e le due righe di [N II] distano pochi hertz, quindi battono lentamente.',
+  refl:'La luce di {s} ({T} K) diffusa dalla polvere: le righe di assorbimento della stella stessa, udibili come il suo accordo, inclinate verso gli acuti (la polvere diffonde la luce blu più di quella rossa).',
+  dark:'Una nebulosa oscura non ha luce propria. Si sente come il silenzio che crea: le stelle dietro di lei smorzate fino a un sussurro, prima gli acuti (la polvere attenua la luce blu più di quella rossa).',
+  cl:'Le sue stelle, ciascuna sulla propria nota (il picco della sua luce abbassato di quaranta ottave), entrano una alla volta e si tengono in un accordo: {list}.',clm:'i suoi membri di catalogo',clt:'le stelle tipiche di un ammasso di {a}',
+  legend:'riga luminosa · altezza = intensità',legC:'continuo',myr:'{n} milioni di anni',gyr:'{n} miliardi di anni'}},
+zh:{kind:{emission:'发射星云',reflection:'反射星云',planetary:'行星状星云',remnant:'超新星遗迹',dark:'暗星云',open:'疏散星团',globular:'球状星团',starcloud:'恒星云',asterism:'星群',double:'双星',galaxy:'星系'},
+ lit:{emission:'由{s}的紫外光照亮：氢发红光，氧发青绿色光。',emission0:'由其中炽热年轻恒星的紫外光照亮：氢发红光，氧发青绿色光。',reflection:'尘埃反射{s}的光：呈蓝色，因为尘埃散射蓝光比红光更强。',planetary:'由中心垂死恒星的炽热内核照亮：氧发青绿色光，氢和氮发红光。',remnant:'被一颗爆炸恒星的冲击波加热的气体。',pler:'由其中的脉冲星从内部照亮：在磁场中盘旋的电子发出蓝白色光，外面包着红色纤维。',dark:'自身不发光：它的尘埃遮住了后方的恒星。',cluster:'它自己恒星的光。',galaxy:'它数千亿颗恒星的光。'},
+ across:'直径{n}光年',far:'位于本星系群之外，距离{d}：超出了这次飞行的范围。你可以朝它的方向望去。',unsure:'距离不确定',
+ found:'由{w}于{y}年发现。',ancient:'自古以来就为人所知（{w}）。',msr:'梅西耶星表第{n}号。',cld:'科德韦尔{n}。',
+ con:'位于{c}',psr:'它的脉冲星：{p}',parent:'属于{p}',parts:'包括{p}',radio:'它的射电源：{p}',glow:'位于{p}前方',sil:'映衬其上：{p}',
+ hear:'听它的谱线',hush:'听那片寂静',stars:'听它的恒星',look:'朝那里看',next:'下一个星云',dsoTitle:'深空天体',
+ sheet:{emission:'明亮谱线 · 360–750 nm',reflection:'反射的星光 · 360–750 nm',dark:'尘埃后的星光',cluster:'它的恒星 · 它们的光',remnant:'明亮谱线与同步辐射'},
+ sp:{darkglow:'它后方闪耀着{p}：其明亮谱线从尘埃周围透过来，声音更轻，蓝色的谱线被削弱得最多。',rule:'每条明亮谱线都是一个持续的音：其波长降低四十个八度（Hα 656.3 nm → 415 Hz，[O III] 500.7 nm → 545 Hz），音的功率与谱线强度成正比——正好与恒星相反，恒星的谱线是其光中的暗缺口。',
+  meas:'实测谱线比：{r}。',part:'实测：[O II]与[O III]（{r}）；氢线按原子物理（情形B）；其余谱线为典型值。',typ:'{k}的典型谱线，并非此天体的实测值（{r}）。',
+  sync:'谱线之下是同步辐射（在磁场中盘旋的电子），听起来是轻柔的噪声。',beat:'Hα与两条[N II]谱线相差仅几赫兹，因此会缓慢地拍频。',
+  refl:'{s}（{T} K）的光被尘埃散射：恒星自身的吸收谱线作为它的和弦被听到，并向高音倾斜（尘埃散射蓝光比红光更强）。',
+  dark:'暗星云自身不发光。你听到的是它造成的寂静：它后方的恒星被压低成一片轻嘘，高音最先消失（尘埃削弱蓝光比红光更强）。',
+  cl:'它的恒星各自在自己的音上（其光峰值降低四十个八度），一颗接一颗进入，并作为和弦持续：{list}。',clm:'星表中的成员',clt:'年龄{a}的星团中的典型恒星',
+  legend:'明亮谱线 · 高度 = 强度',legC:'连续谱',myr:'{n}百万年',gyr:'{n}十亿年'}},
+ja:{kind:{emission:'散光星雲（輝線星雲）',reflection:'反射星雲',planetary:'惑星状星雲',remnant:'超新星残骸',dark:'暗黒星雲',open:'散開星団',globular:'球状星団',starcloud:'スタークラウド',asterism:'星群',double:'二重星',galaxy:'銀河'},
+ lit:{emission:'{s}の紫外線に照らされ、水素は赤く、酸素は青緑に光ります。',emission0:'若く高温の星々の紫外線に照らされ、水素は赤く、酸素は青緑に光ります。',reflection:'ちりが{s}の光を反射しています。ちりは赤い光より青い光を強く散乱するので、青く見えます。',planetary:'中心で死にゆく星の熱い核に照らされ、酸素は青緑に、水素と窒素は赤く光ります。',remnant:'爆発した星の衝撃波で熱せられたガスです。',pler:'中のパルサーが内側から照らしています。磁場の中をらせん運動する電子が青白く光り、その周りを赤いフィラメントが囲みます。',dark:'自分では光りません。ちりが背後の星々をさえぎっています。',cluster:'自らの星々の光です。',galaxy:'数千億個の星の光です。'},
+ across:'差し渡し{n}光年',far:'局部銀河群の外、{d}先にあり、この飛行が届く範囲を超えています。その方向を眺めることはできます。',unsure:'距離は不確か',
+ found:'{y}年に{w}が発見。',ancient:'古代から知られています（{w}）。',msr:'メシエカタログ第{n}番。',cld:'コールドウェル{n}。',
+ con:'{c}にあります',psr:'パルサー：{p}',parent:'{p}の一部',parts:'含まれるもの：{p}',radio:'電波源：{p}',glow:'{p}の手前',sil:'ここにシルエット：{p}',
+ hear:'輝線を聴く',hush:'静けさを聴く',stars:'星々を聴く',look:'その方向を見る',next:'次の星雲',dsoTitle:'星雲・星団',
+ sheet:{emission:'輝線 · 360〜750 nm',reflection:'反射された星の光 · 360〜750 nm',dark:'ちりの向こうの星の光',cluster:'星々 · その光',remnant:'輝線とシンクロトロン光'},
+ sp:{darkglow:'背後には{p}が輝いています。その輝線はちりの周りから、より静かに届き、青い線ほど弱められます。',rule:'それぞれの輝線は、波長を40オクターブ下げた音として鳴り続けます（Hα 656.3 nm → 415 Hz、[O III] 500.7 nm → 545 Hz）。音の強さは線の強さに比例します。線が光の中の暗いすき間となる星とは逆です。',
+  meas:'実測の輝線比：{r}。',part:'実測は[O II]と[O III]（{r}）。水素は原子物理（ケースB）から、その他の線は典型値です。',typ:'{k}の典型的な輝線で、この天体の実測値ではありません（{r}）。',
+  sync:'輝線の下にはシンクロトロン光（磁場の中をらせん運動する電子の光）があり、やわらかなノイズとして聞こえます。',beat:'Hαと2本の[N II]線は数ヘルツしか離れていないので、ゆっくりうなります。',
+  refl:'ちりに散乱された{s}（{T} K）の光です。星自身の吸収線がその和音として聞こえ、高い音の方へ傾いています（ちりは赤い光より青い光を強く散乱します）。',
+  dark:'暗黒星雲は自分では光りません。聞こえるのは、それがつくる静けさです。背後の星々がささやきまで弱められ、高い音から先に消えていきます（ちりは青い光を赤い光より強く弱めます）。',
+  cl:'星々がそれぞれ自分の音（光のピークを40オクターブ下げたもの）で1つずつ加わり、和音として響き続けます：{list}。',clm:'カタログに載る構成星',clt:'年齢{a}の星団の典型的な星',
+  legend:'輝線 · 高さ = 強さ',legC:'連続光',myr:'{n}百万年',gyr:'{n}十億年'}},
+vi:{kind:{emission:'tinh vân phát xạ',reflection:'tinh vân phản xạ',planetary:'tinh vân hành tinh',remnant:'tàn tích siêu tân tinh',dark:'tinh vân tối',open:'cụm sao mở',globular:'cụm sao cầu',starcloud:'đám mây sao',asterism:'chòm sao nhỏ (asterism)',double:'sao đôi',galaxy:'thiên hà'},
+ lit:{emission:'Được tia tử ngoại của {s} chiếu sáng: hydro phát sáng đỏ, oxy xanh ngọc.',emission0:'Được tia tử ngoại của các ngôi sao trẻ nóng chiếu sáng: hydro phát sáng đỏ, oxy xanh ngọc.',reflection:'Bụi phản chiếu ánh sáng của {s}: màu xanh lam, vì bụi tán xạ ánh sáng xanh mạnh hơn ánh sáng đỏ.',planetary:'Được lõi nóng của ngôi sao sắp chết ở trung tâm chiếu sáng: oxy phát sáng xanh ngọc, hydro và nitơ màu đỏ.',remnant:'Khí bị sóng nổ của một ngôi sao đã phát nổ nung nóng.',pler:'Được sao xung của nó chiếu sáng từ bên trong: các electron xoắn trong từ trường phát ánh sáng trắng xanh, bên trong những sợi đỏ.',dark:'Không tự phát sáng: bụi của nó che các ngôi sao phía sau.',cluster:'Ánh sáng của chính các ngôi sao trong cụm.',galaxy:'Ánh sáng của hàng trăm tỉ ngôi sao của nó.'},
+ across:'đường kính {n} năm ánh sáng',far:'Ngoài Nhóm Địa Phương, cách {d}: xa hơn phạm vi chuyến bay này. Bạn có thể nhìn về phía nó.',unsure:'khoảng cách chưa chắc chắn',
+ found:'{w} phát hiện năm {y}.',ancient:'Được biết từ thời cổ đại ({w}).',msr:'Số {n} trong danh mục Messier.',cld:'Caldwell {n}.',
+ con:'Trong chòm {c}',psr:'Sao xung của nó: {p}',parent:'Thuộc {p}',parts:'Gồm {p}',radio:'Nguồn vô tuyến của nó: {p}',glow:'Ở trước {p}',sil:'In bóng ở đây: {p}',
+ hear:'Nghe các vạch của nó',hush:'Nghe sự im lặng',stars:'Nghe các ngôi sao',look:'Nhìn về phía đó',next:'Tinh vân kế tiếp',dsoTitle:'Bầu trời sâu',
+ sheet:{emission:'Các vạch sáng · 360–750 nm',reflection:'Ánh sao phản xạ · 360–750 nm',dark:'Ánh sao sau lớp bụi',cluster:'Các ngôi sao · ánh sáng của chúng',remnant:'Các vạch sáng và ánh sáng synchrotron'},
+ sp:{darkglow:'Phía sau nó là {p} đang phát sáng: các vạch sáng của nó lọt qua quanh lớp bụi, nhỏ hơn, các vạch xanh bị làm mờ nhiều nhất.',rule:'Mỗi vạch sáng là một nốt ngân dài ở bước sóng hạ bốn mươi quãng tám (Hα 656,3 nm → 415 Hz, [O III] 500,7 nm → 545 Hz), công suất tỉ lệ với độ mạnh của vạch: ngược với một ngôi sao, nơi các vạch là những khe tối trong ánh sáng.',
+  meas:'Tỉ số vạch đo được: {r}.',part:'Đo được: [O II] và [O III] ({r}); hydro theo vật lý nguyên tử (trường hợp B); các vạch khác là giá trị điển hình.',typ:'Các vạch điển hình của một {k}, chưa đo cho thiên thể này ({r}).',
+  sync:'Bên dưới các vạch là ánh sáng synchrotron (electron xoắn trong từ trường), nghe như một tiếng ồn nhẹ.',beat:'Hα và hai vạch [N II] chỉ cách nhau vài hertz nên chúng phách chậm.',
+  refl:'Ánh sáng của {s} ({T} K) bị bụi tán xạ: chính các vạch hấp thụ của ngôi sao, nghe như hợp âm của nó, nghiêng về các nốt cao (bụi tán xạ ánh sáng xanh mạnh hơn đỏ).',
+  dark:'Tinh vân tối không tự phát sáng. Ta nghe nó như sự im lặng nó tạo ra: các ngôi sao phía sau bị làm dịu thành tiếng thì thầm, các nốt cao mất trước (bụi làm mờ ánh sáng xanh mạnh hơn đỏ).',
+  cl:'Các ngôi sao của nó, mỗi sao một nốt riêng (đỉnh ánh sáng hạ bốn mươi quãng tám), lần lượt vào và ngân thành hợp âm: {list}.',clm:'các thành viên trong danh mục',clt:'các sao điển hình của một cụm {a} tuổi',
+  legend:'vạch sáng · chiều cao = độ mạnh',legC:'phổ liên tục',myr:'{n} triệu năm',gyr:'{n} tỉ năm'}},
+bg:{kind:{emission:'емисионна мъглявина',reflection:'отражателна мъглявина',planetary:'планетарна мъглявина',remnant:'остатък от свръхнова',dark:'тъмна мъглявина',open:'разсеян звезден куп',globular:'кълбовиден звезден куп',starcloud:'звезден облак',asterism:'астеризъм',double:'двойна звезда',galaxy:'галактика'},
+ lit:{emission:'Осветена от ултравиолетовата светлина на {s}: водородът свети в червено, кислородът в тюркоазено.',emission0:'Осветена от ултравиолета на горещите ѝ млади звезди: водородът свети в червено, кислородът в тюркоазено.',reflection:'Прах, който отразява светлината на {s}: синкав, защото прахът разсейва синята светлина по-силно от червената.',planetary:'Осветена от горещото ядро на умиращата звезда в центъра ѝ: кислородът свети в тюркоазено, водородът и азотът в червено.',remnant:'Газ, нагрят от ударната вълна на избухнала звезда.',pler:'Осветена отвътре от пулсара си: електрони, които се въртят в магнитното му поле, светят синкавобяло вътре в червени нишки.',dark:'Няма собствена светлина: прахът ѝ закрива звездите зад нея.',cluster:'Светлината на собствените му звезди.',galaxy:'Светлината на стотиците ѝ милиарди звезди.'},
+ across:'{n} светлинни години в диаметър',far:'Отвъд Местната група, на {d}: по-далеч, отколкото стига този полет. Можеш да погледнеш натам.',unsure:'разстоянието е несигурно',
+ found:'Открита от {w} през {y} г.',ancient:'Позната от древността ({w}).',msr:'№ {n} в каталога на Месие.',cld:'Колдуел {n}.',
+ con:'В съзвездие {c}',psr:'Пулсарът ѝ: {p}',parent:'Част от {p}',parts:'Включва {p}',radio:'Радиоизточникът ѝ: {p}',glow:'Пред {p}',sil:'На фона ѝ: {p}',
+ hear:'Чуй линиите ѝ',hush:'Чуй тишината',stars:'Чуй звездите му',look:'Погледни натам',next:'Следваща мъглявина',dsoTitle:'Дълбок космос',
+ sheet:{emission:'Ярки линии · 360–750 nm',reflection:'Отразена звездна светлина · 360–750 nm',dark:'Звездната светлина зад праха',cluster:'Звездите му · светлината им',remnant:'Ярки линии и синхротронна светлина'},
+ sp:{darkglow:'Зад нея свети {p}: ярките ѝ линии проникват около праха, по-тихо, като сините са отслабени най-много.',rule:'Всяка ярка линия е задържан тон при дължината ѝ на вълната, понижена с четиридесет октави (Hα 656,3 nm → 415 Hz, [O III] 500,7 nm → 545 Hz), с мощност според силата на линията: обратното на звезда, чиито линии са тъмни празнини в светлината ѝ.',
+  meas:'Измерени отношения на линиите: {r}.',part:'Измерени: [O II] и [O III] ({r}); водородът по атомната физика (случай B); останалите линии типични.',typ:'Типични линии на {k}, неизмерени за този обект ({r}).',
+  sync:'Под линиите — синхротронна светлина (електрони, които се въртят в магнитни полета), чува се като тих шум.',beat:'Hα и двете линии на [N II] са на няколко херца една от друга, затова се чуват бавни биения.',
+  refl:'Светлината на {s} ({T} K), разсеяна от праха: собствените абсорбционни линии на звездата, чути като нейния акорд, наклонен към високите тонове (прахът разсейва синята светлина по-силно от червената).',
+  dark:'Тъмната мъглявина няма собствена светлина. Чува се като тишината, която създава: звездите зад нея, приглушени до шепот, като първо изчезват високите тонове (прахът отслабва синята светлина повече от червената).',
+  cl:'Звездите му, всяка на свой тон (върхът на светлината ѝ, понижен с четиридесет октави), влизат една по една и звучат заедно като акорд: {list}.',clm:'членовете му от каталога',clt:'типичните звезди на куп на {a}',
+  legend:'ярка линия · височина = сила',legC:'континуум',myr:'{n} млн години',gyr:'{n} млрд години'}},
+pt:{kind:{emission:'nebulosa de emissão',reflection:'nebulosa de reflexão',planetary:'nebulosa planetária',remnant:'remanescente de supernova',dark:'nebulosa escura',open:'aglomerado aberto',globular:'aglomerado globular',starcloud:'nuvem estelar',asterism:'asterismo',double:'estrela dupla',galaxy:'galáxia'},
+ lit:{emission:'Iluminada pela luz ultravioleta de {s}: o hidrogênio brilha em vermelho, o oxigênio em verde-azulado.',emission0:'Iluminada pela luz ultravioleta de suas estrelas jovens e quentes: o hidrogênio brilha em vermelho, o oxigênio em verde-azulado.',reflection:'Poeira refletindo a luz de {s}: azul, porque a poeira espalha mais a luz azul que a vermelha.',planetary:'Iluminada pelo núcleo quente da estrela moribunda no centro: o oxigênio brilha em verde-azulado, o hidrogênio e o nitrogênio em vermelho.',remnant:'Gás aquecido pela onda de choque de uma estrela que explodiu.',pler:'Iluminada por dentro por seu pulsar: elétrons girando em seu campo magnético brilham em branco-azulado, dentro de filamentos vermelhos.',dark:'Sem luz própria: sua poeira esconde as estrelas atrás dela.',cluster:'A luz de suas próprias estrelas.',galaxy:'A luz de suas centenas de bilhões de estrelas.'},
+ across:'{n} anos-luz de diâmetro',far:'Além do Grupo Local, a {d}: mais longe do que este voo alcança. Você pode olhar na direção dela.',unsure:'distância incerta',
+ found:'Descoberta por {w} em {y}.',ancient:'Conhecida desde a Antiguidade ({w}).',msr:'Nº {n} do catálogo de Messier.',cld:'Caldwell {n}.',
+ con:'Em {c}',psr:'Seu pulsar: {p}',parent:'Parte de {p}',parts:'Inclui {p}',radio:'Sua fonte de rádio: {p}',glow:'Na frente de {p}',sil:'Recortada aqui: {p}',
+ hear:'Ouvir suas linhas',hush:'Ouvir o silêncio',stars:'Ouvir suas estrelas',look:'Olhar para lá',next:'Próxima nebulosa',dsoTitle:'Céu profundo',
+ sheet:{emission:'Linhas brilhantes · 360–750 nm',reflection:'Luz estelar refletida · 360–750 nm',dark:'Luz estelar atrás da poeira',cluster:'Suas estrelas · sua luz',remnant:'Linhas brilhantes e luz síncrotron'},
+ sp:{darkglow:'Atrás dela brilha {p}: suas linhas brilhantes chegam ao redor da poeira, mais baixas, e as azuis são as mais atenuadas.',rule:'Cada linha brilhante é uma nota sustentada no seu comprimento de onda rebaixado quarenta oitavas (Hα 656,3 nm → 415 Hz, [O III] 500,7 nm → 545 Hz), com potência proporcional à intensidade da linha: o oposto de uma estrela, cujas linhas são lacunas escuras em sua luz.',
+  meas:'Razões de linhas medidas: {r}.',part:'Medidas: [O II] e [O III] ({r}); o hidrogênio pela física atômica (caso B); as demais linhas, típicas.',typ:'Linhas típicas de uma {k}, não medidas para este objeto ({r}).',
+  sync:'Sob as linhas, luz síncrotron (elétrons girando em campos magnéticos), ouvida como um ruído suave.',beat:'Hα e as duas linhas de [N II] ficam a poucos hertz uma da outra, então batem devagar.',
+  refl:'A luz de {s} ({T} K) espalhada pela poeira: as próprias linhas de absorção da estrela, ouvidas como seu acorde, inclinado para as notas agudas (a poeira espalha mais a luz azul que a vermelha).',
+  dark:'Uma nebulosa escura não tem luz própria. Ela é ouvida como o silêncio que cria: as estrelas atrás dela abafadas até um sussurro, primeiro as notas agudas (a poeira enfraquece mais a luz azul que a vermelha).',
+  cl:'Suas estrelas, cada uma em sua própria nota (o pico de sua luz rebaixado quarenta oitavas), entram uma a uma e se sustentam como acorde: {list}.',clm:'seus membros de catálogo',clt:'as estrelas típicas de um aglomerado de {a}',
+  legend:'linha brilhante · altura = intensidade',legC:'contínuo',myr:'{n} milhões de anos',gyr:'{n} bilhões de anos'}}
+};/*DS-TEXTS-END*/
+const TDS=deep(TX_DS.en,TX_DS[LANG]||{});
+const DSX={rows:[],pos:new Map(),B:null,Dk:null,CL:null,tex:null,lbl:new Map(),rankT:0,shown:[],facts:null,visited:{},nearAU:1e30};
+const dsName=o=>G().nameOf('dso',o,LANG);
+const dsKind=o=>(G().DS_KIND[o.t]||o.t);
+const dsKindWord=o=>{const k=dsKind(o);return TDS.kind[k==='galaxy'?'galaxy':k]||k};
+function dsSheetTitle(o){const k=dsKind(o);return TDS.sheet[k==='planetary'?'emission':k==='open'||k==='globular'||k==='starcloud'?'cluster':k]||TDS.sheet.emission}
+function dsHearLabel(o){return o.t==='dn'?TDS.hush:(o.t==='oc'||o.t==='gc'||o.t==='sc')?TDS.stars:TDS.hear}
+const dsDrawn=o=>(!o.part||o.morph==='pillars')&&!o.far&&o.d>0&&o.t!=='ast'&&o.t!=='dbl'&&o.t!=='lg'&&o.t!=='rad'&&!(o.grp);
+// the facts of the page's language (galaxy/dsfacts_<lang>.json), once
+function dsFacts(){if(DSX.facts)return;DSX.facts={};fetch(BASE+'galaxy/dsfacts_'+LANG+'.json').then(r=>r.ok?r.json():null).then(j=>{if(j&&j.facts){DSX.facts=j.facts;try{G().dsoFacts[LANG]=j.facts}catch(e){}if(ST.card&&ST.card.dso)card(ST.card)}}).catch(()=>{})}
+
+/* ---------- the sprites: one instanced quad per object (bright: added light; dark: dims what is behind) ---------- */
+const DS_VS=`attribute vec3 iC;attribute vec3 iA;attribute vec3 iB;attribute vec3 iU;attribute vec4 iS;attribute vec2 iK;attribute vec3 iC1;attribute vec3 iC2;attribute vec2 iT;
+uniform float uFade;uniform float uPxRad;uniform float uMinPx;varying vec2 vQ;varying vec3 vC1;varying vec3 vC2;varying float vA;varying float vM;varying float vSeed;varying float vFace;varying vec2 vK;
+void main(){vec4 mc=modelViewMatrix*vec4(iC,1.0);vec3 c=mc.xyz;float dist=max(length(c),1e-6);vec3 vd=c/dist;
+vec3 A=(modelViewMatrix*vec4(iA,0.0)).xyz;vec3 B=(modelViewMatrix*vec4(iB,0.0)).xyz;vec3 U=(modelViewMatrix*vec4(iU,0.0)).xyz;
+vec3 Ap=A-vd*dot(A,vd);float la=length(Ap);vec3 up0=abs(vd.y)<0.95?vec3(0.0,1.0,0.0):vec3(1.0,0.0,0.0);
+vec3 e1=la>0.12?Ap/la:normalize(cross(up0,vd));vec3 Bp=B-vd*dot(B,vd);vec3 e2=Bp-e1*dot(Bp,e1);float lb=length(e2);e2=lb>0.12?e2/lb:normalize(cross(vd,e1));
+float face=abs(dot(vd,normalize(U)));float a=iS.x;float b=mix(iS.x,iS.y,smoothstep(0.35,0.85,face));
+float rpx=a/dist*uPxRad;float sc=max(1.0,uMinPx/max(rpx,1e-6));
+float al=iS.z*uFade/(sc*sc)*smoothstep(0.25*a,0.9*a,dist);
+vec3 off=(e1*position.x*a*iK.x+e2*position.y*b*iK.y)*sc;gl_Position=projectionMatrix*vec4(c+off,1.0);
+vQ=vec2(position.x*iK.x,position.y*iK.y);vK=iK;vC1=iC1;vC2=iC2;vA=al;vM=iT.x;vSeed=iT.y;vFace=face;if(al<0.004)gl_Position=vec4(2.0,2.0,2.0,1.0);}`;
+const DS_FS=`precision mediump float;uniform sampler2D uTex;uniform float uDark;uniform float uOct;varying vec2 vQ;varying vec3 vC1;varying vec3 vC2;varying float vA;varying float vM;varying float vSeed;varying float vFace;varying vec2 vK;
+uniform sampler2D uNoise;
+// noise from a small tiling texture (value noise with its octaves baked in): one fetch per call, cheap on phones
+float n2(vec2 p){return texture2D(uNoise,p*0.0625).g;}
+float fbm(vec2 p){float s=texture2D(uNoise,p*0.0625).r;if(uOct>2.5)s=s*0.8+0.2*texture2D(uNoise,p*0.21+0.37).r;return s*0.94;}
+float rid(vec2 p){return 1.0-abs(2.0*fbm(p)-1.0);}
+void main(){vec2 q=vQ;vec2 wq0=abs(vQ)/vK;if(wq0.x>0.995||wq0.y>0.995)discard;float r=length(q);float m=vM;vec2 sp=q*1.7+vSeed*7.3;float d=0.0;vec3 col=vC1;
+ float soft=exp(-r*r*1.4);
+ if(m<0.5){float n=fbm(sp*1.3);d=exp(-r*r*1.5)*(0.35+1.1*n*n);col=mix(vC2,vC1,exp(-r*r*2.2));}
+ else if(m<1.5){float sh=exp(-pow((r-0.66)/0.2,2.0));float in1=exp(-r*r*5.0);d=sh*0.75+in1*0.4;d*=0.8+0.4*fbm(sp*2.5);col=mix(vC2,vC1,smoothstep(0.75,0.35,r));}
+ else if(m<2.5){vec2 p=q;float lobe=exp(-pow((abs(p.x)-0.42)/0.38,2.0)-pow(p.y/(0.35+0.45*abs(p.x)),2.0));d=lobe*(0.7+0.5*fbm(sp*2.0))+0.5*exp(-r*r*12.0);col=mix(vC2,vC1,exp(-r*r*3.0));}
+ else if(m<3.5){float body=exp(-r*r*1.6);float fil=pow(rid(sp*2.2),5.0)*smoothstep(1.2,0.3,r);d=body*0.7+fil*0.9;col=mix(vec3(0.72,0.8,1.0),vC2,clamp(fil*1.6,0.0,1.0));}
+ else if(m<4.5){float sh=exp(-pow((r-0.85)/0.16,2.0));float fil=pow(rid(sp*1.6+vec2(r*3.0)),4.0);float arc=0.35+0.65*smoothstep(0.2,0.8,n2(vec2(atan(q.y,q.x)*1.6+vSeed*5.0,1.0)));d=sh*(0.25+1.1*fil)*arc;col=mix(vC2,vC1,fil*0.6);}
+ else if(m<5.5){d=exp(-r*r*2.4)*(0.55+0.7*fbm(sp*1.4));col=vC1;}
+ else if(m<6.5){d=exp(-r*2.6)*0.9+0.12*exp(-r*r*0.7);col=vC1;}
+ else if(m<7.5){d=exp(-r*r*1.2)*0.35*(0.7+0.5*fbm(sp*3.0));col=vC1;}
+ else if(m<8.5){float rr=exp(-pow((r-0.55)/0.3,2.0));d=rr*(0.4+1.1*fbm(sp*1.5));col=mix(vC2,vC1,0.3*fbm(sp));}
+ else if(m<9.5){float y=q.x;float x=q.y;float edge=0.17+0.04*sin(y*5.0+vSeed)+0.06*(fbm(vec2(y*2.5,vSeed))-0.5);float w=edge-x;float g=w>0.0?exp(-w/0.55)*smoothstep(-0.005,0.03,w):0.0;
+   d=g*(0.75+0.5*fbm(vec2(x*3.0,y*2.0)+vSeed))*smoothstep(1.0,0.55,abs(y));col=mix(vC2,vC1,0.25);}
+ else if(m<10.5){float n=fbm(sp*1.2);d=smoothstep(0.32,0.62,n*exp(-r*r*0.9)+0.25*exp(-r*r*2.5));}
+ else if(m<11.5){d=smoothstep(1.0,0.35,r)*(0.85+0.15*fbm(sp*3.0));}
+ else if(m<12.5){vec2 uv=vec2(0.5-0.5*q.y/vK.y,0.5+0.5*q.x/vK.x);d=(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0)?0.0:texture2D(uTex,uv).a;}
+ else if(m<13.5){float n=fbm(sp*4.0);d=exp(-r*r*1.3)*(0.25+0.9*pow(n,3.0));col=vC1;}
+ else if(m>15.5){float g=exp(-r*r*0.9)*(0.45+0.7*fbm(sp*1.4));float c=0.0;float rim=0.0;
+   for(int k=0;k<3;k++){float y0=k==0?-0.5:k==1?0.05:0.5;float w=k==0?0.2:k==1?0.14:0.1;float top=k==0?0.15:k==1?0.65:-0.25;float wob=0.04*sin(q.x*9.0+float(k));
+     float cc=smoothstep(w,w*0.55,abs(q.y-y0+wob))*smoothstep(top+0.06,top-0.06,q.x);c=max(c,cc);rim=max(rim,cc*smoothstep(top-0.22,top,q.x)*(0.6+0.6*fbm(q*9.0)));}
+   d=g*(1.0-0.85*c)+0.9*rim;col=mix(vC2,vec3(1.0,0.85,0.7),rim*0.6);}
+ else if(m>14.5){float n=fbm(sp*1.3);vec2 cq=q-vec2(0.08,-0.05);float core=exp(-dot(cq,cq)*14.0);float bay=exp(-pow((q.x-0.28)/0.16,2.0)-pow((q.y+0.12)/0.12,2.0));d=exp(-r*r*1.5)*(0.35+1.1*n*n)+1.3*core;d*=1.0-0.7*bay;col=mix(mix(vC2,vC1,exp(-r*r*3.5)),vec3(1.0),0.35*core);}
+ else{float sh=exp(-pow((r-0.62)/0.22,2.0));vec2 e1=vec2(0.18,0.22);vec2 e2=vec2(0.18,-0.22);float eye=exp(-dot(q-e1,q-e1)*30.0)+exp(-dot(q-e2,q-e2)*30.0);d=(sh*0.9+0.6*exp(-r*r*3.0))*(1.0-0.8*eye);col=mix(vC2,vC1,smoothstep(0.8,0.3,r));}
+ if(m<11.5||m>12.5){d=mix(soft*0.8*(m>9.5&&m<12.5?1.0:0.9),d,clamp((vFace-0.35)/0.5,0.0,1.0));}
+ vec2 wq=abs(vQ)/vK;d*=(1.0-smoothstep(0.7,1.0,wq.x))*(1.0-smoothstep(0.7,1.0,wq.y));   // no quad edges
+ float a=clamp(d,0.0,1.0)*vA;
+ if(uDark>0.5){gl_FragColor=vec4(0.0,0.0,0.0,clamp(a,0.0,0.97));}else{gl_FragColor=vec4(col*a,1.0);}}`;
+// the cluster stars: points sized and faded by their apparent magnitude from the ship (no floor: far clusters fade into their glow)
+const DSC_VS=`attribute vec3 col;attribute float absMag;uniform float uPx;uniform float uFade;varying vec3 vC;varying float vA;
+void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);float d=max(length(mv.xyz),1e-7);float m=absMag+2.1714724*log(d/10.0);
+float s=clamp(2.8*pow(10.0,-0.1*(m-2.0)),1.4,36.0);vA=clamp(1.0-(m-5.0)/4.5,0.0,1.0)*uFade;vC=col;gl_PointSize=s*uPx;gl_Position=projectionMatrix*mv;if(vA<0.01)gl_Position=vec4(2.0,2.0,2.0,1.0);}`;
+// the noise texture: 128² value noise, tiling; r = four octaves (fbm), g = one octave
+function noiseTex(){if(DSX.ntex)return DSX.ntex;const N=128,rnd=G().rng(42),g=[];for(let i=0;i<4;i++){const s=16<<i>>2,a=new Float32Array(s*s);for(let k=0;k<s*s;k++)a[k]=rnd();g.push([s,a])}
+  const val=(s,a,x,y)=>{const X=x*s/N,Y=y*s/N,i=Math.floor(X),j=Math.floor(Y),fx=X-i,fy=Y-j,ux=fx*fx*(3-2*fx),uy=fy*fy*(3-2*fy),at=(p,q)=>a[((q%s+s)%s)*s+((p%s+s)%s)];return at(i,j)*(1-ux)*(1-uy)+at(i+1,j)*ux*(1-uy)+at(i,j+1)*(1-ux)*uy+at(i+1,j+1)*ux*uy};
+  const d=new Uint8Array(N*N*4);for(let y=0;y<N;y++)for(let x=0;x<N;x++){let f=0,w=.5,tw=0;g.forEach(([s,a])=>{f+=w*val(s,a,x,y);tw+=w;w*=.5});const o=(y*N+x)*4;d[o]=Math.round(f/tw*255);d[o+1]=Math.round(val(g[1][0],g[1][1],x,y)*255);d[o+2]=0;d[o+3]=255}
+  const tx=new THREE.DataTexture(d,N,N,THREE.RGBAFormat);tx.wrapS=tx.wrapT=THREE.RepeatWrapping;tx.magFilter=tx.minFilter=THREE.LinearFilter;tx.needsUpdate=true;DSX.ntex=tx;return tx}
+const MORPH={cloud:0,orion:15,carina:0,nam:0,flame:0,tarantula:0,ring:1,cat:1,saturn:2,helix:1,bubble:1,owl:14,bip:2,pler:3,shell:4,veil:4,blue:5,rosette:8,heart:8,ic434:9,dark:10,snake:10,enebula:10,globule:11,horsehead:12,pillars:16};
+function dsMorph(o){if(o.morph&&MORPH[o.morph]!=null)return MORPH[o.morph];if(o.t==='pn')return 1;if(o.t==='snr')return 4;if(o.t==='rn')return 5;if(o.t==='gc')return 6;if(o.t==='oc')return 7;if(o.t==='sc')return 13;if(o.t==='dn')return 10;return 0}
+// the Horsehead as seen in the photographs (north up, east left): the dark bank of Orion B on the east, the head rising out of it into IC 434's
+// glow, its muzzle to the north and its ears to the south-west. Drawn once into a canvas (the iconic orientation, west up, then turned) and
+// used as the dark sprite's mask. APPROX: a drawing of its outline, not an image
+function horseTex(){if(DSX.tex)return DSX.tex;const W=256,H=640,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  // this canvas covers 24′ (east–west, x) by 60′ (north–south, y); the head (B33) sits at the centre
+  x.fillStyle='#fff';x.shadowColor='#fff';x.shadowBlur=10;x.save();x.translate(W/2,H/2);
+  // the bank: everything east (left) of a wavy north–south edge 3′ east of the head
+  const px=W/24;x.beginPath();x.moveTo(-W/2-20,-H/2-20);for(let k=0;k<=40;k++){const y=-H/2-20+(H+40)*k/40,e=-2.9*px+Math.sin(k*1.7)*.35*px+Math.sin(k*.53)*.7*px;x.lineTo(e,y)}x.lineTo(-W/2-20,H/2+20);x.closePath();x.fill();
+  // the head and neck, drawn in the iconic frame (west up, north left, units of 1′) and turned 90° clockwise onto the sky
+  x.rotate(Math.PI/2);const P=[[-0.7,3.6],[-0.55,2.3],[-0.4,1.3],[-0.55,0.95],[-1.1,0.75],[-1.75,0.62],[-2.3,0.45],[-2.62,0.15],[-2.66,-0.18],[-2.45,-0.48],[-1.85,-0.8],[-1.2,-1.2],[-0.6,-1.55],[-0.25,-1.75],[-0.12,-2.55],[0.12,-1.95],[0.32,-2.25],[0.5,-1.65],[0.85,-1.25],[1.05,-0.45],[1.1,0.6],[1.2,1.8],[1.45,3.6]];
+  x.beginPath();P.forEach(([a,b],i)=>{const X=a*px,Y=b*px;i?x.lineTo(X,Y):x.moveTo(X,Y)});x.closePath();x.fill();x.restore();
+  DSX.tex=new THREE.CanvasTexture(c);DSX.tex.minFilter=THREE.LinearFilter;DSX.tex.generateMipmaps=false;return DSX.tex}
+function dsAxes(o){const g=G(),F=g.dsoFrame(o),A=galToScene(F.a.x,F.a.y,F.a.z,{x:0,y:0,z:0}),B=galToScene(F.b.x,F.b.y,F.b.z,{x:0,y:0,z:0}),U=galToScene(F.u.x,F.u.y,F.u.z,{x:0,y:0,z:0}),N=galToScene(F.n.x,F.n.y,F.n.z,{x:0,y:0,z:0}),E=galToScene(F.e.x,F.e.y,F.e.z,{x:0,y:0,z:0});return {A,B,U,N,E}}
+function dsBuild(){const g=G();if(!g||!g.deepsky||!g.deepsky().length)return;dsFacts();
+  const rows=g.dsoPlaced().filter(dsDrawn);DSX.rows=rows;const v={x:0,y:0,z:0};
+  rows.forEach(o=>{const p=g.dsoPos(o,{});galToScene(p.x,p.y,p.z,v);DSX.pos.set(o,new THREE.Vector3(v.x,v.y,v.z))});
+  // parts are not drawn (their parent draws them) but are places to fly to
+  g.dsoPlaced().forEach(o=>{if(!DSX.pos.has(o)){const p=g.dsoPos(o,{});galToScene(p.x,p.y,p.z,v);DSX.pos.set(o,new THREE.Vector3(v.x,v.y,v.z))}});
+  const br=[],dk=[];
+  rows.forEach((o,i)=>{const sz=g.dsoSize(o);if(!(sz.a>0))return;const col=g.dsoColor(o),ax=dsAxes(o),seed=(i*0.6180339)%1*10,m=dsMorph(o);
+    const sb=g.dsoSB(o),I=o.t==='dn'?(o.morph==='globule'?.95:o.id==='c99'?.6:o.morph==='horsehead'?.96:.72):clamp(Math.pow(10,-.4*(sb-22.5)),.25,1.3)*(o.t==='gc'?.5:o.t==='oc'?.6:o.t==='pn'?.85:1);
+    let K=LOW?[1.3,1.3]:[1.45,1.45];if(m===12)K=[10,6];else if(m===9)K=[1.1,1.25];else if(m===6)K=[2.4,2.4];else if(m===16)K=[1.2,1.2];else if(m===4)K=[1.25,1.25];
+    let a=sz.a,b=Math.max(sz.b,sz.a*.15);if(o.t==='gc'){a*=.7;b=a}
+    const e={o,c:DSX.pos.get(o),A:ax.A,B:ax.B,U:ax.U,a,b,I,K,c1:col.core,c2:col.edge,m,seed};(o.t==='dn'?dk:br).push(e);
+    if(o.rn&&o.t!=='rn'){const c2=g.dsoColor({t:'rn',star:o.star,id:o.id+'-rn'}).core;br.push(Object.assign({},e,{a:a*(o.t==='oc'?.32:.6),b:b*(o.t==='oc'?.32:.6),I:o.t==='oc'?.3:.45,c1:c2,c2:c2,m:5,seed:seed+3}))}});
+  const mk=(list,dark)=>{if(!list.length)return null;const n=list.length,geo=new THREE.InstancedBufferGeometry(),base=new THREE.PlaneGeometry(2,2);geo.index=base.index;geo.setAttribute('position',base.getAttribute('position'));
+    const f3=()=>new Float32Array(n*3),iC=f3(),iA=f3(),iB=f3(),iU=f3(),iC1=f3(),iC2=f3(),iS=new Float32Array(n*4),iK=new Float32Array(n*2),iT=new Float32Array(n*2);
+    list.forEach((e,i)=>{iC.set([e.c.x,e.c.y,e.c.z],i*3);iA.set([e.A.x,e.A.y,e.A.z],i*3);iB.set([e.B.x,e.B.y,e.B.z],i*3);iU.set([e.U.x,e.U.y,e.U.z],i*3);iC1.set(e.c1,i*3);iC2.set(e.c2,i*3);iS.set([e.a,e.b,e.I,0],i*4);iK.set(e.K,i*2);iT.set([e.m,e.seed],i*2)});
+    const IA=(a,k)=>new THREE.InstancedBufferAttribute(a,k);geo.setAttribute('iC',IA(iC,3));geo.setAttribute('iA',IA(iA,3));geo.setAttribute('iB',IA(iB,3));geo.setAttribute('iU',IA(iU,3));geo.setAttribute('iC1',IA(iC1,3));geo.setAttribute('iC2',IA(iC2,3));geo.setAttribute('iS',IA(iS,4));geo.setAttribute('iK',IA(iK,2));geo.setAttribute('iT',IA(iT,2));geo.instanceCount=n;
+    const mat=new THREE.ShaderMaterial({uniforms:{uFade:{value:0},uPxRad:{value:600},uMinPx:{value:dark?0:3.2},uTex:{value:horseTex()},uNoise:{value:noiseTex()},uDark:{value:dark?1:0},uOct:{value:(LOW||QUAL()==='eco')?2:QUAL()==='high'?4:3}},vertexShader:DS_VS,fragmentShader:DS_FS,transparent:true,depthWrite:false,depthTest:false,
+      blending:THREE.CustomBlending,blendEquation:THREE.AddEquation,blendSrc:dark?THREE.ZeroFactor:THREE.OneFactor,blendDst:dark?THREE.OneMinusSrcAlphaFactor:THREE.OneFactor});
+    const mesh=new THREE.Mesh(geo,mat);mesh.frustumCulled=false;mesh.renderOrder=dark?7:5;gscene.add(mesh);
+    // the full set, kept on the side: dsCull() copies the instances in view to the front of the buffers each ~150 ms
+    mesh.userData={list,full:{iC:iC.slice(),iA:iA.slice(),iB:iB.slice(),iU:iU.slice(),iC1:iC1.slice(),iC2:iC2.slice(),iS:iS.slice(),iK:iK.slice(),iT:iT.slice()},key:''};return mesh};
+  if(DSX.B){gscene.remove(DSX.B);DSX.B.geometry.dispose()}if(DSX.Dk){gscene.remove(DSX.Dk);DSX.Dk.geometry.dispose()}
+  DSX.B=mk(br,false);DSX.Dk=mk(dk,true);dsBuildClusters(rows);dsLabelsBuild(rows);
+  // flight.html#ds=<id> (the constellation cards of the dial link here): go there
+  if(!DSX.hashDone&&/^#ds=/.test(location.hash)){DSX.hashDone=true;const id=decodeURIComponent(location.hash.slice(4)),o=g.dso(id);if(o)setTimeout(()=>{if(o.far)dsLook(o);else travelG({dso:o})},800)}}
+// the clusters' stars: a luminosity function of the cluster's age (the brightest the turn-off or its giants), Plummer-like in space
+function dsBuildClusters(rows){const g=G(),rnd=g.rng(1054),cl=rows.filter(o=>o.t==='oc'||o.t==='gc'||o.t==='sc');let tot=0;const plan=[];const dev=(QUAL()==='eco'?.25:LOW?.3:QUAL()==='high'?1.4:1);
+  cl.forEach(o=>{const st=g.dsoStars(o);let n=o.t==='gc'?260:o.t==='sc'?400:clamp(Math.round((o.nmem||120)*.22),24,220);if(st.members)n=Math.round(n*.5);n=Math.max(12,Math.round(n*dev));plan.push([o,n,st]);tot+=n});
+  const pos=new Float32Array(tot*3),col=new Float32Array(tot*3),mag=new Float32Array(tot);let i=0;
+  const gauss=()=>{let u=0;for(let k=0;k<4;k++)u+=rnd();return (u-2)*1.2};
+  for(const [o,n,st] of plan){const c=DSX.pos.get(o),sz=g.dsoSize(o),rc=o.t==='gc'?sz.a*.16:o.t==='sc'?sz.a*.5:Math.max(.25,(o.r50?o.d*Math.tan(o.r50/120*Math.PI/180):sz.a*.5)*.75),age=o.t==='gc'?10.1:(o.age||8);
+    const Mtop=o.t==='gc'?-2.4:o.t==='sc'?-3:age<7?-5:age<7.5?-3.5:age<8?-2:age<8.5?-1:age<9?0:age<9.5?.8:1.2,Tto=st.stars[0]?st.stars[0].T:6000;
+    for(let k=0;k<n;k++){let r;do{const u=Math.max(1e-4,rnd());r=rc/Math.sqrt(Math.pow(u,-2/3)-1)}while(r>rc*(o.t==='gc'?6:3.5));const th=rnd()*Math.PI*2,ph=Math.acos(rnd()*2-1);
+      const x=c.x+r*Math.sin(ph)*Math.cos(th),y=c.y+r*Math.sin(ph)*Math.sin(th),z=c.z+r*Math.cos(ph);let M=Mtop+7*Math.pow(rnd(),.55),T;
+      if(st.members)M=Math.max(M,2.5);
+      if(o.t==='gc'){T=M<1?(rnd()<.18?9000:4300+M*250):5800+(M-2)*-180}else{T=clamp(Math.pow(10,3.76+.105*(4.8-M)),3400,Tto);if(age>=8&&rnd()<.06){T=4600;M=Math.min(M,.8)}}
+      const cc=g.starRGB(T);pos.set([x,y,z],i*3);col.set(cc,i*3);mag[i]=M;i++}}
+  if(DSX.CL){gscene.remove(DSX.CL);DSX.CL.children.forEach(c=>c.geometry.dispose())}if(!tot)return;
+  // one small point set per cluster, drawn only while its brightest stars can be seen from the ship (dsCullCL)
+  const mat=new THREE.ShaderMaterial({uniforms:{uPx:{value:renderer.getPixelRatio()},uFade:{value:0}},vertexShader:DSC_VS,fragmentShader:STAR_FS,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
+  DSX.CL=new THREE.Group();DSX.CL.renderOrder=4;DSX.CL.material=mat;let j=0;
+  for(const [o,n] of plan){const gm=new THREE.BufferGeometry();gm.setAttribute('position',new THREE.BufferAttribute(pos.slice(j*3,(j+n)*3),3));gm.setAttribute('col',new THREE.BufferAttribute(col.slice(j*3,(j+n)*3),3));gm.setAttribute('absMag',new THREE.BufferAttribute(mag.slice(j,j+n),1));
+    let mt=99;for(let k=j;k<j+n;k++)mt=Math.min(mt,mag[k]);const pts=new THREE.Points(gm,mat);pts.frustumCulled=false;pts.renderOrder=4;pts.visible=false;pts.userData={o,mt,c:DSX.pos.get(o),r:G().dsoSize(o).a*3};DSX.CL.add(pts);j+=n}
+  gscene.add(DSX.CL);DSX.nCL=tot}
+function dsCullCL(){if(!DSX.CL)return;const cam=gcam.position;DSX.CL.children.forEach(p=>{const u=p.userData,d=Math.max(u.c.distanceTo(cam)-u.r,.1);p.visible=u.mt+5*Math.log10(d/10)<9.4})}
+// each frame: the layer's fade (with the Galaxy's, and out beyond ~30 kpc as the catalogue stars), the pixel scale, the nearest object (for the speed law)
+// draw only the sprites that can be seen: on screen, and bright enough after the flux rule (the GPU does no work for the others — a culled
+// instance still costs a little on a phone)
+const CULLV=new THREE.Vector3();
+function dsCull(m,pxr){if(!m)return;const U=m.userData,L=U.list,F=U.full,g=m.geometry,cam=gcam,minPx=m.material.uniforms.uMinPx.value,fade=m.material.uniforms.uFade.value,on=[];
+  for(let i=0;i<L.length;i++){const e=L[i],d=Math.max(e.c.distanceTo(cam.position),1e-9),rpx=e.a/d*pxr,sc=Math.max(1,minPx/Math.max(rpx,1e-9)),al=e.I*fade/(sc*sc)*(d<.25*e.a?0:1);if(al<.004)continue;
+    CULLV.set(e.c.x,e.c.y,e.c.z).project(cam);const rn=Math.max(rpx*sc*Math.max(e.K[0],e.K[1])*1.5,4)/(pxr*Math.tan(cam.fov*Math.PI/360))*1.0;   // its half-size in NDC (approx.)
+    const behind=CULLV.z>1;if(behind&&d>e.a*Math.max(e.K[0],e.K[1])*1.6)continue;if(!behind&&(Math.abs(CULLV.x)>1+rn*1.2||Math.abs(CULLV.y)>1+rn))continue;on.push(i)}
+  const key=on.join(',');if(key===U.key)return;U.key=key;
+  [['iC',3],['iA',3],['iB',3],['iU',3],['iC1',3],['iC2',3],['iS',4],['iK',2],['iT',2]].forEach(([k,n])=>{const A=g.attributes[k],dst=A.array,src=F[k];on.forEach((i,j)=>{for(let c=0;c<n;c++)dst[j*n+c]=src[i*n+c]});A.needsUpdate=true});
+  g.instanceCount=on.length;m.visible=on.length>0}
+function dsFrame(){if(!DSX.B&&!DSX.Dk)return;const far=ST.farF==null?1:ST.farF,f=ST.gf*far,pxr=(renderer.domElement.clientHeight||innerHeight)/(2*Math.tan(gcam.fov*Math.PI/360));
+  [DSX.B,DSX.Dk].forEach(m=>{if(!m)return;m.material.uniforms.uFade.value=f*(.35+.65*BHX.gcFar);m.material.uniforms.uPxRad.value=pxr;if(f<=.002){m.visible=false;m.userData.key='off'}});
+  {const now=performance.now();if(f>.002&&now-(DSX.cullT||0)>150){DSX.cullT=now;dsCull(DSX.B,pxr);dsCull(DSX.Dk,pxr);dsCullCL()}}if(DSX.CL){DSX.CL.material.uniforms.uFade.value=f;DSX.CL.visible=f>.002}
+  const now=performance.now();if(now-(DSX.scanT||0)>150){DSX.scanT=now;let bd=1e30;const L=gcam.position;for(const o of DSX.rows){const p=DSX.pos.get(o),r=G().dsoSize(o).a,d=Math.max(p.distanceTo(L)-r,.2*p.distanceTo(L));if(d<bd)bd=d}DSX.nearAU=bd*AU_PC}}
+/* ---------- labels: the most prominent objects as seen from the ship (apparent size and brightness), at most 8 (5 on a phone), never on each other ---------- */
+// labels are made when first wanted (a few dozen at most), not one per object up front: every element in the labels layer costs a style pass
+function dsLabelEl(o){let el=DSX.lbl.get(o);if(el)return el;el=glbl('d_'+o.id,ESC(dsName(o)),'minor dso dso-'+dsKind(o),e=>popFromLabel({kind:'dso',row:o},e));DSX.lbl.set(o,el);return el}
+function dsLabelsBuild(rows){}
+// (a label is hidden only when it changes: a DOM write each frame for every label costs a style pass)
+function dsLabels(){if(!DSX.rows.length)return;const now=performance.now(),g=G(),L=shipGal();
+  if(now-DSX.rankT>250){DSX.rankT=now;const cand=[],H=renderer.domElement.clientHeight||innerHeight,pxr=H/(2*Math.tan(gcam.fov*Math.PI/360));
+    for(const o of DSX.rows){const p=DSX.pos.get(o),d=p.distanceTo(gcam.position);if(d<1e-6)continue;const rpx=g.dsoSize(o).a/d*pxr,m=o.t==='dn'?6:g.dsoMag(o,L);const pr=Math.max(rpx/36,(7.5-m)/5)+(o.m?.15:0)+(g.data.deepsky.nm[o.id]?.2:0);if(pr>.35||(ST.card&&ST.card.row===o)||(ship.gap&&ship.gap.row===o))cand.push([pr,o])}
+    cand.sort((a,b)=>b[0]-a[0]);DSX.shown=cand.slice(0,LOW?5:8).map(x=>x[1]);const tg=ship.gap&&ship.gap.dso,cd=ST.card&&ST.card.dso;[tg,cd].forEach(t=>{if(t&&DSX.lbl.has(t)&&DSX.shown.indexOf(t)<0)DSX.shown.unshift(t)})}
+  const on=new Set(DSX.shown);DSX.shown.forEach(dsLabelEl);
+  DSX.lbl.forEach((el,o)=>{if(!on.has(o)||ST.dSunPc>(o.d||0)*3+40000){if(!el.hidden)el.hidden=true;return}const p=DSX.pos.get(o);placeG(el,p.x,p.y,p.z,true,null,10);const tg=!!(ship.gap&&ship.gap.row===o)||!!(ST.card&&ST.card.row===o);if(!el.hidden&&!tg&&clash())el.hidden=true;el.classList.toggle('target',tg)})}
+/* ---------- picking: a click within the object's disc (or near its centre), and the crosshair ---------- */
+function dsPick(px,py,rad,bs){if(!DSX.rows.length||!(ST.gf>.02))return null;const cv=renderer.domElement,W=cv.clientWidth||innerWidth,H=cv.clientHeight||innerHeight,pxr=H/(2*Math.tan(gcam.fov*Math.PI/360)),g=G(),L=shipGal();let best=null,sb=bs;
+  for(const o of DSX.rows){const p=DSX.pos.get(o);pvG.set(p.x,p.y,p.z).project(gcam);if(pvG.z>1||pvG.z<-1)continue;const sx=(pvG.x*.5+.5)*W,sy=(-pvG.y*.5+.5)*H,dd=Math.hypot(sx-px,sy-py),d=p.distanceTo(gcam.position);if(d<1e-9)continue;
+    const rpx=Math.max(6,g.dsoSize(o).a/d*pxr);if(dd>rpx+rad)continue;if(d<g.dsoSize(o).a*.8)continue;const m=o.t==='dn'?5:g.dsoMag(o,L),sc=dd/(rpx+rad)*2.5+m*.25-(dd<rpx?.6:0);if(sc<sb){sb=sc;best={kind:'dso',row:o}}}
+  return best?{b:best,s:sb}:null}
+function dsMeasureR(o){return G().dsoSize(o).a}
+/* ---------- going there: stand on the line of sight from the Sun (so it looks as in its photographs), the object filling ~40 % of the view,
+   north up (the Horsehead with west up, the way it is always shown), tilted clear of the arrival card ---------- */
+function dsGoal(o,out){const g=G(),p0=DSX.pos.get(o)||(()=>{const q=g.dsoPos(o,{});return galToScene(q.x,q.y,q.z,new THREE.Vector3())})(),P=new THREE.Vector3(p0.x,p0.y,p0.z).multiplyScalar(AU_PC);
+  const sz=g.dsoSize(o),a=Math.max(sz.a,o.t==='gc'?sz.a*.5:0)||.05,fov=gcam.fov*Math.PI/180,frac=innerHeight>innerWidth?.22:.32,standPc=Math.max(a/Math.tan(fov*frac/2),.004);
+  const ax=dsAxes(o),u=new THREE.Vector3(ax.U.x,ax.U.y,ax.U.z).normalize(),up=o.morph==='pillars'?new THREE.Vector3(ax.A.x,ax.A.y,ax.A.z):o.id==='b33'||o.id==='ic434'?new THREE.Vector3(-ax.E.x,-ax.E.y,-ax.E.z):new THREE.Vector3(ax.N.x,ax.N.y,ax.N.z);
+  out.id='dso';out.row=o;out.dso=o;out.goal.copy(P).addScaledVector(u,-standPc*AU_PC);out.look.copy(P);out.stand=standPc*AU_PC;out.up=up.normalize();out.anchor=P.clone();out.tilt=1;out.name=dsName(o);out.cap='dso';return out}
+function dsNext(){const L=shipGal(),g=G(),cur=ST.card&&ST.card.dso;let best=null,bd=1e30;for(const o of DSX.rows){if(o===cur||DSX.visited[o.id]||o.t==='dn'&&!g.data.deepsky.nm[o.id])continue;const p=g.dsoPos(o,TMPG),d=Math.hypot(p.x-L.x,p.y-L.y,p.z-L.z);if(d<bd){bd=d;best=o}}if(best)travelG({dso:best})}
+// a far galaxy: turn to face it (its direction from the ship; at megaparsecs the ship's offset is nothing)
+function dsLook(o){const g=G(),lb=g.dirGal(o.gl!=null?o.gl:g.eqToGal(o.ra,o.dec).l,o.gb!=null?o.gb:g.eqToGal(o.ra,o.dec).b),d=galToScene(lb.x,lb.y,lb.z,new THREE.Vector3());
+  ship.gap=null;ship.ap=null;ship.drift=null;ship.cruise=false;ship.vel.set(0,0,0);ST.orbit=null;const look=ship.pos.clone().addScaledVector(new THREE.Vector3(d.x,d.y,d.z).normalize(),1e6);
+  lookM.lookAt(ship.pos,look,UP);const q=new THREE.Quaternion().setFromRotationMatrix(lookM);ST.park={aim:q}}
+// a view for tests and screenshots: the ship at a heliocentric galactic point (pc), looking at a deep-sky object
+function dsView(L,id){const g=G(),o=g.dso(id),v=galToScene(L.x,L.y,L.z,{x:0,y:0,z:0});ship.gap=null;ship.ap=null;ship.drift=null;ship.cruise=false;ship.vel.set(0,0,0);ST.orbit=null;ST.park=null;hideCard();
+  ship.pos.set(v.x*AU_PC,v.y*AU_PC,v.z*AU_PC);camera.position.copy(ship.pos);const p=DSX.pos.get(o);lookM.lookAt(ship.pos,new THREE.Vector3(p.x,p.y,p.z).multiplyScalar(AU_PC),UP);camera.quaternion.setFromRotationMatrix(lookM);ST.lastScan=0;AS.dirty=true}
+/* ---------- words: the card, the popover, the search ---------- */
+const dsLy=pc=>fmtN(pc*PC_LY,pc*PC_LY<10?1:pc*PC_LY<1e4?0:0);
+function dsAcross(o){const a=G().dsoSize(o).a*2*PC_LY;if(!(a>0))return '';return uf(TDS.across,{n:fmtN(a,a<1?2:a<10?1:0)})}
+function dsDist(o){return o.d>=1e6?fmtPc(o.d):fmtDist(o.d*AU_PC)}
+function dsFactsBits(o,fromShip){const bits=[ESC(dsKindWord(o))];if(o.d)bits.push(uf(TV.fromHome,{d:dsDist(o)})+(o.dq==='r'?' ('+TDS.unsure+')':''));const ac=dsAcross(o);if(ac&&!o.far)bits.push(ac);if(o.v!=null&&o.t!=='dn')bits.push('m<sub>V</sub> '+fmtN(o.v,1));
+  if(fromShip){const p=DSX.pos.get(o);if(p)bits.splice(1,0,uf(TV.fromShip,{d:fmtDist(Math.max(0,p.distanceTo(gcam.position)*AU_PC))}))}return bits}
+function dsLit(o){const k=dsKind(o),s=o.star&&o.star.n?ESC(o.star.n):'';if(o.morph==='pler')return TDS.lit.pler;if(k==='emission')return s?uf(TDS.lit.emission,{s}):TDS.lit.emission0;if(k==='reflection')return uf(TDS.lit.reflection,{s:s||'?'});if(k==='planetary')return TDS.lit.planetary;if(k==='remnant')return TDS.lit.remnant;if(k==='dark')return TDS.lit.dark;if(k==='galaxy')return TDS.lit.galaxy;return TDS.lit.cluster}
+function dsDisc(o){const d=o.disc,out=[],f=DSX.facts&&DSX.facts[o.id];if(d&&!(f&&d[0]&&f.indexOf(d[0].split(' ').pop())>=0)){if(d[1]<1000)out.push(uf(TDS.ancient,{w:ESC(d[0])}));else out.push(uf(TDS.found,{w:ESC(d[0]),y:d[1]}))}if(o.m)out.push(uf(TDS.msr,{n:o.m}));if(o.c)out.push(uf(TDS.cld,{n:o.c}));return out.join(' ')}
+const dsLink=(id,txt)=>`<button type="button" class="famlink" data-dsl="${ESC(id)}">${ESC(txt)}</button>`;
+function dsFamily(o){const g=G(),parts=[];const con=o.con&&g.constellation(o.con);if(con)parts.push(uf(TDS.con,{c:typeof openConCard==='function'?`<button type="button" class="famlink" data-fam="con:${o.con}">${ESC(g.nameOf('constellation',con,LANG))}</button>`:ESC(g.nameOf('constellation',con,LANG))}));
+  if(o.psr){const p=g.find(o.psr);if(p)parts.push(uf(TDS.psr,{p:dsLink('psr:'+o.psr,g.nameOf('pulsar',p,LANG))}))}
+  if(o.part||o.part0){const p=g.dso(o.part||o.part0);if(p)parts.push(uf(TDS.parent,{p:dsLink(p.id,dsName(p))}))}
+  const kids=g.deepsky().filter(x=>x.part===o.id||x.part0===o.id);if(kids.length)parts.push(uf(TDS.parts,{p:kids.map(x=>dsLink(x.id,dsName(x))).join(', ')}));
+  if(o.parentglow){const p=g.dso(o.parentglow);if(p)parts.push(uf(TDS.glow,{p:dsLink(p.id,dsName(p))}))}
+  const sil=g.deepsky().filter(x=>x.parentglow===o.id);if(sil.length)parts.push(uf(TDS.sil,{p:sil.map(x=>dsLink(x.id,dsName(x))).join(', ')}));
+  return parts.join(' · ')}
+function dsCardHTML(gp){const o=gp.dso,S2=TX.st,fact=DSX.facts&&DSX.facts[o.id],des=o.des.filter(x=>x!==dsName(o)).slice(0,3).join(' · '),hasSpec=o.t!=='gal';
+  const hl=o.t==='dn'?TDS.hush:(o.t==='oc'||o.t==='gc'||o.t==='sc')?TDS.stars:TDS.hear;
+  return `<div class="gch"><b>${ESC(dsName(o))}${des?` <small class="dsdes">${ESC(des)}</small>`:''}</b><button class="gx" data-a="x" aria-label="${ESC(S2.close)}">×</button></div>`+
+    `<div class="gcf">${dsFactsBits(o).join(' · ')}</div><div class="gcl dslit">${dsLit(o)}</div>`+(fact?`<div class="dsfact">${ESC(fact)}</div>`:'')+`<div class="dsdisc">${dsDisc(o)}</div>`+
+    `<div class="fam">${dsFamily(o)}</div>`+
+    `<div class="gcb"><button class="chip" data-a="orbit">${ESC(S2.orbit)}</button>${hasSpec?`<button class="chip" data-a="spec">${ESC(hl)}</button>`:''}<button class="chip" data-a="next">${ESC(TDS.next)}</button><button class="chip" data-a="home">${ESC(S2.home)}</button></div>`}
+function dsCard(gp){if(!cardEl)return;ST.card=gp;cardEl.classList.remove('bhcard');cardEl.innerHTML=dsCardHTML(gp);cardEl.hidden=false;cardEl.classList.add('on');cardButtons();if(capEl){capEl.classList.remove('on');clearTimeout(caption.h)}DSX.visited[gp.dso.id]=true}
+function dsPopButtons(body){const o=body.row;if(o.far)return `<button class="chip" data-a="dslook">${ESC(TDS.look)}</button>`;const hl=o.t==='dn'?TDS.hush:(o.t==='oc'||o.t==='gc'||o.t==='sc')?TDS.stars:TDS.hear;
+  return `<button class="chip" data-a="go">${ESC(TV.go)}</button><button class="chip" data-a="jump">${ESC(TV.jump)}</button><button class="chip" data-a="spec">${ESC(hl)}</button>`}
+function dsPopFacts(body){const o=body.row;if(o.far){const f=DSX.facts&&DSX.facts[o.id];return [ESC(dsKindWord(o)),uf(TDS.far,{d:fmtPc(o.d)})].concat(f?[ESC(f)]:[]).concat(o.note?[]:[])}const f=dsFactsBits(o,true);if(o.note)f.push(ESC(o.note));return f}
+function dsSub(r){const o=r.row;if(o.far)return dsKindWord(o)+' · '+fmtPc(o.d);if(!o.d)return dsKindWord(o)+(o.note?' · '+o.note:'');return dsKindWord(o)+' · '+dsDist(o)}
+function dsDisp(r){const o=r.row,nm=dsName(o),own=[o.n!==nm?o.n:'',o.des.filter(x=>x!==nm&&x!==o.n)[0]||''].filter(Boolean).join(' · ');return ESC(nm)+(own?` <small>${ESC(own)}</small>`:'')}
+// the links in the card and popover (data-dsl): another deep-sky object, or the pulsar
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-dsl],[data-a="dslook"]');if(!b)return;e.preventDefault();e.stopPropagation();if(typeof resumeAudio==='function')resumeAudio();
+  if(b.dataset.a==='dslook'){const o=ST.pop&&ST.pop.row;hidePop();if(o)dsLook(o);return}
+  const v=b.dataset.dsl;if(v.indexOf('psr:')===0){const p=G().find(v.slice(4));if(p){hidePop();travelG({pulsar:p})}return}const o=G().dso(v);if(o&&!o.far){hidePop();travelG({dso:o})}},true);
+
+/* ---------- the Spectrum sheet: the text, the drawing, the chord and the sweep ---------- */
+function dsSheetText(o){const g=G(),C=g.dsoLineChord(o,{exag:ST.exag}),k=dsKind(o),R=g.data.deepsky.refs,ref=key=>(R[key]||key).split(' — ')[0];let parts=[],refs='';
+  if(C.em&&k!=='dark'){parts.push(TDS.sp.rule);const L=g.dsoLines(o);if(L.measured==='all')parts.push(uf(TDS.sp.meas,{r:ref(L.src)}));else if(C.partial)parts.push(uf(TDS.sp.part,{r:ref(L.src)}));else parts.push(uf(TDS.sp.typ,{k:dsKindWord(o),r:ref(L.src)}));
+    if(C.sync)parts.push(TDS.sp.sync);if(C.lines.some(x=>x.key==='N2c')&&C.lines.some(x=>x.key==='Ha'))parts.push(TDS.sp.beat);refs=ref(L.src)}
+  else if(k==='reflection')parts.push(uf(TDS.sp.refl,{s:(o.star&&o.star.n)||'?',T:fmtN(C.T||15000,0)}));
+  else if(k==='dark'){parts.push(TDS.sp.dark);if(C.glow){const p=G().dso(C.glow);parts.push(uf(TDS.sp.darkglow,{p:ESC(dsName(p))}));refs=ref(C.src)}}
+  else if(C.arp){const a=o.t==='gc'?uf(TDS.sp.gyr,{n:fmtN(12,0)}):o.age?(Math.pow(10,o.age)>=1e9?uf(TDS.sp.gyr,{n:fmtN(Math.pow(10,o.age-9),1)}):uf(TDS.sp.myr,{n:fmtN(Math.pow(10,o.age-6),Math.pow(10,o.age-6)<10?1:0)})):'';
+    const list=C.lines.map(x=>(x.n&&!/ K$/.test(x.n)?x.n+' ':'')+fmtN(Math.round(x.T/100)*100,0)+' K → '+fmtN(x.f,0)+' Hz').join(', ');parts.push(uf(TDS.sp.cl,{list:ESC(list)})+' ('+(C.members?TDS.sp.clm:uf(TDS.sp.clt,{a}))+')')}
+  if(o.rv&&C.lines.length)parts.push(ESC(uf(TV.sp.chord,{dop:dopWord(o)})));
+  return {txt:parts.join(' '),ref:refs?(uf(TG.src||'{r}',{r:refs})):''}}
+function dsDraw(c,W,H,body){const g=G(),o=body.row,sp=g.dsoSpectrum(o,{n:Math.max(256,Math.min(1024,Math.round(W*1.5)))}),lo=sp.lo,hi=sp.hi,xOf=nm=>(nm-lo)/(hi-lo)*W,n=sp.n,C=g.dsoLineChord(o,{exag:ST.exag});
+  const stripY=H*.62,stripH=H*.19,top=16,curveH=stripY-44,k=sp.kind,em=!!sp.lines||!!C.glow;if(C.glow&&!sp.lines){const sg=g.dsoSpectrum(C.glow,{n:sp.n});for(let i=0;i<sp.n;i++){const t=Math.pow(10,-.4*Math.pow(550/sp.nm[i],1.7));sp.I[i]=Math.max(sp.I[i],sg.I[i]*t*.35)}sp.lines=sg.lines}
+  // the strip: the light at each wavelength in its colour (a nebula's bright lines on black; reflected or cluster light as a continuum)
+  for(let x=0;x<Math.round(W);x++){const nm=lo+(hi-lo)*x/(W-1),i=Math.min(n-1,Math.round((nm-lo)/(hi-lo)*(n-1))),rgb=g.wavelengthRGB(nm),v=Math.min(1,em?Math.pow(sp.I[i],.55)*1.2:Math.pow(sp.I[i],.6)),m=em?(u=>Math.round(255*(u+(1-u)*.35*Math.max(0,v-.5)))):(u=>Math.round(255*u));c.fillStyle=`rgb(${Math.round(m(rgb[0])*v)},${Math.round(m(rgb[1])*v)},${Math.round(m(rgb[2])*v)})`;c.fillRect(x,stripY,1.5,stripH)}
+  // the curve
+  c.beginPath();for(let i=0;i<n;i++){const x=xOf(sp.nm[i]),y=top+curveH*(1-Math.min(1,sp.I[i]));i?c.lineTo(x,y):c.moveTo(x,y)}c.strokeStyle='rgba(233,225,204,.85)';c.lineWidth=1.2;c.stroke();
+  if(em&&sp.sync){c.beginPath();for(let i=0;i<n;i++){const x=xOf(sp.nm[i]),y=top+curveH*(1-sp.cont[i]);i?c.lineTo(x,y):c.moveTo(x,y)}c.strokeStyle='rgba(160,190,255,.6)';c.setLineDash([3,3]);c.stroke();c.setLineDash([])}
+  // labels of the strongest lines (or the cluster's stars at their peaks)
+  c.font=MONO;const lab=[];const put=(x,txt,col)=>{const tw=c.measureText(txt).width+8;let row=-1;for(let r=0;r<3&&row<0;r++)if(!lab.some(p=>p.r===r&&Math.abs(p.x-x)<(p.w+tw)/2))row=r;if(row<0)return;lab.push({x,r:row,w:tw});c.fillStyle=col;c.textAlign=x<tw/2?'left':x>W-tw/2?'right':'center';c.fillText(txt,x<tw/2?2:x>W-tw/2?W-2:x,stripY-6-row*11)};
+  const now=AC?AC.currentTime:0,playing=HEAR&&HEAR.kind==='chord'&&HEAR.ds===o;
+  if(em)sp.lines.slice(0,9).forEach((L,j)=>{const x=xOf(L.nm);if(x<0||x>W)return;let lv=1;if(playing){const idx=HEAR.C.lines.findIndex(q=>q.key===L.key);lv=idx>=0?chordLevel(HEAR,idx,now):0;c.fillStyle=`rgba(255,250,235,${(.6*lv).toFixed(2)})`;c.fillRect(x-1.5,stripY-2,3,stripH+4)}put(x,`${L.n} ${fmtN(L.f,0)}`,`rgba(201,152,79,${(.45+.55*lv).toFixed(2)})`)});
+  else if(C.arp)C.lines.forEach((L,j)=>{const x=clamp(xOf(L.nm),6,W-6);c.fillStyle='rgba(233,225,204,.7)';c.fillRect(x-.5,stripY-4,1,stripH+4);put(x,`${fmtN(Math.round(L.T/100)*100,0)} K ${fmtN(L.f,0)}`,'rgba(201,152,79,.95)')});
+  else if(k==='reflection')C.lines.slice(0,6).forEach(L=>{const x=xOf(L.nm);if(x>0&&x<W){c.fillStyle='rgba(0,0,0,.7)';c.fillRect(x-1,stripY,2,stripH);put(x,L.n.replace(/ \d.*$/,''),'rgba(233,225,204,.85)')}});
+  // axis and legend
+  c.fillStyle='rgba(174,167,145,.9)';c.font=MONO;c.textAlign='center';[400,450,500,550,600,650,700].forEach(nm=>{const x=xOf(nm);c.fillRect(x-.5,stripY+stripH,1,4);c.fillText(nm+(nm===400?' nm':''),x,stripY+stripH+15)});
+  c.textAlign='left';c.fillStyle='#e9e1cc';c.fillText(em?TDS.sp.legend+(sp.sync?' · - - '+TDS.sp.legC:''):'',4,H-4)}
+function dsHearChord(){const sh=ST.sheet;if(!sh||!AC)return;const out=hearBus();if(!out)return;stopHear();const o=sh.body.row,g=G(),C=g.dsoLineChord(o,{exag:ST.exag}),t=AC.currentTime,dur=1e9;
+  const br=mkGain(.89,out),lfo=AC.createOscillator();lfo.frequency.value=.11;const ld=mkGain(.11,br.gain);lfo.connect(ld);lfo.start(t);const nodes=[br],srcs=[lfo];let gr={parts:[],srcs:[],nodes:[],taps:[],retune:()=>{}};
+  if(C.hush){// the hush: the starlight behind, dimmed and reddened to a whisper (lowpassed noise, very quiet, breathing)
+    const lp=krBiq(AC.createBiquadFilter());lp.type='lowpass';lp.frequency.value=260;lp.Q.value=.4;const gg=mkGain(0,br);noiseBus.connect(lp);lp.connect(gg);gg.gain.setValueAtTime(0,t);gg.gain.linearRampToValueAtTime(.05,t+2.5);nodes.push(gg);GA.hearTaps=(GA.hearTaps||[]).concat([[noiseBus,lp]])}
+  if(!C.hush||C.lines.length){gr=chordGraph(AC,noiseBus,C,t+.02,{stag:C.arp?.42:CHORD_STAG});gr.master.connect(br);gr.master.gain.setValueAtTime(0,t);gr.master.gain.linearRampToValueAtTime(1,t+.5);srcs.push.apply(srcs,gr.srcs);nodes.push.apply(nodes,gr.nodes);GA.hearTaps=(GA.hearTaps||[]).concat(gr.taps);
+    if(C.sync){// synchrotron: a power law in light becomes a soft, darkened noise under the lines
+      const hp=krBiq(AC.createBiquadFilter());hp.type='highpass';hp.frequency.value=140;const lp=krBiq(AC.createBiquadFilter());lp.type='lowpass';lp.frequency.value=2400;lp.Q.value=.3;const gg=mkGain(.022,gr.master);noiseBus.connect(hp);hp.connect(lp);lp.connect(gg);nodes.push(gg);GA.hearTaps=(GA.hearTaps||[]).concat([[noiseBus,hp]])}}
+  HEAR={kind:'chord',ds:o,t0:t,dur,srcs,nodes,gr,C,exag:ST.exag};AS.solo={body:null,row:null,until:performance.now()/1000+dur};sh.want=true;
+  const b=sheetEl.querySelector('[data-a="chord"]');if(b){b.textContent=TV.stop;b.classList.add('on')}MOTS.sheetDuck(true);
+  let lastD=0;const tick=()=>{if(!HEAR||HEAR.kind!=='chord'||HEAR.ds!==o)return;hearVolTick();if(ST.exag!==HEAR.exag&&!C.hush){HEAR.exag=ST.exag;const C2=g.dsoLineChord(o,{exag:ST.exag});HEAR.gr.retune(C2.dop,AC.currentTime);HEAR.C=C2}
+    const now=performance.now();if(AC.currentTime-HEAR.t0<4||now-lastD>250){lastD=now;drawSheet()}HEAR.raf=requestAnimationFrame(tick)};tick()}
+// the sweep, violet → red over 8 s, through its light (its bright lines swell as the sweep crosses them; a dark nebula a dim, reddened whisper)
+function dsHearSweep(){const sh=ST.sheet;if(!sh||!AC)return;const out=hearBus();if(!out)return;stopHear();const o=sh.body.row,sp=G().dsoSpectrum(o,{n:1024}),n=sp.n,dur=8,F=new Float32Array(n),A=new Float32Array(n),t=AC.currentTime;
+  const em=!!sp.lines;for(let i=0;i<n;i++){F[i]=C_KMS*1e12/sp.nm[i]/Math.pow(2,40);A[i]=(em?.16:.13)*Math.pow(Math.min(1,sp.I[i]),em?.5:.7)}
+  const os=AC.createOscillator();os.type='sine';const o2=AC.createOscillator();o2.type='triangle';const gg=mkGain(0),g2=mkGain(.08);os.connect(gg);o2.connect(g2);g2.connect(gg);gg.connect(out);
+  const t1=Math.max(t,AC.currentTime)+.03;os.frequency.setValueAtTime(F[0],t1-.02);os.frequency.setValueCurveAtTime(F,t1,dur-.04);o2.frequency.setValueAtTime(F[0]*2,t1-.02);o2.frequency.setValueCurveAtTime(F.map(x=>x*2),t1,dur-.04);
+  gg.gain.setValueAtTime(0,t1-.02);gg.gain.linearRampToValueAtTime(A[0],t1);gg.gain.setValueCurveAtTime(A,t1,dur-.04);gg.gain.setTargetAtTime(0,t1+dur-.02,.05);os.start(t1-.02);o2.start(t1-.02);os.stop(t1+dur+.4);o2.stop(t1+dur+.4);
+  HEAR={kind:'spec',t0:t1-.02,dur,srcs:[os,o2],nodes:[gg,g2],fOf:u=>F[Math.min(n-1,Math.round(u*(n-1)))],end:setTimeout(()=>{const s0=ST.sheet,back=!!(s0&&s0.want&&s0.body===sh.body);stopHear();if(back&&ST.sheet===s0)dsHearChord()},(dur+.5)*1000)};AS.solo={body:null,row:null,until:performance.now()/1000+dur};
+  const b=sheetEl.querySelector('[data-a="hear"]');if(b){b.textContent=TV.stop;b.classList.add('on')}MOTS.sheetDuck(true);const tick=()=>{if(!HEAR||HEAR.kind!=='spec')return;hearVolTick();drawSheet();HEAR.raf=requestAnimationFrame(tick)};tick()}
+// the sweep's cursor over the deep-sky drawing
+function dsDrawCursor(c,W,H){if(!(HEAR&&HEAR.kind==='spec'))return;const stripY=H*.62,stripH=H*.19,u=clamp((AC.currentTime-HEAR.t0)/HEAR.dur,0,1),x=u*W,nm=360+390*u;c.fillStyle='rgba(255,255,255,.9)';c.fillRect(x-1,10,2,stripY+stripH-10);c.font=MONO;c.textAlign=x>W*.6?'right':'left';c.fillStyle='#e9e1cc';c.fillText(`${fmtN(nm,0)} nm · ${fmtN(HEAR.fOf(u),0)} Hz`,x+(x>W*.6?-5:5),H-16)}
+// styles for the card's extra lines and the labels
+{const st=document.createElement('style');st.textContent=`.gcard .dsfact{font-size:.86em;color:var(--vellum)}.gcard .dsdisc{font-size:.8em;color:var(--vellum-dim)}.gcard .dsdes{font-family:var(--f-mono);font-size:.62em;color:var(--vellum-dim);margin-left:.4em;letter-spacing:.02em}
+.lbl.dso{font-family:var(--f-body);font-style:italic;color:#dcb7bf}.lbl.dso-planetary{color:#9fd8cf}.lbl.dso-reflection{color:#aec2f0}.lbl.dso-open,.lbl.dso-globular,.lbl.dso-starcloud{color:#e3d7b8}.lbl.dso-dark{color:#b3a99a}.lbl.dso-remnant{color:#e0a9a0}.lbl.dso.target{color:var(--bronze)}
+@media (max-width:620px),(pointer:coarse) and (orientation:portrait){.gcard .dsdisc{display:none}.gcard .dsfact{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}}`;document.head.appendChild(st)}
+
 const api={aim:{measure:aimMeasure,pick:aimPick,info:aimInfo,dist:r=>fmtDist(r),label:aimLabel},base,frame,render,audio,readout,labels,travel:travelG,caption,ST,AS,OPT,GA:()=>GA,TX,TL,gscene,gcam,far:()=>ST.r>FAR_AU,card:()=>cardEl,nextStar,nextGalaxy,orbit:()=>ST.card&&startOrbit(ST.card),
   search:(q,n)=>G().search(q,{n:n||9}),pick:(r,jump)=>pick(r,jump),searchFor,SR,galPos:id=>GALPOS[id],
   setOpt:(k,v)=>{OPT[k]=v;saveOpt();if(GA){tgt(GA.starG.gain,OPT.vol,.1);tgt(GA.chordG.gain,OPT.dmVol,.1)}refreshHear()},
@@ -12633,6 +13236,8 @@ const api={aim:{measure:aimMeasure,pick:aimPick,info:aimInfo,dist:r=>fmtDist(r),
     hs:()=>BHA.hsO?{f:BHA.hsO.frequency.value,g:BHX.hsG,ph:BHX.hsPh,gain:BHA.hsG.gain.value,tAcc:BHX.tAcc}:null,gains:()=>({flow:BHA.flowG&&BHA.flowG.gain.value,x:BHA.xG&&BHA.xG.gain.value,xo:BHA.xOut&&BHA.xOut.gain.value,hs:BHA.hsG&&BHA.hsG.gain.value,jet:BHA.jG&&BHA.jG.gain.value}),hearing:()=>HEAR&&{kind:HEAR.kind,dur:HEAR.dur,stretch:HEAR.stretch}},
   ready:()=>loading,tYr,near:NEAR,shipPos:()=>ship.pos,starScene:(row)=>starScene(row,{x:0,y:0,z:0}),goalOf,
   mw:()=>MW,galToScene,hideCard,cardEl:()=>cardEl};   // mw/galToScene/hideCard: the Galactic year (fly_gyear.js)
+// the deep-sky objects (fly_deepsky.js), for the pages' tests and the constellation cards
+api.ds={X:DSX,TX:TDS,view:(L,id)=>dsView(L,id),rows:()=>DSX.rows,travel:id=>{const o=G().dso(id);if(o)travelG({dso:o})},jump:id=>{const o=G().dso(id);if(o)jumpTo({dso:o})},sheet:id=>openSheet('spec',{kind:'dso',row:G().dso(id)}),hear:()=>hearChord(),card:()=>ST.card&&ST.card.dso?ST.card.dso.id:null,label:id=>DSX.lbl.get(G().dso(id))||null,pos:id=>DSX.pos.get(G().dso(id)),look:id=>dsLook(G().dso(id)),pop:id=>openPop({kind:'dso',row:G().dso(id)}),chord:id=>G().dsoLineChord(id,{exag:ST.exag}),hearing:()=>HEAR?{kind:HEAR.kind,ds:HEAR.ds?HEAR.ds.id:null,n:HEAR.C&&HEAR.C.lines?HEAR.C.lines.length:0}:null};
 window.FLYG=api;return api;
 })();
 
@@ -12742,7 +13347,8 @@ html.mots-proj .readout .fam{display:none}
       const c=companions(r);if(c.length)parts.push(lab(T.sys,c.map(x=>link('star:'+x.id,starNm(x))).join(' · ')));
       if(r.con)parts.push(conLink(r.con))}
     else if(body.kind==='pulsar'){const a=assoc(r);
-      if(a.SNR){const n=a.SNR==='Crab'?T.crab:a.SNR==='Vela'?velaNm():a.SNR.replace(/_/g,' ');parts.push(lab(T.snr,esc(n)))}
+      if(a.SNR){const n=a.SNR==='Crab'?T.crab:a.SNR==='Vela'?velaNm():a.SNR.replace(/_/g,' '),ds=g.deepsky&&g.deepsky().find(o=>o.psr===r.j);   // the remnant drawn in the Flight (fly_deepsky.js): a link there
+        parts.push(lab(T.snr,ds?`<button type="button" class="famlink" data-dsl="${esc(ds.id)}">${esc(n)}</button>`:esc(n)))}
       if(a.EXGAL){const x=g.galaxy(a.EXGAL.toLowerCase());parts.push(lab(T.galaxy,x?link('gal:'+x.id,galNm(x)):esc(a.EXGAL)))}
       if(a.GC)parts.push(lab(T.gcl,esc(a.GC.replace(/^([A-Za-z]+)(\d)/,'$1 $2'))))}
     else if(body.kind==='bh'){
