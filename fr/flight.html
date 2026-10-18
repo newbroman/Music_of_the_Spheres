@@ -13609,6 +13609,262 @@ if(tt&&sl){
 }
 }
 
+/* ---------- the drawers: the HUD tucks away into three edge drawers, each with a slim bronze pull-tab ----------
+   Top (Menu): the site navigation, the title, date and speed, the keys line and the header buttons.
+   Bottom (Travel): the travel ribbon, the readout and the arrival captions; the tab rides on the ribbon's top edge.
+   Info: the current card (a star, galaxy, nebula, black hole, the Galactic year). On a wide screen it is a side drawer on the left with
+   its tab on the card's right edge; on a phone (upright or sideways) the card slides down into its tab, which rides beside Travel.
+   The ▲▼ buttons never hide (they fly the ship); in Clear view they turn to faint outlines. Clear view (the eye beside Menu, or H) hides
+   everything but the tabs and the crosshair; H again, the eye, or any tab brings it all back. Begin stays in place until the sound starts.
+   Each drawer is remembered per device and per layout (wide, phone upright, phone sideways). On a phone held sideways the top and bottom
+   drawers tuck themselves away once, after the first minute of flight with the sound on, unless you have already chosen.
+   Everything moves with transform only, and nothing hidden can catch a tap: the drag-to-look works where the boxes were. */
+{
+const DT={
+ en:{menu:'Menu',travel:'Travel',info:'Info',clear:'Clear view',show:'Show the controls',nw:'new',key:'clear view',tuck:'Controls tucked away: tap a tab, or press H, to bring them back'},
+ pl:{menu:'Menu',travel:'Podróż',info:'Info',clear:'Czysty widok',show:'Pokaż sterowanie',nw:'nowe',key:'czysty widok',tuck:'Sterowanie schowane: dotknij zakładki albo naciśnij H, aby je przywrócić'},
+ cy:{menu:'Dewislen',travel:'Teithio',info:'Manylion',clear:'Golwg glir',show:'Dangos y rheolyddion',nw:'newydd',key:'golwg glir',tuck:'Mae’r rheolyddion o’r golwg: tapiwch dab, neu bwyswch H, i’w dangos eto'},
+ de:{menu:'Menü',travel:'Reise',info:'Info',clear:'Freie Sicht',show:'Bedienelemente zeigen',nw:'neu',key:'freie Sicht',tuck:'Bedienelemente eingeklappt: tippe auf einen Reiter oder drücke H, um sie zurückzuholen'},
+ es:{menu:'Menú',travel:'Viajar',info:'Info',clear:'Vista despejada',show:'Mostrar los controles',nw:'nuevo',key:'vista despejada',tuck:'Controles recogidos: toca una pestaña o pulsa H para recuperarlos'},
+ fr:{menu:'Menu',travel:'Voyage',info:'Infos',clear:'Vue dégagée',show:'Afficher les commandes',nw:'nouveau',key:'vue dégagée',tuck:'Commandes rangées : touchez un onglet ou appuyez sur H pour les faire revenir'},
+ it:{menu:'Menu',travel:'Viaggia',info:'Info',clear:'Vista libera',show:'Mostra i comandi',nw:'nuovo',key:'vista libera',tuck:'Comandi nascosti: tocca una linguetta o premi H per riaverli'},
+ zh:{menu:'菜单',travel:'航行',info:'信息',clear:'纯净视野',show:'显示控件',nw:'新',key:'纯净视野',tuck:'控件已收起：点按标签或按 H 键即可恢复'},
+ ja:{menu:'メニュー',travel:'移動',info:'情報',clear:'すっきり表示',show:'操作パネルを表示',nw:'新着',key:'すっきり表示',tuck:'操作パネルをしまいました。タブをタップするか H キーで戻せます'},
+ vi:{menu:'Menu',travel:'Di chuyển',info:'Thông tin',clear:'Xem thoáng',show:'Hiện các nút điều khiển',nw:'mới',key:'xem thoáng',tuck:'Đã thu gọn các nút điều khiển: chạm vào một tab hoặc nhấn H để hiện lại'},
+ bg:{menu:'Меню',travel:'Пътувай',info:'Инфо',clear:'Чист изглед',show:'Покажи контролите',nw:'ново',key:'чист изглед',tuck:'Контролите са прибрани: докосни раздел или натисни H, за да ги върнеш'},
+ pt:{menu:'Menu',travel:'Viajar',info:'Info',clear:'Visão limpa',show:'Mostrar os controles',nw:'novo',key:'visão limpa',tuck:'Controles recolhidos: toque em uma aba ou aperte H para trazê-los de volta'}};
+const DL=Object.assign({},DT.en,DT[(document.documentElement.lang||'en').slice(0,2)]||{});
+const HT=document.documentElement,q=s=>document.querySelector(s);
+const tlEl=q('.hud.tl'),trEl=q('.hud.tr'),bcEl=q('.hud.bc');
+if(tlEl&&trEl&&bcEl){
+const LSK='mots.fly.drawers',TABH=28;
+const load=()=>{try{const o=JSON.parse(localStorage.getItem(LSK)||'{}');return o&&typeof o==='object'?o:{}}catch(e){return {}}};
+const save=o=>{try{localStorage.setItem(LSK,JSON.stringify(o))}catch(e){}};
+const MQL=matchMedia('(max-height:520px) and (orientation:landscape)'),MQP=matchMedia('(max-width:620px)'),MQR=matchMedia('(prefers-reduced-motion:reduce)');
+const modeOf=()=>MQL.matches?'land':MQP.matches?'phone':'wide';
+let MODE=modeOf(),ALL=load(),st=null,clear=false,lastTouch=0,flyT0=0;
+const stateFor=m=>{const s=ALL[m]||{};return {top:s.top!==0,bot:s.bot!==0,info:s.info!==0}};
+st=stateFor(MODE);
+
+/* ---- the look: bronze on deep blue, like the ribbon's cards ---- */
+const off=(k,list)=>{const out=[];[k,'drw-clear'].forEach(c=>list.forEach(m=>out.push(`html.drw-on.${c} ${m}`)));return out.join(',')};
+const on=list=>list.map(m=>'html.drw-on '+m).join(',');
+const TOPM=['.hud.tl','.hud.tr > :not(#begin)','.hud.tr > #begin[aria-pressed="true"]'];
+const BOTM=['#ribbon','.hud.bc > .readout'];
+const INFM=['#galCard','#gyCard'];
+const EASE='cubic-bezier(.22,.8,.24,1)',DUR='.34s';
+const css=document.createElement('style');css.id='drwCss';css.textContent=`
+${on(TOPM.concat(BOTM,INFM,['#galCap']))}{transition:transform ${DUR} ${EASE},opacity .32s ease,visibility 0s linear 0s}
+${off('drw-top-off',TOPM)}{transform:translateY(calc(-1 * var(--drw-top-d,300px)));opacity:0;visibility:hidden;pointer-events:none;transition:transform ${DUR} ${EASE},opacity .28s ease,visibility 0s linear ${DUR}}
+${off('drw-bot-off',BOTM)},${['drw-bot-off','drw-clear'].map(c=>`html.drw-on.${c}.drw-m-wide #galCap,html.drw-on.${c}.drw-m-phone #galCap`).join(',')}{transform:translateY(var(--drw-bot-d,300px));opacity:0;visibility:hidden;pointer-events:none;transition:transform ${DUR} ${EASE},opacity .28s ease,visibility 0s linear ${DUR}}
+${off('drw-info-off',INFM)},${['drw-info-off','drw-clear'].map(c=>`html.drw-on.${c}.drw-m-land #galCap`).join(',')}{opacity:0;visibility:hidden;pointer-events:none;transition:transform ${DUR} ${EASE},opacity .28s ease,visibility 0s linear ${DUR}}
+${['drw-info-off','drw-clear'].map(c=>`html.drw-on.drw-m-wide.${c} #galCard,html.drw-on.drw-m-wide.${c} #gyCard`).join(',')}{transform:translateX(calc(-1 * var(--drw-info-d,600px)))}
+${['drw-info-off','drw-clear'].map(c=>`html.drw-on.drw-m-phone.${c} #galCard,html.drw-on.drw-m-phone.${c} #gyCard,html.drw-on.drw-m-land.${c} #gyCard,html.drw-on.drw-m-land.${c} #galCard.bhcard`).join(',')}{transform:translateY(var(--drw-info-d,900px))}
+${['drw-info-off','drw-clear'].map(c=>`html.drw-on.drw-m-land.${c} #galCard:not(.bhcard),html.drw-on.drw-m-land.${c} #galCap`).join(',')}{transform:translateX(-50%) translateY(var(--drw-info-d,900px))}
+/* wide screens: the card is a side drawer on the left, in the lower half (the object it describes keeps the middle of the sky) */
+html.drw-on.drw-m-wide #galCard{position:fixed;left:calc(env(safe-area-inset-left,0px) + .8rem);right:auto;top:auto;bottom:var(--drw-cb,10rem);width:min(31rem,38vw);min-width:min(20rem,calc(100vw - 2rem));max-width:none;max-height:var(--drw-cmh,20rem);overflow-y:auto;overscroll-behavior:contain;z-index:5;box-shadow:0 10px 34px rgba(0,0,0,.45);scrollbar-width:thin}
+html.drw-on.drw-m-wide #galCard > *{flex-shrink:0}
+html.drw-on.drw-m-wide #gyCard{bottom:var(--drw-cb,10rem)}
+/* an upright phone: the arrival toast sits under the header (or under the tabs when it is tucked away), not over the navigation */
+html.drw-on.drw-m-phone .toast{top:calc(var(--drw-top-b,120px) + ${TABH+12}px)}
+html.drw-on.drw-m-phone.drw-top-off .toast,html.drw-on.drw-m-phone.drw-clear .toast{top:calc(env(safe-area-inset-top,0px) + ${TABH+12}px)}
+/* the tabs ride on the ribbon's top edge: room for them above it (an upright layout), and the cards keep clear of them */
+html.drw-on.drw-m-wide .hud.bc > #ribbon,html.drw-on.drw-m-phone .hud.bc > #ribbon{margin-top:${TABH+2}px}
+html.drw-on.drw-m-phone #gyCard{margin-bottom:${TABH+2}px}
+html.drw-on.drw-m-land:not(.drw-bot-off):not(.drw-clear) #galCard:not(.bhcard){max-height:var(--drw-cmh-l,60vh);overflow-y:auto;overscroll-behavior:contain}
+html.drw-on.drw-m-land #galCard > *{flex-shrink:0}
+#panel{z-index:9}
+/* Clear view: the crosshair's name and any language hint step aside; the ▲▼ buttons become faint outlines, full again under a finger */
+html.drw-on.drw-clear .xh,html.drw-on.drw-clear #langHint{visibility:hidden}
+html.drw-on .thrust button{transition:opacity .3s,background-color .3s,border-color .3s}
+html.drw-on.drw-clear .thrust button{background:rgba(10,12,24,.18);border-color:rgba(201,152,79,.3);backdrop-filter:none;-webkit-backdrop-filter:none;opacity:.5}
+html.drw-on.drw-clear .thrust button:hover,html.drw-on.drw-clear .thrust button.on{opacity:1;border-color:var(--bronze)}
+/* the tabs */
+.drw-topg,.drw-rail,.drw-side{display:none}
+html.drw-on .drw-topg,html.drw-on .drw-rail{display:flex}
+html.drw-on.drw-m-wide:not(.drw-nocard) .drw-side{display:block}
+.drw-topg{position:fixed;z-index:7;left:calc(env(safe-area-inset-left,0px) + 14px);top:0;gap:4px;pointer-events:none;transform:translateY(calc(var(--drw-top-b,120px) + var(--drw-n,0px)))}
+html.drw-top-off .drw-topg,html.drw-clear .drw-topg{transform:translateY(calc(env(safe-area-inset-top,0px) + var(--drw-top-c,0px) + var(--drw-n,0px)))}
+.drw-rail{position:fixed;z-index:7;left:var(--drw-rail-l,0px);width:var(--drw-rail-w,100vw);bottom:var(--drw-bot-h,120px);justify-content:center;align-items:flex-end;gap:8px;pointer-events:none;transform:translateY(var(--drw-n,0px))}
+html.drw-bot-off .drw-rail,html.drw-clear .drw-rail{transform:translateY(calc(var(--drw-bot-h,120px) - env(safe-area-inset-bottom,0px) + var(--drw-n,0px)))}
+.drw-side{position:fixed;z-index:7;left:0;top:var(--drw-info-y,40vh);pointer-events:none;transform:translateX(calc(var(--drw-info-x,0px) + var(--drw-n,0px)))}
+html.drw-info-off .drw-side,html.drw-clear .drw-side{transform:translateX(calc(env(safe-area-inset-left,0px) + var(--drw-n,0px)))}
+/* the tabs glide only when a drawer moves; when the header or the card merely changes size they keep to its edge at once */
+html.drw-anim .drw-topg,html.drw-anim .drw-rail,html.drw-anim .drw-side{transition:transform ${DUR} ${EASE}}
+.drw-drag{transition:none!important}
+.drw-tab,.drw-eye{position:relative;pointer-events:auto;appearance:none;-webkit-appearance:none;margin:0;display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
+  height:${TABH}px;min-width:44px;padding:0 .75rem 0 .6rem;color:var(--vellum-dim,#aea791);font:500 .68rem/1 var(--f-body,system-ui,sans-serif);letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;
+  background:linear-gradient(180deg,rgba(26,24,34,.9),rgba(8,10,20,.86));border:1px solid rgba(201,152,79,.5);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 3px 12px rgba(0,0,0,.45);transition:color .2s,border-color .2s,background-color .2s}
+:lang(zh) .drw-tab,:lang(ja) .drw-tab{letter-spacing:.04em;font-size:.72rem}
+.drw-tab::after,.drw-eye::after{content:"";position:absolute;left:-3px;right:-3px;top:0;bottom:-16px}
+.drw-rail .drw-tab::after{top:-16px;bottom:0}
+.drw-tab svg,.drw-eye svg{flex:none;color:var(--bronze,#c9984f);transition:transform ${DUR} ${EASE}}
+.drw-tab:hover,.drw-eye:hover,.drw-tab:focus-visible,.drw-eye:focus-visible{color:var(--vellum,#e9e1cc);border-color:var(--bronze,#c9984f)}
+.drw-tab:focus-visible,.drw-eye:focus-visible{outline:2px solid var(--bronze,#c9984f);outline-offset:2px}
+.drw-topg .drw-tab,.drw-topg .drw-eye{border-top-color:transparent;border-radius:0 0 11px 11px}
+.drw-topg .drw-eye{padding:0;width:44px}
+.drw-eye[aria-pressed="true"]{color:#f3d9a4;border-color:var(--bronze,#c9984f);background:linear-gradient(180deg,rgba(201,152,79,.3),rgba(201,152,79,.12)),rgba(8,10,20,.86)}
+.drw-rail .drw-tab{border-bottom-color:transparent;border-radius:11px 11px 0 0}
+.drw-side .drw-tab{flex-direction:row;height:auto;min-height:84px;width:${TABH}px;min-width:${TABH}px;padding:.65rem 0;border-left-color:transparent;border-radius:0 11px 11px 0;writing-mode:vertical-rl;text-orientation:mixed}
+.drw-side .drw-tab::after{left:0;right:-16px;top:-4px;bottom:-4px}
+.drw-side .drw-tab svg{writing-mode:horizontal-tb}
+/* the chevron points the way the drawer will go */
+.drw-topg .drw-tab svg{transform:rotate(180deg)}
+html.drw-top-off .drw-topg .drw-tab svg,html.drw-clear .drw-topg .drw-tab svg{transform:none}
+html.drw-bot-off .drw-t-bot svg,html.drw-clear .drw-t-bot svg,html.drw-info-off .drw-rail .drw-t-info svg,html.drw-clear .drw-rail .drw-t-info svg{transform:rotate(180deg)}
+.drw-side .drw-tab svg{transform:rotate(90deg)}
+html.drw-info-off .drw-side .drw-tab svg,html.drw-clear .drw-side .drw-tab svg{transform:rotate(-90deg)}
+html.drw-nocard .drw-t-info{display:none}
+/* something new while the card is tucked away: a small bronze light that breathes */
+.drw-dot{display:none;flex:none;width:7px;height:7px;border-radius:50%;background:#f3d9a4;box-shadow:0 0 0 0 rgba(243,217,164,.6),0 0 8px rgba(243,217,164,.8)}
+.drw-tab.new .drw-dot{display:block;animation:drwDot 1.9s ease-in-out infinite}
+.drw-tab.new{color:var(--vellum,#e9e1cc);border-color:var(--bronze,#c9984f)}
+@keyframes drwDot{0%,100%{transform:scale(.75);opacity:.7}50%{transform:scale(1.3);opacity:1}}
+html.mots-proj .drw-topg,html.mots-proj .drw-rail,html.mots-proj .drw-side{display:none!important}
+@media (prefers-reduced-motion:reduce){
+ ${on(TOPM.concat(BOTM,INFM,['#galCap']))},${off('drw-top-off',TOPM.concat(BOTM,INFM,['#galCap']))},.drw-topg,.drw-rail,.drw-side,.drw-tab svg{transition:none!important}
+ .drw-tab.new .drw-dot{animation:none}}
+`;
+document.head.appendChild(css);
+
+/* ---- the tabs ---- */
+const CHEV='<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const EYE='<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+const mk=(tag,cls,html)=>{const e=document.createElement(tag);e.className=cls;if(html!=null)e.innerHTML=html;return e};
+const tab=(k,label)=>{const b=mk('button','drw-tab drw-t-'+k,CHEV+'<span class="drw-l"></span><i class="drw-dot" aria-hidden="true"></i>');b.type='button';b.querySelector('.drw-l').textContent=label;b.dataset.k=k;return b};
+const topG=mk('div','drw-topg'),rail=mk('div','drw-rail'),side=mk('div','drw-side');
+const tTop=tab('top',DL.menu),tBot=tab('bot',DL.travel),tInfo=tab('info',DL.info),eye=mk('button','drw-eye',EYE);
+eye.type='button';eye.setAttribute('aria-pressed','false');
+topG.append(tTop,eye);rail.append(tInfo,tBot);
+document.body.append(topG,rail,side);
+// the keys line on a computer: H for Clear view
+{const k=q('#keys');if(k&&!k.querySelector('.drw-k')){const s=mk('span','drw-k');s.innerHTML=' · <b>H</b> ';s.appendChild(document.createTextNode(DL.key));k.appendChild(s)}}
+
+/* ---- geometry: where each drawer's edge is, read from the layout (offsets ignore the transforms) ---- */
+const lr=el=>{let x=0,y=0,e=el;while(e){x+=e.offsetLeft;y+=e.offsetTop;e=e.offsetParent}return {l:x,t:y,r:x+el.offsetWidth,b:y+el.offsetHeight,w:el.offsetWidth,h:el.offsetHeight}};
+const shown=el=>!!el&&!el.hidden&&el.offsetParent!==undefined&&getComputedStyle(el).display!=='none';
+const card=()=>{const g=q('#galCard'),y=q('#gyCard');if(shown(g)&&g.classList.contains('on'))return g;if(shown(y))return y;if(shown(g))return g;return null};
+let lastVars='';
+function measure(){
+  const vh=innerHeight,V={};
+  const a=lr(tlEl),b=lr(trEl),topB=Math.max(a.b,b.b);V['--drw-top-b']=topB;V['--drw-top-d']=topB+16;
+  // Begin stays in place until the sound starts: if the tucked tabs would meet it (a long Begin in a narrow screen), they hang just below it
+  const bg=$('begin');let tc=0;if(bg&&bg.getAttribute('aria-pressed')!=='true'&&bg.offsetWidth){const r=lr(bg),gl=topG.offsetLeft,gr=gl+topG.offsetWidth;if(r.l<gr+8&&r.r>gl-8)tc=r.b+4}
+  V['--drw-top-c']=tc;
+  // the band's top (what must leave the screen) and the ribbon's top (where the tabs ride: in a sideways phone the readout beside it is taller)
+  const rb=q('#ribbon'),ro=q('.hud.bc > .readout');let bt=vh,rt=vh;
+  [rb,ro].forEach(e=>{if(e&&e.offsetHeight)bt=Math.min(bt,lr(e).t)});
+  if(rb&&rb.offsetHeight){const r=lr(rb);rt=r.t;V['--drw-rail-l']=r.l;V['--drw-rail-w']=r.w}else rt=bt;
+  V['--drw-bot-h']=Math.max(0,vh-rt);V['--drw-bot-d']=vh-bt+16;
+  const cb=vh-rt+TABH+8;V['--drw-cb']=cb;V['--drw-cmh']=Math.round(Math.max(200,vh*.55-cb));
+  const c=card();
+  if(c){const r=lr(c);
+    if(MODE==='wide'){V['--drw-info-d']=r.r+16;V['--drw-info-x']=r.r-1;V['--drw-info-y']=Math.round(r.t+14)}
+    else V['--drw-info-d']=vh-r.t+16;
+    if(MODE==='land')V['--drw-cmh-l']=Math.max(120,Math.round(rt-TABH-8-r.t))}
+  const s=Object.keys(V).map(k=>k+':'+Math.round(V[k])+'px').join(';');
+  if(s!==lastVars){lastVars=s;Object.keys(V).forEach(k=>HT.style.setProperty(k,Math.round(V[k])+'px'))}
+}
+
+/* ---- state ---- */
+let sig='',gated=false;
+function apply(){
+  const C=HT.classList;
+  if(apply.st!==undefined&&apply.st!==[st.top,st.bot,st.info,clear,MODE].join()){C.add('drw-anim');clearTimeout(apply.t);apply.t=setTimeout(()=>C.remove('drw-anim'),450)}apply.st=[st.top,st.bot,st.info,clear,MODE].join();
+  C.toggle('drw-on',!gated);
+  ['wide','phone','land'].forEach(m=>C.toggle('drw-m-'+m,MODE===m));
+  C.toggle('drw-top-off',!st.top);C.toggle('drw-bot-off',!st.bot);C.toggle('drw-info-off',!st.info);C.toggle('drw-clear',clear);
+  const c=card();C.toggle('drw-nocard',!c);
+  const infoTab=MODE==='wide'?side:rail;if(tInfo.parentNode!==infoTab){if(infoTab===rail)rail.insertBefore(tInfo,tBot);else side.appendChild(tInfo)}
+  tTop.setAttribute('aria-expanded',String(st.top&&!clear));tBot.setAttribute('aria-expanded',String(st.bot&&!clear));tInfo.setAttribute('aria-expanded',String(st.info&&!clear));
+  eye.setAttribute('aria-pressed',String(clear));const el=clear?DL.show:DL.clear;eye.title=el+' (H)';eye.setAttribute('aria-label',el);
+  tInfo.setAttribute('aria-label',DL.info+(tInfo.classList.contains('new')?' · '+DL.nw:''));
+  measure();
+}
+function persist(){ALL[MODE]={top:st.top?1:0,bot:st.bot?1:0,info:st.info?1:0};save(ALL)}
+// a closing top drawer takes its open menus with it
+function closeMenus(){document.querySelectorAll('.hud details[open]').forEach(d=>{d.open=false});const tp=q('.ttPop');if(tp&&!tp.hidden){const x=tp.querySelector('.ttx');if(x)x.click()}}
+function setDrawer(k,open){
+  lastTouch=Date.now();
+  if(clear){clear=false;st[k]=true}else st[k]=open;
+  if(k==='top'&&!st.top)closeMenus();
+  if(k==='info'&&st.info)tInfo.classList.remove('new');
+  persist();apply();
+}
+function setClear(v){
+  lastTouch=Date.now();clear=v;
+  if(v){closeMenus();try{closeNav()}catch(e){}
+    document.querySelectorAll('.gpop:not([hidden]) .gx,.gsheet:not([hidden]) .gx').forEach(x=>{try{x.click()}catch(e){}})}
+  else if(st.info)tInfo.classList.remove('new');
+  apply();
+}
+MOTS.app=MOTS.app||{};
+MOTS.app.drawers={state:()=>({mode:MODE,top:st.top,bot:st.bot,info:st.info,clear,card:!!card(),dot:tInfo.classList.contains('new')}),set:setDrawer,clear:setClear,measure};
+
+/* ---- tap or swipe a tab; the tab follows the finger a little while it is dragged ---- */
+function axis(k){return k==='top'?{a:'y',s:-1}:k==='bot'?{a:'y',s:1}:MODE==='wide'?{a:'x',s:-1}:{a:'y',s:1}}
+function grip(btn,k,holder){
+  let s=null,swiped=false;
+  const isOpen=()=>k==='clear'?!clear:(st[k]&&!clear);
+  btn.addEventListener('pointerdown',e=>{if(e.button)return;s={x:e.clientX,y:e.clientY,id:e.pointerId,ax:axis(k==='clear'?'top':k)};swiped=false;try{btn.setPointerCapture(e.pointerId)}catch(_){}});
+  btn.addEventListener('pointermove',e=>{if(!s||e.pointerId!==s.id)return;const d=s.ax.a==='y'?e.clientY-s.y:e.clientX-s.x;if(Math.abs(d)<4)return;
+    holder.classList.add('drw-drag');holder.style.setProperty('--drw-n',Math.max(-36,Math.min(36,d*.6))+'px')});
+  const end=e=>{if(!s||e.pointerId!==s.id)return;const d=(s.ax.a==='y'?e.clientY-s.y:e.clientX-s.x)*s.ax.s,ax=s.ax;s=null;
+    holder.classList.remove('drw-drag');holder.style.removeProperty('--drw-n');
+    if(e.type==='pointerup'&&Math.abs(d)>=22){swiped=true;const toEdge=d>0;
+      if(k==='clear'){if(toEdge!==clear)setClear(toEdge)}
+      else if(clear)setDrawer(k,true);else if(toEdge===isOpen())setDrawer(k,!toEdge)}};
+  btn.addEventListener('pointerup',end);btn.addEventListener('pointercancel',end);
+  btn.addEventListener('click',e=>{if(swiped){swiped=false;e.preventDefault();return}if(k==='clear')setClear(!clear);else setDrawer(k,clear?true:!st[k])});
+}
+grip(tTop,'top',topG);grip(tBot,'bot',rail);grip(tInfo,'info',{classList:{add:()=>(MODE==='wide'?side:rail).classList.add('drw-drag'),remove:()=>{side.classList.remove('drw-drag');rail.classList.remove('drw-drag')}},style:{setProperty:(n,v)=>(MODE==='wide'?side:rail).style.setProperty(n,v),removeProperty:n=>{side.style.removeProperty(n);rail.style.removeProperty(n)}}});
+grip(eye,'clear',topG);
+
+/* ---- or drag a drawer by its own edge on a touch screen: the header up, the ribbon or readout down, the card toward its tab, the Travel panel right ---- */
+let T0=null;
+document.addEventListener('touchstart',e=>{if(e.touches.length!==1||gated){T0=null;return}const t=e.touches[0],g=e.target;
+  if(!g||!g.closest||g.closest('input,select,textarea,.drw-tab,.drw-eye')){T0=null;return}
+  const k=g.closest('.hud.tl')?'top':g.closest('#ribbon,.hud.bc > .readout')?'bot':g.closest('#galCard,#gyCard')?'info':g.closest('#panel')?'panel':null;
+  T0=k?{k,x:t.clientX,y:t.clientY,t:Date.now(),sc:(g.closest('#galCard,#gyCard')||{}).scrollTop||0}:null;
+  // the readout and the cards redraw their text as you fly: a finger that started on a node since replaced still ends on that node, which no longer bubbles
+  if(T0)g.addEventListener('touchend',touchEnd,{once:true,passive:true})},{passive:true,capture:true});
+document.addEventListener('touchend',e=>touchEnd(e),{passive:true,capture:true});
+function touchEnd(e){if(!T0)return;const t=e.changedTouches[0],dx=t.clientX-T0.x,dy=t.clientY-T0.y,k=T0.k,dt=Date.now()-T0.t,sc=T0.sc;T0=null;
+  if(dt>1500||clear)return;const V=Math.abs(dy)>1.6*Math.abs(dx),Hz=Math.abs(dx)>1.6*Math.abs(dy);
+  if(k==='top'&&V&&dy<-32&&st.top)setDrawer('top',false);
+  else if(k==='bot'&&V&&dy>32&&st.bot)setDrawer('bot',false);
+  else if(k==='info'&&st.info){if(MODE==='wide'?(Hz&&dx<-50):(V&&dy>50&&sc<=0))setDrawer('info',false)}
+  else if(k==='panel'&&Hz&&dx>70){try{closeNav()}catch(_){}}}
+
+/* ---- H: Clear view (no other key of the flight uses H) ---- */
+addEventListener('keydown',e=>{if(gated||e.ctrlKey||e.metaKey||e.altKey||e.repeat||(e.key!=='h'&&e.key!=='H'))return;
+  const a=document.activeElement;if(a&&a.closest&&a.closest('input,textarea,select,[contenteditable="true"]'))return;
+  if(q('[aria-modal="true"]')||q('#tour,#stour'))return;
+  e.preventDefault();setClear(!clear)});
+
+/* ---- a new card while Info is tucked away: the tab lights a dot, and the card waits there ---- */
+function cardSig(){const c=card();if(!c)return '';const h=c.querySelector('.gch b,.gch,b');return c.id+'|'+(h?h.textContent:'')}
+function poll(){
+  const g=HT.classList.contains('mots-proj')||HT.classList.contains('mots-show');if(g!==gated){gated=g;apply()}
+  const m=modeOf();if(m!==MODE){MODE=m;st=stateFor(MODE);apply()}
+  const s=cardSig();if(s!==sig){const was=sig;sig=s;if(s&&s!==was&&(!st.info||clear))tInfo.classList.add('new');if(!s)tInfo.classList.remove('new');apply()}
+  else measure();
+  // a phone held sideways: after the first minute of flight with the sound on, the top and bottom drawers tuck themselves away, once,
+  // unless a choice has been made (it is then remembered); the eye and the tabs are always there
+  if(MODE==='land'&&!ALL.land&&typeof audioOn!=='undefined'&&audioOn){if(!flyT0)flyT0=Date.now();
+    if(Date.now()-flyT0>(window.__drwTuckMs||60000)&&Date.now()-lastTouch>8000&&!clear&&$('panel').hidden&&!q('[aria-modal="true"]')&&!q('.gpop:not([hidden]),.gsheet:not([hidden])')){
+      st.top=false;st.bot=false;persist();apply();try{toast(DL.tuck)}catch(_){}}}
+}
+document.addEventListener('pointerdown',()=>{lastTouch=Date.now()},{passive:true,capture:true});
+setInterval(poll,400);
+addEventListener('resize',()=>{MODE=modeOf();st=stateFor(MODE);apply()});
+if(window.ResizeObserver){const ro=new ResizeObserver(()=>measure());[tlEl,trEl,bcEl].forEach(e=>ro.observe(e))}
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(measure);
+sig=cardSig();apply();setTimeout(apply,300);setTimeout(measure,1200);
+}
+}
+
 })();
 </script>
 
