@@ -7530,6 +7530,385 @@ window.GYEAR={TX,TX_ALL,LANG,SEC,DEF_SEC,EXAG_Z,model,player,render,rules,dateWo
 })();
 </script>
 <script>
+/* ---------- drawers: the pull-out drawers shared by every page (slim bronze tabs, swipe to tuck, Clear view and H) ----------
+   One look and one behaviour everywhere: a tab on a drawer's edge tucks it away with a tap or a swipe toward the edge, and brings it back
+   with a tap or a swipe away from it; the eye (or H) is Clear view, which hides every drawer at once without forgetting how they were;
+   each drawer is remembered per page, per device and per layout (wide, phone upright, phone sideways); a drawer holding something new while
+   it is tucked away lights a small dot on its tab; nothing hidden can catch a tap; reduced motion is respected. The drawers step aside
+   (everything shown, no tabs) during the Talk, the projector view and a tour.
+   MOTS.drw holds the pieces: the words (12 languages), the tab look, the tabs, the swipe, the storage, the layouts and H. The Flight builds
+   its own floating drawers from them (fly_drawers.js); doc() builds the drawers of a scrolling page, where a drawer closes up in place and
+   the page closes up behind it; the page setups for the Dial, Dance, the Synthesiser and Meditate follow at the end. */
+(function(){
+'use strict';
+const W=window;W.MOTS=W.MOTS||{};if(MOTS.drw)return;
+const DT={
+ en:{menu:'Menu',travel:'Travel',info:'Info',clear:'Clear view',show:'Show the controls',nw:'new',key:'clear view',tuck:'Controls tucked away: tap a tab, or press H, to bring them back',
+  thinkers:'Thinkers',panel:'Controls',mixer:'Mixer',modes:'Modes',controls:'Controls',back:'Tap anywhere to bring the controls back'},
+ pl:{menu:'Menu',travel:'Podróż',info:'Info',clear:'Czysty widok',show:'Pokaż sterowanie',nw:'nowe',key:'czysty widok',tuck:'Sterowanie schowane: dotknij zakładki albo naciśnij H, aby je przywrócić',
+  thinkers:'Myśliciele',panel:'Sterowanie',mixer:'Mikser',modes:'Tryby',controls:'Sterowanie',back:'Dotknij gdziekolwiek, aby przywrócić sterowanie'},
+ cy:{menu:'Dewislen',travel:'Teithio',info:'Manylion',clear:'Golwg glir',show:'Dangos y rheolyddion',nw:'newydd',key:'golwg glir',tuck:'Mae’r rheolyddion o’r golwg: tapiwch dab, neu bwyswch H, i’w dangos eto',
+  thinkers:'Meddylwyr',panel:'Rheolyddion',mixer:'Cymysgydd',modes:'Moddau',controls:'Rheolyddion',back:'Tapiwch unrhyw le i ddod â’r rheolyddion yn ôl'},
+ de:{menu:'Menü',travel:'Reise',info:'Info',clear:'Freie Sicht',show:'Bedienelemente zeigen',nw:'neu',key:'freie Sicht',tuck:'Bedienelemente eingeklappt: tippe auf einen Reiter oder drücke H, um sie zurückzuholen',
+  thinkers:'Denker',panel:'Regler',mixer:'Mischpult',modes:'Modi',controls:'Bedienung',back:'Tippe irgendwohin, um die Bedienelemente zurückzuholen'},
+ es:{menu:'Menú',travel:'Viajar',info:'Info',clear:'Vista despejada',show:'Mostrar los controles',nw:'nuevo',key:'vista despejada',tuck:'Controles recogidos: toca una pestaña o pulsa H para recuperarlos',
+  thinkers:'Pensadores',panel:'Controles',mixer:'Mezclador',modes:'Modos',controls:'Controles',back:'Toca en cualquier sitio para recuperar los controles'},
+ fr:{menu:'Menu',travel:'Voyage',info:'Infos',clear:'Vue dégagée',show:'Afficher les commandes',nw:'nouveau',key:'vue dégagée',tuck:'Commandes rangées : touchez un onglet ou appuyez sur H pour les faire revenir',
+  thinkers:'Penseurs',panel:'Réglages',mixer:'Mixage',modes:'Modes',controls:'Commandes',back:'Touchez n’importe où pour faire revenir les commandes'},
+ it:{menu:'Menu',travel:'Viaggia',info:'Info',clear:'Vista libera',show:'Mostra i comandi',nw:'nuovo',key:'vista libera',tuck:'Comandi nascosti: tocca una linguetta o premi H per riaverli',
+  thinkers:'Pensatori',panel:'Comandi',mixer:'Mixer',modes:'Modalità',controls:'Comandi',back:'Tocca in un punto qualsiasi per riavere i comandi'},
+ zh:{menu:'菜单',travel:'航行',info:'信息',clear:'纯净视野',show:'显示控件',nw:'新',key:'纯净视野',tuck:'控件已收起：点按标签或按 H 键即可恢复',
+  thinkers:'思想家',panel:'控制',mixer:'调音台',modes:'模式',controls:'控件',back:'轻点任意处即可恢复控件'},
+ ja:{menu:'メニュー',travel:'移動',info:'情報',clear:'すっきり表示',show:'操作パネルを表示',nw:'新着',key:'すっきり表示',tuck:'操作パネルをしまいました。タブをタップするか H キーで戻せます',
+  thinkers:'思想家',panel:'設定',mixer:'ミキサー',modes:'モード',controls:'操作',back:'どこかをタップすると操作パネルが戻ります'},
+ vi:{menu:'Menu',travel:'Di chuyển',info:'Thông tin',clear:'Xem thoáng',show:'Hiện các nút điều khiển',nw:'mới',key:'xem thoáng',tuck:'Đã thu gọn các nút điều khiển: chạm vào một tab hoặc nhấn H để hiện lại',
+  thinkers:'Nhà tư tưởng',panel:'Điều khiển',mixer:'Bộ trộn',modes:'Chế độ',controls:'Điều khiển',back:'Chạm vào bất kỳ đâu để hiện lại các nút điều khiển'},
+ bg:{menu:'Меню',travel:'Пътувай',info:'Инфо',clear:'Чист изглед',show:'Покажи контролите',nw:'ново',key:'чист изглед',tuck:'Контролите са прибрани: докосни раздел или натисни H, за да ги върнеш',
+  thinkers:'Мислители',panel:'Контроли',mixer:'Миксер',modes:'Режими',controls:'Контроли',back:'Докосни където и да е, за да върнеш контролите'},
+ pt:{menu:'Menu',travel:'Viajar',info:'Info',clear:'Visão limpa',show:'Mostrar os controles',nw:'novo',key:'visão limpa',tuck:'Controles recolhidos: toque em uma aba ou aperte H para trazê-los de volta',
+  thinkers:'Pensadores',panel:'Controles',mixer:'Mixer',modes:'Modos',controls:'Controles',back:'Toque em qualquer lugar para trazer os controles de volta'}};
+const L=Object.assign({},DT.en,DT[(document.documentElement.lang||'en').slice(0,2)]||{});
+const HT=document.documentElement,q=s=>document.querySelector(s),TABH=28,EASE='cubic-bezier(.22,.8,.24,1)',DUR='.34s';
+const MQL=matchMedia('(max-height:520px) and (orientation:landscape)'),MQP=matchMedia('(max-width:620px)'),MQR=matchMedia('(prefers-reduced-motion:reduce)');
+const modeOf=()=>MQL.matches?'land':MQP.matches?'phone':'wide';
+const store=key=>({load:()=>{try{const o=JSON.parse(localStorage.getItem(key)||'{}');return o&&typeof o==='object'?o:{}}catch(e){return {}}},save:o=>{try{localStorage.setItem(key,JSON.stringify(o))}catch(e){}}});
+const vis=e=>{if(!e||e.hidden||!e.isConnected)return false;const cs=getComputedStyle(e);return cs.display!=='none'&&cs.visibility!=='hidden'};
+
+/* ---- the look of a tab: bronze on deep blue, like the ribbon's cards ---- */
+const LOOK=`
+.drw-drag{transition:none!important}
+.drw-tab,.drw-eye{position:relative;pointer-events:auto;appearance:none;-webkit-appearance:none;margin:0;display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
+  height:${TABH}px;min-width:44px;padding:0 .75rem 0 .6rem;color:var(--vellum-dim,#aea791);font:500 .68rem/1 var(--f-body,system-ui,sans-serif);letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;
+  background:linear-gradient(180deg,rgba(26,24,34,.9),rgba(8,10,20,.86));border:1px solid rgba(201,152,79,.5);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 3px 12px rgba(0,0,0,.45);transition:color .2s,border-color .2s,background-color .2s}
+:lang(zh) .drw-tab,:lang(ja) .drw-tab{letter-spacing:.04em;font-size:.72rem}
+.drw-tab::after,.drw-eye::after{content:"";position:absolute;left:-3px;right:-3px;top:0;bottom:-16px}
+.drw-rail .drw-tab::after,.drw-ride .drw-tab::after,.drw-ride .drw-eye::after{top:-16px;bottom:0}
+.drw-tab svg,.drw-eye svg{flex:none;color:var(--bronze,#c9984f);transition:transform ${DUR} ${EASE}}
+.drw-tab:hover,.drw-eye:hover,.drw-tab:focus-visible,.drw-eye:focus-visible{color:var(--vellum,#e9e1cc);border-color:var(--bronze,#c9984f)}
+.drw-tab:focus-visible,.drw-eye:focus-visible{outline:2px solid var(--bronze,#c9984f);outline-offset:2px}
+.drw-topg .drw-tab,.drw-topg .drw-eye,.drw-hang .drw-tab,.drw-hang .drw-eye{border-top-color:transparent;border-radius:0 0 11px 11px}
+.drw-topg .drw-eye,.drw-hang .drw-eye,.drw-ride .drw-eye{padding:0;width:44px}
+.drw-eye[aria-pressed="true"]{color:#f3d9a4;border-color:var(--bronze,#c9984f);background:linear-gradient(180deg,rgba(201,152,79,.3),rgba(201,152,79,.12)),rgba(8,10,20,.86)}
+.drw-rail .drw-tab,.drw-ride .drw-tab,.drw-ride .drw-eye{border-bottom-color:transparent;border-radius:11px 11px 0 0}
+.drw-side .drw-tab,.drw-vside .drw-tab{flex-direction:row;height:auto;min-height:84px;width:${TABH}px;min-width:${TABH}px;padding:.65rem 0;border-left-color:transparent;border-radius:0 11px 11px 0;writing-mode:vertical-rl;text-orientation:mixed}
+.drw-side .drw-tab::after,.drw-vside .drw-tab::after{left:0;right:-16px;top:-4px;bottom:-4px}
+.drw-side .drw-tab svg,.drw-vside .drw-tab svg{writing-mode:horizontal-tb}
+.drw-vside.drw-r .drw-tab{border-left-color:rgba(201,152,79,.5);border-right-color:transparent;border-radius:11px 0 0 11px}
+.drw-vside.drw-r .drw-tab::after{left:-16px;right:0}
+/* the chevron points the way a tap sends the drawer */
+.drw-tab[data-go="up"] svg{transform:rotate(180deg)}.drw-tab[data-go="down"] svg{transform:none}
+.drw-tab[data-go="left"] svg{transform:rotate(90deg)}.drw-tab[data-go="right"] svg{transform:rotate(-90deg)}
+/* something new while a drawer is tucked away: a small bronze light that breathes */
+.drw-dot{display:none;flex:none;width:7px;height:7px;border-radius:50%;background:#f3d9a4;box-shadow:0 0 0 0 rgba(243,217,164,.6),0 0 8px rgba(243,217,164,.8)}
+.drw-tab.new .drw-dot{display:block;animation:drwDot 1.9s ease-in-out infinite}
+.drw-tab.new{color:var(--vellum,#e9e1cc);border-color:var(--bronze,#c9984f)}
+@keyframes drwDot{0%,100%{transform:scale(.75);opacity:.7}50%{transform:scale(1.3);opacity:1}}
+@media (prefers-reduced-motion:reduce){.drw-tab svg{transition:none!important}.drw-tab.new .drw-dot{animation:none}}
+`;
+function lookCss(){if(document.getElementById('drwLook'))return;const s=document.createElement('style');s.id='drwLook';s.textContent=LOOK;document.head.appendChild(s)}
+
+/* ---- the tabs ---- */
+const CHEV='<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const EYE='<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+const mk=(tag,cls,html)=>{const e=document.createElement(tag);e.className=cls;if(html!=null)e.innerHTML=html;return e};
+const tab=(k,label)=>{const b=mk('button','drw-tab drw-t-'+k,CHEV+'<span class="drw-l"></span><i class="drw-dot" aria-hidden="true"></i>');b.type='button';b.querySelector('.drw-l').textContent=label;b.dataset.k=k;return b};
+const eyeBtn=()=>{const e=mk('button','drw-eye',EYE);e.type='button';e.setAttribute('aria-pressed','false');return e};
+
+/* ---- tap or swipe a tab; the tab follows the finger a little while it is dragged.
+   o.axis(): {a:'x'|'y', s:±1} (s: the sign of a move toward the drawer's edge); o.tap(); o.swipe(toEdge); o.nudge(px|null) ---- */
+function grip(btn,o){
+  let s=null,swiped=false;
+  btn.addEventListener('pointerdown',e=>{if(e.button)return;s={x:e.clientX,y:e.clientY,id:e.pointerId,ax:o.axis()};swiped=false;try{btn.setPointerCapture(e.pointerId)}catch(_){}});
+  btn.addEventListener('pointermove',e=>{if(!s||e.pointerId!==s.id)return;const d=s.ax.a==='y'?e.clientY-s.y:e.clientX-s.x;if(Math.abs(d)<4)return;o.nudge(Math.max(-36,Math.min(36,d*.6)),s.ax.a)});
+  const end=e=>{if(!s||e.pointerId!==s.id)return;const d=(s.ax.a==='y'?e.clientY-s.y:e.clientX-s.x)*s.ax.s;s=null;o.nudge(null);
+    if(e.type==='pointerup'&&Math.abs(d)>=22){swiped=true;o.swipe(d>0)}};
+  btn.addEventListener('pointerup',end);btn.addEventListener('pointercancel',end);
+  btn.addEventListener('click',e=>{if(swiped){swiped=false;e.preventDefault();return}o.tap()});
+}
+const axisOf=go=>go==='up'?{a:'y',s:-1}:go==='down'?{a:'y',s:1}:go==='left'?{a:'x',s:-1}:{a:'x',s:1};
+const OPP={up:'down',down:'up',left:'right',right:'left'};
+
+/* ---- H, unless a field has the keyboard, a dialog or a tour is up ---- */
+function hkey(fn){addEventListener('keydown',e=>{if(e.ctrlKey||e.metaKey||e.altKey||e.repeat||(e.key!=='h'&&e.key!=='H'))return;
+  const a=document.activeElement;if(a&&a.closest&&a.closest('input,textarea,select,[contenteditable="true"]'))return;
+  if(q('[aria-modal="true"]')||q('#tour,#stour'))return;
+  if(fn()!==false)e.preventDefault()})}
+
+/* ---- a word on the screen for a few seconds ---- */
+let toastEl=null,toastT=0;
+function toast(t,ms){if(!toastEl){toastEl=mk('div','drw-toast');toastEl.setAttribute('role','status');document.body.appendChild(toastEl)}
+  toastEl.textContent=t;toastEl.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>toastEl.classList.remove('on'),ms||4200)}
+
+/* ---- the drawers of a scrolling page: a drawer closes up in place (it fades and slides toward its edge while the page closes up behind
+   it, then leaves the layout altogether), so nothing overlaps and nothing hidden can be tapped ---- */
+const DOC=`
+html.drw-on .drw-x{transition:margin-bottom ${DUR} ${EASE},opacity .3s ease,transform ${DUR} ${EASE},visibility 0s linear 0s}
+html.drw-on .drw-x.drw-tk{opacity:0!important;visibility:hidden!important;pointer-events:none!important;margin-bottom:calc(-1 * var(--drw-h,0px))!important;
+  transition:margin-bottom ${DUR} ${EASE},opacity .24s ease,transform ${DUR} ${EASE},visibility 0s linear ${DUR}}
+html.drw-on .drw-x.drw-tk:not(.drw-fx)[data-drw-go="up"]{transform:translateY(-18px)}
+html.drw-on .drw-x.drw-tk:not(.drw-fx)[data-drw-go="down"]{transform:translateY(18px)}
+html.drw-on .drw-x.drw-tk:not(.drw-fx)[data-drw-go="left"]{transform:translateX(-32px)}
+html.drw-on .drw-x.drw-tk:not(.drw-fx)[data-drw-go="right"]{transform:translateX(32px)}
+html.drw-on .drw-x.drw-gone{display:none!important}
+.drw-strip,.drw-vside{display:none}
+html.drw-on .drw-strip{display:flex}
+.drw-strip{position:relative;z-index:4;height:${TABH}px;min-height:${TABH}px;flex:0 0 auto;align-items:flex-end;justify-content:center;gap:6px;pointer-events:none;box-sizing:border-box}
+.drw-strip.drw-hang{align-items:flex-start;justify-content:flex-start}
+.drw-ride::before{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(201,152,79,.4) 16%,rgba(201,152,79,.4) 84%,transparent)}
+.drw-strip .drw-tab,.drw-strip .drw-eye,.drw-vside .drw-tab{transform:translate(var(--drw-nx,0px),var(--drw-ny,0px))}
+/* the top strip hangs from the header's lower edge, and from the top of the screen (or under a transport bar there) when it is tucked away */
+.drw-topstrip{position:absolute;z-index:6;top:0;left:var(--drw-tl,16px);transform:translateY(var(--drw-ty,0px))}
+html.drw-on.drw-top-off .drw-topstrip,html.drw-on.drw-clear .drw-topstrip{position:fixed;z-index:46;transform:translateY(calc(env(safe-area-inset-top,0px) + var(--drw-bar,0px)))}
+html.drw-anim .drw-topstrip,html.drw-anim .drw-vside{transition:transform ${DUR} ${EASE}}
+html.drw-on.drw-top-off body,html.drw-on.drw-clear body{padding-top:calc(${TABH+8}px + var(--drw-bar,0px) + env(safe-area-inset-top,0px))!important}
+html.drw-on header.top.drw-hd.drw-x:not(.drw-tk){margin-bottom:${TABH}px}
+.drw-vside{position:absolute;z-index:5;top:0;left:0;pointer-events:none;transform:translate(var(--drw-sx,0px),var(--drw-sy,0px))}
+/* Begin, until the sound starts, in gold beside the tabs */
+.drw-begin{display:none!important}
+html.drw-on.drw-beg .drw-begin{display:inline-flex!important}
+.drw-tab.drw-begin{color:#1b1307;font-weight:700;letter-spacing:.1em;border-color:#e2b064;background:linear-gradient(180deg,#eab96c,#c9984f);box-shadow:0 3px 14px rgba(201,152,79,.35)}
+.drw-tab.drw-begin:hover,.drw-tab.drw-begin:focus-visible{color:#000;border-color:#f3d9a4}
+.drw-begin i.bd{flex:none;width:7px;height:7px;border-radius:50%;background:#1b1307}
+.drw-toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + ${TABH+14}px);transform:translate(-50%,-8px);z-index:60;max-width:min(30rem,calc(100vw - 32px));padding:.55rem 1rem;border:1px solid rgba(201,152,79,.55);border-radius:12px;
+  background:rgba(12,14,26,.94);color:var(--vellum,#e9e1cc);font:400 .9rem/1.35 var(--f-body,system-ui,sans-serif);text-align:center;box-shadow:0 8px 28px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .3s,transform .3s}
+.drw-toast.on{opacity:1;transform:translate(-50%,0)}
+html.mots-proj .drw-strip,html.mots-proj .drw-vside,html.mots-proj .drw-toast,html.mots-show .drw-strip,html.mots-show .drw-vside{display:none!important}
+@media (prefers-reduced-motion:reduce){html.drw-on .drw-x,html.drw-on .drw-x.drw-tk,.drw-topstrip,.drw-vside,.drw-toast{transition:none!important}html.drw-on .drw-x.drw-tk{transform:none!important}}
+`;
+function docCss(extra){if(!document.getElementById('drwDoc')){const s=document.createElement('style');s.id='drwDoc';s.textContent=DOC;document.head.appendChild(s)}
+  if(extra){const s=document.createElement('style');s.className='drwPage';s.textContent=extra;document.head.appendChild(s)}}
+
+// close an element up (on) or open it again; go: the way it leaves. The room it takes in the flow, the gap after it included, is measured
+// as it goes, so what follows closes up smoothly; once it has gone it leaves the layout (display none)
+let relayout=()=>{};
+function gapAfter(el){const p=el.parentElement;if(!p)return 0;const cs=getComputedStyle(p);if(!/flex|grid/.test(cs.display))return 0;
+  if(/flex/.test(cs.display)&&/row/.test(cs.flexDirection)&&cs.flexWrap==='nowrap')return 0;return parseFloat(cs.rowGap)||0}
+function room(el){const cs=getComputedStyle(el);return el.offsetHeight+(parseFloat(cs.marginTop)||0)+gapAfter(el)}
+function tuck(el,on,go){
+  if(!el)return;const C=el.classList;if(!C.contains('drw-x'))C.add('drw-x');
+  if(go&&el.dataset.drwGo!==go)el.dataset.drwGo=go;
+  if(on===C.contains('drw-tk'))return;
+  clearTimeout(el._drwT);
+  if(on){C.toggle('drw-fx',getComputedStyle(el).position==='fixed');el.style.setProperty('--drw-h',room(el)+'px');C.add('drw-tk');
+    el._drwT=setTimeout(()=>{if(C.contains('drw-tk')){C.add('drw-gone');relayout()}},MQR.matches?0:370)}
+  else{if(C.contains('drw-gone')){C.remove('drw-gone');el.style.setProperty('--drw-h',room(el)+'px');void el.offsetHeight}C.remove('drw-tk');relayout()}
+}
+
+// cfg: {id, drawers:[{k,label,els(),go|go(),host()}], clearEls(), eye:false|{host()}, playing(), auto:{mode,keys,ms}, sig:{k:fn}, layout(api), tick(api), onClear(v)}
+// a page played inside the Talk (?show=1) keeps everything in place
+const SHOWN=/[?&]show(=1)?\b/.test(location.search);
+function doc(cfg){
+  lookCss();docCss(cfg.css);
+  const S=store('mots.'+cfg.id+'.drawers'),keys=cfg.drawers.map(d=>d.k);
+  const gateNow=()=>SHOWN||HT.classList.contains('mots-proj')||HT.classList.contains('mots-show')||vis(q('#tour'))||vis(q('#stour'));
+  let MODE=modeOf(),ALL=S.load(),clear=false,gated=gateNow(),lastTouch=Date.now(),playT0=0;
+  const stateFor=m=>{const s=ALL[m]||{},o={};keys.forEach(k=>{o[k]=s[k]!==0});return o};
+  let st=stateFor(MODE);
+  const tabs={},D={};cfg.drawers.forEach(d=>{D[d.k]=d;tabs[d.k]=tab(d.k,d.label)});
+  const eye=cfg.eye===false?null:eyeBtn();
+  const goOf=d=>typeof d.go==='function'?d.go():d.go;
+  const elsOf=d=>(d.els()||[]).filter(Boolean);
+  const isOpen=k=>gated||(st[k]&&!clear);
+  let anim0='';
+  function apply(){
+    const C=HT.classList,sig=[keys.map(k=>st[k]).join(),clear,MODE,gated].join();
+    if(anim0&&anim0!==sig){C.add('drw-anim');clearTimeout(apply.t);apply.t=setTimeout(()=>C.remove('drw-anim'),450)}anim0=sig;
+    C.toggle('drw-on',!gated);['wide','phone','land'].forEach(m=>C.toggle('drw-m-'+m,MODE===m));
+    keys.forEach(k=>C.toggle('drw-'+k+'-off',!st[k]));C.toggle('drw-clear',clear&&!gated);
+    cfg.drawers.forEach(d=>{const o=isOpen(d.k),go=goOf(d),now=elsOf(d);now.forEach(e=>tuck(e,!o,go));
+      (d._prev||[]).forEach(e=>{if(!now.includes(e))tuck(e,false)});d._prev=now;
+      const t=tabs[d.k],h=d.host&&d.host();if(h&&t.parentNode!==h)h.appendChild(t);
+      t.setAttribute('aria-expanded',String(o));t.dataset.go=o?go:OPP[go];if(o)t.classList.remove('new');
+      t.setAttribute('aria-label',d.label+(t.classList.contains('new')?' · '+L.nw:''))});
+    if(cfg.clearEls){const now=cfg.clearEls().filter(Boolean);now.forEach(e=>tuck(e,!gated&&clear,'up'));(apply.cp||[]).forEach(e=>{if(!now.includes(e))tuck(e,false)});apply.cp=now}
+    if(eye){const h=cfg.eye&&cfg.eye.host&&cfg.eye.host();if(h&&eye.parentNode!==h)h.appendChild(eye);
+      eye.setAttribute('aria-pressed',String(clear));const l=clear?L.show:L.clear;eye.title=l+' (H)';eye.setAttribute('aria-label',l)}
+    layout();
+  }
+  function layout(){if(cfg.layout)try{cfg.layout(api)}catch(e){}}
+  relayout=layout;
+  function persist(){const o={};keys.forEach(k=>{o[k]=st[k]?1:0});ALL[MODE]=o;S.save(ALL)}
+  function setDrawer(k,open){lastTouch=Date.now();if(clear){clear=false;st[k]=true}else st[k]=open;persist();apply();if(cfg.onClear)cfg.onClear(false)}
+  function setClear(v){lastTouch=Date.now();if(clear===v)return;clear=v;apply();if(cfg.onClear)cfg.onClear(v)}
+  const nudger=t=>(px,a)=>{if(px==null){t.classList.remove('drw-drag');t.style.removeProperty('--drw-nx');t.style.removeProperty('--drw-ny');return}
+    t.classList.add('drw-drag');t.style.setProperty(a==='y'?'--drw-ny':'--drw-nx',px+'px')};
+  cfg.drawers.forEach(d=>{const k=d.k,t=tabs[k];
+    grip(t,{axis:()=>axisOf(goOf(d)),nudge:nudger(t),tap:()=>setDrawer(k,clear?true:!st[k]),
+      swipe:toEdge=>{if(clear)setDrawer(k,true);else if(toEdge===st[k])setDrawer(k,!toEdge)}})});
+  if(eye)grip(eye,{axis:()=>axisOf((cfg.eye&&cfg.eye.go)||'up'),nudge:nudger(eye),tap:()=>setClear(!clear),swipe:toEdge=>{if(toEdge!==clear)setClear(toEdge)}});
+  hkey(()=>{if(gated)return false;setClear(!clear)});
+  // a tucked drawer opens for whatever needs what is in it: the keyboard's focus, a menu opened from elsewhere, What's new pointing at it
+  const owner=el=>{for(const d of cfg.drawers)for(const e of elsOf(d))if(e===el||e.contains(el))return d.k;return null};
+  const reveal=el=>{if(gated||!el||!el.closest||!el.closest('.drw-tk'))return;const k=owner(el);if(!k)return;if(clear)setClear(false);if(!st[k])setDrawer(k,true)};
+  document.addEventListener('focusin',e=>{try{if(e.target.matches(':focus-visible'))reveal(e.target)}catch(_){}},true);
+  document.addEventListener('toggle',e=>{if(e.target.open)reveal(e.target)},true);
+  if(W.MutationObserver)new MutationObserver(ms=>{for(const m of ms)if(m.target.classList&&m.target.classList.contains('wn-pulse'))reveal(m.target)}).observe(document.body,{attributes:true,attributeFilter:['class'],subtree:true});
+  document.addEventListener('pointerdown',()=>{lastTouch=Date.now()},{passive:true,capture:true});
+  const sigs={};
+  function poll(){
+    const g=gateNow();
+    if(g!==gated){gated=g;apply()}
+    const m=modeOf();if(m!==MODE){MODE=m;st=stateFor(MODE);apply()}
+    if(cfg.sig)Object.keys(cfg.sig).forEach(k=>{const s=cfg.sig[k]();if(s!==sigs[k]){const was=sigs[k];sigs[k]=s;if(s&&was!==undefined&&!isOpen(k)){tabs[k].classList.add('new');tabs[k].setAttribute('aria-label',D[k].label+' · '+L.nw)}if(!s)tabs[k].classList.remove('new')}});
+    // a phone held sideways: after the first minute of music the named drawers tuck themselves away, once, unless a choice has been made
+    const A=cfg.auto;
+    if(A&&MODE===A.mode&&!ALL[A.mode]&&!gated&&cfg.playing&&cfg.playing()){if(!playT0)playT0=Date.now();
+      if(Date.now()-playT0>(W.__drwTuckMs||A.ms||60000)&&Date.now()-lastTouch>8000&&!clear&&!q('[aria-modal="true"]')){A.keys.forEach(k=>{st[k]=false});persist();apply();toast(L.tuck)}}
+    if(cfg.tick)cfg.tick(api);
+    layout();
+  }
+  const api={L,tabs,eye,st:()=>st,mode:()=>MODE,clear:()=>clear,gated:()=>gated,set:setDrawer,setClear,apply,layout,toast,lastTouch:()=>lastTouch,touch:()=>{lastTouch=Date.now()},
+    state:()=>{const o={mode:MODE,clear,gated};keys.forEach(k=>{o[k]=st[k]});keys.forEach(k=>{o[k+'Dot']=tabs[k].classList.contains('new')});return o}};
+  setInterval(poll,400);
+  addEventListener('resize',()=>{const m=modeOf();if(m!==MODE){MODE=m;st=stateFor(MODE)}apply()});
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(layout);
+  apply();setTimeout(apply,300);setTimeout(layout,1200);
+  return api;
+}
+
+MOTS.drw={L,DT,TABH,EASE,DUR,CHEV,EYE,mk,tab,eye:eyeBtn,store,modeOf,MQL,MQP,MQR,grip,axisOf,lookCss,hkey,toast,doc,tuck,vis};
+
+/* ===================================================== the pages ===================================================== */
+const $=id=>document.getElementById(id);
+const docTop=el=>{const r=el.getBoundingClientRect();return {t:r.top+scrollY,b:r.bottom+scrollY,l:r.left+scrollX,r:r.right+scrollX,w:r.width,h:r.height}};
+const setVar=(el,k,v)=>{v=Math.round(v)+'px';if(el.style.getPropertyValue(k)!==v)el.style.setProperty(k,v)};
+// a transport bar fixed at the top of the screen (the Dance's and the Synthesiser's, on a computer): the tucked tabs hang beneath it
+function barBottom(){let b=0;for(const s of ['#dtb.on','#sbar.show']){const e=q(s);if(e){const r=e.getBoundingClientRect();if(r.top<=2&&r.bottom>0&&r.height<200)b=Math.max(b,r.bottom)}}return b}
+// the top strip: the Menu tab and the eye, hanging from the header
+function topStrip(head){head.classList.add('drw-hd');const s=mk('div','drw-strip drw-hang drw-topstrip');document.body.appendChild(s);
+  return {el:s,place(open){const r=docTop(head);setVar(HT,'--drw-tl',Math.max(8,r.l+14));if(open)setVar(HT,'--drw-ty',r.b);setVar(HT,'--drw-bar',barBottom())}}}
+const soundOn=b=>!!b&&b.getAttribute('aria-pressed')==='true';
+
+/* ---- the Dial: the header (title, nav, buttons) a top drawer; the thinkers' timeline a bottom drawer below the sky; the side panels a side
+   drawer on a wide screen (and a drawer of their own below the sky on a narrow one); Clear view leaves the sky alone on the screen ---- */
+function dialPage(){
+  const head=q('header.top'),tl=$('timeline'),stage=q('.stage'),panel=q('aside.panel'),dialEl=q('.dial'),left=dialEl&&dialEl.parentElement,begin=$('begin');
+  if(!head||!tl||!stage||!panel||!left||left.parentElement!==stage)return;
+  const WIDE=matchMedia('(min-width:961px)');
+  // the timeline rides below the sky, as the Flight's travel strip does; its tab rides on its upper edge
+  const rail=mk('div','drw-strip drw-ride drw-tlrail');left.insertBefore(rail,dialEl.nextSibling);left.insertBefore(tl,rail.nextSibling);
+  const pstrip=mk('div','drw-strip drw-ride drw-pstrip');stage.insertBefore(pstrip,panel);
+  const side=mk('div','drw-vside drw-r');stage.appendChild(side);
+  const top=topStrip(head);
+  const bg=tab('begin','');bg.classList.add('drw-begin');bg.dataset.go='down';bg.innerHTML='<i class="bd" aria-hidden="true"></i><span class="drw-l"></span>';bg.onclick=()=>{if(begin)begin.click()};
+  const css=`
+html.drw-on .drw-tlrail{margin-top:.7rem}
+html.drw-on #timeline{padding-top:.6rem}
+html.drw-on .stage{position:relative}
+html.drw-on .drw-pstrip{margin-bottom:-1.2rem}
+@media (min-width:961px){html.drw-on .stage{column-gap:44px}html.drw-on .stage.drw-pgone{grid-template-columns:minmax(0,1fr) 0px}.drw-pstrip{display:none!important}html.drw-on .drw-vside{display:block}}
+/* a phone held sideways: the sky fills the screen between the tabs and, when the thinkers are tucked away, their tab rides on the sky's lower edge */
+html.drw-on.drw-m-land #orrery{height:calc(100vh - var(--drw-lsub,2rem));height:calc(100dvh - var(--drw-lsub,2rem));min-height:12rem}
+html.drw-on.drw-m-land.drw-bot-off .drw-tlrail,html.drw-on.drw-m-land.drw-clear .drw-tlrail{margin-top:-${TABH}px}
+html.drw-on.drw-m-land.drw-bot-off .drw-tlrail::before,html.drw-on.drw-m-land.drw-clear .drw-tlrail::before{display:none}
+`;
+  const api=doc({id:'dial',css,
+    drawers:[{k:'top',label:L.menu,go:'up',els:()=>[head],host:()=>top.el},
+      {k:'bot',label:L.thinkers,go:'down',els:()=>[tl],host:()=>rail},
+      {k:'side',label:L.panel,go:()=>WIDE.matches?'right':'down',els:()=>[panel],host:()=>WIDE.matches?side:pstrip}],
+    eye:{host:()=>top.el,go:'up'},
+    playing:()=>soundOn(begin)||!!MOTS.transportOn,
+    auto:{mode:'land',keys:['top','bot'],ms:60000},
+    onClear:v=>{if(v)requestAnimationFrame(()=>setTimeout(()=>{const r=dialEl.getBoundingClientRect();scrollTo({top:Math.max(0,r.top+scrollY-TABH-8),behavior:MQR.matches?'auto':'smooth'})},MQR.matches?0:380))},
+    layout:a=>{
+      if(!bg.parentNode)top.el.appendChild(bg);
+      const st=a.st(),cl=a.clear(),topOpen=st.top&&!cl&&!a.gated();top.place(topOpen);
+      const on=soundOn(begin);HT.classList.toggle('drw-beg',!a.gated()&&!topOpen&&!on);
+      const lb=$('beginLabel');const t=(lb||begin||{}).textContent||'';if(bg.lastChild.textContent!==t.trim())bg.lastChild.textContent=t.trim();
+      // the side panel's column closes once the panel has gone, and its tab keeps to the lane beside the sky
+      stage.classList.toggle('drw-pgone',panel.classList.contains('drw-gone'));
+      if(WIDE.matches){const pg=panel.classList.contains('drw-gone')||!vis(panel);setVar(side,'--drw-sx',(pg?stage.clientWidth:panel.offsetLeft)-36);setVar(side,'--drw-sy',Math.max(16,Math.min(dialEl.offsetHeight*.3,260)))}
+      // the sky's height: on a wide screen it stands above the fold with the thinkers below it; on a phone held sideways it fills the screen
+      const botOpen=(st.bot&&!cl)||a.gated(),below=rail.offsetHeight+12+(botOpen?(tl.classList.contains('drw-gone')?0:tl.offsetHeight)+8:0);
+      setVar(HT,'--drw-below',a.gated()?0:below);
+      setVar(HT,'--drw-lsub',TABH+8+6+(botOpen?below:0));
+      if(MOTS.fitDial)MOTS.fitDial()}});
+  MOTS.app=MOTS.app||{};MOTS.app.drawers=api;
+}
+
+/* ---- Dance: the style rows and the band (the mixer) a bottom drawer; the party, the quiz and the sky mix (the modes) a side drawer; the
+   dance floor and the Play bar stay. Clear view also hides the header. On a phone held sideways both tuck away after the first minute. ---- */
+function dancePage(){
+  const deck=q('.deck'),style=$('style'),head=q('header.top'),mix=$('mix'),play=$('play');
+  if(!deck||!style||!mix)return;
+  let tries=0;
+  const go=()=>{const party=q('.partygrp');if(!party&&tries++<40){setTimeout(go,100);return}
+    const band=mix.closest('.card');
+    // the modes leave the style box for a row of their own, above it
+    if(party&&party.parentElement===style)deck.insertBefore(party,style);
+    const strip=mk('div','drw-strip drw-ride drw-dstrip');deck.insertBefore(strip,party||style);
+    const css=`
+html.drw-on .drw-dstrip{flex:1 0 100%;width:100%;margin-bottom:-.35rem}
+html.drw-on .deck > .partygrp{flex:1 0 100%;min-width:0}
+`;
+    const api=doc({id:'dance',css,
+      drawers:[{k:'modes',label:L.modes,go:'left',els:()=>[party,$('quizBox')],host:()=>strip},
+        {k:'mix',label:L.mixer,go:'down',els:()=>[style,band],host:()=>strip}],
+      eye:{host:()=>strip,go:'down'},
+      clearEls:()=>[head,q('.wrap > .foot')],
+      playing:()=>soundOn(play),
+      auto:{mode:'land',keys:['modes','mix'],ms:60000},
+      // a quiz round or its answer while the modes are tucked away lights the dot on their tab
+      sig:{modes:()=>{const b=$('quizBox');if(!b||b.style.display==='none')return '';const a=b.querySelector('.q-ask');return (b.dataset.phase||'')+'|'+(a?a.textContent:'')}}});
+    MOTS.dance=MOTS.dance||{};MOTS.dance.drawers=api;
+  };
+  go();
+}
+
+/* ---- the Synthesiser: only the header tucks away (the matrix and the sequencer are played); Clear view leaves the strips and the Play bar ---- */
+function synthPage(){
+  const head=q('header.top'),strips=$('strips');if(!head||!strips)return;
+  const keep=strips.closest('.card'),top=topStrip(head);
+  const css=`
+html.drw-on.drw-clear .rack{grid-template-columns:minmax(0,1fr)!important}
+`;
+  const api=doc({id:'synth',css,
+    drawers:[{k:'top',label:L.menu,go:'up',els:()=>[head],host:()=>top.el}],
+    eye:{host:()=>top.el,go:'up'},
+    clearEls:()=>{const out=[q('.deck'),q('.wrap > .foot'),$('how')];document.querySelectorAll('.rack > *,.wrap > section.card').forEach(e=>{if(e!==keep&&!e.contains(keep))out.push(e)});return out},
+    layout:a=>top.place(a.st().top&&!a.clear()&&!a.gated())});
+  MOTS.synthDrawers=api;
+}
+
+/* ---- Meditate: the controls (soundscape, length, settings, and the header) tuck themselves away after about a minute of a session; a tap
+   anywhere, the tab or H brings them back; the hearth and the clock stay. Begin is never tucked away, and the dim screen is left alone. ---- */
+function meditatePage(){
+  const head=q('header.top'),clock=$('clock'),play=$('play'),M=()=>(W.MEDITATE&&MEDITATE.S)||{};
+  if(!clock||!play)return;
+  const strip=mk('div','drw-strip drw-ride drw-mstrip');clock.parentNode.insertBefore(strip,clock.nextSibling);
+  const running=()=>{const s=M().state;return s==='running'||s==='ending'};
+  let t0=0,auto=false;
+  const css=`
+html.drw-on .drw-mstrip{width:min(26rem,100%);margin:.2rem auto .3rem;align-self:center}
+/* the reminder sits low, away from the clock and the hearth */
+.drw-toast{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 1.4rem);transform:translate(-50%,8px)}
+`;
+  const api=doc({id:'meditate',css,
+    drawers:[{k:'ctl',label:L.controls,go:'down',host:()=>strip,
+      els:()=>{const o=[head,q('.scapeRow'),$('lens'),$('trackRow'),q('.hear'),$('settings'),q('.wrap > .foot'),$('motsCopy')];if(running())o.push(q('.actions'));return o}}],
+    eye:false,
+    onClear:v=>{if(!v)auto=false},
+    tick:a=>{const now=Date.now();
+      if(!running()){t0=0;if(a.clear()&&auto){auto=false;a.setClear(false)}return}
+      if(!t0)t0=now;
+      // after a minute of the session, and a minute without a touch, the controls go; never while the screen is dimmed
+      if(!M().dim&&!a.clear()&&a.st().ctl&&!a.gated()&&now-t0>(W.__drwTuckMs||60000)&&now-a.lastTouch()>(W.__drwTuckMs||60000)&&!q('[aria-modal="true"]')){auto=true;a.setClear(true);a.toast(L.back,4500)}}});
+  // one tap anywhere brings them back (not the tap that wakes a dimmed screen)
+  document.addEventListener('click',e=>{if(!api.clear()||api.gated()||M().dim)return;const t=e.target;if(t&&t.closest&&t.closest('#dimmer,.drw-tab'))return;auto=false;api.setClear(false)},true);
+  W.MEDITATE_DRAWERS=api;
+}
+
+const start=()=>{try{
+  if($('orrery')&&$('timeline'))dialPage();
+  else if(q('.deck')&&$('style')&&$('mix'))dancePage();
+  else if($('strips')&&$('seqCard'))synthPage();
+  else if($('hearth')&&$('clock'))meditatePage();
+}catch(e){console.warn('drawers',e)}};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else setTimeout(start,0);
+})();
+</script>
+<script>
 (()=>{
 'use strict';
 
@@ -13622,28 +14001,13 @@ if(tt&&sl){
    drawers tuck themselves away once, after the first minute of flight with the sound on, unless you have already chosen.
    Everything moves with transform only, and nothing hidden can catch a tap: the drag-to-look works where the boxes were. */
 {
-const DT={
- en:{menu:'Menu',travel:'Travel',info:'Info',clear:'Clear view',show:'Show the controls',nw:'new',key:'clear view',tuck:'Controls tucked away: tap a tab, or press H, to bring them back'},
- pl:{menu:'Menu',travel:'Podróż',info:'Info',clear:'Czysty widok',show:'Pokaż sterowanie',nw:'nowe',key:'czysty widok',tuck:'Sterowanie schowane: dotknij zakładki albo naciśnij H, aby je przywrócić'},
- cy:{menu:'Dewislen',travel:'Teithio',info:'Manylion',clear:'Golwg glir',show:'Dangos y rheolyddion',nw:'newydd',key:'golwg glir',tuck:'Mae’r rheolyddion o’r golwg: tapiwch dab, neu bwyswch H, i’w dangos eto'},
- de:{menu:'Menü',travel:'Reise',info:'Info',clear:'Freie Sicht',show:'Bedienelemente zeigen',nw:'neu',key:'freie Sicht',tuck:'Bedienelemente eingeklappt: tippe auf einen Reiter oder drücke H, um sie zurückzuholen'},
- es:{menu:'Menú',travel:'Viajar',info:'Info',clear:'Vista despejada',show:'Mostrar los controles',nw:'nuevo',key:'vista despejada',tuck:'Controles recogidos: toca una pestaña o pulsa H para recuperarlos'},
- fr:{menu:'Menu',travel:'Voyage',info:'Infos',clear:'Vue dégagée',show:'Afficher les commandes',nw:'nouveau',key:'vue dégagée',tuck:'Commandes rangées : touchez un onglet ou appuyez sur H pour les faire revenir'},
- it:{menu:'Menu',travel:'Viaggia',info:'Info',clear:'Vista libera',show:'Mostra i comandi',nw:'nuovo',key:'vista libera',tuck:'Comandi nascosti: tocca una linguetta o premi H per riaverli'},
- zh:{menu:'菜单',travel:'航行',info:'信息',clear:'纯净视野',show:'显示控件',nw:'新',key:'纯净视野',tuck:'控件已收起：点按标签或按 H 键即可恢复'},
- ja:{menu:'メニュー',travel:'移動',info:'情報',clear:'すっきり表示',show:'操作パネルを表示',nw:'新着',key:'すっきり表示',tuck:'操作パネルをしまいました。タブをタップするか H キーで戻せます'},
- vi:{menu:'Menu',travel:'Di chuyển',info:'Thông tin',clear:'Xem thoáng',show:'Hiện các nút điều khiển',nw:'mới',key:'xem thoáng',tuck:'Đã thu gọn các nút điều khiển: chạm vào một tab hoặc nhấn H để hiện lại'},
- bg:{menu:'Меню',travel:'Пътувай',info:'Инфо',clear:'Чист изглед',show:'Покажи контролите',nw:'ново',key:'чист изглед',tuck:'Контролите са прибрани: докосни раздел или натисни H, за да ги върнеш'},
- pt:{menu:'Menu',travel:'Viajar',info:'Info',clear:'Visão limpa',show:'Mostrar os controles',nw:'novo',key:'visão limpa',tuck:'Controles recolhidos: toque em uma aba ou aperte H para trazê-los de volta'}};
-const DL=Object.assign({},DT.en,DT[(document.documentElement.lang||'en').slice(0,2)]||{});
+// the words, the tab look, the tabs, the swipe, the storage and the layouts are shared with the other pages (drawers.js)
+const DRW=MOTS.drw,DL=DRW.L;
 const HT=document.documentElement,q=s=>document.querySelector(s);
 const tlEl=q('.hud.tl'),trEl=q('.hud.tr'),bcEl=q('.hud.bc');
 if(tlEl&&trEl&&bcEl){
-const LSK='mots.fly.drawers',TABH=28;
-const load=()=>{try{const o=JSON.parse(localStorage.getItem(LSK)||'{}');return o&&typeof o==='object'?o:{}}catch(e){return {}}};
-const save=o=>{try{localStorage.setItem(LSK,JSON.stringify(o))}catch(e){}};
-const MQL=matchMedia('(max-height:520px) and (orientation:landscape)'),MQP=matchMedia('(max-width:620px)'),MQR=matchMedia('(prefers-reduced-motion:reduce)');
-const modeOf=()=>MQL.matches?'land':MQP.matches?'phone':'wide';
+const LSK='mots.fly.drawers',TABH=DRW.TABH;
+const {load,save}=DRW.store(LSK),modeOf=DRW.modeOf;
 let MODE=modeOf(),ALL=load(),st=null,clear=false,lastTouch=0,flyT0=0;
 const stateFor=m=>{const s=ALL[m]||{};return {top:s.top!==0,bot:s.bot!==0,info:s.info!==0}};
 st=stateFor(MODE);
@@ -13654,7 +14018,7 @@ const on=list=>list.map(m=>'html.drw-on '+m).join(',');
 const TOPM=['.hud.tl','.hud.tr > :not(#begin)','.hud.tr > #begin[aria-pressed="true"]'];
 const BOTM=['#ribbon','.hud.bc > .readout'];
 const INFM=['#galCard','#gyCard'];
-const EASE='cubic-bezier(.22,.8,.24,1)',DUR='.34s';
+const EASE=DRW.EASE,DUR=DRW.DUR;DRW.lookCss();
 const css=document.createElement('style');css.id='drwCss';css.textContent=`
 ${on(TOPM.concat(BOTM,INFM,['#galCap']))}{transition:transform ${DUR} ${EASE},opacity .32s ease,visibility 0s linear 0s}
 ${off('drw-top-off',TOPM)}{transform:translateY(calc(-1 * var(--drw-top-d,300px)));opacity:0;visibility:hidden;pointer-events:none;transition:transform ${DUR} ${EASE},opacity .28s ease,visibility 0s linear ${DUR}}
@@ -13693,24 +14057,6 @@ html.drw-bot-off .drw-rail,html.drw-clear .drw-rail{transform:translateY(calc(va
 html.drw-info-off .drw-side,html.drw-clear .drw-side{transform:translateX(calc(env(safe-area-inset-left,0px) + var(--drw-n,0px)))}
 /* the tabs glide only when a drawer moves; when the header or the card merely changes size they keep to its edge at once */
 html.drw-anim .drw-topg,html.drw-anim .drw-rail,html.drw-anim .drw-side{transition:transform ${DUR} ${EASE}}
-.drw-drag{transition:none!important}
-.drw-tab,.drw-eye{position:relative;pointer-events:auto;appearance:none;-webkit-appearance:none;margin:0;display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
-  height:${TABH}px;min-width:44px;padding:0 .75rem 0 .6rem;color:var(--vellum-dim,#aea791);font:500 .68rem/1 var(--f-body,system-ui,sans-serif);letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;
-  background:linear-gradient(180deg,rgba(26,24,34,.9),rgba(8,10,20,.86));border:1px solid rgba(201,152,79,.5);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 3px 12px rgba(0,0,0,.45);transition:color .2s,border-color .2s,background-color .2s}
-:lang(zh) .drw-tab,:lang(ja) .drw-tab{letter-spacing:.04em;font-size:.72rem}
-.drw-tab::after,.drw-eye::after{content:"";position:absolute;left:-3px;right:-3px;top:0;bottom:-16px}
-.drw-rail .drw-tab::after{top:-16px;bottom:0}
-.drw-tab svg,.drw-eye svg{flex:none;color:var(--bronze,#c9984f);transition:transform ${DUR} ${EASE}}
-.drw-tab:hover,.drw-eye:hover,.drw-tab:focus-visible,.drw-eye:focus-visible{color:var(--vellum,#e9e1cc);border-color:var(--bronze,#c9984f)}
-.drw-tab:focus-visible,.drw-eye:focus-visible{outline:2px solid var(--bronze,#c9984f);outline-offset:2px}
-.drw-topg .drw-tab,.drw-topg .drw-eye{border-top-color:transparent;border-radius:0 0 11px 11px}
-.drw-topg .drw-eye{padding:0;width:44px}
-.drw-eye[aria-pressed="true"]{color:#f3d9a4;border-color:var(--bronze,#c9984f);background:linear-gradient(180deg,rgba(201,152,79,.3),rgba(201,152,79,.12)),rgba(8,10,20,.86)}
-.drw-rail .drw-tab{border-bottom-color:transparent;border-radius:11px 11px 0 0}
-.drw-side .drw-tab{flex-direction:row;height:auto;min-height:84px;width:${TABH}px;min-width:${TABH}px;padding:.65rem 0;border-left-color:transparent;border-radius:0 11px 11px 0;writing-mode:vertical-rl;text-orientation:mixed}
-.drw-side .drw-tab::after{left:0;right:-16px;top:-4px;bottom:-4px}
-.drw-side .drw-tab svg{writing-mode:horizontal-tb}
 /* the chevron points the way the drawer will go */
 .drw-topg .drw-tab svg{transform:rotate(180deg)}
 html.drw-top-off .drw-topg .drw-tab svg,html.drw-clear .drw-topg .drw-tab svg{transform:none}
@@ -13718,11 +14064,6 @@ html.drw-bot-off .drw-t-bot svg,html.drw-clear .drw-t-bot svg,html.drw-info-off 
 .drw-side .drw-tab svg{transform:rotate(90deg)}
 html.drw-info-off .drw-side .drw-tab svg,html.drw-clear .drw-side .drw-tab svg{transform:rotate(-90deg)}
 html.drw-nocard .drw-t-info{display:none}
-/* something new while the card is tucked away: a small bronze light that breathes */
-.drw-dot{display:none;flex:none;width:7px;height:7px;border-radius:50%;background:#f3d9a4;box-shadow:0 0 0 0 rgba(243,217,164,.6),0 0 8px rgba(243,217,164,.8)}
-.drw-tab.new .drw-dot{display:block;animation:drwDot 1.9s ease-in-out infinite}
-.drw-tab.new{color:var(--vellum,#e9e1cc);border-color:var(--bronze,#c9984f)}
-@keyframes drwDot{0%,100%{transform:scale(.75);opacity:.7}50%{transform:scale(1.3);opacity:1}}
 html.mots-proj .drw-topg,html.mots-proj .drw-rail,html.mots-proj .drw-side{display:none!important}
 @media (prefers-reduced-motion:reduce){
  ${on(TOPM.concat(BOTM,INFM,['#galCap']))},${off('drw-top-off',TOPM.concat(BOTM,INFM,['#galCap']))},.drw-topg,.drw-rail,.drw-side,.drw-tab svg{transition:none!important}
@@ -13731,13 +14072,9 @@ html.mots-proj .drw-topg,html.mots-proj .drw-rail,html.mots-proj .drw-side{displ
 document.head.appendChild(css);
 
 /* ---- the tabs ---- */
-const CHEV='<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const EYE='<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
-const mk=(tag,cls,html)=>{const e=document.createElement(tag);e.className=cls;if(html!=null)e.innerHTML=html;return e};
-const tab=(k,label)=>{const b=mk('button','drw-tab drw-t-'+k,CHEV+'<span class="drw-l"></span><i class="drw-dot" aria-hidden="true"></i>');b.type='button';b.querySelector('.drw-l').textContent=label;b.dataset.k=k;return b};
+const mk=DRW.mk,tab=DRW.tab;
 const topG=mk('div','drw-topg'),rail=mk('div','drw-rail'),side=mk('div','drw-side');
-const tTop=tab('top',DL.menu),tBot=tab('bot',DL.travel),tInfo=tab('info',DL.info),eye=mk('button','drw-eye',EYE);
-eye.type='button';eye.setAttribute('aria-pressed','false');
+const tTop=tab('top',DL.menu),tBot=tab('bot',DL.travel),tInfo=tab('info',DL.info),eye=DRW.eye();
 topG.append(tTop,eye);rail.append(tInfo,tBot);
 document.body.append(topG,rail,side);
 // the keys line on a computer: H for Clear view
@@ -13807,18 +14144,11 @@ MOTS.app.drawers={state:()=>({mode:MODE,top:st.top,bot:st.bot,info:st.info,clear
 /* ---- tap or swipe a tab; the tab follows the finger a little while it is dragged ---- */
 function axis(k){return k==='top'?{a:'y',s:-1}:k==='bot'?{a:'y',s:1}:MODE==='wide'?{a:'x',s:-1}:{a:'y',s:1}}
 function grip(btn,k,holder){
-  let s=null,swiped=false;
   const isOpen=()=>k==='clear'?!clear:(st[k]&&!clear);
-  btn.addEventListener('pointerdown',e=>{if(e.button)return;s={x:e.clientX,y:e.clientY,id:e.pointerId,ax:axis(k==='clear'?'top':k)};swiped=false;try{btn.setPointerCapture(e.pointerId)}catch(_){}});
-  btn.addEventListener('pointermove',e=>{if(!s||e.pointerId!==s.id)return;const d=s.ax.a==='y'?e.clientY-s.y:e.clientX-s.x;if(Math.abs(d)<4)return;
-    holder.classList.add('drw-drag');holder.style.setProperty('--drw-n',Math.max(-36,Math.min(36,d*.6))+'px')});
-  const end=e=>{if(!s||e.pointerId!==s.id)return;const d=(s.ax.a==='y'?e.clientY-s.y:e.clientX-s.x)*s.ax.s,ax=s.ax;s=null;
-    holder.classList.remove('drw-drag');holder.style.removeProperty('--drw-n');
-    if(e.type==='pointerup'&&Math.abs(d)>=22){swiped=true;const toEdge=d>0;
-      if(k==='clear'){if(toEdge!==clear)setClear(toEdge)}
-      else if(clear)setDrawer(k,true);else if(toEdge===isOpen())setDrawer(k,!toEdge)}};
-  btn.addEventListener('pointerup',end);btn.addEventListener('pointercancel',end);
-  btn.addEventListener('click',e=>{if(swiped){swiped=false;e.preventDefault();return}if(k==='clear')setClear(!clear);else setDrawer(k,clear?true:!st[k])});
+  DRW.grip(btn,{axis:()=>axis(k==='clear'?'top':k),
+    nudge:d=>{if(d==null){holder.classList.remove('drw-drag');holder.style.removeProperty('--drw-n');return}holder.classList.add('drw-drag');holder.style.setProperty('--drw-n',d+'px')},
+    swipe:toEdge=>{if(k==='clear'){if(toEdge!==clear)setClear(toEdge)}else if(clear)setDrawer(k,true);else if(toEdge===isOpen())setDrawer(k,!toEdge)},
+    tap:()=>{if(k==='clear')setClear(!clear);else setDrawer(k,clear?true:!st[k])}});
 }
 grip(tTop,'top',topG);grip(tBot,'bot',rail);grip(tInfo,'info',{classList:{add:()=>(MODE==='wide'?side:rail).classList.add('drw-drag'),remove:()=>{side.classList.remove('drw-drag');rail.classList.remove('drw-drag')}},style:{setProperty:(n,v)=>(MODE==='wide'?side:rail).style.setProperty(n,v),removeProperty:n=>{side.style.removeProperty(n);rail.style.removeProperty(n)}}});
 grip(eye,'clear',topG);
@@ -13840,10 +14170,7 @@ function touchEnd(e){if(!T0)return;const t=e.changedTouches[0],dx=t.clientX-T0.x
   else if(k==='panel'&&Hz&&dx>70){try{closeNav()}catch(_){}}}
 
 /* ---- H: Clear view (no other key of the flight uses H) ---- */
-addEventListener('keydown',e=>{if(gated||e.ctrlKey||e.metaKey||e.altKey||e.repeat||(e.key!=='h'&&e.key!=='H'))return;
-  const a=document.activeElement;if(a&&a.closest&&a.closest('input,textarea,select,[contenteditable="true"]'))return;
-  if(q('[aria-modal="true"]')||q('#tour,#stour'))return;
-  e.preventDefault();setClear(!clear)});
+DRW.hkey(()=>{if(gated)return false;setClear(!clear)});
 
 /* ---- a new card while Info is tucked away: the tab lights a dot, and the card waits there ---- */
 function cardSig(){const c=card();if(!c)return '';const h=c.querySelector('.gch b,.gch,b');return c.id+'|'+(h?h.textContent:'')}
