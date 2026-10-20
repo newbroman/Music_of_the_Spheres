@@ -7,13 +7,13 @@ Music of the Spheres
 Hear the planets sung by the Greek gods, as the ancient thinkers imagined it.
 
 ## Full description (max 4000)
-For two thousand years, philosophers believed the planets made music as they moved. Music of the Spheres lets you hear it: the real solar system, sung by the Greek gods, and the heavens as eighteen great thinkers imagined them.
+For two thousand years, philosophers believed the planets made music as they moved. Music of the Spheres lets you hear it: the real solar system, sung by the Greek gods, and the heavens as eighteen great thinkers and the living traditions of Java and the Maya imagined them.
 
 THE REAL SKY, SUNG
 Every planet is a god with its own voice: Hermes, Aphrodite, Gaia, Ares, Zeus, Kronos, Ouranos and Poseidon, with Helios at the centre. Their notes come from real orbits, sizes, tilts and spins, calculated for this moment from NASA's orbital data. Moons, dwarf planets, asteroids and comets join in. Choose where you listen from, and each voice comes from its true direction.
 
-EIGHTEEN THINKERS, EIGHTEEN HEAVENS
-Travel from Pythagoras and Plato through Aristotle, Cicero, Macrobius, Nicomachus, Ptolemy, Boethius and Eriugena to Copernicus, Robert Fludd and Kepler, to the sonifications of the space age, and on to today, with three parallel traditions: the Chinese pitch-pipes of the months, the Brethren of Purity’s lute of the elements, and Nguyễn Trãi’s court music of Đại Việt, where peace is the root of music. Each plays the cosmos by their own rules: Plato's Sirens, Ptolemy's tetrachords, Fludd's divine monochord and Kepler's planetary melodies. Hear them as written in the sources, or as if standing in ancient Athens under the turning sky. Every scale and ratio is explained, with notes on what is history and what is interpretation.
+EIGHTEEN THINKERS AND TWO LIVING TRADITIONS
+Travel from Pythagoras and Plato through Aristotle, Cicero, Macrobius, Nicomachus, Ptolemy, Boethius and Eriugena to Copernicus, Robert Fludd and Kepler, to the sonifications of the space age, and on to today, with three parallel traditions: the Chinese pitch-pipes of the months, the Brethren of Purity’s lute of the elements, and Nguyễn Trãi’s court music of Đại Việt, where peace is the root of music; and two living traditions, heard with care: the gamelan and the calendar of Java, after Judith Becker’s reading, and the Maya count of days with the Venus table of the Dresden Codex, a respectful reconstruction. Each plays the cosmos by their own rules: Plato's Sirens, Ptolemy's tetrachords, Fludd's divine monochord and Kepler's planetary melodies. Hear them as written in the sources, or as if standing in ancient Athens under the turning sky. Every scale and ratio is explained, with notes on what is history and what is interpretation.
 
 FLY THROUGH THE SPHERES IN 3D
 Ride through the solar system, visit each planet's moons and hear the music change around you.
