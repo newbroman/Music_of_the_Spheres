@@ -351,8 +351,10 @@ function report(){var L=[];
   if(C.fails.length)L.push('could not start: '+C.fails.slice(-4).join(' | '));
   if(C.notes.length)L.push('notes: '+C.notes.slice(-4).join(' | '));
   L.push('self-repair: level '+FIX.level+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
+  {var bl=[];try{bl=JSON.parse(LSg('mots.bglog')||'[]')}catch(e){}L.push('screen off / other app ('+bl.length+'):'+(bl.length?'\n  '+bl.join('\n  '):' nothing recorded yet'))}
   L.push('errors ('+C.errs.length+'):'+(C.errs.length?'\n  '+C.errs.slice(-12).join('\n  '):' none'));
   return L.join('\n')}
+C.bgNote=function(s){try{var k='mots.bglog',a=JSON.parse(LSg(k)||'[]');a.push(new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(5,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s);LSs(k,JSON.stringify(a.slice(-12)))}catch(e){}};
 C.report=report;
 var PANEL=null,tick=0;
 function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';upd();return}
@@ -981,6 +983,19 @@ html.mots-proj #dtb{display:none}
     if (!mode) mode = m;
     syncOut();
   };
+  const bgNote = (t) => {
+    try {
+      window.MOTS_COMPAT && MOTS_COMPAT.bgNote && MOTS_COMPAT.bgNote(t);
+    } catch (e) {
+    }
+  };
+  {
+    const S0 = AudioContext.prototype.suspend;
+    AudioContext.prototype.suspend = function() {
+      this.__ownSus = performance.now();
+      return S0.apply(this, arguments);
+    };
+  }
   const BG = {
     el: null,
     msd: null,
@@ -992,6 +1007,7 @@ html.mots-proj #dtb{display:none}
     gS: null,
     c: null,
     mode: null,
+    rt: 0,
     st: { n: 0, hid: 0, w0: 0, a0: 0, lastW: 0, gaps: 0, max: 0, agc: 0, state: false }
   };
   {
@@ -1064,6 +1080,21 @@ html.mots-proj #dtb{display:none}
           try {
             agcTick();
           } catch (e) {
+          }
+          if (BG.on && ctx && ctx.state !== "running" && ctx.state !== "closed" && !MOTS.projPaused && !(ctx.__ownSus > s.w0) && now - BG.rt > 2e3) {
+            BG.rt = now;
+            s.wd = (s.wd || 0) + 1;
+            ctx.resume().then(() => {
+              if (!s.wdOk) {
+                s.wdOk = true;
+                bgNote("the phone paused the sound; resumed it");
+              }
+            }).catch((e) => {
+              if (!s.wdNo) {
+                s.wdNo = true;
+                bgNote("the phone paused the sound and refused to resume (" + (e && e.name || e) + ")");
+              }
+            });
           }
         }
         if (!BG.q.length) return;
@@ -1165,7 +1196,13 @@ html.mots-proj #dtb{display:none}
         return;
       }
       if (hidden && !BG.on) {
-        if (ctx.state !== "running" || MOTS.projPaused) return;
+        if (ctx.state !== "running" || MOTS.projPaused) {
+          if (!MOTS.projPaused && ctx.state !== "closed" && BG.lastNo !== ctx.state) {
+            BG.lastNo = ctx.state;
+            bgNote("hidden while the sound was " + ctx.state + ", so it was not kept playing");
+          }
+          return;
+        }
         bgWire();
         if (!BG.el) {
           BG.el = new Audio();
@@ -1183,10 +1220,16 @@ html.mots-proj #dtb{display:none}
         s.max = 0;
         s.state = false;
         s.mode = bgMode();
+        s.wd = 0;
+        s.wdOk = false;
+        s.wdNo = false;
         if (!s.watch) {
           s.watch = true;
           ctx.addEventListener("statechange", () => {
-            if (BG.on) s.state = true;
+            if (BG.on) {
+              s.state = true;
+              if (ctx.state !== "running" && !(ctx.__ownSus > s.w0) && !MOTS.projPaused) bgNote("while hidden the phone set the sound to " + ctx.state);
+            }
           });
         }
         BG.sky = MOTS.skyHidden;
@@ -1209,7 +1252,10 @@ html.mots-proj #dtb{display:none}
             BG.gD.gain.cancelScheduledValues(t2);
             ST0.call(BG.gD.gain, 1e-4, t2 + 0.15, 0.04);
           }
-        }).catch(() => bgRoute(false));
+        }).catch((e) => {
+          bgNote("the background player was refused (" + (e && e.name || e) + ")");
+          bgRoute(false);
+        });
       } else if (!hidden && BG.on) {
         const t = ctx.currentTime, s = BG.st;
         BG.on = false;
@@ -1236,6 +1282,7 @@ html.mots-proj #dtb{display:none}
           BG.mode = "stream";
           s.fell = true;
         }
+        if (s.hid > 15) bgNote("hidden " + s.hid.toFixed(0) + " s · sound clock " + s.aud.toFixed(0) + " s (" + Math.round(100 * s.aud / Math.max(0.1, s.hid)) + "%) · " + s.mode + (s.fell ? " → stream next time" : "") + " · late ticks " + s.gaps + (s.wd ? " · watchdog " + s.wd : ""));
         if (/[?&]bgdiag\b/.test(location.search)) bgDiag(s);
       }
     } catch (e) {
@@ -2720,6 +2767,19 @@ const s=document.createElement('style');s.id='motsPulseCss';s.textContent=css;(d
 (()=>{
 "use strict";
 const WN=[
+ {id:'mayaperc',d:'2026-10-20c',s:'⁘',go:{p:'dance.html',a:'style:mayaperc'},t:{
+  en:['Maya percussion, a reconstruction','A new band in the World row: a percussion piece reconstructed from the instruments painted at Bonampak and found in excavations. No Maya music survives in notation; the rhythms follow the codex’s counts, turtle shells on thirteen and the drum on twenty, the sections following Venus, not any known Maya piece.'],
+  pl:['Perkusja Majów, rekonstrukcja','Nowy zespół w rzędzie Świat: utwór perkusyjny zrekonstruowany z instrumentów namalowanych w Bonampak i odnalezionych w wykopaliskach. Muzyka Majów nie zachowała się w zapisie; rytmy idą za rachubami kodeksu, skorupy żółwi na trzynaście, bęben na dwadzieścia, części za Wenus, a nie za żadnym znanym utworem Majów.'],
+  cy:['Offerynnau taro’r Maya, ail-greu','Band newydd yn rhes y Byd: darn taro wedi’i ail-greu o’r offerynnau a beintiwyd yn Bonampak ac a gafwyd mewn cloddiadau. Nid oes cerddoriaeth Maya wedi goroesi mewn nodiant; mae’r rhythmau’n dilyn cyfrifon y codecs, cregyn crwban ar dri ar ddeg a’r drwm ar ugain, a’r rhannau’n dilyn Gwener, nid unrhyw ddarn Maya hysbys.'],
+  de:['Maya-Perkussion, eine Rekonstruktion','Eine neue Band in der Reihe Welt: ein Perkussionsstück, rekonstruiert aus den in Bonampak gemalten und in Grabungen gefundenen Instrumenten. Keine Musik der Maya ist in Notation erhalten; die Rhythmen folgen den Zählungen des Kodex, Schildkrötenpanzer auf der Dreizehn, die Trommel auf der Zwanzig, die Teile der Venus nach, keinem bekannten Maya-Stück.'],
+  es:['Percusión maya, una reconstrucción','Una banda nueva en la fila Mundo: una pieza de percusión reconstruida a partir de los instrumentos pintados en Bonampak y hallados en excavaciones. No se conserva música maya escrita; los ritmos siguen las cuentas del códice, caparazones en el trece y el tambor en el veinte, con las secciones según Venus, no ninguna pieza maya conocida.'],
+  fr:['Percussions mayas, une reconstitution','Un nouveau groupe dans la rangée Monde : une pièce de percussions reconstituée d’après les instruments peints à Bonampak et trouvés en fouilles. Aucune musique maya n’a survécu en notation ; les rythmes suivent les comptes du codex, carapaces sur le treize, tambour sur le vingt, les sections réglées par Vénus, et non une pièce maya connue.'],
+  it:['Percussioni maya, una ricostruzione','Una nuova band nella fila Mondo: un brano per percussioni ricostruito dagli strumenti dipinti a Bonampak e ritrovati negli scavi. Nessuna musica maya è sopravvissuta in notazione; i ritmi seguono i computi del codice, carapaci sul tredici e tamburo sul venti, le sezioni secondo Venere, non un brano maya conosciuto.'],
+  zh:['玛雅打击乐（重建）','“世界”一排新增一支乐队：根据博南帕克壁画中所绘、考古发掘所见乐器重建的打击乐。没有任何玛雅音乐以记谱形式留存；节奏依照抄本的计数，龟甲奏十三，鼓奏二十，乐段跟随金星，并非任何已知的玛雅乐曲。'],
+  ja:['マヤの打楽器（復元）','ワールドの列に新しいバンド：ボナンパックに描かれ、発掘で見つかった楽器から復元した打楽器曲です。楽譜として残るマヤの音楽はありません。リズムは絵文書の数え方に従い、亀甲は十三、太鼓は二十を刻み、各部分は金星に従います。既知のマヤの曲ではありません。'],
+  vi:['Bộ gõ Maya, một sự tái dựng','Một ban nhạc mới ở hàng Thế giới: một bản nhạc gõ tái dựng từ các nhạc cụ được vẽ ở Bonampak và tìm thấy khi khai quật. Không có âm nhạc Maya nào còn lại dưới dạng bản ghi; nhịp điệu theo các phép đếm của sách cổ, mai rùa đếm mười ba, trống đếm hai mươi, các đoạn theo Sao Kim, không phải một bản nhạc Maya nào đã biết.'],
+  bg:['Маянска перкусия, реконструкция','Нова група в реда Световна музика: перкусионна пиеса, реконструирана по инструментите, рисувани в Бонампак и намерени при разкопки. Не е оцеляла маянска музика в запис; ритмите следват броенията на кодекса, черупките на тринайсетте, барабанът на двайсетте, частите според Венера, а не някаква известна маянска пиеса.'],
+  pt:['Percussão maia, uma reconstrução','Uma banda nova na fileira Músicas do mundo: uma peça de percussão reconstruída a partir dos instrumentos pintados em Bonampak e encontrados em escavações. Nenhuma música maia sobreviveu em notação; os ritmos seguem as contagens do códice, cascos no treze e tambor no vinte, as seções seguindo Vênus, não uma peça maia conhecida.']}},
  {id:'maya',d:'2026-10-20b',s:'✧',go:{p:'index.html',a:'thinker:maya'},t:{
   en:['The Maya: the Venus table','The Dresden Codex’s Venus table joins the dial: the 260-day count on turtle shell and drum, and a clay flute for Venus through its four stations and its eight-year return, or heard from Chichén Itzá at today’s date with Venus where it really is. A respectful reconstruction; no Maya text describes planetary music.'],
   pl:['Majowie: tablica Wenus','Na tarczę trafia tablica Wenus z Kodeksu drezdeńskiego: rachuba 260 dni na skorupie żółwia i bębnie oraz gliniany flet dla Wenus przez jej cztery stacje i ośmioletni powrót; albo słuchane z Chichén Itzá w dzisiejszej dacie, z Wenus tam, gdzie naprawdę jest. Pełna szacunku rekonstrukcja; żaden tekst Majów nie opisuje muzyki planet.'],
@@ -14930,6 +14990,7 @@ function rtShow(blob,secs,kind){
     alpine: 3,
     raga: 3,
     gamelan: 3.5,
+    mayaperc: 3,
     tarantella: 4,
     oberek: 4.5,
     buleria: 4.5,
@@ -14960,6 +15021,7 @@ function rtShow(blob,secs,kind){
     "nhanhac",
     "raga",
     "gamelan",
+    "mayaperc",
     "cerdd",
     "hildegard",
     "tallis",
@@ -15294,6 +15356,7 @@ function rtShow(blob,secs,kind){
     alpine: 1,
     horo: 1,
     gamelan: 1,
+    mayaperc: 0,
     gagaku: 2,
     guqin: 2,
     cerdd: 2,
@@ -19941,6 +20004,212 @@ function rtShow(blob,secs,kind){
       if (k.startsWith("solo|ivs|")) delete D.lines[k];
     });
   };
+  const MAYAP_UI = {
+    en: ["Maya percussion (reconstruction)", "A percussion piece reconstructed from the instruments painted at Bonampak and found in excavations: rattles, the pax drum, turtle shells struck with antlers, the tunk’ul slit drum, long trumpets, conch and clay flutes as breath tones. No Maya music survives in notation; the rhythms follow the codex’s counts (thirteen against twenty, meeting at 260, the sections shaped by Venus’s stations), not any known Maya piece"],
+    pl: ["Perkusja Majów (rekonstrukcja)", "Utwór perkusyjny zrekonstruowany z instrumentów namalowanych w Bonampak i odnalezionych w wykopaliskach: grzechotki, bęben pax, skorupy żółwi uderzane porożem, bęben szczelinowy tunk’ul, długie trąby, koncha i gliniane flety jako tony oddechu. Muzyka Majów nie zachowała się w zapisie; rytmy idą za rachubami kodeksu (trzynaście wobec dwudziestu, spotkanie co 260, części ukształtowane przez stacje Wenus), a nie za żadnym znanym utworem Majów"],
+    cy: ["Offerynnau taro’r Maya (ail-greu)", "Darn taro wedi’i ail-greu o’r offerynnau a beintiwyd yn Bonampak ac a gafwyd mewn cloddiadau: ratlau, y drwm pax, cregyn crwban wedi’u taro â chyrn carw, y drwm hollt tunk’ul, utgyrn hir, cragen a ffliwtiau clai fel tonau anadl. Nid oes cerddoriaeth Maya wedi goroesi mewn nodiant; mae’r rhythmau’n dilyn cyfrifon y codecs (tri ar ddeg yn erbyn ugain, yn cwrdd ar 260, a gorsafoedd Gwener yn siapio’r rhannau), nid unrhyw ddarn Maya hysbys"],
+    de: ["Maya-Perkussion (Rekonstruktion)", "Ein Perkussionsstück, rekonstruiert aus den in Bonampak gemalten und in Grabungen gefundenen Instrumenten: Rasseln, die Pax-Trommel, mit Geweih geschlagene Schildkrötenpanzer, die Schlitztrommel Tunk’ul, lange Trompeten, Muschelhorn und Tonflöten als Atemtöne. Keine Musik der Maya ist in Notation erhalten; die Rhythmen folgen den Zählungen des Kodex (dreizehn gegen zwanzig, die sich bei 260 treffen, die Teile nach den Stationen der Venus), keinem bekannten Maya-Stück"],
+    es: ["Percusión maya (reconstrucción)", "Una pieza de percusión reconstruida a partir de los instrumentos pintados en Bonampak y hallados en excavaciones: sonajas, el tambor pax, caparazones de tortuga golpeados con astas, el tambor de hendidura tunk’ul, trompetas largas, caracol y flautas de barro como sonidos de aliento. No se conserva música maya escrita; los ritmos siguen las cuentas del códice (trece contra veinte, que se encuentran en 260, con las secciones según las estaciones de Venus), no ninguna pieza maya conocida"],
+    fr: ["Percussions mayas (reconstitution)", "Une pièce de percussions reconstituée d’après les instruments peints à Bonampak et trouvés en fouilles : hochets, tambour pax, carapaces de tortue frappées avec des bois de cerf, tambour à fente tunk’ul, longues trompes, conque et flûtes d’argile en souffles. Aucune musique maya n’a survécu en notation ; les rythmes suivent les comptes du codex (treize contre vingt, qui se rejoignent à 260, les sections réglées par les stations de Vénus), et non une pièce maya connue"],
+    it: ["Percussioni maya (ricostruzione)", "Un brano per percussioni ricostruito dagli strumenti dipinti a Bonampak e ritrovati negli scavi: sonagli, il tamburo pax, carapaci di tartaruga percossi con palchi di cervo, il tamburo a fessura tunk’ul, lunghe trombe, conchiglia e flauti d’argilla come suoni di fiato. Nessuna musica maya è sopravvissuta in notazione; i ritmi seguono i computi del codice (tredici contro venti, che si incontrano a 260, le sezioni secondo le stazioni di Venere), non un brano maya conosciuto"],
+    zh: ["玛雅打击乐（重建）", "一首根据博南帕克壁画中所绘、考古发掘所见乐器重建的打击乐：沙铃、pax 皮鼓、用鹿角敲击的龟甲、tunk’ul 裂缝木鼓、长号角、海螺号，以及只吹出气息音的陶笛。没有任何玛雅音乐以记谱形式留存；节奏依照抄本的计数（十三对二十，在 260 处相会，乐段按金星的各阶段安排），并非任何已知的玛雅乐曲"],
+    ja: ["マヤの打楽器（復元）", "ボナンパックに描かれ、発掘で見つかった楽器から復元した打楽器曲です。ラトル、パックス太鼓、鹿の角で打つ亀甲、割れ目太鼓トゥンクル、長いラッパ、ほら貝、息の音としての土笛。楽譜として残るマヤの音楽はありません。リズムは絵文書の数え方（十三対二十が260で重なり、各部分は金星の段階に従う）に従うもので、既知のマヤの曲ではありません"],
+    vi: ["Bộ gõ Maya (tái dựng)", "Một bản nhạc gõ tái dựng từ các nhạc cụ được vẽ ở Bonampak và tìm thấy khi khai quật: lục lạc, trống pax, mai rùa gõ bằng gạc hươu, trống khe tunk’ul, kèn dài, kèn ốc và sáo đất nung chỉ thổi tiếng hơi. Không có âm nhạc Maya nào còn lại dưới dạng bản ghi; nhịp điệu theo các phép đếm của sách cổ (mười ba đối hai mươi, gặp nhau ở 260, các đoạn theo các trạm của Sao Kim), không phải một bản nhạc Maya nào đã biết"],
+    bg: ["Маянска перкусия (реконструкция)", "Перкусионна пиеса, реконструирана по инструментите, рисувани в Бонампак и намерени при разкопки: дрънкалки, барабанът пакс, костенурчени черупки, удряни с еленови рога, цепнатият барабан тункул, дълги тръби, раковина и глинени флейти като звуци на дъха. Не е оцеляла маянска музика в запис; ритмите следват броенията на кодекса (тринайсет срещу двайсет, които се срещат при 260, частите според станциите на Венера), а не някаква известна маянска пиеса"],
+    pt: ["Percussão maia (reconstrução)", "Uma peça de percussão reconstruída a partir dos instrumentos pintados em Bonampak e encontrados em escavações: chocalhos, o tambor pax, cascos de tartaruga tocados com galhadas, o tambor de fenda tunk’ul, trombetas longas, concha e flautas de barro como sons de sopro. Nenhuma música maia sobreviveu em notação; os ritmos seguem as contagens do códice (treze contra vinte, que se encontram em 260, as seções segundo as estações de Vênus), não uma peça maia conhecida"]
+  };
+  const MAYAP_INST = {
+    en: { sun: "Pax: the upright skin drum, on the twenty", mercury: "Small rattles", earth: "Tunk’ul: the slit drum", mars: "Rattles", jupiter: "Turtle shell, deep", "jupiter-moons": "Three turtle shells struck with antlers, on the thirteen", saturn: "Long trumpets", venus: "Clay flute: breath tones, only while Venus is visible", uranus: "Conch trumpet", neptune: "Clay whistle" },
+    pl: { sun: "Pax: stojący bęben skórzany, na dwadzieścia", mercury: "Małe grzechotki", earth: "Tunk’ul: bęben szczelinowy", mars: "Grzechotki", jupiter: "Skorupa żółwia, głęboka", "jupiter-moons": "Trzy skorupy żółwi uderzane porożem, na trzynaście", saturn: "Długie trąby", venus: "Gliniany flet: tony oddechu, tylko gdy Wenus jest widoczna", uranus: "Koncha", neptune: "Gliniany gwizdek" },
+    cy: { sun: "Pax: y drwm croen unionsyth, ar yr ugain", mercury: "Ratlau bach", earth: "Tunk’ul: y drwm hollt", mars: "Ratlau", jupiter: "Cragen crwban, ddofn", "jupiter-moons": "Tair cragen crwban wedi’u taro â chyrn carw, ar y tri ar ddeg", saturn: "Utgyrn hir", venus: "Ffliwt glai: tonau anadl, dim ond tra bo Gwener i’w gweld", uranus: "Utgorn cragen", neptune: "Chwiban glai" },
+    de: { sun: "Pax: die stehende Felltrommel, auf der Zwanzig", mercury: "Kleine Rasseln", earth: "Tunk’ul: die Schlitztrommel", mars: "Rasseln", jupiter: "Schildkrötenpanzer, tief", "jupiter-moons": "Drei mit Geweih geschlagene Schildkrötenpanzer, auf der Dreizehn", saturn: "Lange Trompeten", venus: "Tonflöte: Atemtöne, nur solange die Venus sichtbar ist", uranus: "Muschelhorn", neptune: "Tonpfeife" },
+    es: { sun: "Pax: el tambor vertical de piel, en el veinte", mercury: "Sonajas pequeñas", earth: "Tunk’ul: el tambor de hendidura", mars: "Sonajas", jupiter: "Caparazón de tortuga, grave", "jupiter-moons": "Tres caparazones de tortuga golpeados con astas, en el trece", saturn: "Trompetas largas", venus: "Flauta de barro: sonidos de aliento, solo mientras Venus es visible", uranus: "Trompeta de caracol", neptune: "Silbato de barro" },
+    fr: { sun: "Pax : le tambour de peau vertical, sur le vingt", mercury: "Petits hochets", earth: "Tunk’ul : le tambour à fente", mars: "Hochets", jupiter: "Carapace de tortue, grave", "jupiter-moons": "Trois carapaces de tortue frappées avec des bois de cerf, sur le treize", saturn: "Longues trompes", venus: "Flûte d’argile : souffles, seulement quand Vénus est visible", uranus: "Conque", neptune: "Sifflet d’argile" },
+    it: { sun: "Pax: il tamburo verticale di pelle, sul venti", mercury: "Piccoli sonagli", earth: "Tunk’ul: il tamburo a fessura", mars: "Sonagli", jupiter: "Carapace di tartaruga, grave", "jupiter-moons": "Tre carapaci di tartaruga percossi con palchi, sul tredici", saturn: "Lunghe trombe", venus: "Flauto d’argilla: suoni di fiato, solo quando Venere è visibile", uranus: "Tromba di conchiglia", neptune: "Fischietto d’argilla" },
+    zh: { sun: "Pax：直立皮鼓，奏二十", mercury: "小沙铃", earth: "Tunk’ul：裂缝木鼓", mars: "沙铃", jupiter: "低音龟甲", "jupiter-moons": "三副用鹿角敲击的龟甲，奏十三", saturn: "长号角", venus: "陶笛：气息音，只在金星可见时吹响", uranus: "海螺号", neptune: "陶哨" },
+    ja: { sun: "パックス：立てた皮の太鼓、二十を刻む", mercury: "小さなラトル", earth: "トゥンクル：割れ目太鼓", mars: "ラトル", jupiter: "低い亀甲", "jupiter-moons": "鹿の角で打つ三つの亀甲、十三を刻む", saturn: "長いラッパ", venus: "土笛：息の音、金星が見えるあいだだけ", uranus: "ほら貝", neptune: "土の笛" },
+    vi: { sun: "Pax: trống da đứng, đếm hai mươi", mercury: "Lục lạc nhỏ", earth: "Tunk’ul: trống khe", mars: "Lục lạc", jupiter: "Mai rùa, tiếng trầm", "jupiter-moons": "Ba mai rùa gõ bằng gạc hươu, đếm mười ba", saturn: "Kèn dài", venus: "Sáo đất nung: tiếng hơi, chỉ khi Sao Kim nhìn thấy được", uranus: "Kèn ốc", neptune: "Còi đất nung" },
+    bg: { sun: "Пакс: изправеният кожен барабан, на двайсетте", mercury: "Малки дрънкалки", earth: "Тункул: цепнатият барабан", mars: "Дрънкалки", jupiter: "Костенурча черупка, дълбока", "jupiter-moons": "Три костенурчени черупки, удряни с рога, на тринайсетте", saturn: "Дълги тръби", venus: "Глинена флейта: звуци на дъха, само докато Венера се вижда", uranus: "Тръба от раковина", neptune: "Глинена свирка" },
+    pt: { sun: "Pax: o tambor de couro vertical, no vinte", mercury: "Chocalhos pequenos", earth: "Tunk’ul: o tambor de fenda", mars: "Chocalhos", jupiter: "Casco de tartaruga, grave", "jupiter-moons": "Três cascos de tartaruga tocados com galhadas, no treze", saturn: "Trombetas longas", venus: "Flauta de barro: sons de sopro, só enquanto Vênus está visível", uranus: "Trombeta de concha", neptune: "Apito de barro" }
+  };
+  const MAYAP_MODE = {
+    en: "no scale: percussion, with single held notes and breath tones (no Maya scale survives)",
+    pl: "bez skali: perkusja, pojedyncze trzymane dźwięki i tony oddechu (żadna skala Majów się nie zachowała)",
+    cy: "dim graddfa: offerynnau taro, gyda nodau unigol a thonau anadl (nid oes graddfa Maya wedi goroesi)",
+    de: "keine Tonleiter: Perkussion, einzelne gehaltene Töne und Atemtöne (keine Tonleiter der Maya ist erhalten)",
+    es: "sin escala: percusión, con notas sostenidas sueltas y sonidos de aliento (no se conserva ninguna escala maya)",
+    fr: "sans échelle : percussions, notes tenues isolées et souffles (aucune échelle maya n’a survécu)",
+    it: "nessuna scala: percussioni, singole note tenute e suoni di fiato (nessuna scala maya è sopravvissuta)",
+    zh: "无音阶：打击乐，只有单个长音与气息音（没有任何玛雅音阶留存）",
+    ja: "音階なし：打楽器と、単音の持続音や息の音のみ（マヤの音階は残っていない）",
+    vi: "không thang âm: bộ gõ, chỉ có những nốt ngân đơn lẻ và tiếng hơi (không thang âm Maya nào còn lại)",
+    bg: "без гама: перкусия, единични задържани тонове и звуци на дъха (не е оцеляла маянска гама)",
+    pt: "sem escala: percussão, com notas longas isoladas e sons de sopro (nenhuma escala maia sobreviveu)"
+  };
+  const MAYAP_SEC = { en: ["Evening star", "Venus hidden", "Morning star"], pl: ["Gwiazda wieczorna", "Wenus ukryta", "Gwiazda poranna"], cy: ["Seren yr hwyr", "Gwener ynghudd", "Seren y bore"], de: ["Abendstern", "Venus verborgen", "Morgenstern"], es: ["Estrella de la tarde", "Venus oculta", "Estrella de la mañana"], fr: ["Étoile du soir", "Vénus cachée", "Étoile du matin"], it: ["Stella della sera", "Venere nascosta", "Stella del mattino"], zh: ["昏星", "金星隐没", "晨星"], ja: ["宵の明星", "金星は見えない", "明けの明星"], vi: ["Sao hôm", "Sao Kim ẩn", "Sao mai"], bg: ["Вечерница", "Венера скрита", "Утринна звезда"], pt: ["Estrela da tarde", "Vênus oculta", "Estrela da manhã"] };
+  MUI.mayaperc = XL(MAYAP_UI);
+  BALL_INST.mayaperc = XL(MAYAP_INST);
+  MODENAME.mayaperc = XL(MAYAP_MODE);
+  BALL_SAMPLES.mayaperc = [];
+  STYLES.mayaperc = { gain: 3, name: "Maya percussion", fam: "ball", own: true, beats: 4, sub: 4, bpm: 92, mode: "D", swing: 0, kickF: [80, 40, 0.5], kickLvl: 0, duck: 1, pads: "none", buildBars: 8, noSub: true, rise: "none" };
+  {
+    const k = "mayaperc";
+    STYLES[k].inst = BALL_INST[k];
+    STYLES[k].samples = BALL_SAMPLES[k];
+    STYLES[k].beats0 = STYLES[k].beats;
+    STYLES[k].sub0 = STYLES[k].sub;
+  }
+  function mpShell(t, lvl, id, deep) {
+    lvl *= 1.3;
+    const f = deep ? 300 : [410, 470, 540][["io", "europa", "ganymede"].indexOf(id)] || 430;
+    [[1, 1, 0.07], [1.62, 0.45, 0.05], [2.3, 0.18, 0.03]].forEach(([r, a, d]) => toneHit(t, f * r, f * r, "sine", lvl * a, d, id, 1e-3));
+    noiseHit(t, 0.03, "bandpass", f * 2.2, 2, lvl * 0.45, 3e-3, 0.012, id, 0.05);
+    flash(id, t);
+  }
+  function mpPax(t, lvl, open) {
+    lvl *= 0.7;
+    toneHit(t, (open ? 82 : 96) * 1.3, open ? 82 : 96, "sine", lvl, open ? 0.25 : 0.12, "sun", 0.07);
+    noiseHit(t, 0.05, "lowpass", 700, 0.8, lvl * 0.25, 3e-3, 0.03, "sun", 0.08);
+    flash("sun", t);
+  }
+  function mpTunkul(t, lvl, hi) {
+    const f = hi ? 260 : 196;
+    [[1, 1, 0.18], [2.7, 0.25, 0.06]].forEach(([r, a, d]) => toneHit(t, f * r, f * r, "triangle", lvl * a, d, "earth", 1e-3));
+    noiseHit(t, 0.02, "bandpass", 1200, 1.5, lvl * 0.25, 3e-3, 0.01, "earth", 0.05);
+    flash("earth", t);
+  }
+  function mpRattle(t, lvl, id) {
+    lvl *= 1.3;
+    noiseHit(t, 0.06, "bandpass", 4600 + 600 * Math.random(), 0.9, lvl, 3e-3, 0.025, id, 0.06);
+    if (Math.random() < 0.5) noiseHit(t + 0.012, 0.04, "bandpass", 5200, 0.9, lvl * 0.5, 3e-3, 0.015, id, 0.04);
+    flash(id, t);
+  }
+  function mpHorn(t, f, len, lvl, id, conch) {
+    const o = AC.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(f * 0.95, t);
+    o.frequency.setTargetAtTime(f, t + 0.04, 0.12);
+    const lp = AC.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(250, t);
+    lp.frequency.setTargetAtTime(conch ? 1200 : 800, t + 0.05, 0.3);
+    lp.frequency.setTargetAtTime(300, t + len * 0.8, 0.2);
+    const g2 = mkG(0, toPan(id));
+    g2.gain.setValueAtTime(0, t);
+    g2.gain.linearRampToValueAtTime(lvl, t + 0.4);
+    g2.gain.setValueAtTime(lvl, t + Math.max(0.45, len * 0.85));
+    g2.gain.linearRampToValueAtTime(0, t + len);
+    o.connect(lp);
+    lp.connect(g2);
+    g2.connect(mkG(0.3, revSend));
+    o.start(t);
+    o.stop(t + len + 0.1);
+    noteEv(id, t, f, lvl * 3, len);
+    flash(id, t);
+  }
+  function mpBreath(t, f, len, lvl, id) {
+    const s = AC.createBufferSource();
+    s.buffer = noiseBuf;
+    s.loop = true;
+    const bp = AC.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = f;
+    bp.Q.value = 9;
+    const g2 = mkG(0, toPan(id));
+    g2.gain.setValueAtTime(0, t);
+    g2.gain.linearRampToValueAtTime(lvl, t + len * 0.3);
+    g2.gain.linearRampToValueAtTime(0, t + len);
+    s.connect(bp);
+    bp.connect(g2);
+    g2.connect(mkG(0.35, revSend));
+    s.start(t, Math.random());
+    s.stop(t + len + 0.1);
+    toneHit(t + len * 0.2, f, f, "sine", lvl * 0.12, len * 0.4, id, 0.01);
+    flash(id, t);
+  }
+  function mpVenus() {
+    try {
+      const V = P.venus, E = P.earth, gv = { x: V.x - E.x, y: V.y - E.y }, gs = { x: -E.x, y: -E.y };
+      let d = (Math.atan2(gv.y, gv.x) - Math.atan2(gs.y, gs.x)) / DEG;
+      d = (d + 540) % 360 - 180;
+      if (Math.abs(d) < 10) return Math.hypot(gv.x, gv.y) < Math.hypot(gs.x, gs.y) ? 3 : 1;
+      return d < 0 ? 0 : 2;
+    } catch (e) {
+      return 2;
+    }
+  }
+  function mpPat(n, seed2, dens) {
+    const r = rng(seed2), p = [];
+    for (let k = 0; k < n; k++) p.push(k === 0 ? 2 : r() < dens ? 1 : 0);
+    return p;
+  }
+  COMPOSE.mayaperc = function(s, pos, bar, t, st, L, stepT, m, into) {
+    into = bar - D.secBar;
+    const sec = D.section, intro = sec === "intro", groove = sec === "groove", build = sec === "build", drop = sec === "drop", brk = sec === "break";
+    const B = D.mp = D.mp || { sec: null, secBar: -1, n: 0 };
+    if (pos === 0 && (B.sec !== sec || B.secBar !== D.secBar)) {
+      B.sec = sec;
+      B.secBar = D.secBar;
+      setMetre(4, 4, bar);
+      if (B.base === void 0) B.base = D.bpm * [1, 0.95, 1.05, 1][moonSign() % 4];
+      else if (Math.abs(D.bpm - B.set) > 0.01) B.base = D.bpm / B.fac;
+      B.fac = { intro: 0.85, groove: 1, build: 1.05, drop: 1.12, break: 0.8 }[sec];
+      D.bpm = B.base * B.fac;
+      B.set = D.bpm;
+      const el = $("bpmOut");
+      if (el) el.textContent = Math.round(D.bpm) + " BPM";
+      B.v = mpVenus();
+      const W2 = XL(MAYAP_SEC);
+      toast({ intro: W2[1] + " · 8", groove: W2[0] + " · 250", break: W2[1] + " · 90", build: W2[2] + " · 236", drop: W2[2] + " · 236" }[sec]);
+      if ((build && into === 0 || drop && into === 0) && m("uranus")) mpHorn(t, 138, 2.6, 0.05, "uranus", true);
+    }
+    const n = B.n++, lvl = { intro: 0.7, groove: 0.9, build: 1, drop: 1.1, break: 0.6 }[sec];
+    const sA = signOf("mars"), sS = sunSign(), k13 = n % 13, k20 = n % 20, meet = n % 260 === 0;
+    const pk = sA + "|" + sS + "|" + sec;
+    if (B.pk !== pk) {
+      B.pk = pk;
+      B.P13 = mpPat(13, sA * 7 + 3, build ? 0.3 : drop ? 0.42 : 0.22);
+      B.P20 = mpPat(20, sS * 11 + 5, 0.28);
+    }
+    const P13 = B.P13, P20 = B.P20;
+    if (meet && !intro) {
+      if (m("sun")) mpPax(t, 0.32 * lvl, true);
+      if (m("jupiter")) mpShell(t, 0.14 * lvl, "jupiter", true);
+      if (m("earth")) mpTunkul(t, 0.2 * lvl, false);
+      if (m("jupiter-moons")) ["io", "europa", "ganymede"].forEach((id, q) => mpShell(t + q * 0.03, 0.08 * lvl, id));
+    }
+    if (m("mars") && (pos % 2 === 0 || groove || build || drop)) mpRattle(t, (pos % 4 === 0 ? 0.14 : 0.08) * lvl * (intro || brk ? 0.7 : 1), "mars");
+    if (m("mercury") && (build || drop) && pos % 2 === 1) mpRattle(t, 0.05 * lvl, "mercury");
+    if (m("earth")) {
+      if (pos % 4 === 0) mpTunkul(t, (pos === 0 ? 0.24 : 0.18) * lvl, false);
+      else if (!intro && !brk && pos % 4 === 2 && (n % 3 === 0 || drop)) mpTunkul(t, 0.14 * lvl, true);
+    }
+    if (m("sun") && !intro && P20[k20]) mpPax(t, (P20[k20] === 2 ? 0.34 : 0.25) * lvl * (brk ? 0.6 : 1), P20[k20] === 2);
+    if ((build || drop) && P13[k13]) {
+      if (k13 === 0 && m("jupiter")) mpShell(t, 0.17 * lvl, "jupiter", true);
+      const id = ["io", "europa", "ganymede"][n % 3];
+      if (m("jupiter-moons")) mpShell(t, (P13[k13] === 2 ? 0.13 : 0.09) * lvl, id);
+    }
+    if (m("saturn") && pos === 0 && (drop && into % 4 === 0 || brk && into % 4 === 2)) mpHorn(t, drop ? 110 : 98, barDur() * (drop ? 1.4 : 2), drop ? 0.035 : 0.025, "saturn", false);
+    const vis = B.v === 0 || B.v === 2;
+    if (m("venus") && vis && !brk && pos === 8 && into % 2 === 1) mpBreath(t, B.v === 0 ? 1180 : 880, barDur() * 0.9, 0.06 * lvl, "venus");
+    if (m("neptune") && (intro || brk) && pos === 0 && into % 4 === 3) mpBreath(t, 1560, barDur() * 0.6, 0.04, "neptune");
+  };
+  LEAVE.mayaperc = () => {
+    const B = D.mp;
+    if (B && D.style === "mayaperc" && B.base) D.bpm = B.base;
+    D.mp = null;
+  };
+  (function mpButton() {
+    const prev = document.querySelector('#style .seg button[data-v="gamelan"]');
+    if (!prev || document.querySelector('#style button[data-v="mayaperc"]')) return;
+    const b = document.createElement("button");
+    b.dataset.v = "mayaperc";
+    b.setAttribute("aria-pressed", String(D.style === "mayaperc"));
+    b.textContent = MUI.mayaperc[0];
+    b.onclick = () => setStyle("mayaperc");
+    prev.insertAdjacentElement("afterend", b);
+  })();
   const MUSET_UI = {
     en: ["Musette", "A Paris bal-musette: a quick, lightly swung valse musette, the accordion’s three reeds tuned apart for the wet, shimmering musette tremolo, running in arpeggios and chromatic passing notes over the guitar’s pompe, banjo, double bass and brushes; the climax swings harder in the manouche manner, the violin answering, and the break is a slow java (in the style’s manner, no tune is quoted)"],
     pl: ["Musette", "Paryski bal-musette: szybki, lekko swingujący walc musette, trzy stroiki akordeonu rozstrojone dla mokrego, migotliwego tremolo musette, arpeggia i chromatyczne dźwięki przejściowe nad gitarową pompe, banjo, kontrabasem i miotełkami; kulminacja swinguje mocniej na sposób manouche, odpowiadają skrzypce, a przerwa to powolna java (w manierze stylu, bez cytowania melodii)"],

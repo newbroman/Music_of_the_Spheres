@@ -351,8 +351,10 @@ function report(){var L=[];
   if(C.fails.length)L.push('could not start: '+C.fails.slice(-4).join(' | '));
   if(C.notes.length)L.push('notes: '+C.notes.slice(-4).join(' | '));
   L.push('self-repair: level '+FIX.level+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
+  {var bl=[];try{bl=JSON.parse(LSg('mots.bglog')||'[]')}catch(e){}L.push('screen off / other app ('+bl.length+'):'+(bl.length?'\n  '+bl.join('\n  '):' nothing recorded yet'))}
   L.push('errors ('+C.errs.length+'):'+(C.errs.length?'\n  '+C.errs.slice(-12).join('\n  '):' none'));
   return L.join('\n')}
+C.bgNote=function(s){try{var k='mots.bglog',a=JSON.parse(LSg(k)||'[]');a.push(new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(5,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s);LSs(k,JSON.stringify(a.slice(-12)))}catch(e){}};
 C.report=report;
 var PANEL=null,tick=0;
 function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';upd();return}
@@ -910,6 +912,19 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
     if (!mode) mode = m;
     syncOut();
   };
+  const bgNote = (t) => {
+    try {
+      window.MOTS_COMPAT && MOTS_COMPAT.bgNote && MOTS_COMPAT.bgNote(t);
+    } catch (e) {
+    }
+  };
+  {
+    const S0 = AudioContext.prototype.suspend;
+    AudioContext.prototype.suspend = function() {
+      this.__ownSus = performance.now();
+      return S0.apply(this, arguments);
+    };
+  }
   const BG = {
     el: null,
     msd: null,
@@ -921,6 +936,7 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
     gS: null,
     c: null,
     mode: null,
+    rt: 0,
     st: { n: 0, hid: 0, w0: 0, a0: 0, lastW: 0, gaps: 0, max: 0, agc: 0, state: false }
   };
   {
@@ -993,6 +1009,21 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
           try {
             agcTick();
           } catch (e) {
+          }
+          if (BG.on && ctx && ctx.state !== "running" && ctx.state !== "closed" && !MOTS.projPaused && !(ctx.__ownSus > s.w0) && now - BG.rt > 2e3) {
+            BG.rt = now;
+            s.wd = (s.wd || 0) + 1;
+            ctx.resume().then(() => {
+              if (!s.wdOk) {
+                s.wdOk = true;
+                bgNote("the phone paused the sound; resumed it");
+              }
+            }).catch((e) => {
+              if (!s.wdNo) {
+                s.wdNo = true;
+                bgNote("the phone paused the sound and refused to resume (" + (e && e.name || e) + ")");
+              }
+            });
           }
         }
         if (!BG.q.length) return;
@@ -1094,7 +1125,13 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
         return;
       }
       if (hidden && !BG.on) {
-        if (ctx.state !== "running" || MOTS.projPaused) return;
+        if (ctx.state !== "running" || MOTS.projPaused) {
+          if (!MOTS.projPaused && ctx.state !== "closed" && BG.lastNo !== ctx.state) {
+            BG.lastNo = ctx.state;
+            bgNote("hidden while the sound was " + ctx.state + ", so it was not kept playing");
+          }
+          return;
+        }
         bgWire();
         if (!BG.el) {
           BG.el = new Audio();
@@ -1112,10 +1149,16 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
         s.max = 0;
         s.state = false;
         s.mode = bgMode();
+        s.wd = 0;
+        s.wdOk = false;
+        s.wdNo = false;
         if (!s.watch) {
           s.watch = true;
           ctx.addEventListener("statechange", () => {
-            if (BG.on) s.state = true;
+            if (BG.on) {
+              s.state = true;
+              if (ctx.state !== "running" && !(ctx.__ownSus > s.w0) && !MOTS.projPaused) bgNote("while hidden the phone set the sound to " + ctx.state);
+            }
           });
         }
         BG.sky = MOTS.skyHidden;
@@ -1138,7 +1181,10 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
             BG.gD.gain.cancelScheduledValues(t2);
             ST0.call(BG.gD.gain, 1e-4, t2 + 0.15, 0.04);
           }
-        }).catch(() => bgRoute(false));
+        }).catch((e) => {
+          bgNote("the background player was refused (" + (e && e.name || e) + ")");
+          bgRoute(false);
+        });
       } else if (!hidden && BG.on) {
         const t = ctx.currentTime, s = BG.st;
         BG.on = false;
@@ -1165,6 +1211,7 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
           BG.mode = "stream";
           s.fell = true;
         }
+        if (s.hid > 15) bgNote("hidden " + s.hid.toFixed(0) + " s · sound clock " + s.aud.toFixed(0) + " s (" + Math.round(100 * s.aud / Math.max(0.1, s.hid)) + "%) · " + s.mode + (s.fell ? " → stream next time" : "") + " · late ticks " + s.gaps + (s.wd ? " · watchdog " + s.wd : ""));
         if (/[?&]bgdiag\b/.test(location.search)) bgDiag(s);
       }
     } catch (e) {
@@ -2649,6 +2696,19 @@ const s=document.createElement('style');s.id='motsPulseCss';s.textContent=css;(d
 (()=>{
 "use strict";
 const WN=[
+ {id:'mayaperc',d:'2026-10-20c',s:'⁘',go:{p:'dance.html',a:'style:mayaperc'},t:{
+  en:['Maya percussion, a reconstruction','A new band in the World row: a percussion piece reconstructed from the instruments painted at Bonampak and found in excavations. No Maya music survives in notation; the rhythms follow the codex’s counts, turtle shells on thirteen and the drum on twenty, the sections following Venus, not any known Maya piece.'],
+  pl:['Perkusja Majów, rekonstrukcja','Nowy zespół w rzędzie Świat: utwór perkusyjny zrekonstruowany z instrumentów namalowanych w Bonampak i odnalezionych w wykopaliskach. Muzyka Majów nie zachowała się w zapisie; rytmy idą za rachubami kodeksu, skorupy żółwi na trzynaście, bęben na dwadzieścia, części za Wenus, a nie za żadnym znanym utworem Majów.'],
+  cy:['Offerynnau taro’r Maya, ail-greu','Band newydd yn rhes y Byd: darn taro wedi’i ail-greu o’r offerynnau a beintiwyd yn Bonampak ac a gafwyd mewn cloddiadau. Nid oes cerddoriaeth Maya wedi goroesi mewn nodiant; mae’r rhythmau’n dilyn cyfrifon y codecs, cregyn crwban ar dri ar ddeg a’r drwm ar ugain, a’r rhannau’n dilyn Gwener, nid unrhyw ddarn Maya hysbys.'],
+  de:['Maya-Perkussion, eine Rekonstruktion','Eine neue Band in der Reihe Welt: ein Perkussionsstück, rekonstruiert aus den in Bonampak gemalten und in Grabungen gefundenen Instrumenten. Keine Musik der Maya ist in Notation erhalten; die Rhythmen folgen den Zählungen des Kodex, Schildkrötenpanzer auf der Dreizehn, die Trommel auf der Zwanzig, die Teile der Venus nach, keinem bekannten Maya-Stück.'],
+  es:['Percusión maya, una reconstrucción','Una banda nueva en la fila Mundo: una pieza de percusión reconstruida a partir de los instrumentos pintados en Bonampak y hallados en excavaciones. No se conserva música maya escrita; los ritmos siguen las cuentas del códice, caparazones en el trece y el tambor en el veinte, con las secciones según Venus, no ninguna pieza maya conocida.'],
+  fr:['Percussions mayas, une reconstitution','Un nouveau groupe dans la rangée Monde : une pièce de percussions reconstituée d’après les instruments peints à Bonampak et trouvés en fouilles. Aucune musique maya n’a survécu en notation ; les rythmes suivent les comptes du codex, carapaces sur le treize, tambour sur le vingt, les sections réglées par Vénus, et non une pièce maya connue.'],
+  it:['Percussioni maya, una ricostruzione','Una nuova band nella fila Mondo: un brano per percussioni ricostruito dagli strumenti dipinti a Bonampak e ritrovati negli scavi. Nessuna musica maya è sopravvissuta in notazione; i ritmi seguono i computi del codice, carapaci sul tredici e tamburo sul venti, le sezioni secondo Venere, non un brano maya conosciuto.'],
+  zh:['玛雅打击乐（重建）','“世界”一排新增一支乐队：根据博南帕克壁画中所绘、考古发掘所见乐器重建的打击乐。没有任何玛雅音乐以记谱形式留存；节奏依照抄本的计数，龟甲奏十三，鼓奏二十，乐段跟随金星，并非任何已知的玛雅乐曲。'],
+  ja:['マヤの打楽器（復元）','ワールドの列に新しいバンド：ボナンパックに描かれ、発掘で見つかった楽器から復元した打楽器曲です。楽譜として残るマヤの音楽はありません。リズムは絵文書の数え方に従い、亀甲は十三、太鼓は二十を刻み、各部分は金星に従います。既知のマヤの曲ではありません。'],
+  vi:['Bộ gõ Maya, một sự tái dựng','Một ban nhạc mới ở hàng Thế giới: một bản nhạc gõ tái dựng từ các nhạc cụ được vẽ ở Bonampak và tìm thấy khi khai quật. Không có âm nhạc Maya nào còn lại dưới dạng bản ghi; nhịp điệu theo các phép đếm của sách cổ, mai rùa đếm mười ba, trống đếm hai mươi, các đoạn theo Sao Kim, không phải một bản nhạc Maya nào đã biết.'],
+  bg:['Маянска перкусия, реконструкция','Нова група в реда Световна музика: перкусионна пиеса, реконструирана по инструментите, рисувани в Бонампак и намерени при разкопки. Не е оцеляла маянска музика в запис; ритмите следват броенията на кодекса, черупките на тринайсетте, барабанът на двайсетте, частите според Венера, а не някаква известна маянска пиеса.'],
+  pt:['Percussão maia, uma reconstrução','Uma banda nova na fileira Músicas do mundo: uma peça de percussão reconstruída a partir dos instrumentos pintados em Bonampak e encontrados em escavações. Nenhuma música maia sobreviveu em notação; os ritmos seguem as contagens do códice, cascos no treze e tambor no vinte, as seções seguindo Vênus, não uma peça maia conhecida.']}},
  {id:'maya',d:'2026-10-20b',s:'✧',go:{p:'index.html',a:'thinker:maya'},t:{
   en:['The Maya: the Venus table','The Dresden Codex’s Venus table joins the dial: the 260-day count on turtle shell and drum, and a clay flute for Venus through its four stations and its eight-year return, or heard from Chichén Itzá at today’s date with Venus where it really is. A respectful reconstruction; no Maya text describes planetary music.'],
   pl:['Majowie: tablica Wenus','Na tarczę trafia tablica Wenus z Kodeksu drezdeńskiego: rachuba 260 dni na skorupie żółwia i bębnie oraz gliniany flet dla Wenus przez jej cztery stacje i ośmioletni powrót; albo słuchane z Chichén Itzá w dzisiejszej dacie, z Wenus tam, gdzie naprawdę jest. Pełna szacunku rekonstrukcja; żaden tekst Majów nie opisuje muzyki planet.'],
@@ -7556,7 +7616,14 @@ const ORIG={
   copernicus:'In medio vero omnium residet Sol … Ita profecto tanquam in solio regali Sol residens circumagentem gubernat astrorum familiam.',
   kepler:'Sunt igitur motus coelorum nihil aliud, quam continuus quidam concentus (rationalis non vocalis) per dissonantes tensiones …'
 };
-const THINK_ORDER=['pythagoras','philolaus','plato','aristotle','lu','cicero','bharata','macrobius','nicomachus','ptolemy','boethius','eriugena','ikhwan','maya','sarngadeva','nguyentrai','copernicus','fludd','kepler','java','sonic','today'];
+// the row in three groups: the Greek and European tradition, then the rest of the world (each in date order), then modern science; Today is pinned at the start
+const THINK_GROUPS=[['eu',['pythagoras','philolaus','plato','aristotle','cicero','macrobius','nicomachus','ptolemy','boethius','eriugena','copernicus','fludd','kepler']],
+  ['world',['lu','bharata','ikhwan','maya','sarngadeva','nguyentrai','java']],['now',['sonic']]];
+const THINK_ORDER=THINK_GROUPS.reduce((a,g)=>a.concat(g[1]),[]).concat(['today']);
+const TLG={en:{eu:'Greece and Europe',world:'Around the world',now:'Modern science'},pl:{eu:'Grecja i Europa',world:'Na świecie',now:'Nauka współczesna'},cy:{eu:'Groeg ac Ewrop',world:'O amgylch y byd',now:'Gwyddoniaeth fodern'},
+  de:{eu:'Griechenland und Europa',world:'Rund um die Welt',now:'Moderne Wissenschaft'},es:{eu:'Grecia y Europa',world:'Por el mundo',now:'Ciencia moderna'},fr:{eu:'La Grèce et l’Europe',world:'Autour du monde',now:'Science moderne'},
+  it:{eu:'Grecia ed Europa',world:'Nel mondo',now:'Scienza moderna'},zh:{eu:'希腊与欧洲',world:'世界各地',now:'现代科学'},ja:{eu:'ギリシアとヨーロッパ',world:'世界の伝統',now:'現代科学'},
+  vi:{eu:'Hy Lạp và châu Âu',world:'Khắp thế giới',now:'Khoa học hiện đại'},bg:{eu:'Гърция и Европа',world:'По света',now:'Съвременна наука'},pt:{eu:'Grécia e Europa',world:'Pelo mundo',now:'Ciência moderna'}}[(document.documentElement.lang||'en').slice(0,2)];
 const KEP6=new Set(['mercury','venus','earth','mars','jupiter','saturn']);
 // Kepler's voices: Saturn and Jupiter bass, Mars tenor, Earth and Venus alto, Mercury soprano; each planet keeps its true interval
 const KEP_CENTRE={saturn:98,jupiter:131,mars:220,earth:330,venus:392,mercury:660};
@@ -7984,7 +8051,7 @@ function jwCal(e,t,pace){const d=e.d,c=jwDay(JW_SINTA+d),dur=e.dur*pace,n=[1,2,3
   JW.cur={ph:'cal',d,c};JW.status=TT.ui.jwDay.replace('{k}',d+1).replace('{d}',JW_WEEK[c.w]+' '+JW_PAS[c.p]).replace('{w}',JW_WUKU[c.u]).replace('{n}',d%35+1)+' · irama '+(e.ir?'dados':'tanggung')}
 function jwWritten(now){const pace=bhaPace();if(!JW.seq){JW.seq=jwRound();JW.k=0;JW.next=now+.3}
   if(JW.next<now-1)JW.next=now+.1;
-  while(JW.next<now+.25){const e=JW.seq[JW.k],at=JW.next;if(e.ph==='lad')bhaAt(at,()=>jwLad(e,at,pace));else if(e.ph==='cal')bhaAt(at,()=>jwCal(e,at,pace));
+  while(JW.next<now+BGLA()){const e=JW.seq[JW.k],at=JW.next;if(e.ph==='lad')bhaAt(at,()=>jwLad(e,at,pace));else if(e.ph==='cal')bhaAt(at,()=>jwCal(e,at,pace));
     JW.next+=e.dur*pace;JW.k++;if(JW.k>=JW.seq.length){JW.seq=jwRound();JW.k=0}}}
 // heard from Yogyakarta: a planet's note from its place in the zodiac, the five notes of sléndro on five sectors of 72° from the start of Aries (ours)
 function jwSector(w){const g=geo(w);if(!g)return 0;return Math.floor((((lonOf(g)/DEG)%360)+360)%360/72)}
@@ -7994,7 +8061,7 @@ function jwToday(){const c=jwDay(jwJ());return TT.ui.jwToday.replace('{d}',JW_WE
 function jwHeard(now,list,dtR){const pace=bhaPace(),per=.9*pace;
   list.forEach(([w])=>{const v=sirenVoice(w),d=dirFor(w);setPos(v.pan,d.x,d.y,d.z,.15);tgt(v.vol.gain,0,.1);v.fcur=baseOf()*(list.find(x=>x[0]===w)||[0,1])[1]});
   if(!JW.nextP||JW.nextP<now-1){JW.nextP=now+.2}
-  while(JW.nextP<now+.25){const at=JW.nextP,n=JW.pulse;
+  while(JW.nextP<now+BGLA()){const at=JW.nextP,n=JW.pulse;
     JW_HEARD.forEach(([w,o,inst,cyc])=>{if(n%cyc)return;const k=jwSector(w),v=SIR.v[w];if(!v)return;const up=dirFor(w).up;
       bhaAt(at,()=>jwPlay(inst,w,v.pl,at,[1,2,3,5,6][k],(.55+.45*up)*(inst==='peking'?.8:1)))});
     JW.pulse++;JW.nextP+=per}
@@ -8012,7 +8079,7 @@ function jwHeard(now,list,dtR){const pace=bhaPace(),per=.9*pace;
 function jwTick(now,list,dtR){bhaOut();
   if(athens())jwHeard(now,list,dtR);
   else{list.forEach(([w,r])=>{const v=sirenVoice(w);v.fcur=baseOf()*r;tgt(v.vol.gain,0,.1)});jwWritten(now)}
-  BHA.q.sort((a,b)=>a.at-b.at);while(BHA.q.length&&BHA.q[0].at<=now+.25){const e=BHA.q.shift();if(e.at>=now-.05)e.fn()}}
+  BHA.q.sort((a,b)=>a.at-b.at);while(BHA.q.length&&BHA.q[0].at<=now+BGLA()){const e=BHA.q.shift();if(e.at>=now-.05)e.fn()}}
 function jwKill(){JW.seq=null;JW.k=0;JW.next=0;JW.cur=null;JW.asp={};JW.settle=0;JW.jd=null;JW.pulse=0;JW.nextP=0;JW.lastGong=null}
 /* ---- The Maya: the 260-day count and the Venus table of the Dresden Codex (pp. 24, 46–50) ---- */
 // the twenty day names and the haab' months in the modern Yukatek spelling used by Maya scholars; Venus's four stations in the codex's lengths
@@ -8055,7 +8122,7 @@ function myPhrase(t,morning,seed,pace){const r=myRng(seed),b=THINK.maya.base*(mo
   for(let k=0;k<n;k++){const at=t+k*.34*pace,f=b*MY_FL[Math.max(0,Math.min(6,i))],len=(k===n-1?.9:.3)*pace;bhaAt(at,()=>myPlay('chakek',at,len,f));i+=morning?1+(r()<.3?1:0):-1-(r()<.3?1:0)}}
 // as the codex counts: the days run quickly from 1 Ajaw, the day of the table's heliacal rising; five Venus cycles of 584 days (8 years), then again
 function myWritten(now){const pace=bhaPace(),dl=.075*pace;if(!MY.next||MY.next<now-1){MY.next=now+.3}
-  while(MY.next<now+.25){const at=MY.next,k=MY.day,cyc=Math.floor(k/584)%5,vd=k%584,o={n:(k%13)+1,s:(19+k)%20},st=vd<236?0:vd<326?1:vd<576?2:3;
+  while(MY.next<now+BGLA()){const at=MY.next,k=MY.day,cyc=Math.floor(k/584)%5,vd=k%584,o={n:(k%13)+1,s:(19+k)%20},st=vd<236?0:vd<326?1:vd<576?2:3;
     bhaAt(at,()=>{
       if(k%2===0)myPlay('rattle',at,.7);
       if(o.n===1)myPlay('low',at,1);else if(o.n===8)myPlay('high',at,.55);
@@ -8082,7 +8149,7 @@ function myHeard(now,list,dtR){const pace=bhaPace(),J=myJ(),o=myDate(J),V=myVenu
     if(V&&(V.st===0||V.st===2)){const a=at+.6*pace;myPhrase(a,V.st===0,J+V.st,pace)}
     MY.nextPh=at+(6+2*Math.random())*pace}
   // the rattles keep a slow pulse
-  if(!MY.nextP||MY.nextP<now-1)MY.nextP=now+.2;while(MY.nextP<now+.25){const a=MY.nextP,k=MY.pulse;bhaAt(a,()=>{myPlay('rattle',a,k%2?.5:.8);if(k%2===0&&a<MY.nextPh-1.5*pace)myPlay('pax',a,.5)});MY.pulse++;MY.nextP+=.75*pace}
+  if(!MY.nextP||MY.nextP<now-1)MY.nextP=now+.2;while(MY.nextP<now+BGLA()){const a=MY.nextP,k=MY.pulse;bhaAt(a,()=>{myPlay('rattle',a,k%2?.5:.8);if(k%2===0&&a<MY.nextPh-1.5*pace)myPlay('pax',a,.5)});MY.pulse++;MY.nextP+=.75*pace}
   // a conch when Venus rises again as the morning star (after a jump in time the sky settles first)
   if(V){if(MY.risen===null||Math.abs(S.jd-(MY.ph0||0))>2)MY.risen=V.st;else if(V.st===0&&MY.risen===3){const a=now+.2;bhaAt(a,()=>myPlay('conch',a,1,123))}MY.risen=V.st;MY.ph0=S.jd}
   MY.status=myStatus()}
@@ -8090,16 +8157,19 @@ function myStatus(){const J=myJ(),o=myDate(J),V=myVenus();return TT.ui.myToday.r
 function myTick(now,list,dtR){bhaOut();
   if(athens())myHeard(now,list,dtR);
   else{list.forEach(([w,r])=>{const v=sirenVoice(w);v.fcur=baseOf()*r;tgt(v.vol.gain,0,.1)});myWritten(now)}
-  BHA.q.sort((a,b)=>a.at-b.at);while(BHA.q.length&&BHA.q[0].at<=now+.25){const e=BHA.q.shift();if(e.at>=now-.05)e.fn()}}
+  BHA.q.sort((a,b)=>a.at-b.at);while(BHA.q.length&&BHA.q[0].at<=now+BGLA()){const e=BHA.q.shift();if(e.at>=now-.05)e.fn()}}
+// (BG-AHEAD) the stroke-based heavens (Bharata, Śārṅgadeva, Java, the Maya) schedule a quarter of a second ahead; with the screen off a phone may
+// wake the page only once a second, and late strokes are dropped, so while hidden they look 1.6 s ahead, as the dance page does
+const BGLA=()=>document.hidden?1.6:.25;
 function myKill(){MY.day=0;MY.next=0;MY.cur=null;MY.lastJ=null;MY.nextP=0;MY.pulse=0;MY.risen=null;MY.nextPh=0}
 function bhaTick(now,list,dtR){
   bhaOut();
   // the drone: Pa, Sa, Sa and low Sa in turn, a string every second (ours: the tanpura is centuries later than Bharata)
   if(!BHA.nextTan||BHA.nextTan<now-1)BHA.nextTan=now+.2;
-  while(BHA.nextTan<now+.25){const b=THINK.bharata.base,f=[b*.75,b,b,b*.5][BHA.tan%4];if(bhaDroneK()>0)bhaString(bhaPan('tan',0),BHA.nextTan,f,.06*bhaDroneK()*(SIR.solo?.5:1),1.8,0,true);BHA.tan++;BHA.nextTan+=1.05}
+  while(BHA.nextTan<now+BGLA()){const b=THINK.bharata.base,f=[b*.75,b,b,b*.5][BHA.tan%4];if(bhaDroneK()>0)bhaString(bhaPan('tan',0),BHA.nextTan,f,.06*bhaDroneK()*(SIR.solo?.5:1),1.8,0,true);BHA.tan++;BHA.nextTan+=1.05}
   if(athens())bhaHeard(now,list,dtR);
   else{list.forEach(([w,r])=>{const v=sirenVoice(w);v.fcur=baseOf()*r;tgt(v.vol.gain,0,.1)});if(now>=BHA.next&&!BHA.q.length)(THINK[S.thinker].sarn?sarWritten:bhaWritten)(now)}
-  BHA.q.sort((a,b)=>a.at-b.at);while(BHA.q.length&&BHA.q[0].at<=now+.25){const e=BHA.q.shift();if(e.at>=now-.05)e.fn()}
+  BHA.q.sort((a,b)=>a.at-b.at);while(BHA.q.length&&BHA.q[0].at<=now+BGLA()){const e=BHA.q.shift();if(e.at>=now-.05)e.fn()}
 }
 function thinkerAudio(){
   const th=THINK[S.thinker],now=AC.currentTime,E=P.earth,model=th.model;

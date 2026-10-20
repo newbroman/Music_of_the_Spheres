@@ -351,8 +351,10 @@ function report(){var L=[];
   if(C.fails.length)L.push('could not start: '+C.fails.slice(-4).join(' | '));
   if(C.notes.length)L.push('notes: '+C.notes.slice(-4).join(' | '));
   L.push('self-repair: level '+FIX.level+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
+  {var bl=[];try{bl=JSON.parse(LSg('mots.bglog')||'[]')}catch(e){}L.push('screen off / other app ('+bl.length+'):'+(bl.length?'\n  '+bl.join('\n  '):' nothing recorded yet'))}
   L.push('errors ('+C.errs.length+'):'+(C.errs.length?'\n  '+C.errs.slice(-12).join('\n  '):' none'));
   return L.join('\n')}
+C.bgNote=function(s){try{var k='mots.bglog',a=JSON.parse(LSg(k)||'[]');a.push(new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(5,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s);LSs(k,JSON.stringify(a.slice(-12)))}catch(e){}};
 C.report=report;
 var PANEL=null,tick=0;
 function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';upd();return}
@@ -1139,6 +1141,19 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
     if (!mode) mode = m;
     syncOut();
   };
+  const bgNote = (t) => {
+    try {
+      window.MOTS_COMPAT && MOTS_COMPAT.bgNote && MOTS_COMPAT.bgNote(t);
+    } catch (e) {
+    }
+  };
+  {
+    const S0 = AudioContext.prototype.suspend;
+    AudioContext.prototype.suspend = function() {
+      this.__ownSus = performance.now();
+      return S0.apply(this, arguments);
+    };
+  }
   const BG = {
     el: null,
     msd: null,
@@ -1150,6 +1165,7 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
     gS: null,
     c: null,
     mode: null,
+    rt: 0,
     st: { n: 0, hid: 0, w0: 0, a0: 0, lastW: 0, gaps: 0, max: 0, agc: 0, state: false }
   };
   {
@@ -1222,6 +1238,21 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
           try {
             agcTick();
           } catch (e) {
+          }
+          if (BG.on && ctx && ctx.state !== "running" && ctx.state !== "closed" && !MOTS.projPaused && !(ctx.__ownSus > s.w0) && now - BG.rt > 2e3) {
+            BG.rt = now;
+            s.wd = (s.wd || 0) + 1;
+            ctx.resume().then(() => {
+              if (!s.wdOk) {
+                s.wdOk = true;
+                bgNote("the phone paused the sound; resumed it");
+              }
+            }).catch((e) => {
+              if (!s.wdNo) {
+                s.wdNo = true;
+                bgNote("the phone paused the sound and refused to resume (" + (e && e.name || e) + ")");
+              }
+            });
           }
         }
         if (!BG.q.length) return;
@@ -1323,7 +1354,13 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
         return;
       }
       if (hidden && !BG.on) {
-        if (ctx.state !== "running" || MOTS.projPaused) return;
+        if (ctx.state !== "running" || MOTS.projPaused) {
+          if (!MOTS.projPaused && ctx.state !== "closed" && BG.lastNo !== ctx.state) {
+            BG.lastNo = ctx.state;
+            bgNote("hidden while the sound was " + ctx.state + ", so it was not kept playing");
+          }
+          return;
+        }
         bgWire();
         if (!BG.el) {
           BG.el = new Audio();
@@ -1341,10 +1378,16 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
         s.max = 0;
         s.state = false;
         s.mode = bgMode();
+        s.wd = 0;
+        s.wdOk = false;
+        s.wdNo = false;
         if (!s.watch) {
           s.watch = true;
           ctx.addEventListener("statechange", () => {
-            if (BG.on) s.state = true;
+            if (BG.on) {
+              s.state = true;
+              if (ctx.state !== "running" && !(ctx.__ownSus > s.w0) && !MOTS.projPaused) bgNote("while hidden the phone set the sound to " + ctx.state);
+            }
           });
         }
         BG.sky = MOTS.skyHidden;
@@ -1367,7 +1410,10 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
             BG.gD.gain.cancelScheduledValues(t2);
             ST0.call(BG.gD.gain, 1e-4, t2 + 0.15, 0.04);
           }
-        }).catch(() => bgRoute(false));
+        }).catch((e) => {
+          bgNote("the background player was refused (" + (e && e.name || e) + ")");
+          bgRoute(false);
+        });
       } else if (!hidden && BG.on) {
         const t = ctx.currentTime, s = BG.st;
         BG.on = false;
@@ -1394,6 +1440,7 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
           BG.mode = "stream";
           s.fell = true;
         }
+        if (s.hid > 15) bgNote("hidden " + s.hid.toFixed(0) + " s · sound clock " + s.aud.toFixed(0) + " s (" + Math.round(100 * s.aud / Math.max(0.1, s.hid)) + "%) · " + s.mode + (s.fell ? " → stream next time" : "") + " · late ticks " + s.gaps + (s.wd ? " · watchdog " + s.wd : ""));
         if (/[?&]bgdiag\b/.test(location.search)) bgDiag(s);
       }
     } catch (e) {
@@ -2878,6 +2925,19 @@ const s=document.createElement('style');s.id='motsPulseCss';s.textContent=css;(d
 (()=>{
 "use strict";
 const WN=[
+ {id:'mayaperc',d:'2026-10-20c',s:'⁘',go:{p:'dance.html',a:'style:mayaperc'},t:{
+  en:['Maya percussion, a reconstruction','A new band in the World row: a percussion piece reconstructed from the instruments painted at Bonampak and found in excavations. No Maya music survives in notation; the rhythms follow the codex’s counts, turtle shells on thirteen and the drum on twenty, the sections following Venus, not any known Maya piece.'],
+  pl:['Perkusja Majów, rekonstrukcja','Nowy zespół w rzędzie Świat: utwór perkusyjny zrekonstruowany z instrumentów namalowanych w Bonampak i odnalezionych w wykopaliskach. Muzyka Majów nie zachowała się w zapisie; rytmy idą za rachubami kodeksu, skorupy żółwi na trzynaście, bęben na dwadzieścia, części za Wenus, a nie za żadnym znanym utworem Majów.'],
+  cy:['Offerynnau taro’r Maya, ail-greu','Band newydd yn rhes y Byd: darn taro wedi’i ail-greu o’r offerynnau a beintiwyd yn Bonampak ac a gafwyd mewn cloddiadau. Nid oes cerddoriaeth Maya wedi goroesi mewn nodiant; mae’r rhythmau’n dilyn cyfrifon y codecs, cregyn crwban ar dri ar ddeg a’r drwm ar ugain, a’r rhannau’n dilyn Gwener, nid unrhyw ddarn Maya hysbys.'],
+  de:['Maya-Perkussion, eine Rekonstruktion','Eine neue Band in der Reihe Welt: ein Perkussionsstück, rekonstruiert aus den in Bonampak gemalten und in Grabungen gefundenen Instrumenten. Keine Musik der Maya ist in Notation erhalten; die Rhythmen folgen den Zählungen des Kodex, Schildkrötenpanzer auf der Dreizehn, die Trommel auf der Zwanzig, die Teile der Venus nach, keinem bekannten Maya-Stück.'],
+  es:['Percusión maya, una reconstrucción','Una banda nueva en la fila Mundo: una pieza de percusión reconstruida a partir de los instrumentos pintados en Bonampak y hallados en excavaciones. No se conserva música maya escrita; los ritmos siguen las cuentas del códice, caparazones en el trece y el tambor en el veinte, con las secciones según Venus, no ninguna pieza maya conocida.'],
+  fr:['Percussions mayas, une reconstitution','Un nouveau groupe dans la rangée Monde : une pièce de percussions reconstituée d’après les instruments peints à Bonampak et trouvés en fouilles. Aucune musique maya n’a survécu en notation ; les rythmes suivent les comptes du codex, carapaces sur le treize, tambour sur le vingt, les sections réglées par Vénus, et non une pièce maya connue.'],
+  it:['Percussioni maya, una ricostruzione','Una nuova band nella fila Mondo: un brano per percussioni ricostruito dagli strumenti dipinti a Bonampak e ritrovati negli scavi. Nessuna musica maya è sopravvissuta in notazione; i ritmi seguono i computi del codice, carapaci sul tredici e tamburo sul venti, le sezioni secondo Venere, non un brano maya conosciuto.'],
+  zh:['玛雅打击乐（重建）','“世界”一排新增一支乐队：根据博南帕克壁画中所绘、考古发掘所见乐器重建的打击乐。没有任何玛雅音乐以记谱形式留存；节奏依照抄本的计数，龟甲奏十三，鼓奏二十，乐段跟随金星，并非任何已知的玛雅乐曲。'],
+  ja:['マヤの打楽器（復元）','ワールドの列に新しいバンド：ボナンパックに描かれ、発掘で見つかった楽器から復元した打楽器曲です。楽譜として残るマヤの音楽はありません。リズムは絵文書の数え方に従い、亀甲は十三、太鼓は二十を刻み、各部分は金星に従います。既知のマヤの曲ではありません。'],
+  vi:['Bộ gõ Maya, một sự tái dựng','Một ban nhạc mới ở hàng Thế giới: một bản nhạc gõ tái dựng từ các nhạc cụ được vẽ ở Bonampak và tìm thấy khi khai quật. Không có âm nhạc Maya nào còn lại dưới dạng bản ghi; nhịp điệu theo các phép đếm của sách cổ, mai rùa đếm mười ba, trống đếm hai mươi, các đoạn theo Sao Kim, không phải một bản nhạc Maya nào đã biết.'],
+  bg:['Маянска перкусия, реконструкция','Нова група в реда Световна музика: перкусионна пиеса, реконструирана по инструментите, рисувани в Бонампак и намерени при разкопки. Не е оцеляла маянска музика в запис; ритмите следват броенията на кодекса, черупките на тринайсетте, барабанът на двайсетте, частите според Венера, а не някаква известна маянска пиеса.'],
+  pt:['Percussão maia, uma reconstrução','Uma banda nova na fileira Músicas do mundo: uma peça de percussão reconstruída a partir dos instrumentos pintados em Bonampak e encontrados em escavações. Nenhuma música maia sobreviveu em notação; os ritmos seguem as contagens do códice, cascos no treze e tambor no vinte, as seções seguindo Vênus, não uma peça maia conhecida.']}},
  {id:'maya',d:'2026-10-20b',s:'✧',go:{p:'index.html',a:'thinker:maya'},t:{
   en:['The Maya: the Venus table','The Dresden Codex’s Venus table joins the dial: the 260-day count on turtle shell and drum, and a clay flute for Venus through its four stations and its eight-year return, or heard from Chichén Itzá at today’s date with Venus where it really is. A respectful reconstruction; no Maya text describes planetary music.'],
   pl:['Majowie: tablica Wenus','Na tarczę trafia tablica Wenus z Kodeksu drezdeńskiego: rachuba 260 dni na skorupie żółwia i bębnie oraz gliniany flet dla Wenus przez jej cztery stacje i ośmioletni powrót; albo słuchane z Chichén Itzá w dzisiejszej dacie, z Wenus tam, gdzie naprawdę jest. Pełna szacunku rekonstrukcja; żaden tekst Majów nie opisuje muzyki planet.'],

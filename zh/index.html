@@ -351,8 +351,10 @@ function report(){var L=[];
   if(C.fails.length)L.push('could not start: '+C.fails.slice(-4).join(' | '));
   if(C.notes.length)L.push('notes: '+C.notes.slice(-4).join(' | '));
   L.push('self-repair: level '+FIX.level+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
+  {var bl=[];try{bl=JSON.parse(LSg('mots.bglog')||'[]')}catch(e){}L.push('screen off / other app ('+bl.length+'):'+(bl.length?'\n  '+bl.join('\n  '):' nothing recorded yet'))}
   L.push('errors ('+C.errs.length+'):'+(C.errs.length?'\n  '+C.errs.slice(-12).join('\n  '):' none'));
   return L.join('\n')}
+C.bgNote=function(s){try{var k='mots.bglog',a=JSON.parse(LSg(k)||'[]');a.push(new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(5,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s);LSs(k,JSON.stringify(a.slice(-12)))}catch(e){}};
 C.report=report;
 var PANEL=null,tick=0;
 function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';upd();return}
@@ -498,6 +500,8 @@ body:not(.thinking) .thinker-only{display:none!important}
 .tl-arr:hover{color:#f3d9a4}
 @media (hover:hover) and (pointer:fine){.tl-wrap[data-l="1"]:hover .tl-arr.l,.tl-wrap[data-r="1"]:hover .tl-arr.r{display:flex}}
 /* Today, the modern sky, is pinned at the start of the row */
+.tl-sec{flex:0 0 auto;align-self:stretch;display:flex;align-items:center;max-width:7.5rem;padding:0 .2rem 0 .7rem;margin-left:.3rem;border-left:1px solid var(--bronze-dim);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;line-height:1.25;color:var(--bronze)}
+.tl-chip[data-t="today"]+.tl-sec{margin-left:.1rem}
 .tl-chip[data-t="today"]{order:-1;position:sticky;left:0;z-index:2;background:var(--sky-2);margin-right:.2rem}
 .tl-wrap[data-l="1"] .tl-chip[data-t="today"]{box-shadow:8px 0 12px -2px rgba(0,0,0,.7)}
 .tl-chip[data-t="today"].on{background:linear-gradient(180deg,#2a2518,#1f1b13)}
@@ -1052,6 +1056,19 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     if (!mode) mode = m;
     syncOut();
   };
+  const bgNote = (t) => {
+    try {
+      window.MOTS_COMPAT && MOTS_COMPAT.bgNote && MOTS_COMPAT.bgNote(t);
+    } catch (e) {
+    }
+  };
+  {
+    const S0 = AudioContext.prototype.suspend;
+    AudioContext.prototype.suspend = function() {
+      this.__ownSus = performance.now();
+      return S0.apply(this, arguments);
+    };
+  }
   const BG = {
     el: null,
     msd: null,
@@ -1063,6 +1080,7 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     gS: null,
     c: null,
     mode: null,
+    rt: 0,
     st: { n: 0, hid: 0, w0: 0, a0: 0, lastW: 0, gaps: 0, max: 0, agc: 0, state: false }
   };
   {
@@ -1135,6 +1153,21 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
           try {
             agcTick();
           } catch (e) {
+          }
+          if (BG.on && ctx && ctx.state !== "running" && ctx.state !== "closed" && !MOTS.projPaused && !(ctx.__ownSus > s.w0) && now - BG.rt > 2e3) {
+            BG.rt = now;
+            s.wd = (s.wd || 0) + 1;
+            ctx.resume().then(() => {
+              if (!s.wdOk) {
+                s.wdOk = true;
+                bgNote("the phone paused the sound; resumed it");
+              }
+            }).catch((e) => {
+              if (!s.wdNo) {
+                s.wdNo = true;
+                bgNote("the phone paused the sound and refused to resume (" + (e && e.name || e) + ")");
+              }
+            });
           }
         }
         if (!BG.q.length) return;
@@ -1236,7 +1269,13 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
         return;
       }
       if (hidden && !BG.on) {
-        if (ctx.state !== "running" || MOTS.projPaused) return;
+        if (ctx.state !== "running" || MOTS.projPaused) {
+          if (!MOTS.projPaused && ctx.state !== "closed" && BG.lastNo !== ctx.state) {
+            BG.lastNo = ctx.state;
+            bgNote("hidden while the sound was " + ctx.state + ", so it was not kept playing");
+          }
+          return;
+        }
         bgWire();
         if (!BG.el) {
           BG.el = new Audio();
@@ -1254,10 +1293,16 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
         s.max = 0;
         s.state = false;
         s.mode = bgMode();
+        s.wd = 0;
+        s.wdOk = false;
+        s.wdNo = false;
         if (!s.watch) {
           s.watch = true;
           ctx.addEventListener("statechange", () => {
-            if (BG.on) s.state = true;
+            if (BG.on) {
+              s.state = true;
+              if (ctx.state !== "running" && !(ctx.__ownSus > s.w0) && !MOTS.projPaused) bgNote("while hidden the phone set the sound to " + ctx.state);
+            }
           });
         }
         BG.sky = MOTS.skyHidden;
@@ -1280,7 +1325,10 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
             BG.gD.gain.cancelScheduledValues(t2);
             ST0.call(BG.gD.gain, 1e-4, t2 + 0.15, 0.04);
           }
-        }).catch(() => bgRoute(false));
+        }).catch((e) => {
+          bgNote("the background player was refused (" + (e && e.name || e) + ")");
+          bgRoute(false);
+        });
       } else if (!hidden && BG.on) {
         const t = ctx.currentTime, s = BG.st;
         BG.on = false;
@@ -1307,6 +1355,7 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
           BG.mode = "stream";
           s.fell = true;
         }
+        if (s.hid > 15) bgNote("hidden " + s.hid.toFixed(0) + " s · sound clock " + s.aud.toFixed(0) + " s (" + Math.round(100 * s.aud / Math.max(0.1, s.hid)) + "%) · " + s.mode + (s.fell ? " → stream next time" : "") + " · late ticks " + s.gaps + (s.wd ? " · watchdog " + s.wd : ""));
         if (/[?&]bgdiag\b/.test(location.search)) bgDiag(s);
       }
     } catch (e) {
@@ -3663,6 +3712,19 @@ const s=document.createElement('style');s.id='motsPulseCss';s.textContent=css;(d
 (()=>{
 "use strict";
 const WN=[
+ {id:'mayaperc',d:'2026-10-20c',s:'⁘',go:{p:'dance.html',a:'style:mayaperc'},t:{
+  en:['Maya percussion, a reconstruction','A new band in the World row: a percussion piece reconstructed from the instruments painted at Bonampak and found in excavations. No Maya music survives in notation; the rhythms follow the codex’s counts, turtle shells on thirteen and the drum on twenty, the sections following Venus, not any known Maya piece.'],
+  pl:['Perkusja Majów, rekonstrukcja','Nowy zespół w rzędzie Świat: utwór perkusyjny zrekonstruowany z instrumentów namalowanych w Bonampak i odnalezionych w wykopaliskach. Muzyka Majów nie zachowała się w zapisie; rytmy idą za rachubami kodeksu, skorupy żółwi na trzynaście, bęben na dwadzieścia, części za Wenus, a nie za żadnym znanym utworem Majów.'],
+  cy:['Offerynnau taro’r Maya, ail-greu','Band newydd yn rhes y Byd: darn taro wedi’i ail-greu o’r offerynnau a beintiwyd yn Bonampak ac a gafwyd mewn cloddiadau. Nid oes cerddoriaeth Maya wedi goroesi mewn nodiant; mae’r rhythmau’n dilyn cyfrifon y codecs, cregyn crwban ar dri ar ddeg a’r drwm ar ugain, a’r rhannau’n dilyn Gwener, nid unrhyw ddarn Maya hysbys.'],
+  de:['Maya-Perkussion, eine Rekonstruktion','Eine neue Band in der Reihe Welt: ein Perkussionsstück, rekonstruiert aus den in Bonampak gemalten und in Grabungen gefundenen Instrumenten. Keine Musik der Maya ist in Notation erhalten; die Rhythmen folgen den Zählungen des Kodex, Schildkrötenpanzer auf der Dreizehn, die Trommel auf der Zwanzig, die Teile der Venus nach, keinem bekannten Maya-Stück.'],
+  es:['Percusión maya, una reconstrucción','Una banda nueva en la fila Mundo: una pieza de percusión reconstruida a partir de los instrumentos pintados en Bonampak y hallados en excavaciones. No se conserva música maya escrita; los ritmos siguen las cuentas del códice, caparazones en el trece y el tambor en el veinte, con las secciones según Venus, no ninguna pieza maya conocida.'],
+  fr:['Percussions mayas, une reconstitution','Un nouveau groupe dans la rangée Monde : une pièce de percussions reconstituée d’après les instruments peints à Bonampak et trouvés en fouilles. Aucune musique maya n’a survécu en notation ; les rythmes suivent les comptes du codex, carapaces sur le treize, tambour sur le vingt, les sections réglées par Vénus, et non une pièce maya connue.'],
+  it:['Percussioni maya, una ricostruzione','Una nuova band nella fila Mondo: un brano per percussioni ricostruito dagli strumenti dipinti a Bonampak e ritrovati negli scavi. Nessuna musica maya è sopravvissuta in notazione; i ritmi seguono i computi del codice, carapaci sul tredici e tamburo sul venti, le sezioni secondo Venere, non un brano maya conosciuto.'],
+  zh:['玛雅打击乐（重建）','“世界”一排新增一支乐队：根据博南帕克壁画中所绘、考古发掘所见乐器重建的打击乐。没有任何玛雅音乐以记谱形式留存；节奏依照抄本的计数，龟甲奏十三，鼓奏二十，乐段跟随金星，并非任何已知的玛雅乐曲。'],
+  ja:['マヤの打楽器（復元）','ワールドの列に新しいバンド：ボナンパックに描かれ、発掘で見つかった楽器から復元した打楽器曲です。楽譜として残るマヤの音楽はありません。リズムは絵文書の数え方に従い、亀甲は十三、太鼓は二十を刻み、各部分は金星に従います。既知のマヤの曲ではありません。'],
+  vi:['Bộ gõ Maya, một sự tái dựng','Một ban nhạc mới ở hàng Thế giới: một bản nhạc gõ tái dựng từ các nhạc cụ được vẽ ở Bonampak và tìm thấy khi khai quật. Không có âm nhạc Maya nào còn lại dưới dạng bản ghi; nhịp điệu theo các phép đếm của sách cổ, mai rùa đếm mười ba, trống đếm hai mươi, các đoạn theo Sao Kim, không phải một bản nhạc Maya nào đã biết.'],
+  bg:['Маянска перкусия, реконструкция','Нова група в реда Световна музика: перкусионна пиеса, реконструирана по инструментите, рисувани в Бонампак и намерени при разкопки. Не е оцеляла маянска музика в запис; ритмите следват броенията на кодекса, черупките на тринайсетте, барабанът на двайсетте, частите според Венера, а не някаква известна маянска пиеса.'],
+  pt:['Percussão maia, uma reconstrução','Uma banda nova na fileira Músicas do mundo: uma peça de percussão reconstruída a partir dos instrumentos pintados em Bonampak e encontrados em escavações. Nenhuma música maia sobreviveu em notação; os ritmos seguem as contagens do códice, cascos no treze e tambor no vinte, as seções seguindo Vênus, não uma peça maia conhecida.']}},
  {id:'maya',d:'2026-10-20b',s:'✧',go:{p:'index.html',a:'thinker:maya'},t:{
   en:['The Maya: the Venus table','The Dresden Codex’s Venus table joins the dial: the 260-day count on turtle shell and drum, and a clay flute for Venus through its four stations and its eight-year return, or heard from Chichén Itzá at today’s date with Venus where it really is. A respectful reconstruction; no Maya text describes planetary music.'],
   pl:['Majowie: tablica Wenus','Na tarczę trafia tablica Wenus z Kodeksu drezdeńskiego: rachuba 260 dni na skorupie żółwia i bębnie oraz gliniany flet dla Wenus przez jej cztery stacje i ośmioletni powrót; albo słuchane z Chichén Itzá w dzisiejszej dacie, z Wenus tam, gdzie naprawdę jest. Pełna szacunku rekonstrukcja; żaden tekst Majów nie opisuje muzyki planet.'],
@@ -5902,6 +5964,7 @@ en:{show:'Show',btn:'The talk',title:'The self-running show',pause:'Pause',play:
   morricone:{k:'Concert · Morricone',h:'A wide-open space',p:'In his manner, with none of his tunes: a whistle, a twanging guitar, a whip, men shouting, chimes, a wordless soprano and a trumpet, building to one huge climax.'},
   raga:{k:'World · Rāga',h:'The hour of the sky',p:'The time of day chooses a Hindustani rāga: the tanpura’s drone, an unmetred ālāp on the sitar, then a gat with tabla and a fast drut that lands on sam.'},
   gamelan:{k:'World · Gamelan',h:'Bronze in pairs',p:'A Javanese lancaran, the gong closing every sixteen beats, then the energy of Balinese kebyar, the moons interlocking in kotekan, and a slow Javanese close.'},
+  mayaperc:{k:'World · Maya percussion',h:'Thirteen against twenty',p:'A reconstruction from the instruments painted at Bonampak: turtle shells on a cycle of thirteen, the drum on twenty, meeting only at two hundred and sixty, with sections shaped by the stations of Venus. No Maya music survives in notation.'},
   soul:{k:'Popular · Soul & gospel',h:'Call and response',p:'Aphrodite calls, the choir answers, the Hammond swells; Aphrodite sings original words about the gods in your language. The Moon’s element can mix funk, soul and disco.'},
   dub:{k:'Popular · Dub',h:'At the mixing desk',p:'A one-drop riddim pulled apart: the rim shot and the skank thrown into tape echo and spring reverb, drop-outs, a siren at the aspects.'},
   modal:{k:'Avant-garde & jazz · Modal jazz',h:'Improvised from the mode',p:'Muted trumpet and tenor saxophone take turns soloing over brushes, ride and a walking bass; the Moon’s element chooses the mode.'},
@@ -5974,6 +6037,7 @@ pl:{show:'Pokaz',btn:'Prelekcja',title:'Pokaz, który gra sam',pause:'Pauza',pla
   morricone:{k:'Koncert · Morricone',h:'Szeroka przestrzeń',p:'W jego manierze, bez żadnego z jego tematów: gwizd, brzęcząca gitara, bicz, męskie okrzyki, dzwony, sopran bez słów i trąbka, narastające do jednej wielkiej kulminacji.'},
   raga:{k:'Świat · Rāga',h:'Godzina nieba',p:'Pora dnia wybiera hindustańską rāgę: burdon tanpury, swobodny ālāp na sitarze, potem gat z tablą i szybki drut, który ląduje na sam.'},
   gamelan:{k:'Świat · Gamelan',h:'Brązy w parach',p:'Jawajski lancaran, gong zamykający co szesnaście uderzeń, potem energia balijskiego kebyar, księżyce splecione w kotekan i wolne jawajskie zakończenie.'},
+  mayaperc:{k:'Świat · Perkusja Majów',h:'Trzynaście wobec dwudziestu',p:'Rekonstrukcja z instrumentów namalowanych w Bonampak: skorupy żółwi w cyklu trzynastu, bęben w cyklu dwudziestu, spotykające się dopiero przy dwustu sześćdziesięciu, a części kształtują stacje Wenus. Muzyka Majów nie zachowała się w zapisie.'},
   soul:{k:'Popularne · Soul i gospel',h:'Zawołanie i odpowiedź',p:'Afrodyta woła, chór odpowiada, Hammond narasta; Afrodyta śpiewa własne słowa o bogach w twoim języku. Żywioł Księżyca może miksować funk, soul i disco.'},
   dub:{k:'Popularne · Dub',h:'Przy stole mikserskim',p:'Riddim one drop rozebrany na części: rimshot i skank wrzucone w taśmowe echo i sprężynowy pogłos, wyciszenia, syrena przy aspektach.'},
   modal:{k:'Awangarda i jazz · Jazz modalny',h:'Improwizacja ze skali',p:'Trąbka z tłumikiem i saksofon tenorowy na zmianę grają solówki nad miotełkami, ride’em i walking bassem; żywioł Księżyca wybiera skalę.'},
@@ -6046,6 +6110,7 @@ cy:{show:'Sioe',btn:'Y sgwrs',title:'Y sioe hunanredeg',pause:'Oedi',play:'Chwar
   morricone:{k:'Cyngerdd · Morricone',h:'Gwagle agored',p:'Yn ei fodd ef, heb yr un o’i alawon: chwiban, gitâr yn twangio, chwip, dynion yn gweiddi, clychau, soprano heb eiriau a thrwmped, yn codi at un uchafbwynt enfawr.'},
   raga:{k:'Y Byd · Rāga',h:'Awr yr awyr',p:'Amser y dydd sy’n dewis rāga Hindwstanaidd: bwrdwn y tanpura, ālāp heb fesur ar y sitar, wedyn gat gyda tabla a drut cyflym sy’n glanio ar sam.'},
   gamelan:{k:'Y Byd · Gamelan',h:'Efydd fesul pâr',p:'Lancaran Jafanaidd, y gong yn cau bob un ar bymtheg curiad, wedyn egni kebyar Bali, y lleuadau’n cydblethu mewn kotekan, a diweddglo Jafanaidd araf.'},
+  mayaperc:{k:'Y Byd · Offerynnau taro’r Maya',h:'Tri ar ddeg yn erbyn ugain',p:'Ail-greu o’r offerynnau a beintiwyd yn Bonampak: cregyn crwban ar gylch o dri ar ddeg, y drwm ar ugain, yn cwrdd dim ond ar ddau gant chwe deg, a gorsafoedd Gwener yn siapio’r rhannau. Nid oes cerddoriaeth Maya wedi goroesi mewn nodiant.'},
   soul:{k:'Poblogaidd · Soul a gospel',h:'Galw ac ateb',p:'Aphrodite yn galw, y côr yn ateb, yr Hammond yn chwyddo; mae Aphrodite yn canu geiriau gwreiddiol am y duwiau yn eich iaith. Gall elfen y Lleuad gymysgu ffync, soul a disgo.'},
   dub:{k:'Poblogaidd · Dub',h:'Wrth y ddesg gymysgu',p:'Riddim one drop wedi’i dynnu’n ddarnau: y rim shot a’r skank yn cael eu taflu i atsain tâp ac adlais sbring, toriadau, seiren wrth yr agweddau.'},
   modal:{k:'Avant-garde a jazz · Jazz moddol',h:'Byrfyfyr o’r modd',p:'Trwmped tawel a sacsoffon tenor yn cymryd eu tro i unawdu dros frwshys, ride a bas cerdded; elfen y Lleuad sy’n dewis y modd.'},
@@ -6118,6 +6183,7 @@ de:{show:'Show',btn:'Der Vortrag',title:'Die selbstlaufende Show',pause:'Pause',
   morricone:{k:'Konzert · Morricone',h:'Ein weiter, offener Raum',p:'In seiner Art, ohne eine seiner Melodien: ein Pfeifen, eine schnarrende Gitarre, eine Peitsche, rufende Männer, Glocken, ein wortloser Sopran und eine Trompete, bis zu einem gewaltigen Höhepunkt.'},
   raga:{k:'Welt · Rāga',h:'Die Stunde des Himmels',p:'Die Tageszeit wählt einen hindustanischen Rāga: der Bordun der Tanpura, ein freier Ālāp auf der Sitar, dann ein Gat mit Tabla und ein schneller Drut, der auf Sam landet.'},
   gamelan:{k:'Welt · Gamelan',h:'Bronze in Paaren',p:'Ein javanischer Lancaran, der Gong schließt alle sechzehn Schläge, dann die Energie des balinesischen Kebyar, die Monde verzahnt im Kotekan, und ein langsamer javanischer Schluss.'},
+  mayaperc:{k:'Welt · Maya-Perkussion',h:'Dreizehn gegen zwanzig',p:'Eine Rekonstruktion aus den in Bonampak gemalten Instrumenten: Schildkrötenpanzer im Zyklus von dreizehn, die Trommel im Zyklus von zwanzig, die sich erst bei zweihundertsechzig treffen, die Teile nach den Stationen der Venus. Keine Musik der Maya ist in Notation erhalten.'},
   soul:{k:'Populär · Soul & Gospel',h:'Ruf und Antwort',p:'Aphrodite ruft, der Chor antwortet, die Hammond schwillt an; Aphrodite singt eigene Worte über die Götter in deiner Sprache. Das Element des Mondes kann Funk, Soul und Disco mischen.'},
   dub:{k:'Populär · Dub',h:'Am Mischpult',p:'Ein One-Drop-Riddim, auseinandergenommen: Rimshot und Skank ins Bandecho und den Federhall geworfen, Aussetzer, eine Sirene bei den Aspekten.'},
   modal:{k:'Avantgarde & Jazz · Modal Jazz',h:'Aus dem Modus improvisiert',p:'Gedämpfte Trompete und Tenorsaxophon wechseln sich im Solo ab, über Besen, Ride und Walking Bass; das Element des Mondes wählt den Modus.'},
@@ -6190,6 +6256,7 @@ es:{show:'Espectáculo',btn:'La charla',title:'El espectáculo automático',paus
   morricone:{k:'Concierto · Morricone',h:'Un espacio abierto',p:'A su manera, sin ninguno de sus temas: un silbido, una guitarra vibrante, un látigo, hombres que gritan, campanas, una soprano sin palabras y una trompeta, hasta un clímax enorme.'},
   raga:{k:'Mundo · Rāga',h:'La hora del cielo',p:'La hora del día elige un rāga indostánico: el bordón de la tanpura, un ālāp libre en el sitar, y luego un gat con tabla y un drut rápido que cae en sam.'},
   gamelan:{k:'Mundo · Gamelan',h:'Bronces por parejas',p:'Un lancaran javanés, el gong cerrando cada dieciséis golpes, luego la energía del kebyar balinés, las lunas entrelazadas en kotekan y un cierre lento javanés.'},
+  mayaperc:{k:'Mundo · Percusión maya',h:'Trece contra veinte',p:'Una reconstrucción con los instrumentos pintados en Bonampak: caparazones de tortuga en un ciclo de trece, el tambor en uno de veinte, que solo se encuentran a los doscientos sesenta, con secciones según las estaciones de Venus. No se conserva música maya escrita.'},
   soul:{k:'Popular · Soul y góspel',h:'Llamada y respuesta',p:'Afrodita llama, el coro responde, el Hammond crece; Afrodita canta palabras originales sobre los dioses en tu idioma. El elemento de la Luna puede mezclar funk, soul y disco.'},
   dub:{k:'Popular · Dub',h:'En la mesa de mezclas',p:'Un riddim one drop desmontado: el aro y el skank lanzados al eco de cinta y la reverberación de muelles, cortes, una sirena en los aspectos.'},
   modal:{k:'Vanguardia y jazz · Jazz modal',h:'Improvisado desde el modo',p:'Trompeta con sordina y saxo tenor se alternan en los solos sobre escobillas, ride y bajo caminante; el elemento de la Luna elige el modo.'},
@@ -6262,6 +6329,7 @@ fr:{show:'Spectacle',btn:'La présentation',title:'Le spectacle automatique',pau
   morricone:{k:'Concert · Morricone',h:'Un grand espace ouvert',p:'À sa manière, sans aucun de ses thèmes : un sifflement, une guitare qui vibre, un fouet, des hommes qui crient, des cloches, une soprano sans paroles et une trompette, jusqu’à un immense apogée.'},
   raga:{k:'Monde · Rāga',h:'L’heure du ciel',p:'L’heure du jour choisit un rāga hindoustani : le bourdon du tanpura, un ālāp libre au sitar, puis un gat avec tabla et un drut rapide qui tombe sur sam.'},
   gamelan:{k:'Monde · Gamelan',h:'Bronzes par paires',p:'Un lancaran javanais, le gong fermant chaque cycle de seize temps, puis l’énergie du kebyar balinais, les lunes entrecroisées en kotekan, et une fin lente javanaise.'},
+  mayaperc:{k:'Monde · Percussions mayas',h:'Treize contre vingt',p:'Une reconstitution d’après les instruments peints à Bonampak : carapaces de tortue sur un cycle de treize, tambour sur un cycle de vingt, qui ne se rejoignent qu’à deux cent soixante, les sections réglées par les stations de Vénus. Aucune musique maya n’a survécu en notation.'},
   soul:{k:'Populaire · Soul & gospel',h:'Appel et réponse',p:'Aphrodite appelle, le chœur répond, l’orgue Hammond gonfle ; Aphrodite chante des paroles originales sur les dieux dans votre langue. L’élément de la Lune peut mêler funk, soul et disco.'},
   dub:{k:'Populaire · Dub',h:'À la table de mixage',p:'Un riddim one drop démonté : le rim shot et le skank jetés dans l’écho à bande et la réverbération à ressort, des coupures, une sirène aux aspects.'},
   modal:{k:'Avant-garde et jazz · Jazz modal',h:'Improvisé sur le mode',p:'Trompette bouchée et saxophone ténor se relaient en solo sur balais, ride et basse marchante ; l’élément de la Lune choisit le mode.'},
@@ -6334,6 +6402,7 @@ it:{show:'Spettacolo',btn:'La presentazione',title:'Lo spettacolo automatico',pa
   morricone:{k:'Concerto · Morricone',h:'Uno spazio aperto',p:'Alla sua maniera, senza nessuno dei suoi temi: un fischio, una chitarra vibrante, una frusta, uomini che gridano, campane, un soprano senza parole e una tromba, fino a un culmine enorme.'},
   raga:{k:'Mondo · Rāga',h:'L’ora del cielo',p:'L’ora del giorno sceglie un rāga hindustani: il bordone della tanpura, un ālāp libero al sitar, poi un gat con la tabla e un drut veloce che atterra sul sam.'},
   gamelan:{k:'Mondo · Gamelan',h:'Bronzi a coppie',p:'Un lancaran giavanese, il gong che chiude ogni sedici battiti, poi l’energia del kebyar balinese, le lune intrecciate nel kotekan e una chiusa lenta giavanese.'},
+  mayaperc:{k:'Mondo · Percussioni maya',h:'Tredici contro venti',p:'Una ricostruzione dagli strumenti dipinti a Bonampak: carapaci di tartaruga in un ciclo di tredici, il tamburo in uno di venti, che si incontrano solo a duecentosessanta, le sezioni secondo le stazioni di Venere. Nessuna musica maya è sopravvissuta in notazione.'},
   soul:{k:'Popolare · Soul e gospel',h:'Chiamata e risposta',p:'Afrodite chiama, il coro risponde, l’Hammond cresce; Afrodite canta parole originali sugli dèi nella tua lingua. L’elemento della Luna può mescolare funk, soul e disco.'},
   dub:{k:'Popolare · Dub',h:'Al mixer',p:'Un riddim one drop smontato: il rim shot e lo skank gettati nell’eco a nastro e nel riverbero a molla, vuoti, una sirena agli aspetti.'},
   modal:{k:'Avanguardia e jazz · Jazz modale',h:'Improvvisato sul modo',p:'Tromba con sordina e sax tenore si alternano nei soli su spazzole, ride e walking bass; l’elemento della Luna sceglie il modo.'},
@@ -6406,6 +6475,7 @@ zh:{show:'演出',btn:'讲解',title:'自动演出',pause:'暂停',play:'播放'
   morricone:{k:'音乐会 · 莫里康内',h:'开阔的空间',p:'只借他的风格，不引用他的任何旋律：口哨、颤动的吉他、鞭响、男声呼喊、钟声、无词女高音和小号，一路堆向巨大的高潮。'},
   raga:{k:'世界 · 拉格',h:'星空的时辰',p:'一天中的时辰选出一首印度斯坦拉格：坦普拉琴的持续音、西塔琴无节拍的阿拉普，然后是有塔布拉鼓的加特，以及落在“萨姆”上的快速德鲁特。'},
   gamelan:{k:'世界 · 甘美兰',h:'成对的铜乐器',p:'一首爪哇兰卡兰，大锣每十六拍结束一个周期，然后是巴厘克比亚尔的活力，卫星们以科特坎交错演奏，最后是缓慢的爪哇式结尾。'},
+  mayaperc:{k:'世界 · 玛雅打击乐',h:'十三对二十',p:'根据博南帕克壁画中乐器的重建：龟甲按十三的周期敲击，鼓按二十的周期，直到二百六十才相会，乐段按金星的各阶段安排。没有任何玛雅音乐以记谱形式留存。'},
   soul:{k:'流行音乐 · 灵魂与福音',h:'呼与应',p:'阿佛洛狄忒呼唤，合唱回应，哈蒙德风琴渐强；阿佛洛狄忒用你的语言唱出关于众神的原创歌词。月亮的元素可以在 funk、灵魂与 disco 之间切换。'},
   dub:{k:'流行音乐 · Dub',h:'在调音台前',p:'一段 one drop 节奏被拆开：鼓边击与反拍扫弦甩进磁带回声和弹簧混响，抽空，相位出现时响起警笛。'},
   modal:{k:'前卫与爵士 · 调式爵士',h:'从调式中即兴',p:'弱音小号与次中音萨克斯轮流独奏，衬以鼓刷、叮叮镲与行走贝斯；月亮的元素选择调式。'},
@@ -6478,6 +6548,7 @@ ja:{show:'ショー',btn:'解説',title:'自動再生ショー',pause:'一時停
   morricone:{k:'コンサート · モリコーネ',h:'広く開けた空間',p:'彼の作風だけを借り、旋律は一つも引用しません。口笛、震えるギター、鞭、男たちの叫び、鐘、言葉のないソプラノ、トランペットが、ひとつの巨大なクライマックスへ積み上がります。'},
   raga:{k:'ワールド · ラーガ',h:'空の時刻',p:'一日の時刻がヒンドゥスターニーのラーガを選びます。タンプーラのドローン、シタールの拍のないアーラープ、そしてタブラとのガットと、サムに着地する速いドルト。'},
   gamelan:{k:'ワールド · ガムラン',h:'対になった青銅',p:'ゴンが十六拍ごとに締めくくるジャワのランチャラン、続いてバリのクビャールの勢い、衛星たちが組み合わさるコテカン、そしてゆったりしたジャワの結び。'},
+  mayaperc:{k:'ワールド · マヤの打楽器',h:'十三対二十',p:'ボナンパックに描かれた楽器による復元です。亀甲は十三の周期、太鼓は二十の周期で打たれ、二百六十でようやく重なります。各部分は金星の段階に従います。楽譜として残るマヤの音楽はありません。'},
   soul:{k:'ポピュラー · ソウル＆ゴスペル',h:'コールとレスポンス',p:'アフロディテが呼び、クワイアが応え、ハモンドが膨らみます。アフロディテはあなたの言語で神々についてのオリジナルの歌詞を歌います。月のエレメントがファンク、ソウル、ディスコを混ぜます。'},
   dub:{k:'ポピュラー · ダブ',h:'ミキシング卓で',p:'ワンドロップのリディムを解体します。リムショットとスカンクはテープエコーとスプリングリバーブへ投げ込まれ、音が抜け落ち、アスペクトでサイレンが鳴ります。'},
   modal:{k:'アヴァンギャルドとジャズ · モードジャズ',h:'モードから即興で',p:'ミュートトランペットとテナーサックスが交代でソロを取り、ブラシ、ライド、ウォーキングベースが支えます。月のエレメントがモードを選びます。'},
@@ -6551,6 +6622,7 @@ vi:{show:'Trình diễn',btn:'Bài thuyết trình',title:'Buổi trình diễn 
   morricone:{k:'Hòa nhạc · Morricone',h:'Một khoảng không mênh mông',p:'Theo phong cách của ông, không dùng giai điệu nào của ông: tiếng huýt sáo, guitar rung dây, tiếng roi, đàn ông hô, chuông, một giọng soprano không lời và một cây trumpet, dâng lên tới một cao trào lớn.'},
   raga:{k:'Thế giới · Rāga',h:'Giờ của bầu trời',p:'Thời điểm trong ngày chọn một rāga Hindustan: tiếng ngân tanpura, phần ālāp tự do trên đàn sitar, rồi phần gat với trống tabla và phần drut nhanh rơi đúng sam.'},
   gamelan:{k:'Thế giới · Gamelan',h:'Đồng theo cặp',p:'Một bài lancaran Java, gong khép lại mỗi mười sáu nhịp, rồi năng lượng của kebyar Bali, các vệ tinh đan xen trong kotekan, và một đoạn kết Java chậm rãi.'},
+  mayaperc:{k:'Thế giới · Bộ gõ Maya',h:'Mười ba đối hai mươi',p:'Một sự tái dựng từ các nhạc cụ được vẽ ở Bonampak: mai rùa theo chu kỳ mười ba, trống theo chu kỳ hai mươi, chỉ gặp nhau ở hai trăm sáu mươi, các đoạn theo các trạm của Sao Kim. Không có âm nhạc Maya nào còn lại dưới dạng bản ghi.'},
   soul:{k:'Đại chúng · Soul & gospel',h:'Gọi và đáp',p:'Aphrodite gọi, dàn hợp xướng đáp, đàn Hammond dâng lên; Aphrodite hát những lời nguyên bản về các vị thần bằng ngôn ngữ của bạn. Nguyên tố của Mặt Trăng có thể trộn funk, soul và disco.'},
   dub:{k:'Đại chúng · Dub',h:'Tại bàn trộn âm',p:'Một riddim one-drop bị tháo rời: tiếng gõ vành và tiếng skank ném vào tape echo và spring reverb, những khoảng ngắt, một tiếng còi ở các góc chiếu.'},
   modal:{k:'Tiên phong & jazz · Jazz điệu thức',h:'Ứng tác từ điệu thức',p:'Trumpet gắn mute và saxophone tenor thay nhau solo trên chổi quét, cymbal ride và walking bass; nguyên tố của Mặt Trăng chọn điệu thức.'},
@@ -6623,6 +6695,7 @@ bg:{show:'Представяне',btn:'Представянето',title:'Сам
   morricone:{k:'Концерт · Мориконе',h:'Широко открито пространство',p:'В неговия маниер, без нито една негова мелодия: свирка, звънтяща китара, камшик, мъжки викове, камбанки, безсловесно сопрано и тромпет, които нарастват до една огромна кулминация.'},
   raga:{k:'Световна музика · Рага',h:'Часът на небето',p:'Часът от деня избира хиндустанска рага: бурдонът на танпурата, свободен алап на ситара, после гат с табла и бърз друт, който пада точно на сам.'},
   gamelan:{k:'Световна музика · Гамелан',h:'Бронз по двойки',p:'Явански ланчаран, гонгът затваря всеки шестнайсет удара, после енергията на балийския кебяр, луните, преплетени в котекан, и бавен явански край.'},
+  mayaperc:{k:'Световна музика · Маянска перкусия',h:'Тринайсет срещу двайсет',p:'Реконструкция по инструментите, рисувани в Бонампак: костенурчени черупки в цикъл от тринайсет, барабанът в цикъл от двайсет, които се срещат едва при двеста и шейсет, а частите следват станциите на Венера. Не е оцеляла маянска музика в запис.'},
   soul:{k:'Поп · Соул и госпъл',h:'Зов и отговор',p:'Афродита зове, хорът отговаря, хамъндът набъбва; Афродита пее оригинални думи за боговете на твоя език. Стихията на Луната може да смесва фънк, соул и диско.'},
   dub:{k:'Поп · Дъб',h:'На миксерния пулт',p:'Уан-дроп риддим, разглобен на части: римшотът и скънкът, хвърлени в лентово ехо и пружинен ревърб, изчезвания, сирена при аспектите.'},
   modal:{k:'Авангард и джаз · Модален джаз',h:'Импровизация от лада',p:'Тромпет със сурдинка и тенор саксофон се редуват в сола над четки, райд чинел и уокинг бас; стихията на Луната избира лада.'},
@@ -6695,6 +6768,7 @@ pt:{show:'Apresentação',btn:'A apresentação',title:'A apresentação automá
   morricone:{k:'Concerto · Morricone',h:'Um espaço aberto',p:'À sua maneira, sem nenhuma de suas melodias: um assobio, uma guitarra vibrante, um chicote, homens gritando, sinos, uma soprano sem palavras e um trompete, crescendo até um clímax enorme.'},
   raga:{k:'Músicas do mundo · Rāga',h:'A hora do céu',p:'A hora do dia escolhe um rāga hindustani: o bordão da tanpura, um ālāp livre na cítara, depois um gat com tabla e um drut rápido que cai no sam.'},
   gamelan:{k:'Músicas do mundo · Gamelan',h:'Bronzes em pares',p:'Um lancaran javanês, o gong fechando a cada dezesseis batidas, depois a energia do kebyar balinês, as luas entrelaçadas em kotekan e um final lento javanês.'},
+  mayaperc:{k:'Músicas do mundo · Percussão maia',h:'Treze contra vinte',p:'Uma reconstrução a partir dos instrumentos pintados em Bonampak: cascos de tartaruga num ciclo de treze, o tambor num de vinte, que só se encontram em duzentos e sessenta, com as seções segundo as estações de Vênus. Nenhuma música maia sobreviveu em notação.'},
   soul:{k:'Pop · Soul e gospel',h:'Chamada e resposta',p:'Afrodite chama, o coro responde, o Hammond cresce; Afrodite canta letras originais sobre os deuses no seu idioma. O elemento da Lua pode misturar funk, soul e disco.'},
   dub:{k:'Pop · Dub',h:'Na mesa de mixagem',p:'Um riddim one-drop desmontado: o aro da caixa e o skank lançados no eco de fita e no reverb de mola, cortes, uma sirene nos aspectos.'},
   modal:{k:'Vanguarda e jazz · Jazz modal',h:'Improvisado sobre o modo',p:'Trompete com surdina e saxofone tenor revezam-se nos solos sobre vassourinhas, prato de condução e um walking bass; o elemento da Lua escolhe o modo.'},
@@ -6766,21 +6840,21 @@ const SC=[
  {pg:'dial',d:38,c:'written',go:a=>{a.thinker('plato');a.interp('text')}},
  {pg:'dial',d:30,c:'athens',go:a=>a.interp('athens')},
  {pg:'dial',d:85,th:'aristotle'},
- {pg:'dial',d:50,th:'lu'},
  {pg:'dial',d:50,th:'cicero'},
- {pg:'dial',d:50,th:'bharata'},
- {pg:'dial',d:50,th:'sarngadeva'},
  {pg:'dial',d:45,th:'macrobius'},
  {pg:'dial',d:55,th:'nicomachus'},
  {pg:'dial',d:70,th:'ptolemy'},
  {pg:'dial',d:45,th:'boethius'},
  {pg:'dial',d:50,th:'eriugena'},
- {pg:'dial',d:50,th:'ikhwan'},
- {pg:'dial',d:55,th:'maya'},
- {pg:'dial',d:50,th:'nguyentrai'},
  {pg:'dial',d:45,th:'copernicus'},
  {pg:'dial',d:55,th:'fludd'},
  {pg:'dial',d:85,th:'kepler'},
+ {pg:'dial',d:50,th:'lu'},
+ {pg:'dial',d:50,th:'bharata'},
+ {pg:'dial',d:50,th:'ikhwan'},
+ {pg:'dial',d:55,th:'maya'},
+ {pg:'dial',d:50,th:'sarngadeva'},
+ {pg:'dial',d:50,th:'nguyentrai'},
  {pg:'dial',d:55,th:'java'},
  {pg:'dial',d:45,th:'sonic'},
  {pg:'dial',d:40,c:'realtime',go:a=>{a.thinker('plato');a.interp('athens');a.speed(1/86400)}},
@@ -6815,6 +6889,7 @@ const SC=[
  {pg:'dance',d:50,c:'morricone',dance:'morricone',sky:600},
  {pg:'dance',d:40,c:'raga',dance:'raga',sky:600},
  {pg:'dance',d:40,c:'gamelan',dance:'gamelan',sky:600},
+ {pg:'dance',d:40,c:'mayaperc',dance:'mayaperc',sky:600},
  {pg:'dance',d:40,c:'soul',dance:'soul',sky:700},
  {pg:'dance',d:45,c:'dub',dance:'dub',sky:700},
  {pg:'dance',d:45,c:'modal',dance:'modal',sky:600},
@@ -12214,7 +12289,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
   }, true);
   let refreshing = false;
   function refreshOutput() {
-    if (refreshing || !AC) return;
+    if (refreshing || !AC || document.hidden) return;
     refreshing = true;
     tgt(master.gain, 0, 0.012);
     setTimeout(() => AC.suspend().catch(() => {
@@ -12586,7 +12661,26 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     copernicus: "In medio vero omnium residet Sol … Ita profecto tanquam in solio regali Sol residens circumagentem gubernat astrorum familiam.",
     kepler: "Sunt igitur motus coelorum nihil aliud, quam continuus quidam concentus (rationalis non vocalis) per dissonantes tensiones …"
   };
-  const THINK_ORDER = ["pythagoras", "philolaus", "plato", "aristotle", "lu", "cicero", "bharata", "macrobius", "nicomachus", "ptolemy", "boethius", "eriugena", "ikhwan", "maya", "sarngadeva", "nguyentrai", "copernicus", "fludd", "kepler", "java", "sonic", "today"];
+  const THINK_GROUPS = [
+    ["eu", ["pythagoras", "philolaus", "plato", "aristotle", "cicero", "macrobius", "nicomachus", "ptolemy", "boethius", "eriugena", "copernicus", "fludd", "kepler"]],
+    ["world", ["lu", "bharata", "ikhwan", "maya", "sarngadeva", "nguyentrai", "java"]],
+    ["now", ["sonic"]]
+  ];
+  const THINK_ORDER = THINK_GROUPS.reduce((a, g) => a.concat(g[1]), []).concat(["today"]);
+  const TLG = {
+    en: { eu: "Greece and Europe", world: "Around the world", now: "Modern science" },
+    pl: { eu: "Grecja i Europa", world: "Na świecie", now: "Nauka współczesna" },
+    cy: { eu: "Groeg ac Ewrop", world: "O amgylch y byd", now: "Gwyddoniaeth fodern" },
+    de: { eu: "Griechenland und Europa", world: "Rund um die Welt", now: "Moderne Wissenschaft" },
+    es: { eu: "Grecia y Europa", world: "Por el mundo", now: "Ciencia moderna" },
+    fr: { eu: "La Grèce et l’Europe", world: "Autour du monde", now: "Science moderne" },
+    it: { eu: "Grecia ed Europa", world: "Nel mondo", now: "Scienza moderna" },
+    zh: { eu: "希腊与欧洲", world: "世界各地", now: "现代科学" },
+    ja: { eu: "ギリシアとヨーロッパ", world: "世界の伝統", now: "現代科学" },
+    vi: { eu: "Hy Lạp và châu Âu", world: "Khắp thế giới", now: "Khoa học hiện đại" },
+    bg: { eu: "Гърция и Европа", world: "По света", now: "Съвременна наука" },
+    pt: { eu: "Grécia e Europa", world: "Pelo mundo", now: "Ciência moderna" }
+  }[(document.documentElement.lang || "en").slice(0, 2)];
   const KEP6 = /* @__PURE__ */ new Set(["mercury", "venus", "earth", "mars", "jupiter", "saturn"]);
   const KEP_CENTRE = { saturn: 98, jupiter: 131, mars: 220, earth: 330, venus: 392, mercury: 660 };
   const KEP_IV = { saturn: "大三度（4:5）", jupiter: "小三度（5:6）", mars: "五度（2:3）", earth: "半音，mi-fa（15:16）", venus: "微分音差 diesis（24:25）", mercury: "八度加小三度（5:12）" };
@@ -13775,7 +13869,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       JW.next = now + 0.3;
     }
     if (JW.next < now - 1) JW.next = now + 0.1;
-    while (JW.next < now + 0.25) {
+    while (JW.next < now + BGLA()) {
       const e = JW.seq[JW.k], at = JW.next;
       if (e.ph === "lad") bhaAt(at, () => jwLad(e, at, pace));
       else if (e.ph === "cal") bhaAt(at, () => jwCal(e, at, pace));
@@ -13811,7 +13905,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     if (!JW.nextP || JW.nextP < now - 1) {
       JW.nextP = now + 0.2;
     }
-    while (JW.nextP < now + 0.25) {
+    while (JW.nextP < now + BGLA()) {
       const at = JW.nextP, n = JW.pulse;
       JW_HEARD.forEach(([w, o, inst, cyc]) => {
         if (n % cyc) return;
@@ -13870,7 +13964,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       jwWritten(now);
     }
     BHA.q.sort((a, b) => a.at - b.at);
-    while (BHA.q.length && BHA.q[0].at <= now + 0.25) {
+    while (BHA.q.length && BHA.q[0].at <= now + BGLA()) {
       const e = BHA.q.shift();
       if (e.at >= now - 0.05) e.fn();
     }
@@ -14086,7 +14180,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     if (!MY.next || MY.next < now - 1) {
       MY.next = now + 0.3;
     }
-    while (MY.next < now + 0.25) {
+    while (MY.next < now + BGLA()) {
       const at = MY.next, k = MY.day, cyc = Math.floor(k / 584) % 5, vd = k % 584, o = { n: k % 13 + 1, s: (19 + k) % 20 }, st = vd < 236 ? 0 : vd < 326 ? 1 : vd < 576 ? 2 : 3;
       bhaAt(at, () => {
         if (k % 2 === 0) myPlay("rattle", at, 0.7);
@@ -14156,7 +14250,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       MY.nextPh = at + (6 + 2 * Math.random()) * pace;
     }
     if (!MY.nextP || MY.nextP < now - 1) MY.nextP = now + 0.2;
-    while (MY.nextP < now + 0.25) {
+    while (MY.nextP < now + BGLA()) {
       const a = MY.nextP, k = MY.pulse;
       bhaAt(a, () => {
         myPlay("rattle", a, k % 2 ? 0.5 : 0.8);
@@ -14192,11 +14286,12 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       myWritten(now);
     }
     BHA.q.sort((a, b) => a.at - b.at);
-    while (BHA.q.length && BHA.q[0].at <= now + 0.25) {
+    while (BHA.q.length && BHA.q[0].at <= now + BGLA()) {
       const e = BHA.q.shift();
       if (e.at >= now - 0.05) e.fn();
     }
   }
+  const BGLA = () => document.hidden ? 1.6 : 0.25;
   function myKill() {
     MY.day = 0;
     MY.next = 0;
@@ -14210,7 +14305,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
   function bhaTick(now, list, dtR) {
     bhaOut();
     if (!BHA.nextTan || BHA.nextTan < now - 1) BHA.nextTan = now + 0.2;
-    while (BHA.nextTan < now + 0.25) {
+    while (BHA.nextTan < now + BGLA()) {
       const b = THINK.bharata.base, f = [b * 0.75, b, b, b * 0.5][BHA.tan % 4];
       if (bhaDroneK() > 0) bhaString(bhaPan("tan", 0), BHA.nextTan, f, 0.06 * bhaDroneK() * (SIR.solo ? 0.5 : 1), 1.8, 0, true);
       BHA.tan++;
@@ -14226,7 +14321,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       if (now >= BHA.next && !BHA.q.length) (THINK[S.thinker].sarn ? sarWritten : bhaWritten)(now);
     }
     BHA.q.sort((a, b) => a.at - b.at);
-    while (BHA.q.length && BHA.q[0].at <= now + 0.25) {
+    while (BHA.q.length && BHA.q[0].at <= now + BGLA()) {
       const e = BHA.q.shift();
       if (e.at >= now - 0.05) e.fn();
     }
@@ -14579,10 +14674,12 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
   const TLX = { en: ["Earlier thinkers", "Later thinkers"], pl: ["Wcześniejsi myśliciele", "Późniejsi myśliciele"], cy: ["Meddylwyr cynharach", "Meddylwyr diweddarach"], de: ["Frühere Denker", "Spätere Denker"], es: ["Pensadores anteriores", "Pensadores posteriores"], fr: ["Penseurs antérieurs", "Penseurs postérieurs"], it: ["Pensatori precedenti", "Pensatori successivi"], zh: ["更早的思想家", "更晚的思想家"], ja: ["前の思想家", "後の思想家"], vi: ["Các nhà tư tưởng trước", "Các nhà tư tưởng sau"], bg: ["По-ранни мислители", "По-късни мислители"] }[(document.documentElement.lang || "en").slice(0, 2)] || ["Earlier thinkers", "Later thinkers"];
   function renderTimeline() {
     const tl = $("timeline");
-    tl.innerHTML = '<span class="tl-lab">'.concat(TT.ui.timeline, '</span><div class="tl-wrap"><div class="tl-row">') + THINK_ORDER.map((id) => {
+    const chip = (id) => {
       const t = TT[id];
       return '<button class="tl-chip'.concat(S.thinker === id ? " on" : "", '" data-t="').concat(id, '" aria-pressed="').concat(S.thinker === id, '"><b>').concat(t.name, "</b><span>").concat(t.when, "</span></button>");
-    }).join("") + '</div><button type="button" class="tl-arr l" aria-label="'.concat(TLX[0], '" tabindex="-1">‹</button><button type="button" class="tl-arr r" aria-label="').concat(TLX[1], '" tabindex="-1">›</button></div>');
+    };
+    const L = TLG || { eu: "Greece and Europe", world: "Around the world", now: "Modern science" };
+    tl.innerHTML = '<span class="tl-lab">'.concat(TT.ui.timeline, '</span><div class="tl-wrap"><div class="tl-row">') + chip("today") + THINK_GROUPS.map(([g, ids]) => '<span class="tl-sec" role="presentation">'.concat(L[g], "</span>") + ids.map(chip).join("")).join("") + '</div><button type="button" class="tl-arr l" aria-label="'.concat(TLX[0], '" tabindex="-1">‹</button><button type="button" class="tl-arr r" aria-label="').concat(TLX[1], '" tabindex="-1">›</button></div>');
     const wrap = tl.querySelector(".tl-wrap"), row = tl.querySelector(".tl-row"), today = row.querySelector('.tl-chip[data-t="today"]');
     const edges = () => {
       const max = row.scrollWidth - row.clientWidth - 1, x = row.scrollLeft;
