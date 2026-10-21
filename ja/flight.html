@@ -12024,16 +12024,19 @@ function labels(){const far=ST.r>FAR_AU;
     return false}
   if(!ST.labelsFar){ST.labelsFar=true;for(const k in LBL)LBL[k].hidden=true;if(GL.helio)GL.helio.hidden=true}
   if(!ST.ready)return true;
-  PLACED.length=0;placeG(LBL.sun,0,0,0,ST.dSunPc<120000&&!(window.FLYG&&FLYG.gyear&&FLYG.gyear.GY&&FLYG.gyear.GY.on));   // while the Galactic year plays the Sun is its moving ☉, not today's placeif(!LBL.sun.hidden)clash();LBL.sun.classList.toggle('target',!!(ship.gap&&ship.gap.id==='home'));
+  // (GY-LABELS) while the Galactic year plays, today's places of things inside the Milky Way (the Sun, named stars, pulsars, nebulae and clusters)
+  // and of its satellite galaxies would stand still while the disc turns: only the centre and the far galaxies keep their labels
+  const gyOn=!!(window.FLYG&&FLYG.gyear&&FLYG.gyear.GY&&FLYG.gyear.GY.on);
+  PLACED.length=0;placeG(LBL.sun,0,0,0,ST.dSunPc<120000&&!gyOn);   // while the Galactic year plays the Sun is its moving ☉, not today's placeif(!LBL.sun.hidden)clash();LBL.sun.classList.toggle('target',!!(ship.gap&&ship.gap.id==='home'));
   // named stars: the brightest as seen from the ship (reusing the audio ranking when it runs), at most 14
   const list=AS.labelList||[];let n=0;
-  for(let i=0;i<NAMED.length;i++){const e=NAMED[i];const near=NEAR.px.get(e.row),show=(n<14&&list.indexOf(e.row)>=0)||near!=null;if(show){starScene(e.row,SV);if(near!=null)placeG(e.el,SV.x*AU_PC-ship.pos.x,SV.y*AU_PC-ship.pos.y,SV.z*AU_PC-ship.pos.z,true,nearCam(),near+8);else placeG(e.el,SV.x,SV.y,SV.z,true);if(!e.el.hidden&&clash()&&near==null)e.el.hidden=true;e.el.classList.toggle('target',!!(ship.gap&&ship.gap.row===e.row)||!!(ST.card&&ST.card.row===e.row));n++}else e.el.hidden=true}
+  for(let i=0;i<NAMED.length;i++){const e=NAMED[i];const near=NEAR.px.get(e.row),show=!gyOn&&((n<14&&list.indexOf(e.row)>=0)||near!=null);if(show){starScene(e.row,SV);if(near!=null)placeG(e.el,SV.x*AU_PC-ship.pos.x,SV.y*AU_PC-ship.pos.y,SV.z*AU_PC-ship.pos.z,true,nearCam(),near+8);else placeG(e.el,SV.x,SV.y,SV.z,true);if(!e.el.hidden&&clash()&&near==null)e.el.hidden=true;e.el.classList.toggle('target',!!(ship.gap&&ship.gap.row===e.row)||!!(ST.card&&ST.card.row===e.row));n++}else e.el.hidden=true}
   if(GL.sgra){placeG(GL.sgra,ST.gcPos.x,ST.gcPos.y,ST.gcPos.z,ST.dSunPc>300&&!(BHX.row&&BHX.row.id==='sgra'));GL.sgra.classList.toggle('target',!!(ship.gap&&ship.gap.id==='gc'))}
-  if(GL.vela&&ST.velaPos)placeG(GL.vela,ST.velaPos.x,ST.velaPos.y,ST.velaPos.z,ST.dSunPc>.3&&ST.dSunPc<3000);
-  if(GL.crab&&ST.crabPos)placeG(GL.crab,ST.crabPos.x,ST.crabPos.y,ST.crabPos.z,ST.dSunPc>.3&&ST.dSunPc<3000);
+  if(GL.vela&&ST.velaPos)placeG(GL.vela,ST.velaPos.x,ST.velaPos.y,ST.velaPos.z,ST.dSunPc>.3&&ST.dSunPc<3000&&!gyOn);
+  if(GL.crab&&ST.crabPos)placeG(GL.crab,ST.crabPos.x,ST.crabPos.y,ST.crabPos.z,ST.dSunPc>.3&&ST.dSunPc<3000&&!gyOn);
   for(const id in GALPOS){const el=GL['g_'+id];if(!el)continue;const p=GALPOS[id],tg=ship.gap&&ship.gap.gal&&ship.gap.gal.id===id,big=id==='m31'||id==='m33'||id==='lmc'||id==='smc',dShip=p.distanceTo(gcam.position);
-    placeG(el,p.x,p.y,p.z,ST.dSunPc>2500&&(big||tg||dShip<60000)&&(!ST.card||!ST.card.gal||ST.card.gal.id!==id||dShip>2e5)&&!(BHX.row&&BHX.row.host===id&&dShip<5000));if(!el.hidden&&!tg&&clash())el.hidden=true;el.classList.toggle('target',!!tg)}
-  dsLabels();
+    placeG(el,p.x,p.y,p.z,!(gyOn&&p.distanceTo(ST.gcPos)<400000)&&ST.dSunPc>2500&&(big||tg||dShip<60000)&&(!ST.card||!ST.card.gal||ST.card.gal.id!==id||dShip>2e5)&&!(BHX.row&&BHX.row.host===id&&dShip<5000));if(!el.hidden&&!tg&&clash())el.hidden=true;el.classList.toggle('target',!!tg)}
+  if(gyOn){if(typeof DSX!=='undefined')DSX.lbl.forEach(el=>{if(!el.hidden)el.hidden=true})}else dsLabels();
   return true}
 
 
