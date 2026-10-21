@@ -14038,7 +14038,7 @@ const css=document.createElement('style');css.textContent=`
 .gycard ul li{margin:.15rem 0}
 .gycard .gyt{appearance:none;background:transparent;border:0;color:var(--bronze);font:inherit;font-size:.82rem;cursor:pointer;padding:0;min-height:2.2rem;text-align:left}
 .gylbl{position:absolute;left:0;top:0;pointer-events:none;font:500 .74rem var(--f-body,system-ui);color:#f3d9a4;text-shadow:0 0 3px #000,0 0 6px #000;white-space:nowrap;transform:translate(-50%,-150%)}
-.gylbl.h{color:#ff9d8a}.gylbl.b{color:#d9b27a}
+.gylbl.h{color:#ff9d8a}.gylbl.b{color:#d9b27a}.gylbl.t{color:#cfe0ff;font-size:.82rem;font-weight:600}
 @media (pointer:coarse){.gycard .gyrow .chip,.gycard .gyt{min-height:44px}.gycard .gyrow .chip{min-width:44px}}
 @media (max-width:620px){.gycard{left:.4rem;right:.4rem;width:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 9.2rem);max-height:38vh}.gycard .gyr{font-size:.7rem}.gycard ul{font-size:.76rem;max-height:30vh}.gycard .gyl{font-size:.72rem}}
 @media (max-height:520px){.gycard{top:calc(env(safe-area-inset-top,0px) + var(--tap) + 46px);bottom:auto;left:calc(env(safe-area-inset-left,0px) + .5rem);transform:none;width:min(22rem,42vw);max-height:calc(100vh - var(--tap) - 9rem)}.gycard ul{max-height:none}}`;
@@ -14056,7 +14056,7 @@ function build(){const M=GY.M,sc=F.gscene,N=LOWP?70:130,objs={N,lines:[],heads:n
   const bg=new THREE.BufferGeometry();bg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(6),3));objs.bar=new THREE.Line(bg,new THREE.LineBasicMaterial({color:0xd9a35a,transparent:true,opacity:.75,depthWrite:false}));objs.bar.frustumCulled=false;sc.add(objs.bar);
   // labels: the Sun, the bar, and the Hercules stream (at its first member)
   const host=document.querySelector('.labels')||document.body;const lab=(t,c)=>{const d=document.createElement('div');d.className='gylbl'+(c?' '+c:'');d.textContent=t;d.hidden=true;host.appendChild(d);objs.labels.push(d);return d};
-  objs.lSun=lab(TXY.sunLbl,'');objs.lBar=lab(TXY.barLbl,'b');const h=M.bodies.find(b=>b.herc);objs.lHerc=h?lab(TXY.hercLbl,'h'):null;objs.herc=h;
+  objs.lTap=lab('','t');objs.lSun=lab(TXY.sunLbl,'');objs.lBar=lab(TXY.barLbl,'b');const h=M.bodies.find(b=>b.herc);objs.lHerc=h?lab(TXY.hercLbl,'h'):null;objs.herc=h;
   GY.objs=objs}
 function unbuild(){const o=GY.objs;if(!o)return;const sc=F.gscene;o.lines.forEach(l=>{sc.remove(l);l.geometry.dispose();l.material.dispose()});[o.heads,o.bar].forEach(m=>{if(m){sc.remove(m);m.geometry.dispose();m.material.dispose()}});o.labels.forEach(d=>d.remove());GY.objs=null;mwRot(0,0)}
 const GCP={R:0,beta:0,z:0},HP={x:0,y:0,z:0},SP={x:0,y:0,z:0},AT={};
@@ -14089,7 +14089,8 @@ function labels(vis){const o=GY.objs,cv=renderer.domElement,W=cv.clientWidth||in
   const cr=GY.card&&!GY.card.hidden?GY.card.getBoundingClientRect():null;
   const put=(d,p)=>{if(!d)return;const v=project(p[0],p[1],p[2]),X=(v.x*.5+.5)*W+r.left,Yp=(-v.y*.5+.5)*H+r.top;if(v.z>1||vis<.3||Math.abs(v.x)>1.05||Math.abs(v.y)>1.05||cr&&X>cr.left-40&&X<cr.right+40&&Yp>cr.top&&Yp<cr.bottom+20){d.hidden=true;return}d.hidden=false;d.style.transform=`translate(${(v.x*.5+.5)*W+r.left}px,${(-v.y*.5+.5)*H+r.top}px) translate(-50%,-150%)`};
   const hp=o.heads.geometry.attributes.position.array,at=i=>[hp[i*3],hp[i*3+1],hp[i*3+2]];
-  put(o.lSun,at(0));if(o.lHerc)put(o.lHerc,at(o.herc.i));const bp=o.bar.geometry.attributes.position.array;put(o.lBar,[bp[0],bp[1],bp[2]])}
+  put(o.lSun,at(0));
+  if(o.lTap){const T=GY.tap;if(T&&performance.now()<T.until&&T.i<GY.M.bodies.length)put(o.lTap,at(T.i));else if(!o.lTap.hidden){o.lTap.hidden=true;GY.tap=null}}if(o.lHerc)put(o.lHerc,at(o.herc.i));const bp=o.bar.geometry.attributes.position.array;put(o.lBar,[bp[0],bp[1],bp[2]])}
 // each star is heard from where it is on the screen
 function panOf(b,t){const M=GY.M;M.at(b,t,AT);toScene(AT.R,AT.beta-frameOff(t),AT.z,SP);const v=project(SP.x,SP.y,SP.z);return v.z>1?0:Math.max(-1,Math.min(1,v.x))*.85}
 
@@ -14182,6 +14183,16 @@ function frame(){const ST=F.ST;if(!ST||!ST.ready)return;const c=ensureCard();if(
 function panelButton(){if(document.getElementById('gyGo'))return true;const dv=document.getElementById('gDmVol');if(!dv)return false;const f=dv.closest('.field')||dv.parentElement;
   const b=document.createElement('button');b.type='button';b.className='chip';b.id='gyGo';b.textContent=TXY.play;b.style.marginTop='.4rem';
   b.onclick=()=>{if(typeof resumeAudio==='function')resumeAudio();GY.dismissed=false;if((F.ST.gv||0)>=.9)start();else{GY.want=true;F.travel('above')}};f.after(b);return true}
+/* a tap on a dot names its star (for 6 s, following it): caught before the flight's own tap and look handlers, which then do nothing */
+let gyT=null;
+document.addEventListener('pointerdown',e=>{gyT=GY.on&&e.target===renderer.domElement?{x:e.clientX,y:e.clientY,t:performance.now()}:null},true);
+document.addEventListener('pointerup',e=>{const t=gyT;gyT=null;const o=GY.objs;if(!t||!o||!GY.on||e.target!==renderer.domElement)return;
+  if(Math.hypot(e.clientX-t.x,e.clientY-t.y)>10||performance.now()-t.t>600)return;
+  const cv=renderer.domElement,r=cv.getBoundingClientRect(),W=r.width,H=r.height,hp=o.heads.geometry.attributes.position.array,M=GY.M;let best=-1,bd=e.pointerType==='mouse'?16:30;
+  for(let i=1;i<M.bodies.length;i++){const v=project(hp[i*3],hp[i*3+1],hp[i*3+2]);if(v.z>1)continue;const d=Math.hypot((v.x*.5+.5)*W+r.left-e.clientX,(-v.y*.5+.5)*H+r.top-e.clientY);if(d<bd){bd=d;best=i}}
+  if(best<0)return;
+  e.stopImmediatePropagation();e.preventDefault();try{cv.dispatchEvent(new PointerEvent('pointercancel',{pointerId:e.pointerId,bubbles:true}))}catch(_){}
+  const b=M.bodies[best];o.lTap.textContent=b.name+(b.herc?' · '+String(TXY.hercLbl||'').replace(/^\W+\s*/,''):'');o.lTap.hidden=false;GY.tap={i:best,until:performance.now()+6000};draw()},true);
 const f0=F.frame;F.frame=function(){const r=f0.apply(this,arguments);try{frame();if(!GY.pb)GY.pb=panelButton()}catch(e){console.warn(e)}return r};
 // (GY-PLACE) on a phone the card sits just above the travel ribbon (whose height follows the readout under it), never over it, and takes at most
 // 30 % of the screen, so the ribbon's ♪ Galactic year button (which also stops it) and the turning orbits above both stay in sight
