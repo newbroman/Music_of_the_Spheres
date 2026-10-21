@@ -12022,7 +12022,7 @@ function labels(){const far=ST.r>FAR_AU;
     return false}
   if(!ST.labelsFar){ST.labelsFar=true;for(const k in LBL)LBL[k].hidden=true;if(GL.helio)GL.helio.hidden=true}
   if(!ST.ready)return true;
-  PLACED.length=0;placeG(LBL.sun,0,0,0,ST.dSunPc<120000);if(!LBL.sun.hidden)clash();LBL.sun.classList.toggle('target',!!(ship.gap&&ship.gap.id==='home'));
+  PLACED.length=0;placeG(LBL.sun,0,0,0,ST.dSunPc<120000&&!(window.FLYG&&FLYG.gyear&&FLYG.gyear.GY&&FLYG.gyear.GY.on));   // while the Galactic year plays the Sun is its moving ☉, not today's placeif(!LBL.sun.hidden)clash();LBL.sun.classList.toggle('target',!!(ship.gap&&ship.gap.id==='home'));
   // named stars: the brightest as seen from the ship (reusing the audio ranking when it runs), at most 14
   const list=AS.labelList||[];let n=0;
   for(let i=0;i<NAMED.length;i++){const e=NAMED[i];const near=NEAR.px.get(e.row),show=(n<14&&list.indexOf(e.row)>=0)||near!=null;if(show){starScene(e.row,SV);if(near!=null)placeG(e.el,SV.x*AU_PC-ship.pos.x,SV.y*AU_PC-ship.pos.y,SV.z*AU_PC-ship.pos.z,true,nearCam(),near+8);else placeG(e.el,SV.x,SV.y,SV.z,true);if(!e.el.hidden&&clash()&&near==null)e.el.hidden=true;e.el.classList.toggle('target',!!(ship.gap&&ship.gap.row===e.row)||!!(ST.card&&ST.card.row===e.row));n++}else e.el.hidden=true}
@@ -14093,15 +14093,35 @@ function start(){if(typeof initAudio==='function'&&!AC)initAudio();if(typeof res
   const GA=F.GA&&F.GA(),dest=GA&&GA.bus?GA.bus:bus,q=(window.MOTS&&MOTS.quality)?MOTS.quality():'';
   if(GY.P){GY.P.stop(.3)}
   GY.P=Y.player(AC,dest,M,{sec:GY.sec,low:LOWP,eco:q==='eco',pan:panOf,level:1.25});GY.P.start(GY.t0||0,2);GY.on=true;if(!GY.objs)build();duck(true);ui(true);frameView()}
-// a phone held upright sees too narrow a slice of the disc from the usual view above it: rise to ~34 kpc over the centre (2.5 s), so the
-// whole of the Sun's orbit fits across the screen, then drift round the pole as before
+// (FACE-ON) the Galactic year is watched from straight above the pole on every screen: from a slant the disc is a foreshortened oval, and
+// the turning bar and arms stretch and shrink in it, which reads as the view zooming in and out. Straight above, the rotation is rigid.
+// The camera keeps its axis on the pole and is shifted sideways, so the disc sits in the free part of the screen (beside or above the
+// card, below the header, above the ribbon), sized so the Sun's orbit and the Hercules stream fit; the Sun's place today is at the bottom.
 const AUPC=206264.806247;
-function frameView(){if(innerHeight<innerWidth*1.1)return;const ST=F.ST,up=new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z).normalize(),c=ST.gcPos.clone(),away=c.clone().normalize().multiplyScalar(-1),D=34000;
-  // looking at a point 6 kpc short of the centre puts the disc in the upper part of the screen, clear of the card
-  const to=c.clone().addScaledVector(up,D*.95).addScaledVector(away,D*.3).multiplyScalar(AUPC),look=c.clone().addScaledVector(away,6000).multiplyScalar(AUPC);GY.fly={from:ship.pos.clone(),to,t0:performance.now(),dur:2500,look,up};ship.gap=null;ship.ap=null;ship.drift=null}
+function freeRect(){const W=innerWidth,H=innerHeight,r=(sel)=>{const e=document.querySelector(sel);if(!e||e.hidden||!e.offsetWidth)return null;const b=e.getBoundingClientRect();return b.width&&b.height?b:null};
+  let top=0,bot=H;const tl=r('.hud.tl'),tr=r('.hud.tr'),rb=r('#ribbon'),ro=r('.hud.bc > .readout');
+  const topFor=(l,r)=>{let t=0;[tl,tr].forEach(b=>{if(b&&b.bottom<H*.45&&b.left<r&&b.right>l)t=Math.max(t,b.bottom)});
+    // the title block reaches further right than its text: beside the card only the navigation row counts
+    const nav=tl&&document.querySelector('.hud.tl nav, .hud.tl .sitenav, .hud.tl [role="navigation"]');if(nav&&l>W*.3){const nb=nav.getBoundingClientRect();t=Math.max(tr&&tr.left<r?tr.bottom:0,nb.left<r&&nb.right>l?nb.bottom:0)}return t};
+  top=topFor(0,W);[rb,ro].forEach(b=>{if(b&&b.top>H*.55)bot=Math.min(bot,b.top)});
+  const c=r('#gyCard');let R={l:0,r:W,t:top,b:bot};
+  if(c){const right={l:c.right,r:W,t:topFor(c.right,W),b:bot},above={l:0,r:W,t:top,b:Math.min(bot,c.top)},area=x=>Math.max(0,x.r-x.l)*Math.max(0,x.b-x.t);
+    R=area(right)>=area(above)?right:above}
+  if(R.r-R.l<120||R.b-R.t<120)R={l:0,r:W,t:top,b:bot};return R}
+function frameView(){const ST=F.ST;if(!ST||!ST.ready)return;const up=new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z).normalize(),c=ST.gcPos.clone();
+  // the screen's "up" in the plane: from the Sun's place today through the centre, so the Sun starts at the bottom
+  const K=G().K,sp=new THREE.Vector3();toScene(K.R0,0,0,sp);const upS=c.clone().sub(sp);upS.addScaledVector(up,-upS.dot(up)).normalize();const right=new THREE.Vector3().crossVectors(upS,up).normalize();
+  const W=innerWidth,H=innerHeight,fr=freeRect(),fov=(F.gcam&&F.gcam.fov)||62,th=Math.tan(fov*Math.PI/360);
+  const RK=11500,rpx=.46*Math.min(fr.r-fr.l,fr.b-fr.t),halfH=RK*(H/2)/Math.max(60,rpx),D=halfH/th,kpp=halfH/(H/2);
+  const dx=(fr.l+fr.r)/2-W/2,dy=(fr.t+fr.b)/2-H/2;
+  // the camera moves the other way to where the disc should appear (screen y grows downwards)
+  const off=right.clone().multiplyScalar(-dx*kpp).addScaledVector(upS,dy*kpp);
+  const look=c.clone().add(off),to=look.clone().addScaledVector(up,D);
+  GY.fly={from:ship.pos.clone(),to:to.multiplyScalar(AUPC),t0:performance.now(),dur:2500,look:look.multiplyScalar(AUPC),up,camUp:upS,faceOn:true};ship.gap=null;ship.ap=null;ship.drift=null}
+addEventListener('resize',()=>{if(GY.on)setTimeout(()=>{if(GY.on)frameView()},350)});
 const LM=new THREE.Matrix4(),LQ=new THREE.Quaternion();
 function flyStep(){const f=GY.fly;if(!f)return;const u=Math.min(1,(performance.now()-f.t0)/f.dur),e=u*u*(3-2*u);ship.pos.copy(f.from).lerp(f.to,e);if(ship.vel)ship.vel.set(0,0,0);camera.position.copy(ship.pos);
-  LM.lookAt(ship.pos,f.look,f.up);LQ.setFromRotationMatrix(LM);camera.quaternion.slerp(LQ,.12);if(u>=1){GY.fly=null;ship.drift={centre:f.look.clone(),axis:f.up,look:f.look.clone(),rate:.006}}}
+  LM.lookAt(ship.pos,f.look,f.camUp||f.up);LQ.setFromRotationMatrix(LM);camera.quaternion.slerp(LQ,u>=1?1:.12);if(u>=1){GY.fly=null;ship.drift=f.faceOn?null:{centre:f.look.clone(),axis:f.up,look:f.look.clone(),rate:.006}}}
 function stop(keepCard){if(GY.P){GY.P.t0=GY.P.t;GY.t0=GY.P.t;GY.P.stop(1.5);GY.P=null}GY.on=false;duck(false);unbuild();ui(true);if(!keepCard&&GY.card)GY.card.hidden=true}
 // the stars' voices and the rotation chord step back while it plays
 function duck(on){const GA=F.GA&&F.GA();if(!GA||!AC)return;const O=F.OPT;try{tgt(GA.starG.gain,O.vol*(on?.4:1),.6);tgt(GA.chordG.gain,O.dmVol*(on?.12:1),.6)}catch(e){}}
