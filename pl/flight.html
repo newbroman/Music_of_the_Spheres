@@ -553,6 +553,8 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
  /* a phone held upright: the card stays short so the star keeps the sky above it — the buttons in one row that scrolls sideways, the voice toggle on one line */
  .gcard .gcb{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -.7rem;padding:.1rem .7rem;-webkit-overflow-scrolling:touch}.gcard .gcb::-webkit-scrollbar{display:none}.gcard .gcb .chip{flex:0 0 auto}.gcard .gcvt{min-height:2.2rem;padding:0}}
 @media (max-height:520px){.gcard{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + var(--tap) + 52px);transform:translateX(-50%);width:max-content;max-width:min(64vw,36rem);font-size:.74rem;padding:.3rem .7rem}.gcard .gcp{display:none}}
+/* a phone held sideways: every arrival card (star, nebula, galaxy) on the right, as the black hole's, so the target is framed in the free sky on the left */
+@media (max-height:520px) and (orientation:landscape){#galCard.gcard{left:auto;right:calc(env(safe-area-inset-right,0px) + 5rem);transform:none;max-width:min(46vw,28rem);max-height:calc(100vh - 9rem);overflow-y:auto;overscroll-behavior:contain}#galCard.gcard>*{flex-shrink:0}}
 @media (max-height:520px) and (orientation:landscape){.gcard.bhcard{left:auto;right:calc(env(safe-area-inset-right,0px) + .5rem);transform:none;max-width:min(50vw,30rem)}.gcard.bhcard .gcl{display:none}.gcard.bhcard .gcb{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -.7rem;padding:.1rem .7rem}.gcard.bhcard .gcb .chip{flex:0 0 auto}.gcard.bhcard{max-height:calc(100vh - 17.5rem);overflow-y:auto;overscroll-behavior:contain}.gcard.bhcard>*{order:2;flex-shrink:0}.gcard.bhcard .gch{order:0}.gcard.bhcard .gcb{order:1}}
 @media (prefers-reduced-motion:reduce){.gcard{transition:none}}
 /* the star search (fly_galaxy.js): a box in the Travel panel with instant suggestions; rows are ≥ 44 px, the ⤼ button jumps */
@@ -12179,11 +12181,17 @@ const lookM=new THREE.Matrix4(),lookQ=new THREE.Quaternion(),UP=new THREE.Vector
 const trackV=new THREE.Vector3();
 function trackStar(gp){if(!gp||!gp.anchor||!gp.row||gp.gal||gp.dso)return;starScene(gp.row,SV);trackV.set(SV.x,SV.y,SV.z).multiplyScalar(AU_PC).sub(gp.anchor);if(trackV.lengthSq()<1e-20)return;gp.goal.add(trackV);gp.look.add(trackV);gp.anchor.add(trackV);return trackV}
 // the cockpit's aim at a destination: look at it, and (gp.tilt) pitch down a little so the star sits above the centre, clear of the arrival card
-function aimQ(gp,lookAt,out,frac){const upv=gp.up?gp.up:gp.id==='above'||gp.id==='gc'||gp.id==='mag'?new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z):UP;lookM.lookAt(ship.pos,lookAt||gp.look,upv);out.setFromRotationMatrix(lookM);
+function aimQ(gp,lookAt,out,frac,yaw){const upv=gp.up?gp.up:gp.id==='above'||gp.id==='gc'||gp.id==='mag'?new THREE.Vector3(ST.upGal.x,ST.upGal.y,ST.upGal.z):UP;lookM.lookAt(ship.pos,lookAt||gp.look,upv);out.setFromRotationMatrix(lookM);
   if(gp.tilt){const H=renderer.domElement.clientHeight||innerHeight,pxr=H/(2*Math.tan(gcam.fov*Math.PI/360));out.multiply(tiltQ.setFromAxisAngle(XAXIS,-Math.atan((frac==null?TILT:frac)*H/pxr)))}
-  if(gp.yawF){const H=renderer.domElement.clientHeight||innerHeight,W=renderer.domElement.clientWidth||innerWidth,pxr=H/(2*Math.tan(gcam.fov*Math.PI/360));out.multiply(tiltQ.setFromAxisAngle(UP,-Math.atan(gp.yawF*W/pxr)))}return out}
+  if(gp.yawF){const H=renderer.domElement.clientHeight||innerHeight,W=renderer.domElement.clientWidth||innerWidth,pxr=H/(2*Math.tan(gcam.fov*Math.PI/360));out.multiply(tiltQ.setFromAxisAngle(UP,-Math.atan(gp.yawF*W/pxr)))}
+  if(yaw){const H=renderer.domElement.clientHeight||innerHeight,W=renderer.domElement.clientWidth||innerWidth,pxr=H/(2*Math.tan(gcam.fov*Math.PI/360));out.multiply(tiltQ.setFromAxisAngle(UP,-Math.atan(yaw*W/pxr)))}return out}
 // once the card is up: the star goes to the middle of the free sky between the title and the card — at most 8 % above the centre in landscape, 24 % on a phone held upright, where the card takes the lower half
-function tiltFrac(){const H=innerHeight,cap=H>innerWidth?.24:.08;if(!cardEl||cardEl.hidden)return TILT;const ct=cardEl.getBoundingClientRect().top,tl=document.querySelector('.hud.tl'),top=tl?tl.getBoundingClientRect().bottom:H*.15;return clamp((H/2-(top+ct)/2)/H,TILT,cap)}
+// (SIDE) a sideways phone or a wide window puts the arrival card beside the middle of the screen, where the star or galaxy would be hidden
+// behind it: the target then moves to the middle of the larger free side (a fraction of the width, + = to the left of centre)
+function yawFrac(){if(!cardEl||cardEl.hidden)return 0;const W=innerWidth,H=innerHeight,r=cardEl.getBoundingClientRect();if(!r.width||r.top>H*.45)return 0;
+  if(r.right<W/2-70||r.left>W/2+70)return 0;
+  const left=r.left,right=W-r.right,tx=left>right?left/2:(r.right+W)/2;return clamp((W/2-tx)/W,-.32,.32)}
+function tiltFrac(){if(yawFrac())return TILT;const H=innerHeight,cap=H>innerWidth?.24:.08;if(!cardEl||cardEl.hidden)return TILT;const ct=cardEl.getBoundingClientRect().top,tl=document.querySelector('.hud.tl'),top=tl?tl.getBoundingClientRect().bottom:H*.15;return clamp((H/2-(top+ct)/2)/H,TILT,cap)}
 function autopilot(dt){const gp=ship.gap;if(!gp)return;trackStar(gp);
   const D=gp.goal.clone().sub(ship.pos),dist=D.length();
   // speed: proportional to the smaller of the distance still to go and the distance to the nearest body, so leaving and arriving are both gradual (log-time in both)
@@ -12208,7 +12216,7 @@ function orbitStep(dt){const o=ST.orbit;if(!o)return;if(keys.size||hold||ship.cr
   // and the object slid out of view); at the start the view first swings onto it, should the eye have been elsewhere
   camera.quaternion.premultiply(orbQ);if(o.aim){o.aim.premultiply(orbQ);if(camera.quaternion.angleTo(o.aim)>.002)camera.quaternion.slerp(o.aim,1-Math.exp(-dt*2.5));else o.aim=null}}
 function startOrbit(gp){if(!gp||!gp.look)return;ship.drift=null;ship.ap=null;ship.gap=null;ship.cruise=false;ship.vel.set(0,0,0);
-  const up=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);ST.orbit={centre:gp.look.clone(),axis:up,rate:2*Math.PI/40,gp,aim:aimQ(gp,null,new THREE.Quaternion(),tiltFrac())};cardButtons()}
+  const up=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);ST.orbit={centre:gp.look.clone(),axis:up,rate:2*Math.PI/40,gp,aim:aimQ(gp,null,new THREE.Quaternion(),tiltFrac(),gp.yawF?0:yawFrac())};cardButtons()}
 function stopOrbit(){if(!ST.orbit)return;ST.orbit=null;cardButtons()}
 // parked beside a star: the ship rides along with it (its proper motion and radial velocity, at the sim's time speed), so when time runs fast the star
 // stays where it is in the window instead of sliding away; any control ends it
@@ -12362,7 +12370,7 @@ function card(gp){if(!cardEl||!gp)return;if(gp.dso){dsCard(gp);return}ST.card=gp
 function cardButtons(){if(!cardEl||cardEl.hidden)return;const b=cardEl.querySelector('[data-a="orbit"]');if(b){b.textContent=ST.orbit?TX.st.orbiting:TX.st.orbit;b.classList.toggle('on',!!ST.orbit)}}
 function refreshHear(){const el=$('galHear');if(el&&ST.card&&!cardEl.hidden){const t=hearLine(ST.card);if(el.innerHTML!==t)el.innerHTML=t}}
 function hideCard(){if(!cardEl)return;cardEl.classList.remove('on');cardEl.hidden=true;ST.card=null}
-function arrive(gp){ST.caps.push(gp.cap);ST.park=gp.anchor?gp:null;arriveShow(gp);if(ST.park)gp.aim=aimQ(gp,null,new THREE.Quaternion(),tiltFrac())}
+function arrive(gp){ST.caps.push(gp.cap);ST.park=gp.anchor?gp:null;arriveShow(gp);if(ST.park)gp.aim=aimQ(gp,null,new THREE.Quaternion(),tiltFrac(),gp.yawF?0:yawFrac())}
 function arriveShow(gp){if(gp.bh){bhArrive(gp);return}if(gp.dso){dsCard(gp);speakName(gp);return}
   if(gp.row)ST.visited[gp.row.id!=null?gp.row.id:gp.name]=true;if(gp.id==='gc')ST.visited.gc=true;
   if(gp.gal&&gp.id!=='mag'){card(gp);if(gp.gal.id==='m31')speakAndromeda();else speakName(gp)}
@@ -14292,8 +14300,8 @@ ${off('drw-top-off',TOPM)}{transform:translateY(calc(-1 * var(--drw-top-d,300px)
 ${off('drw-bot-off',BOTM)},${['drw-bot-off','drw-clear'].map(c=>`html.drw-on.${c}.drw-m-wide #galCap,html.drw-on.${c}.drw-m-phone #galCap`).join(',')}{transform:translateY(var(--drw-bot-d,300px));opacity:0;visibility:hidden;pointer-events:none;transition:transform ${DUR} ${EASE},opacity .28s ease,visibility 0s linear ${DUR}}
 ${off('drw-info-off',INFM)},${['drw-info-off','drw-clear'].map(c=>`html.drw-on.${c}.drw-m-land #galCap`).join(',')}{opacity:0;visibility:hidden;pointer-events:none;transition:transform ${DUR} ${EASE},opacity .28s ease,visibility 0s linear ${DUR}}
 ${['drw-info-off','drw-clear'].map(c=>`html.drw-on.drw-m-wide.${c} #galCard,html.drw-on.drw-m-wide.${c} #gyCard`).join(',')}{transform:translateX(calc(-1 * var(--drw-info-d,600px)))}
-${['drw-info-off','drw-clear'].map(c=>`html.drw-on.drw-m-phone.${c} #galCard,html.drw-on.drw-m-phone.${c} #gyCard,html.drw-on.drw-m-land.${c} #gyCard,html.drw-on.drw-m-land.${c} #galCard.bhcard`).join(',')}{transform:translateY(var(--drw-info-d,900px))}
-${['drw-info-off','drw-clear'].map(c=>`html.drw-on.drw-m-land.${c} #galCard:not(.bhcard),html.drw-on.drw-m-land.${c} #galCap`).join(',')}{transform:translateX(-50%) translateY(var(--drw-info-d,900px))}
+${['drw-info-off','drw-clear'].map(c=>`html.drw-on.drw-m-phone.${c} #galCard,html.drw-on.drw-m-phone.${c} #gyCard,html.drw-on.drw-m-land.${c} #gyCard,html.drw-on.drw-m-land.${c} #galCard`).join(',')}{transform:translateY(var(--drw-info-d,900px))}
+${['drw-info-off','drw-clear'].map(c=>`html.drw-on.drw-m-land.${c} #galCap`).join(',')}{transform:translateX(-50%) translateY(var(--drw-info-d,900px))}
 /* wide screens: the card is a side drawer on the left, in the lower half (the object it describes keeps the middle of the sky) */
 html.drw-on.drw-m-wide #galCard{position:fixed;left:calc(env(safe-area-inset-left,0px) + .8rem);right:auto;top:auto;bottom:var(--drw-cb,10rem);width:min(31rem,38vw);min-width:min(20rem,calc(100vw - 2rem));max-width:none;max-height:var(--drw-cmh,20rem);overflow-y:auto;overscroll-behavior:contain;z-index:5;box-shadow:0 10px 34px rgba(0,0,0,.45);scrollbar-width:thin}
 html.drw-on.drw-m-wide #galCard > *{flex-shrink:0}
