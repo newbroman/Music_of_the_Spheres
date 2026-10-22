@@ -1947,19 +1947,60 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
       return c && c.parentElement;
     };
     let lt = 0, lx = 0, ly = 0;
+    const FV = { t: 0 };
+    const fullView = (o = {}) => {
+      const h = document.documentElement;
+      if (h.classList.contains("mots-show") || h.classList.contains("mots-proj")) return;
+      if (MOTS.stageLocked() && !SUP.free) {
+        if (!o.tap) openPanel();
+        return;
+      }
+      FV.t = performance.now();
+      proj(true);
+    };
+    MOTS.fullView = fullView;
     const dbl = () => {
       const h = document.documentElement;
       if (h.classList.contains("mots-show")) return;
       if (h.classList.contains("mots-proj")) {
-        proj(false);
+        if (performance.now() - FV.t > 700) proj(false);
         return;
       }
       if (MOTS.stageLocked() && !SUP.free) {
         openPanel();
         return;
       }
-      proj(true);
+      fullView();
     };
+    {
+      const FT = { en: "Full screen", pl: "Pełny ekran", cy: "Sgrin lawn", de: "Vollbild", es: "Pantalla completa", fr: "Plein écran", it: "Schermo intero", zh: "全屏", ja: "全画面", vi: "Toàn màn hình", bg: "Цял екран", pt: "Tela cheia" }[(document.documentElement.lang || "en").slice(0, 2)] || "Full screen";
+      const st = document.createElement("style");
+      st.textContent = ".fvBtn{position:absolute;right:.55rem;bottom:.55rem;z-index:4;width:44px;height:44px;display:grid;place-items:center;padding:0;border-radius:50%;border:1px solid rgba(201,152,79,.55);background:rgba(10,12,26,.72);color:#e9d3a8;font-size:1.25rem;line-height:1;cursor:pointer;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}.fvBtn:hover,.fvBtn:focus-visible{border-color:#c9984f;color:#f3d9a4;outline:none}html.mots-proj .fvBtn,html.mots-show .fvBtn{display:none!important}";
+      document.head.appendChild(st);
+      const add = () => {
+        const f = F();
+        if (!f || f.querySelector(".fvBtn")) return !!f;
+        if (getComputedStyle(f).position === "static") f.style.position = "relative";
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "fvBtn";
+        b.textContent = "⛶";
+        b.title = FT;
+        b.setAttribute("aria-label", FT);
+        b.onclick = (e) => {
+          e.stopPropagation();
+          fullView();
+        };
+        f.appendChild(b);
+        return true;
+      };
+      if (!add()) {
+        let n = 0;
+        const iv = setInterval(() => {
+          if (add() || ++n > 40) clearInterval(iv);
+        }, 250);
+      }
+    }
     document.addEventListener("pointerup", (e) => {
       const f = F();
       if (!f || !f.contains(e.target) || e.target.closest("button,a,input,select,label,[role=dialog]")) return;
