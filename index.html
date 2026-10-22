@@ -503,6 +503,9 @@ body:not(.thinking) .thinker-only{display:none!important}
 .tl-arr:hover{color:#f3d9a4}
 @media (hover:hover) and (pointer:fine){.tl-wrap[data-l="1"]:hover .tl-arr.l,.tl-wrap[data-r="1"]:hover .tl-arr.r{display:flex}}
 /* Today, the modern sky, is pinned at the start of the row */
+.tdesc{margin:.4rem 0 .2rem}.tdesc>summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:.45rem;min-height:var(--tap,44px);padding:0 .9rem;border:1px solid var(--line);border-radius:999px;color:var(--bronze);font-size:.9rem;letter-spacing:.04em}
+.tdesc>summary::-webkit-details-marker{display:none}.tdesc>summary::after{content:'▾';transition:transform .2s}.tdesc[open]>summary::after{transform:rotate(180deg)}
+.tdesc>summary:hover,.tdesc>summary:focus-visible{border-color:var(--bronze);color:#f3d9a4;outline:none}.tdesc[open]>summary{margin-bottom:.5rem}
 .tl-sec{flex:0 0 auto;align-self:stretch;display:flex;align-items:center;max-width:7.5rem;padding:0 .2rem 0 .7rem;margin-left:.3rem;border-left:1px solid var(--bronze-dim);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;line-height:1.25;color:var(--bronze)}
 .tl-chip[data-t="today"]+.tl-sec{margin-left:.1rem}
 .tl-chip[data-t="today"]{order:-1;position:sticky;left:0;z-index:2;background:var(--sky-2);margin-right:.2rem}
@@ -13521,9 +13524,18 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
         v.ph -= Math.floor(v.ph) + Math.random() * 0.3;
         art = true;
       }
-      const cross = BHA.sv[w] !== void 0 && BHA.sv[w] !== key;
+      let cross = BHA.sv[w] !== void 0 && BHA.sv[w] !== key;
       BHA.sv[w] = key;
-      if (cross || art) bhaNote(w, now + 0.03, f, 0.065 * d.up, cross ? 1.4 : 0.9, cross && was ? was : 0);
+      if (cross) {
+        const R = v.cr || (v.cr = { r: 0, t: now, last: -1 });
+        const dt = Math.max(1e-3, now - R.t);
+        R.r = R.r * Math.exp(-dt / 1.5) + 1 / 1.5;
+        R.t = now;
+        if (now - R.last < 1 / 7) cross = false;
+        else R.last = now;
+      }
+      const kf = v.cr ? Math.max(0.3, Math.min(1, 7 / Math.max(1e-6, v.cr.r))) : 1;
+      if (cross || art) bhaNote(w, now + 0.03, f, 0.065 * d.up * kf, cross ? 1.4 : 0.9, cross && was ? was : 0);
       if (hz.alt > 0) up.push([w, f, sv, -Math.sin(hz.az)]);
     });
     if (now >= BHA.nextSing && up.length) {
@@ -14687,6 +14699,47 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
   function bodyName(w) {
     return TT.bodies[w] || (byId[w] ? byId[w].name : w);
   }
+  const THF = { en: "About this heaven", pl: "O tym niebie", cy: "Am y nef hon", de: "Über diesen Himmel", es: "Sobre este cielo", fr: "À propos de ce ciel", it: "Su questo cielo", zh: "关于这片天", ja: "この天について", vi: "Về bầu trời này", bg: "За това небе", pt: "Sobre este céu" }[(document.documentElement.lang || "en").slice(0, 2)] || "About this heaven";
+  const OWNT = { en: "This heaven keeps its own time as written: the speed moves the sky, and is heard in “{p}”.", pl: "To niebo, tak jak je zapisano, ma własne tempo: prędkość porusza niebo, a słychać ją w widoku „{p}”.", cy: "Mae’r nef hon yn cadw ei hamser ei hun fel y’i hysgrifennwyd: mae’r cyflymder yn symud yr awyr, ac i’w glywed yn “{p}”.", de: "Dieser Himmel hat, wie geschrieben, sein eigenes Tempo: Die Geschwindigkeit bewegt den Himmel und ist in „{p}“ zu hören.", es: "Este cielo, tal como se escribió, lleva su propio tiempo: la velocidad mueve el cielo y se oye en «{p}».", fr: "Ce ciel, tel qu’il a été écrit, garde son propre tempo : la vitesse fait tourner le ciel et s’entend dans « {p} ».", it: "Questo cielo, come fu scritto, ha un suo tempo: la velocità muove il cielo e si sente in «{p}».", zh: "这片天按原典保持自己的节奏：速度只推动天空，要在“{p}”中才能听出。", ja: "この天は書かれたとおり自分のテンポを保ちます。速さは空を動かし、「{p}」で聞こえます。", vi: "Bầu trời này giữ nhịp riêng như được ghi lại: tốc độ làm bầu trời chuyển động, và nghe được trong “{p}”.", bg: "Това небе, както е записано, има свое темпо: скоростта движи небето и се чува в „{p}“.", pt: "Este céu, tal como foi escrito, tem o seu próprio tempo: a velocidade move o céu e ouve-se em “{p}”." }[(document.documentElement.lang || "en").slice(0, 2)] || "This heaven keeps its own time as written: the speed moves the sky, and is heard in “{p}”.";
+  setInterval(() => {
+    try {
+      const sp = $("speed");
+      if (!sp) return;
+      const th = THINK[S.thinker] || {}, own = (th.bharata || th.jw || th.maya) && !athens();
+      let n = $("spOwn");
+      if (!own) {
+        if (n) n.hidden = true;
+        return;
+      }
+      if (!n) {
+        n = document.createElement("p");
+        n.id = "spOwn";
+        n.className = "small";
+        n.style.margin = ".3rem 0 0";
+        (sp.closest(".field") || sp.parentNode).appendChild(n);
+      }
+      const lbl = th.jw ? TT.ui.jogja : th.maya ? TT.ui.chichen : th.sarn ? TT.ui.devagiri : TT.ui.ujjain, t = OWNT.replace("{p}", lbl);
+      if (n.textContent !== t) n.textContent = t;
+      n.hidden = false;
+    } catch (e) {
+    }
+  }, 600);
+  function thFoldOpen() {
+    try {
+      return localStorage.getItem("mots.think.fold") !== "1";
+    } catch (e) {
+      return true;
+    }
+  }
+  document.addEventListener("toggle", (e) => {
+    const d = e.target;
+    if (d && d.classList && d.classList.contains("tdesc")) {
+      try {
+        localStorage.setItem("mots.think.fold", d.open ? "0" : "1");
+      } catch (_) {
+      }
+    }
+  }, true);
   function thinkerInfoHTML() {
     const id = S.thinker, t = TT[id], th = THINK[id];
     const listen = th.listen === "sun" ? TT.ui.sun : th.listen === "fire" ? TT.ui.fire : TT.ui.earth;
@@ -14711,7 +14764,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     const heardLbl = th.jw ? TT.ui.jogja : th.maya ? TT.ui.chichen : th.sarn ? TT.ui.devagiri : th.bharata ? TT.ui.ujjain : th.place ? TT.ui.thangLong : TT.ui.athens, heardPlace = th.jw ? TT.ui.jogjaPlace : th.maya ? TT.ui.chichenPlace : th.sarn ? TT.ui.devagiriPlace : th.bharata ? TT.ui.ujjainPlace : th.place ? TT.ui.thangLongPlace : TT.ui.athensPlace, heardNote = th.jw ? TT.ui.jwHeard : th.maya ? TT.ui.myHeard : th.sarn ? TT.ui.sarHeard : th.bharata ? TT.ui.bhaHeard : th.trai ? TT.ui.traiHeard : TT.ui.athensNote, writtenNote = th.jw ? TT.ui.jwWritten : th.maya ? TT.ui.myWritten : th.sarn ? TT.ui.sarWritten : th.bharata ? TT.ui.bhaWritten : th.trai ? TT.ui.traiWritten : TT.ui.writtenNote;
     const interp = th.model === "bodies" ? "" : '<div class="interp"><div class="seg" id="interpSeg"><button data-i="text" aria-pressed="'.concat(!athens(), '">').concat(TT.ui.asWritten, '</button><button data-i="athens" aria-pressed="').concat(athens(), '">').concat(heardLbl, '</button></div><p class="small">').concat(athens() ? heardNote : writtenNote, "</p></div>");
     const acts = (id === "boethius" ? '<div class="seg" id="boeSeg"><button data-o="cicero" aria-pressed="'.concat(SIR.boe === "cicero", '">').concat(TT.ui.orderCicero, '</button><button data-o="nicomachus" aria-pressed="').concat(SIR.boe === "nicomachus", '">').concat(TT.ui.orderNico, "</button></div>") : "") + (id === "aristotle" ? '<button class="btn" id="replyBtn" style="border-color:var(--bronze);color:var(--bronze)">'.concat(TT.ui.reply, "</button>") : "");
-    return '<div class="reading">\n      <div class="greek">'.concat(t.when, " · ").concat(t.work, "</div>\n      <h3>").concat(t.name, '</h3>\n      <div class="sub">').concat(TT.ui.from, " ").concat(athens() && th.model !== "bodies" ? heardPlace : listen, "</div>\n      ").concat(interp, '\n      <p class="idea lay"><span class="tag">').concat(TT.ui.layHist, "</span>").concat(t.idea, '</p>\n      <div class="sh"><div><h4>').concat(TT.ui.see, "</h4><p>").concat(t.see, "</p></div><div><h4>").concat(TT.ui.hear, "</h4><p>").concat(t.hear, "</p></div></div>\n      ").concat(t.quote ? '<blockquote class="lay"><span class="tag">'.concat(TT.ui.laySrc, "</span>“").concat(t.quote, "”").concat(ORIG[id] ? '<span class="orig">'.concat(ORIG[id], "</span>") : "", "<cite>").concat(t.cite, "</cite></blockquote>") : "", "\n      ").concat(t.comm ? '<p class="comm lay"><span class="tag">'.concat(TT.ui.layComm, "</span>").concat(t.comm, "</p>") : "", "\n      ").concat(t.doubt ? '<p class="doubt lay"><span class="tag">'.concat(TT.ui.doubt, "</span>").concat(t.doubt, "</p>") : "", "\n      ").concat(acts ? '<div class="acts">'.concat(acts, "</div>") : "", '\n    </div><div class="voices2">').concat(side, "</div>");
+    return '<div class="reading">\n      <div class="greek">'.concat(t.when, " · ").concat(t.work, "</div>\n      <h3>").concat(t.name, '</h3>\n      <div class="sub">').concat(TT.ui.from, " ").concat(athens() && th.model !== "bodies" ? heardPlace : listen, "</div>\n      ").concat(interp, '\n      <details class="tdesc"').concat(thFoldOpen() ? " open" : "", "><summary>").concat(THF, '</summary>\n      <p class="idea lay"><span class="tag">').concat(TT.ui.layHist, "</span>").concat(t.idea, '</p>\n      <div class="sh"><div><h4>').concat(TT.ui.see, "</h4><p>").concat(t.see, "</p></div><div><h4>").concat(TT.ui.hear, "</h4><p>").concat(t.hear, "</p></div></div>\n      ").concat(t.quote ? '<blockquote class="lay"><span class="tag">'.concat(TT.ui.laySrc, "</span>“").concat(t.quote, "”").concat(ORIG[id] ? '<span class="orig">'.concat(ORIG[id], "</span>") : "", "<cite>").concat(t.cite, "</cite></blockquote>") : "", "\n      ").concat(t.comm ? '<p class="comm lay"><span class="tag">'.concat(TT.ui.layComm, "</span>").concat(t.comm, "</p>") : "", "\n      ").concat(t.doubt ? '<p class="doubt lay"><span class="tag">'.concat(TT.ui.doubt, "</span>").concat(t.doubt, "</p>") : "", "\n      </details>\n      ").concat(acts ? '<div class="acts">'.concat(acts, "</div>") : "", '\n    </div><div class="voices2">').concat(side, "</div>");
   }
   function colorOf(w) {
     return byId[w] ? byId[w].color : (S.thinker === "sarngadeva" ? SAR_COL[w] : BHA_COL[w]) || JW_COLC[w] || MY_COLC[w] || { moon: "#cfd6e0", sun: "#ffd98a", stars: "#e9e1cc", heaven: "#e9e1cc", earth: "#74abdc", earthwater: "#5f8fb8", elements: "#e08a4a", fire: "#ff9a3c", counter: "#555a70", water: "#5b8fd6", air: "#cfe3f0", efire: "#e8743b", emp1: "#f3e6c4", emp2: "#f7edd2", emp3: "#fff6e0", lachesis: "#c9984f", clotho: "#c9984f", atropos: "#c9984f" }[w] || "#c9984f";
