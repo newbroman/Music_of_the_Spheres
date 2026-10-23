@@ -1603,7 +1603,7 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     }
     return cv;
   }
-  const AGC = { ref: Math.pow(10, -15 / 20), refP: Math.pow(10, -2.5 / 20), floor: 0.25, buf: null, envR: 0, envP: 0, cur: 0, envPre: 0, curPre: 1, timer: null };
+  const AGC = { duck: 1, ref: Math.pow(10, -15 / 20), refP: Math.pow(10, -2.5 / 20), floor: 0.25, buf: null, envR: 0, envP: 0, cur: 0, envPre: 0, curPre: 1, timer: null };
   function masterAttach(C) {
     const c = C.ctx;
     if (!C.master || !C.lim || C.agc) return;
@@ -1686,10 +1686,15 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     g = Math.max(C.trim * AGC.floor, g);
     if (Math.abs(g - g0) > g0 * 0.01) {
       AGC.cur = g;
-      C.agc.gain.setTargetAtTime(g, t, g < g0 ? 0.12 : 1.2);
+      C.agc.gain.setTargetAtTime(g * AGC.duck, t, g < g0 ? 0.12 : 1.2);
     }
   }
-  MOTS.master = { gain: () => AGC.cur, pre: () => AGC.curPre, trim: () => SUR.cfg ? SUR.cfg.trim : 1, reduction: () => {
+  function masterDuck(k, tc) {
+    AGC.duck = k;
+    const C = SUR.cfg;
+    if (C && C.agc) C.agc.gain.setTargetAtTime(AGC.cur * k, C.ctx.currentTime, tc || 0.25);
+  }
+  MOTS.master = { duck: masterDuck, gain: () => AGC.cur, pre: () => AGC.curPre, trim: () => SUR.cfg ? SUR.cfg.trim : 1, reduction: () => {
     const C = SUR.cfg;
     return C && C.limiter ? -C.limiter.reduction : 0;
   }, safe: () => SAFE ? -SAFE.reduction : 0, analyser: () => an, softCurve };

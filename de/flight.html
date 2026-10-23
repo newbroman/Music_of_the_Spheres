@@ -1524,7 +1524,7 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
     }
     return cv;
   }
-  const AGC = { ref: Math.pow(10, -15 / 20), refP: Math.pow(10, -2.5 / 20), floor: 0.25, buf: null, envR: 0, envP: 0, cur: 0, envPre: 0, curPre: 1, timer: null };
+  const AGC = { duck: 1, ref: Math.pow(10, -15 / 20), refP: Math.pow(10, -2.5 / 20), floor: 0.25, buf: null, envR: 0, envP: 0, cur: 0, envPre: 0, curPre: 1, timer: null };
   function masterAttach(C) {
     const c = C.ctx;
     if (!C.master || !C.lim || C.agc) return;
@@ -1607,10 +1607,15 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
     g = Math.max(C.trim * AGC.floor, g);
     if (Math.abs(g - g0) > g0 * 0.01) {
       AGC.cur = g;
-      C.agc.gain.setTargetAtTime(g, t, g < g0 ? 0.12 : 1.2);
+      C.agc.gain.setTargetAtTime(g * AGC.duck, t, g < g0 ? 0.12 : 1.2);
     }
   }
-  MOTS.master = { gain: () => AGC.cur, pre: () => AGC.curPre, trim: () => SUR.cfg ? SUR.cfg.trim : 1, reduction: () => {
+  function masterDuck(k, tc) {
+    AGC.duck = k;
+    const C = SUR.cfg;
+    if (C && C.agc) C.agc.gain.setTargetAtTime(AGC.cur * k, C.ctx.currentTime, tc || 0.25);
+  }
+  MOTS.master = { duck: masterDuck, gain: () => AGC.cur, pre: () => AGC.curPre, trim: () => SUR.cfg ? SUR.cfg.trim : 1, reduction: () => {
     const C = SUR.cfg;
     return C && C.limiter ? -C.limiter.reduction : 0;
   }, safe: () => SAFE ? -SAFE.reduction : 0, analyser: () => an, softCurve };
@@ -12963,7 +12968,7 @@ function drawRadio(c,W,H,body){const g=G(),R=TV.rd,lo=Math.log10(10),hi=Math.log
 function hearBus(){if(!AC)return null;if(!GA)audioInit();if(!GA.hearG){GA.hearV=mkGain(S.vol,AC.destination);GA.hearG=mkGain(1,GA.hearV)}return GA.hearG}
 function hearVolTick(){if(GA&&GA.hearV)tgt(GA.hearV.gain,S.vol,.05)}
 // the page's music a little lower while a sheet sounds (light.js's planets' sheet calls this too)
-MOTS.sheetDuck=on=>{if(typeof master==='undefined'||!master||!AC||!audioOn||S.speaking)return;tgt(master.gain,S.vol*(on?.5:1),on?.25:.8)};
+MOTS.sheetDuck=on=>{if(typeof master==='undefined'||!master||!AC||!audioOn||S.speaking)return;if(MOTS.master&&MOTS.master.duck){MOTS.master.duck(on?.35:1,on?.25:.8);return}tgt(master.gain,S.vol*(on?.35:1),on?.25:.8)};
 /* ---------- "Hear its lines" (step 4d): the star's absorption lines as a sustained chord ----------
    Each line of GALAXY.lineChord(row) sounds at its wavelength lowered forty octaves (unfolded: Hα is 415.5 Hz in every star), its loudness
    its strength for the star's class and subtype. A narrow line (width < 2.5 nm) is a sine with a whisper of its second harmonic and a soft
@@ -12973,7 +12978,7 @@ MOTS.sheetDuck=on=>{if(typeof master==='undefined'||!master||!AC||!audioOn||S.sp
    star's radial velocity × the exaggeration switch, and retuned live when the switch changes. The lines enter strongest first, 60 ms apart
    (so their phases never pile up), the level normalised so the sum of the sines gives an RMS near 0.08 whatever their number. The same graph
    serves the Spectrum sheet (held ~7 s) and the "Lines (chord)" star voice (held while the star is near), and the offline measurement. */
-const CHORD_RMS=.09,CHORD_STAG=.06,CHORD_ATT=.5;
+const CHORD_RMS=.13,CHORD_STAG=.06,CHORD_ATT=.5;   // (LOUDER) .09 was buried under the ducked music on a phone's speaker
 // the graph itself lives in light.js (MOTS.light.chordGraph), shared with the planets' and moons' spectrum sheets (step 4e); the stars' path is unchanged
 function chordGraph(ac,noise,C,t0,opts){return MOTS.light.chordGraph(ac,noise,C,t0,Object.assign({rms:CHORD_RMS,stag:CHORD_STAG,att:CHORD_ATT},opts||{}))}
 function chordKill(gr,ac,fade){return MOTS.light.chordKill(gr,ac,fade)}
