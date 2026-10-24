@@ -352,6 +352,7 @@ function report(){var L=[];
   if(C.fails.length)L.push('could not start: '+C.fails.slice(-4).join(' | '));
   if(C.notes.length)L.push('notes: '+C.notes.slice(-4).join(' | '));
   {var pc=null;C.ctxs.forEach(function(c){if(c.state!=='closed'&&c!==toneCtx)pc=c});if(pc&&pc.__clk&&pc.__clk.length>2){var A=pc.__clk[0],B=pc.__clk[pc.__clk.length-1],dw=(B[0]-A[0])/1000;if(dw>1)L.push('sound clock: '+Math.round(100*(B[1]-A[1])/dw)+'% of real time over the last '+Math.round(dw)+' s'+(D.hidden?' (hidden)':''))}}
+  {var rc=null;C.ctxs.forEach(function(c){if(c.state!=='closed'&&c.__rc&&c.__rc.avg!=null)rc=c.__rc});if(rc)L.push('audio thread: busy '+Math.round(100*rc.avg)+'% (peak '+Math.round(100*rc.peak)+'%) · deadlines missed '+Math.round(100*rc.under)+'%');}
   L.push('self-repair: level '+FIX.level+(LSg('mots.route')==='media'?' · through the media player':'')+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
   {var bl=[];try{bl=JSON.parse(LSg('mots.bglog')||'[]')}catch(e){}L.push('screen off / other app ('+bl.length+'):'+(bl.length?'\n  '+bl.join('\n  '):' nothing recorded yet'))}
   try{var DL=W.MOTS&&MOTS.diagLines;if(DL&&DL.length){L.push('live:');DL.forEach(function(f){try{var x=f();if(x)L.push('  '+x)}catch(e){L.push('  ('+e.message+')')}})}}catch(e){}
@@ -360,7 +361,9 @@ function report(){var L=[];
 // which version of the app this phone is running: the offline cache is named after it (read once at load, for the Sound check report)
 try{if(W.caches&&caches.keys)caches.keys().then(function(k){var m=k.filter(function(x){return /^mots-[0-9a-f]{6,}$/.test(x)});C.appVer=m.length?m.join(', '):'none'}).catch(function(){})}catch(e){}
 // the page's sound clock against the wall clock, sampled every second (the last 6 s), for the Sound check
-setInterval(function(){C.ctxs.forEach(function(c){if(c.state==='closed')return;var a=c.__clk||(c.__clk=[]);a.push([Date.now(),c.currentTime]);if(a.length>7)a.shift()})},1000);
+setInterval(function(){C.ctxs.forEach(function(c){if(c.state==='closed')return;var a=c.__clk||(c.__clk=[]);a.push([Date.now(),c.currentTime]);if(a.length>7)a.shift();
+  // Chrome's own measure of the audio thread: how busy it is and how often it misses its deadline (AudioContext.renderCapacity, where there is one)
+  try{if(c.renderCapacity&&!c.__rc&&c.state==='running'){c.__rc={};c.renderCapacity.addEventListener('update',function(e){c.__rc={avg:e.averageLoad,peak:e.peakLoad,under:e.underrunRatio}});c.renderCapacity.start({updateInterval:1})}}catch(e){}})},1000);
 C.bgNote=function(s){try{var k='mots.bglog',a=JSON.parse(LSg(k)||'[]');a.push(new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(5,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s);LSs(k,JSON.stringify(a.slice(-12)))}catch(e){}};
 C.report=report;
 var PANEL=null,tick=0;
@@ -1866,7 +1869,7 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
       pk = Math.max(pk, Math.abs(x));
     }
     const dB = (x) => x > 1e-7 ? (20 * Math.log10(x)).toFixed(1) : "−∞";
-    return "output: level " + dB(Math.sqrt(q / b.length)) + " dB, peak " + dB(pk) + " dB · " + ctx.state + " · route " + (BG.media ? "media player" + (BG.on ? " (hidden)" : "") : BG.on ? "background (" + BG.st.mode + ")" : "direct") + (BG.gD ? " · direct " + BG.gD.gain.value.toFixed(3) + " stream " + BG.gS.gain.value.toFixed(3) : "") + " · level control " + AGC.cur.toFixed(2) + (AGC.duck !== 1 ? " ducked " + AGC.duck : "") + (SAFE ? " · safety −" + (-SAFE.reduction).toFixed(1) + " dB" : "");
+    return "output: level " + dB(Math.sqrt(q / b.length)) + " dB, peak " + dB(pk) + " dB · " + ctx.state + " · route " + (BG.media ? "media player" + (BG.on ? " (hidden)" : "") : BG.on ? "background (" + BG.st.mode + ")" : "direct") + (BG.gD ? " · direct " + BG.gD.gain.value.toFixed(3) + " stream " + BG.gS.gain.value.toFixed(3) : "") + " · level control " + AGC.cur.toFixed(2) + (AGC.duck !== 1 ? " ducked " + AGC.duck : "") + " · quality " + quality + (LS.get("mots.quality.manual") === "1" ? " (chosen by hand)" : LS.get("mots.quality") ? " (stepped down)" : " (default)") + (SAFE ? " · safety −" + (-SAFE.reduction).toFixed(1) + " dB" : "");
   });
   MOTS.master = { duck: masterDuck, gain: () => AGC.cur, pre: () => AGC.curPre, trim: () => SUR.cfg ? SUR.cfg.trim : 1, reduction: () => {
     const C = SUR.cfg;
