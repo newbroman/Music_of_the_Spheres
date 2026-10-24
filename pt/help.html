@@ -369,7 +369,7 @@ setInterval(function(){C.ctxs.forEach(function(c){if(c.state==='closed')return;v
 C.bgNote=function(s){try{var k='mots.bglog',a=JSON.parse(LSg(k)||'[]');a.push(new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(5,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s);LSs(k,JSON.stringify(a.slice(-12)))}catch(e){}};
 C.report=report;
 var PANEL=null,tick=0;
-function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(PANEL.upd)PANEL.upd();var f=D.getElementById('mc-fix');if(f)f.value=String(routeNow());return}
+function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(PANEL.upd)PANEL.upd();var f=D.getElementById('mc-fix');if(f)f.value=String(routeNow());var qq=D.getElementById('mc-q');if(qq)qq.value=qNow();return}
   var p=PANEL=el('div','mc-panel');p.id='mc-diag';p.setAttribute('role','dialog');p.setAttribute('aria-label',S('chk'));
   p.appendChild(el('h2',null,S('chk')));p.appendChild(el('p','mc-sub',S('sub')));
   var pre=el('pre');p.appendChild(pre);var msg=el('p','mc-msg');msg.setAttribute('aria-live','polite');p.appendChild(msg);
@@ -379,6 +379,10 @@ function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(P
   var fl=el('label','mc-fixl');fl.appendChild(el('span',null,fixT()[0]+' '));var fs=D.createElement('select');fs.id='mc-fix';fs.className='mc-btn';
   ROUTES.forEach(function(r,i){var o=D.createElement('option');o.value=String(i);o.textContent=fixT()[3][i];fs.appendChild(o)});fs.value=String(routeNow());
   fs.onchange=function(){setRoute(+fs.value)};fl.appendChild(fs);a.appendChild(fl);
+  // (LIGHTEST) the Quality, here too: the Stage panel is locked for non-supporters in the Play app, so this is where they choose it
+  var ql=el('label','mc-fixl');ql.appendChild(el('span',null,qT().q+' '));var qs=D.createElement('select');qs.id='mc-q';qs.className='mc-btn';
+  QORDER.forEach(function(k){var o=D.createElement('option');o.value=k;o.textContent=qLabel(k);qs.appendChild(o)});qs.value=qNow();
+  qs.onchange=function(){setQ(qs.value)};ql.appendChild(qs);a.appendChild(ql);
   var eb=el('button','mc-btn',ETL());eb.type='button';eb.id='mc-etest';eb.onclick=function(){engineTest(eb,msg)};a.appendChild(eb);
   var cb=el('button','mc-btn',S('copy'));cb.type='button';cb.onclick=function(){copy(report(),cb)};a.appendChild(cb);
   var xb=el('button','mc-btn',S('close'));xb.type='button';xb.onclick=function(){p.style.display='none';clearInterval(tick);tick=0};a.appendChild(xb);
@@ -415,6 +419,22 @@ var FIXT={en:['Sound route:',0,0,['standard','a larger output buffer','larger bu
  vi:['Đường âm thanh:',0,0,['chuẩn','bộ đệm đầu ra lớn hơn','bộ đệm lớn và tần số lấy mẫu khác','qua trình phát đa phương tiện','trình phát và bộ đệm lớn hơn','qua trình phát đa phương tiện + bộ đệm lớn và tần số lấy mẫu khác']],
  bg:['Път на звука:',0,0,['стандартен','по-голям изходен буфер','по-голям буфер и другата честота','през медийния плейър','плейър и по-голям буфер','през медийния плейър + по-голям буфер и другата честота']],
  pt:['Caminho do som:',0,0,['normal','um buffer de saída maior','buffer maior e a outra taxa de amostragem','pelo reprodutor de mídia','reprodutor e buffer maior','pelo reprodutor de mídia + buffer maior e a outra taxa de amostragem']]};
+/* (LIGHTEST) the Quality select: Lightest, Economy, Standard, High. The labels are the page's own (stage.js, MOTS.qualityText) where it has
+   them, else these; a choice is applied at once (MOTS.setQuality) and marked as chosen by hand, so the watchdog leaves it alone */
+var QORDER=['min','eco','std','high'];
+var QFT={en:{q:'Quality:',min:'Lightest',eco:'Eco',std:'Standard',high:'High'},pl:{q:'Jakość:',min:'Najlżejsza',eco:'Eko',std:'Standardowa',high:'Wysoka'},
+ cy:{q:'Ansawdd:',min:'Ysgafnaf',eco:'Eco',std:'Safonol',high:'Uchel'},de:{q:'Qualität:',min:'Minimal',eco:'Öko',std:'Standard',high:'Hoch'},
+ es:{q:'Calidad:',min:'Mínima',eco:'Eco',std:'Estándar',high:'Alta'},fr:{q:'Qualité :',min:'Minimale',eco:'Éco',std:'Standard',high:'Haute'},
+ it:{q:'Qualità:',min:'Minima',eco:'Eco',std:'Standard',high:'Alta'},zh:{q:'音质：',min:'最轻',eco:'省电',std:'标准',high:'高'},
+ ja:{q:'音質：',min:'最軽量',eco:'エコ',std:'標準',high:'高'},vi:{q:'Chất lượng:',min:'Nhẹ nhất',eco:'Tiết kiệm',std:'Chuẩn',high:'Cao'},
+ bg:{q:'Качество:',min:'Най-лек',eco:'Икономичен',std:'Стандартен',high:'Висок'},pt:{q:'Qualidade:',min:'Mínima',eco:'Econômico',std:'Padrão',high:'Alta'}};
+function qT(){return QFT[lang()]||QFT.en}
+function qLabel(k){try{var M=window.MOTS;if(M&&M.qualityText&&M.qualityText[k])return M.qualityText[k]}catch(e){}return qT()[k]||QFT.en[k]}
+function qNow(){var q=null;try{if(window.MOTS&&window.MOTS.quality)q=window.MOTS.quality()}catch(e){}if(!q)q=LSg('mots.quality');return QORDER.indexOf(q)>=0?q:'std'}
+function setQ(q){if(QORDER.indexOf(q)<0)return;LSs('mots.quality.manual','1');var done=false;
+  try{if(window.MOTS&&window.MOTS.setQuality){window.MOTS.setQuality(q);done=true}}catch(e){}
+  if(!done||LSg('mots.quality')!==q)LSs('mots.quality',q);
+  flog('quality: '+q+' (chosen in the Sound check)');if(PANEL&&PANEL.upd)PANEL.upd()}
 // the routes: [self-repair level, through the media player]
 var ROUTES=[[0,false],[1,false],[2,false],[0,true],[1,true],[2,true]];
 function fixT(){return FIXT[lang()]||FIXT.en}

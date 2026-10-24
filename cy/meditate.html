@@ -369,7 +369,7 @@ setInterval(function(){C.ctxs.forEach(function(c){if(c.state==='closed')return;v
 C.bgNote=function(s){try{var k='mots.bglog',a=JSON.parse(LSg(k)||'[]');a.push(new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(5,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s);LSs(k,JSON.stringify(a.slice(-12)))}catch(e){}};
 C.report=report;
 var PANEL=null,tick=0;
-function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(PANEL.upd)PANEL.upd();var f=D.getElementById('mc-fix');if(f)f.value=String(routeNow());return}
+function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(PANEL.upd)PANEL.upd();var f=D.getElementById('mc-fix');if(f)f.value=String(routeNow());var qq=D.getElementById('mc-q');if(qq)qq.value=qNow();return}
   var p=PANEL=el('div','mc-panel');p.id='mc-diag';p.setAttribute('role','dialog');p.setAttribute('aria-label',S('chk'));
   p.appendChild(el('h2',null,S('chk')));p.appendChild(el('p','mc-sub',S('sub')));
   var pre=el('pre');p.appendChild(pre);var msg=el('p','mc-msg');msg.setAttribute('aria-live','polite');p.appendChild(msg);
@@ -379,6 +379,10 @@ function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(P
   var fl=el('label','mc-fixl');fl.appendChild(el('span',null,fixT()[0]+' '));var fs=D.createElement('select');fs.id='mc-fix';fs.className='mc-btn';
   ROUTES.forEach(function(r,i){var o=D.createElement('option');o.value=String(i);o.textContent=fixT()[3][i];fs.appendChild(o)});fs.value=String(routeNow());
   fs.onchange=function(){setRoute(+fs.value)};fl.appendChild(fs);a.appendChild(fl);
+  // (LIGHTEST) the Quality, here too: the Stage panel is locked for non-supporters in the Play app, so this is where they choose it
+  var ql=el('label','mc-fixl');ql.appendChild(el('span',null,qT().q+' '));var qs=D.createElement('select');qs.id='mc-q';qs.className='mc-btn';
+  QORDER.forEach(function(k){var o=D.createElement('option');o.value=k;o.textContent=qLabel(k);qs.appendChild(o)});qs.value=qNow();
+  qs.onchange=function(){setQ(qs.value)};ql.appendChild(qs);a.appendChild(ql);
   var eb=el('button','mc-btn',ETL());eb.type='button';eb.id='mc-etest';eb.onclick=function(){engineTest(eb,msg)};a.appendChild(eb);
   var cb=el('button','mc-btn',S('copy'));cb.type='button';cb.onclick=function(){copy(report(),cb)};a.appendChild(cb);
   var xb=el('button','mc-btn',S('close'));xb.type='button';xb.onclick=function(){p.style.display='none';clearInterval(tick);tick=0};a.appendChild(xb);
@@ -415,6 +419,22 @@ var FIXT={en:['Sound route:',0,0,['standard','a larger output buffer','larger bu
  vi:['Đường âm thanh:',0,0,['chuẩn','bộ đệm đầu ra lớn hơn','bộ đệm lớn và tần số lấy mẫu khác','qua trình phát đa phương tiện','trình phát và bộ đệm lớn hơn','qua trình phát đa phương tiện + bộ đệm lớn và tần số lấy mẫu khác']],
  bg:['Път на звука:',0,0,['стандартен','по-голям изходен буфер','по-голям буфер и другата честота','през медийния плейър','плейър и по-голям буфер','през медийния плейър + по-голям буфер и другата честота']],
  pt:['Caminho do som:',0,0,['normal','um buffer de saída maior','buffer maior e a outra taxa de amostragem','pelo reprodutor de mídia','reprodutor e buffer maior','pelo reprodutor de mídia + buffer maior e a outra taxa de amostragem']]};
+/* (LIGHTEST) the Quality select: Lightest, Economy, Standard, High. The labels are the page's own (stage.js, MOTS.qualityText) where it has
+   them, else these; a choice is applied at once (MOTS.setQuality) and marked as chosen by hand, so the watchdog leaves it alone */
+var QORDER=['min','eco','std','high'];
+var QFT={en:{q:'Quality:',min:'Lightest',eco:'Eco',std:'Standard',high:'High'},pl:{q:'Jakość:',min:'Najlżejsza',eco:'Eko',std:'Standardowa',high:'Wysoka'},
+ cy:{q:'Ansawdd:',min:'Ysgafnaf',eco:'Eco',std:'Safonol',high:'Uchel'},de:{q:'Qualität:',min:'Minimal',eco:'Öko',std:'Standard',high:'Hoch'},
+ es:{q:'Calidad:',min:'Mínima',eco:'Eco',std:'Estándar',high:'Alta'},fr:{q:'Qualité :',min:'Minimale',eco:'Éco',std:'Standard',high:'Haute'},
+ it:{q:'Qualità:',min:'Minima',eco:'Eco',std:'Standard',high:'Alta'},zh:{q:'音质：',min:'最轻',eco:'省电',std:'标准',high:'高'},
+ ja:{q:'音質：',min:'最軽量',eco:'エコ',std:'標準',high:'高'},vi:{q:'Chất lượng:',min:'Nhẹ nhất',eco:'Tiết kiệm',std:'Chuẩn',high:'Cao'},
+ bg:{q:'Качество:',min:'Най-лек',eco:'Икономичен',std:'Стандартен',high:'Висок'},pt:{q:'Qualidade:',min:'Mínima',eco:'Econômico',std:'Padrão',high:'Alta'}};
+function qT(){return QFT[lang()]||QFT.en}
+function qLabel(k){try{var M=window.MOTS;if(M&&M.qualityText&&M.qualityText[k])return M.qualityText[k]}catch(e){}return qT()[k]||QFT.en[k]}
+function qNow(){var q=null;try{if(window.MOTS&&window.MOTS.quality)q=window.MOTS.quality()}catch(e){}if(!q)q=LSg('mots.quality');return QORDER.indexOf(q)>=0?q:'std'}
+function setQ(q){if(QORDER.indexOf(q)<0)return;LSs('mots.quality.manual','1');var done=false;
+  try{if(window.MOTS&&window.MOTS.setQuality){window.MOTS.setQuality(q);done=true}}catch(e){}
+  if(!done||LSg('mots.quality')!==q)LSs('mots.quality',q);
+  flog('quality: '+q+' (chosen in the Sound check)');if(PANEL&&PANEL.upd)PANEL.upd()}
 // the routes: [self-repair level, through the media player]
 var ROUTES=[[0,false],[1,false],[2,false],[0,true],[1,true],[2,true]];
 function fixT(){return FIXT[lang()]||FIXT.en}
@@ -759,25 +779,26 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
   const MOTS = window.MOTS = window.MOTS || {};
   const LANG = (document.documentElement.lang || "en").slice(0, 2);
   const QT = {
-    en: { later: "The reverb and panning change at once; the number of voices, when the sound next starts.", q: "Quality", eco: "Eco", std: "Standard", high: "High", note: { eco: "Fewer voices, plain panning and a light echo: for old phones and busy rooms.", std: "The usual balance of voices and effects.", high: "A convolution reverb instead of echoes, more voices and smoother filters: for computers and good tablets." }, level: "Level", tip: "Headphones and speakers are fine as they are. For a PA, take the sound out through a USB audio interface or DAC for a clean line level; the level here is kept just under the limit, so a hot input, not the app, is what distorts.", lim: "limiting" },
-    pl: { later: "Pogłos i panorama zmieniają się od razu; liczba głosów — przy następnym uruchomieniu dźwięku.", q: "Jakość", eco: "Eko", std: "Standardowa", high: "Wysoka", note: { eco: "Mniej głosów, proste panoramowanie i lekkie echo: dla starych telefonów i obciążonych urządzeń.", std: "Zwykła równowaga głosów i efektów.", high: "Pogłos splotowy zamiast ech, więcej głosów i gładsze filtry: dla komputerów i dobrych tabletów." }, level: "Poziom", tip: "Słuchawki i głośniki wystarczą takie, jakie są. Do nagłośnienia wyprowadź dźwięk przez interfejs audio USB lub przetwornik DAC, aby mieć czysty poziom liniowy; tutaj poziom jest trzymany tuż pod granicą, więc zniekształca za gorące wejście, nie aplikacja.", lim: "ogranicza" },
-    cy: { later: "Mae’r atsain a’r panio yn newid ar unwaith; nifer y lleisiau, pan fydd y sain yn dechrau nesaf.", q: "Ansawdd", eco: "Eco", std: "Safonol", high: "Uchel", note: { eco: "Llai o leisiau, panio plaen ac adlais ysgafn: ar gyfer hen ffonau a dyfeisiau prysur.", std: "Y cydbwysedd arferol o leisiau ac effeithiau.", high: "Atsain convolution yn lle adleisiau, mwy o leisiau a hidlwyr llyfnach: ar gyfer cyfrifiaduron a thabledi da." }, level: "Lefel", tip: "Mae clustffonau a seinyddion yn iawn fel y maent. Ar gyfer PA, ewch â’r sain allan drwy ryngwyneb sain USB neu DAC er mwyn cael lefel llinell lân; yma cedwir y lefel ychydig o dan y terfyn, felly mewnbwn rhy boeth, nid yr ap, sy’n ystumio.", lim: "yn cyfyngu" },
-    de: { later: "Hall und Panorama ändern sich sofort; die Zahl der Stimmen beim nächsten Start des Klangs.", q: "Qualität", eco: "Öko", std: "Standard", high: "Hoch", note: { eco: "Weniger Stimmen, einfaches Panorama und ein leichtes Echo: für alte Telefone und ausgelastete Geräte.", std: "Die übliche Balance aus Stimmen und Effekten.", high: "Ein Faltungshall statt Echos, mehr Stimmen und weichere Filter: für Computer und gute Tablets." }, level: "Pegel", tip: "Kopfhörer und Lautsprecher sind so in Ordnung. Für eine PA den Ton über ein USB-Audiointerface oder einen DAC ausgeben, damit ein sauberer Line-Pegel anliegt; der Pegel hier bleibt knapp unter der Grenze, verzerrt wird also ein zu heißer Eingang, nicht die App.", lim: "begrenzt" },
-    es: { later: "La reverberación y el panorama cambian al instante; el número de voces, la próxima vez que empiece el sonido.", q: "Calidad", eco: "Eco", std: "Estándar", high: "Alta", note: { eco: "Menos voces, panorama sencillo y un eco ligero: para teléfonos antiguos y dispositivos saturados.", std: "El equilibrio habitual de voces y efectos.", high: "Una reverberación por convolución en lugar de ecos, más voces y filtros más suaves: para ordenadores y buenas tabletas." }, level: "Nivel", tip: "Los auriculares y los altavoces van bien tal como están. Para un equipo de PA, saca el sonido por una interfaz de audio USB o un DAC para tener un nivel de línea limpio; aquí el nivel se mantiene justo bajo el límite, así que lo que distorsiona es una entrada demasiado alta, no la aplicación.", lim: "limitando" },
-    fr: { later: "La réverbération et le panoramique changent aussitôt ; le nombre de voix, au prochain démarrage du son.", q: "Qualité", eco: "Éco", std: "Standard", high: "Haute", note: { eco: "Moins de voix, un panoramique simple et un écho léger : pour les vieux téléphones et les appareils chargés.", std: "L’équilibre habituel entre voix et effets.", high: "Une réverbération à convolution au lieu d’échos, plus de voix et des filtres plus doux : pour les ordinateurs et les bonnes tablettes." }, level: "Niveau", tip: "Casque et enceintes conviennent tels quels. Pour une sono, sortez le son par une interface audio USB ou un DAC afin d’avoir un niveau ligne propre ; ici le niveau reste juste sous la limite, donc c’est une entrée trop chaude qui distord, pas l’application.", lim: "limitation" },
-    it: { later: "Riverbero e panoramica cambiano subito; il numero di voci, al prossimo avvio del suono.", q: "Qualità", eco: "Eco", std: "Standard", high: "Alta", note: { eco: "Meno voci, panoramica semplice e un’eco leggera: per telefoni vecchi e dispositivi sotto carico.", std: "Il consueto equilibrio di voci ed effetti.", high: "Un riverbero a convoluzione al posto delle eco, più voci e filtri più morbidi: per computer e buoni tablet." }, level: "Livello", tip: "Cuffie e altoparlanti vanno bene così come sono. Per un impianto PA, porta il suono fuori con un’interfaccia audio USB o un DAC per avere un livello di linea pulito; qui il livello resta appena sotto il limite, quindi a distorcere è un ingresso troppo caldo, non l’app.", lim: "limitazione" },
-    zh: { later: "混响和声像立即生效；声部数量在下次开始声音时生效。", q: "音质", eco: "省电", std: "标准", high: "高", note: { eco: "更少的声部、简单的声像和轻微的回声：适合旧手机和负载较重的设备。", std: "声部与效果的常规平衡。", high: "用卷积混响代替回声，更多声部、更平滑的滤波：适合电脑和性能好的平板。" }, level: "电平", tip: "耳机和音箱按原样使用即可。接扩声系统时，请通过 USB 声卡或 DAC 输出，以获得干净的线路电平；这里的电平始终保持在上限之下，因此失真来自过热的输入，而不是本应用。", lim: "限幅中" },
-    ja: { later: "リバーブとパンはすぐに変わります。声部の数は、次に音を始めたときに変わります。", q: "音質", eco: "エコ", std: "標準", high: "高", note: { eco: "声部を減らし、単純なパンと軽いエコー。古い端末や負荷の高い端末向け。", std: "声部と効果の通常のバランス。", high: "エコーの代わりにコンボリューション・リバーブ、より多くの声部、より滑らかなフィルター。パソコンや性能のよいタブレット向け。" }, level: "レベル", tip: "ヘッドホンやスピーカーはそのままで問題ありません。PA につなぐときは USB オーディオインターフェースや DAC を通して出力し、きれいなライン・レベルにしてください。ここでのレベルは常に上限のすぐ下に保たれるので、歪むとすれば入力が大きすぎるためで、アプリのせいではありません。", lim: "リミッター動作中" },
-    vi: { later: "Tiếng vang và vị trí âm thanh thay đổi ngay; số giọng thay đổi khi âm thanh bắt đầu lần tới.", q: "Chất lượng", eco: "Tiết kiệm", std: "Chuẩn", high: "Cao", note: { eco: "Ít giọng hơn, định vị đơn giản và tiếng vọng nhẹ: cho điện thoại cũ và thiết bị đang bận.", std: "Cân bằng thường dùng giữa các giọng và hiệu ứng.", high: "Tiếng vang tích chập thay cho tiếng vọng, nhiều giọng hơn và bộ lọc mượt hơn: cho máy tính và máy tính bảng tốt." }, level: "Mức", tip: "Tai nghe và loa dùng được như vốn có. Với hệ thống PA, hãy đưa âm thanh ra qua giao diện âm thanh USB hoặc DAC để có mức line sạch; mức ở đây luôn được giữ ngay dưới giới hạn, nên nếu có méo tiếng thì do đầu vào quá nóng, không phải do ứng dụng.", lim: "đang giới hạn" },
-    bg: { later: "Ревърбът и панорамата се променят веднага; броят на гласовете – при следващото пускане на звука.", q: "Качество", eco: "Икономичен", std: "Стандартен", high: "Висок", note: { eco: "По-малко гласове, проста панорама и леко ехо: за стари телефони и натоварени устройства.", std: "Обичайният баланс между гласове и ефекти.", high: "Конволюционен ревърб вместо ехо, повече гласове и по-плавни филтри: за компютри и добри таблети." }, level: "Ниво", tip: "Слушалките и тонколоните са наред и така. За озвучителна система изведи звука през USB аудиоинтерфейс или DAC за чисто линейно ниво; нивото тук се държи точно под границата, така че изкривява твърде силният вход, а не приложението.", lim: "ограничаване" },
-    pt: { later: "O reverb e o pan mudam na hora; o número de vozes, na próxima vez que o som começar.", q: "Qualidade", eco: "Econômico", std: "Padrão", high: "Alta", note: { eco: "Menos vozes, pan simples e um eco leve: para celulares antigos e aparelhos sobrecarregados.", std: "O equilíbrio habitual entre vozes e efeitos.", high: "Um reverb de convolução em vez de ecos, mais vozes e filtros mais suaves: para computadores e bons tablets." }, level: "Nível", tip: "Fones de ouvido e alto-falantes funcionam bem como estão. Para um sistema de som (PA), tire o som por uma interface de áudio USB ou um DAC para ter um nível de linha limpo; aqui o nível fica logo abaixo do limite, então o que distorce é uma entrada quente demais, não o app.", lim: "limitando" }
+    en: { later: "The reverb and panning change at once; the number of voices, when the sound next starts.", q: "Quality", min: "Lightest", eco: "Eco", std: "Standard", high: "High", note: { min: "For phones that cannot keep up: a few voices, no echo, simple panning.", eco: "Fewer voices, plain panning and a light echo: for old phones and busy rooms.", std: "The usual balance of voices and effects.", high: "A convolution reverb instead of echoes, more voices and smoother filters: for computers and good tablets." }, level: "Level", tip: "Headphones and speakers are fine as they are. For a PA, take the sound out through a USB audio interface or DAC for a clean line level; the level here is kept just under the limit, so a hot input, not the app, is what distorts.", lim: "limiting" },
+    pl: { later: "Pogłos i panorama zmieniają się od razu; liczba głosów — przy następnym uruchomieniu dźwięku.", q: "Jakość", min: "Najlżejsza", eco: "Eko", std: "Standardowa", high: "Wysoka", note: { min: "Dla telefonów, które nie nadążają: kilka głosów, bez echa, proste panoramowanie.", eco: "Mniej głosów, proste panoramowanie i lekkie echo: dla starych telefonów i obciążonych urządzeń.", std: "Zwykła równowaga głosów i efektów.", high: "Pogłos splotowy zamiast ech, więcej głosów i gładsze filtry: dla komputerów i dobrych tabletów." }, level: "Poziom", tip: "Słuchawki i głośniki wystarczą takie, jakie są. Do nagłośnienia wyprowadź dźwięk przez interfejs audio USB lub przetwornik DAC, aby mieć czysty poziom liniowy; tutaj poziom jest trzymany tuż pod granicą, więc zniekształca za gorące wejście, nie aplikacja.", lim: "ogranicza" },
+    cy: { later: "Mae’r atsain a’r panio yn newid ar unwaith; nifer y lleisiau, pan fydd y sain yn dechrau nesaf.", q: "Ansawdd", min: "Ysgafnaf", eco: "Eco", std: "Safonol", high: "Uchel", note: { min: "Ar gyfer ffonau na allant gadw i fyny: ychydig o leisiau, dim adlais, panio syml.", eco: "Llai o leisiau, panio plaen ac adlais ysgafn: ar gyfer hen ffonau a dyfeisiau prysur.", std: "Y cydbwysedd arferol o leisiau ac effeithiau.", high: "Atsain convolution yn lle adleisiau, mwy o leisiau a hidlwyr llyfnach: ar gyfer cyfrifiaduron a thabledi da." }, level: "Lefel", tip: "Mae clustffonau a seinyddion yn iawn fel y maent. Ar gyfer PA, ewch â’r sain allan drwy ryngwyneb sain USB neu DAC er mwyn cael lefel llinell lân; yma cedwir y lefel ychydig o dan y terfyn, felly mewnbwn rhy boeth, nid yr ap, sy’n ystumio.", lim: "yn cyfyngu" },
+    de: { later: "Hall und Panorama ändern sich sofort; die Zahl der Stimmen beim nächsten Start des Klangs.", q: "Qualität", min: "Minimal", eco: "Öko", std: "Standard", high: "Hoch", note: { min: "Für Telefone, die nicht mitkommen: wenige Stimmen, kein Echo, einfaches Panorama.", eco: "Weniger Stimmen, einfaches Panorama und ein leichtes Echo: für alte Telefone und ausgelastete Geräte.", std: "Die übliche Balance aus Stimmen und Effekten.", high: "Ein Faltungshall statt Echos, mehr Stimmen und weichere Filter: für Computer und gute Tablets." }, level: "Pegel", tip: "Kopfhörer und Lautsprecher sind so in Ordnung. Für eine PA den Ton über ein USB-Audiointerface oder einen DAC ausgeben, damit ein sauberer Line-Pegel anliegt; der Pegel hier bleibt knapp unter der Grenze, verzerrt wird also ein zu heißer Eingang, nicht die App.", lim: "begrenzt" },
+    es: { later: "La reverberación y el panorama cambian al instante; el número de voces, la próxima vez que empiece el sonido.", q: "Calidad", min: "Mínima", eco: "Eco", std: "Estándar", high: "Alta", note: { min: "Para teléfonos que no dan abasto: pocas voces, sin eco y un panorama sencillo.", eco: "Menos voces, panorama sencillo y un eco ligero: para teléfonos antiguos y dispositivos saturados.", std: "El equilibrio habitual de voces y efectos.", high: "Una reverberación por convolución en lugar de ecos, más voces y filtros más suaves: para ordenadores y buenas tabletas." }, level: "Nivel", tip: "Los auriculares y los altavoces van bien tal como están. Para un equipo de PA, saca el sonido por una interfaz de audio USB o un DAC para tener un nivel de línea limpio; aquí el nivel se mantiene justo bajo el límite, así que lo que distorsiona es una entrada demasiado alta, no la aplicación.", lim: "limitando" },
+    fr: { later: "La réverbération et le panoramique changent aussitôt ; le nombre de voix, au prochain démarrage du son.", q: "Qualité", min: "Minimale", eco: "Éco", std: "Standard", high: "Haute", note: { min: "Pour les téléphones qui ne suivent pas : quelques voix, pas d’écho, un panoramique simple.", eco: "Moins de voix, un panoramique simple et un écho léger : pour les vieux téléphones et les appareils chargés.", std: "L’équilibre habituel entre voix et effets.", high: "Une réverbération à convolution au lieu d’échos, plus de voix et des filtres plus doux : pour les ordinateurs et les bonnes tablettes." }, level: "Niveau", tip: "Casque et enceintes conviennent tels quels. Pour une sono, sortez le son par une interface audio USB ou un DAC afin d’avoir un niveau ligne propre ; ici le niveau reste juste sous la limite, donc c’est une entrée trop chaude qui distord, pas l’application.", lim: "limitation" },
+    it: { later: "Riverbero e panoramica cambiano subito; il numero di voci, al prossimo avvio del suono.", q: "Qualità", min: "Minima", eco: "Eco", std: "Standard", high: "Alta", note: { min: "Per i telefoni che non stanno al passo: poche voci, niente eco, panoramica semplice.", eco: "Meno voci, panoramica semplice e un’eco leggera: per telefoni vecchi e dispositivi sotto carico.", std: "Il consueto equilibrio di voci ed effetti.", high: "Un riverbero a convoluzione al posto delle eco, più voci e filtri più morbidi: per computer e buoni tablet." }, level: "Livello", tip: "Cuffie e altoparlanti vanno bene così come sono. Per un impianto PA, porta il suono fuori con un’interfaccia audio USB o un DAC per avere un livello di linea pulito; qui il livello resta appena sotto il limite, quindi a distorcere è un ingresso troppo caldo, non l’app.", lim: "limitazione" },
+    zh: { later: "混响和声像立即生效；声部数量在下次开始声音时生效。", q: "音质", min: "最轻", eco: "省电", std: "标准", high: "高", note: { min: "适合跟不上的手机：少量声部，没有回声，简单的声像。", eco: "更少的声部、简单的声像和轻微的回声：适合旧手机和负载较重的设备。", std: "声部与效果的常规平衡。", high: "用卷积混响代替回声，更多声部、更平滑的滤波：适合电脑和性能好的平板。" }, level: "电平", tip: "耳机和音箱按原样使用即可。接扩声系统时，请通过 USB 声卡或 DAC 输出，以获得干净的线路电平；这里的电平始终保持在上限之下，因此失真来自过热的输入，而不是本应用。", lim: "限幅中" },
+    ja: { later: "リバーブとパンはすぐに変わります。声部の数は、次に音を始めたときに変わります。", q: "音質", min: "最軽量", eco: "エコ", std: "標準", high: "高", note: { min: "処理が追いつかない端末向け。声部は少なく、エコーなし、単純なパン。", eco: "声部を減らし、単純なパンと軽いエコー。古い端末や負荷の高い端末向け。", std: "声部と効果の通常のバランス。", high: "エコーの代わりにコンボリューション・リバーブ、より多くの声部、より滑らかなフィルター。パソコンや性能のよいタブレット向け。" }, level: "レベル", tip: "ヘッドホンやスピーカーはそのままで問題ありません。PA につなぐときは USB オーディオインターフェースや DAC を通して出力し、きれいなライン・レベルにしてください。ここでのレベルは常に上限のすぐ下に保たれるので、歪むとすれば入力が大きすぎるためで、アプリのせいではありません。", lim: "リミッター動作中" },
+    vi: { later: "Tiếng vang và vị trí âm thanh thay đổi ngay; số giọng thay đổi khi âm thanh bắt đầu lần tới.", q: "Chất lượng", min: "Nhẹ nhất", eco: "Tiết kiệm", std: "Chuẩn", high: "Cao", note: { min: "Cho điện thoại không theo kịp: vài giọng, không tiếng vọng, định vị đơn giản.", eco: "Ít giọng hơn, định vị đơn giản và tiếng vọng nhẹ: cho điện thoại cũ và thiết bị đang bận.", std: "Cân bằng thường dùng giữa các giọng và hiệu ứng.", high: "Tiếng vang tích chập thay cho tiếng vọng, nhiều giọng hơn và bộ lọc mượt hơn: cho máy tính và máy tính bảng tốt." }, level: "Mức", tip: "Tai nghe và loa dùng được như vốn có. Với hệ thống PA, hãy đưa âm thanh ra qua giao diện âm thanh USB hoặc DAC để có mức line sạch; mức ở đây luôn được giữ ngay dưới giới hạn, nên nếu có méo tiếng thì do đầu vào quá nóng, không phải do ứng dụng.", lim: "đang giới hạn" },
+    bg: { later: "Ревърбът и панорамата се променят веднага; броят на гласовете – при следващото пускане на звука.", q: "Качество", min: "Най-лек", eco: "Икономичен", std: "Стандартен", high: "Висок", note: { min: "За телефони, които не смогват: няколко гласа, без ехо, проста панорама.", eco: "По-малко гласове, проста панорама и леко ехо: за стари телефони и натоварени устройства.", std: "Обичайният баланс между гласове и ефекти.", high: "Конволюционен ревърб вместо ехо, повече гласове и по-плавни филтри: за компютри и добри таблети." }, level: "Ниво", tip: "Слушалките и тонколоните са наред и така. За озвучителна система изведи звука през USB аудиоинтерфейс или DAC за чисто линейно ниво; нивото тук се държи точно под границата, така че изкривява твърде силният вход, а не приложението.", lim: "ограничаване" },
+    pt: { later: "O reverb e o pan mudam na hora; o número de vozes, na próxima vez que o som começar.", q: "Qualidade", min: "Mínima", eco: "Econômico", std: "Padrão", high: "Alta", note: { min: "Para celulares que não dão conta: poucas vozes, sem eco e pan simples.", eco: "Menos vozes, pan simples e um eco leve: para celulares antigos e aparelhos sobrecarregados.", std: "O equilíbrio habitual entre vozes e efeitos.", high: "Um reverb de convolução em vez de ecos, mais vozes e filtros mais suaves: para computadores e bons tablets." }, level: "Nível", tip: "Fones de ouvido e alto-falantes funcionam bem como estão. Para um sistema de som (PA), tire o som por uma interface de áudio USB ou um DAC para ter um nível de linha limpo; aqui o nível fica logo abaixo do limite, então o que distorce é uma entrada quente demais, não o app.", lim: "limitando" }
   };
   const Q = QT[LANG] || QT.en;
   const LOWP = matchMedia("(hover:none)").matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
   let quality = LS.get("mots.quality");
-  if (!["eco", "std", "high"].includes(quality)) quality = LOWP || (navigator.hardwareConcurrency || 4) < 4 ? "std" : "high";
+  if (!["min", "eco", "std", "high"].includes(quality)) quality = LOWP || (navigator.hardwareConcurrency || 4) < 4 ? "std" : "high";
   const qFns = [];
   MOTS.quality = () => quality;
+  MOTS.qualityText = Q;
   MOTS.onQuality = (fn) => {
     qFns.push(fn);
   };
@@ -797,6 +818,150 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
   document.addEventListener("visibilitychange", () => {
     VIS_T = performance.now();
   });
+  {
+    const LP = /* @__PURE__ */ new Map();
+    const st = (c) => {
+      let s = LP.get(c);
+      if (!s) {
+        s = { f: [0, 0, -1], u: [0, 1, 0], p: [0, 0, 0], list: /* @__PURE__ */ new Set(), all: true };
+        LP.set(c, s);
+      }
+      return s;
+    };
+    const panOf = (s, n) => {
+      const x = n.__x - s.p[0], y = n.__y - s.p[1], z = n.__z - s.p[2], d = Math.hypot(x, y, z);
+      if (d < 1e-9) return 0;
+      const f = s.f, u = s.u, rx = f[1] * u[2] - f[2] * u[1], ry = f[2] * u[0] - f[0] * u[2], rz = f[0] * u[1] - f[1] * u[0], rl = Math.hypot(rx, ry, rz) || 1;
+      return Math.max(-1, Math.min(1, (x * rx + y * ry + z * rz) / (d * rl)));
+    };
+    const apply = (c, s, n) => {
+      const v = panOf(s, n);
+      if (Math.abs(v - n.__pan) < 4e-3) return;
+      const t = c.currentTime, pp = n.pan;
+      try {
+        pp.cancelScheduledValues(t);
+        pp.setValueAtTime(n.__pan, t);
+        pp.linearRampToValueAtTime(v, t + 0.05);
+      } catch (e) {
+        pp.value = v;
+      }
+      n.__pan = v;
+    };
+    let T2 = null;
+    const tick = () => {
+      let any = false;
+      LP.forEach((s, c) => {
+        if (c.state === "closed") {
+          LP.delete(c);
+          return;
+        }
+        s.list.forEach((n) => {
+          any = true;
+          if (s.all || n.__d) {
+            n.__d = false;
+            apply(c, s, n);
+          }
+        });
+        s.all = false;
+      });
+      if (!any) {
+        clearInterval(T2);
+        T2 = null;
+      }
+    };
+    const prm = (n, v0) => {
+      let v = v0;
+      const o = {
+        get value() {
+          return v;
+        },
+        set value(x) {
+          if (isFinite(x)) {
+            v = +x;
+            n.__d = true;
+          }
+        },
+        defaultValue: v0,
+        minValue: -34e37,
+        maxValue: 34e37,
+        automationRate: "a-rate",
+        setValueAtTime(x) {
+          o.value = x;
+          return o;
+        },
+        setTargetAtTime(x) {
+          o.value = x;
+          return o;
+        },
+        linearRampToValueAtTime(x) {
+          o.value = x;
+          return o;
+        },
+        exponentialRampToValueAtTime(x) {
+          o.value = x;
+          return o;
+        },
+        setValueCurveAtTime(a) {
+          if (a && a.length) o.value = a[a.length - 1];
+          return o;
+        },
+        cancelScheduledValues() {
+          return o;
+        },
+        cancelAndHoldAtTime() {
+          return o;
+        }
+      };
+      return o;
+    };
+    MOTS.lite = {
+      on: () => quality === "min",
+      panner(c) {
+        const n = c.createStereoPanner(), s = st(c);
+        n.__lite = true;
+        n.__x = 0;
+        n.__y = 0;
+        n.__z = -1;
+        n.__pan = 0;
+        const px = prm(n, 0), py = prm(n, 0), pz = prm(n, 0);
+        Object.defineProperty(n, "__x", { get: () => px.value });
+        Object.defineProperty(n, "__y", { get: () => py.value });
+        Object.defineProperty(n, "__z", { get: () => pz.value });
+        n.positionX = px;
+        n.positionY = py;
+        n.positionZ = pz;
+        n.orientationX = prm(n, 1);
+        n.orientationY = prm(n, 0);
+        n.orientationZ = prm(n, 0);
+        n.setPosition = (x, y, z) => {
+          px.value = x;
+          py.value = y;
+          pz.value = z;
+        };
+        n.setOrientation = () => {
+        };
+        Object.assign(n, { panningModel: "equalpower", distanceModel: "linear", refDistance: 1, maxDistance: 1e4, rolloffFactor: 0, coneInnerAngle: 360, coneOuterAngle: 360, coneOuterGain: 0 });
+        const dc = n.disconnect;
+        n.disconnect = function(...a) {
+          if (!a.length) s.list.delete(n);
+          return dc.apply(n, a);
+        };
+        s.list.add(n);
+        n.__d = true;
+        if (!T2) T2 = setInterval(tick, 50);
+        return n;
+      },
+      // where the listener is and faces: f forward, u up, p position (any may be left out)
+      listen(c, o) {
+        if (!c || !o) return;
+        const s = st(c);
+        ["f", "u", "p"].forEach((k) => {
+          if (o[k]) s[k] = o[k].slice(0, 3);
+        });
+        s.all = true;
+      }
+    };
+  }
   {
     const QD = { en: "Lighter sound for this device, so it plays smoothly (Stage → Quality: ", pl: "Lżejszy dźwięk dla tego urządzenia, żeby grało płynnie (Scena → Jakość: ", cy: "Sain ysgafnach i’r ddyfais hon, er mwyn iddi chwarae’n llyfn (Llwyfan → Ansawdd: ", de: "Leichterer Klang für dieses Gerät, damit es flüssig spielt (Bühne → Qualität: ", es: "Sonido más ligero para este dispositivo, para que suene fluido (Escenario → Calidad: ", fr: "Son allégé pour cet appareil, pour une lecture fluide (Scène → Qualité : ", it: "Suono più leggero per questo dispositivo, perché suoni fluido (Palco → Qualità: ", zh: "为此设备减轻声音负载，让播放更流畅（舞台 → 音质：", ja: "この端末向けに音を軽くして、なめらかに再生します（ステージ → 音質：", vi: "Âm thanh nhẹ hơn cho thiết bị này để phát mượt mà (Sân khấu → Chất lượng: ", bg: "По-лек звук за това устройство, за да свири гладко (Сцена → Качество: ", pt: "Som mais leve para este aparelho, para tocar sem travar (Palco → Qualidade: " };
     let last = null, bad = 0, cool = 0;
@@ -836,8 +1001,8 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
         cool--;
         return;
       }
-      if (bad >= 2 && quality !== "eco") {
-        const q = quality === "high" ? "std" : "eco";
+      if (bad >= 2 && quality !== "min") {
+        const q = quality === "high" ? "std" : quality === "std" ? "eco" : "min";
         bad = 0;
         cool = 5;
         MOTS.setQuality(q);
@@ -919,7 +1084,7 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
   let GUARD = null, SAFE = null;
   const guardOS = () => {
     const q = BG.q0 || quality;
-    return q === "eco" ? "none" : q === "high" ? "4x" : "2x";
+    return q === "eco" || q === "min" ? "none" : q === "high" ? "4x" : "2x";
   };
   qFns.push(() => {
     if (GUARD && "oversample" in GUARD) GUARD.oversample = guardOS();
@@ -1239,7 +1404,7 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
         MOTS.skyHidden = () => true;
         BG.q0 = null;
         try {
-          if (quality !== "eco" && LS.get("mots.quality.manual") !== "1") {
+          if (quality !== "eco" && quality !== "min" && LS.get("mots.quality.manual") !== "1") {
             BG.q0 = quality;
             MOTS.setQuality("eco", true);
           }
@@ -2380,7 +2545,7 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
     p.setAttribute("aria-label", T.title);
     const WHY = { en: { billing: "Opened free: Google Play billing is not available here.", products: "Opened free: Google Play is not offering the supporter purchases on this device yet.", error: "Opened free: Google Play could not be reached." }, pl: { billing: "Otwarte bezpłatnie: płatności Google Play nie są tu dostępne.", products: "Otwarte bezpłatnie: Google Play nie oferuje jeszcze zakupów wsparcia na tym urządzeniu.", error: "Otwarte bezpłatnie: nie udało się połączyć z Google Play." }, cy: { billing: "Wedi agor am ddim: nid yw taliadau Google Play ar gael yma.", products: "Wedi agor am ddim: nid yw Google Play yn cynnig y pryniannau cefnogwr ar y ddyfais hon eto.", error: "Wedi agor am ddim: methu cyrraedd Google Play." }, de: { billing: "Kostenlos geöffnet: Google-Play-Abrechnung ist hier nicht verfügbar.", products: "Kostenlos geöffnet: Google Play bietet die Unterstützer-Käufe auf diesem Gerät noch nicht an.", error: "Kostenlos geöffnet: Google Play war nicht erreichbar." }, es: { billing: "Abierto gratis: la facturación de Google Play no está disponible aquí.", products: "Abierto gratis: Google Play aún no ofrece las compras de apoyo en este dispositivo.", error: "Abierto gratis: no se pudo contactar con Google Play." }, fr: { billing: "Ouvert gratuitement : la facturation Google Play n’est pas disponible ici.", products: "Ouvert gratuitement : Google Play ne propose pas encore les achats de soutien sur cet appareil.", error: "Ouvert gratuitement : Google Play est injoignable." }, it: { billing: "Aperto gratis: la fatturazione di Google Play non è disponibile qui.", products: "Aperto gratis: Google Play non offre ancora gli acquisti di sostegno su questo dispositivo.", error: "Aperto gratis: impossibile raggiungere Google Play." }, ja: { billing: "無料で開きました：ここでは Google Play の課金を利用できません。", products: "無料で開きました：この端末ではまだ Google Play でサポーター購入が提供されていません。", error: "無料で開きました：Google Play に接続できませんでした。" }, zh: { billing: "已免费打开：此处无法使用 Google Play 结算。", products: "已免费打开：Google Play 尚未在此设备上提供支持者购买。", error: "已免费打开：无法连接 Google Play。" }, vi: { billing: "Mở miễn phí: thanh toán Google Play không khả dụng ở đây.", products: "Mở miễn phí: Google Play chưa cung cấp các gói ủng hộ trên thiết bị này.", error: "Mở miễn phí: không kết nối được với Google Play." }, bg: { billing: "Отворено безплатно: плащанията през Google Play не са достъпни тук.", products: "Отворено безплатно: Google Play все още не предлага покупките за поддръжници на това устройство.", error: "Отворено безплатно: няма връзка с Google Play." }, pt: { billing: "Aberto grátis: o faturamento do Google Play não está disponível aqui.", products: "Aberto grátis: o Google Play ainda não oferece as compras de apoiador neste aparelho.", error: "Aberto grátis: não foi possível acessar o Google Play." } }[(document.documentElement.lang || "en").slice(0, 2)];
     const why = inPlayApp() && !isSupporter() && SUP.free && SUP.why && WHY ? '<p class="n" style="opacity:.7;margin-top:0">'.concat((WHY || {})[SUP.why] || "", "</p>") : "";
-    p.innerHTML = "<h2>".concat(T.title, "</h2>").concat(why, "\n  <h3>").concat(T.output, '</h3><div class="seg" id="stOut">').concat(["hrtf", "stereo", "pa", "mono", "5.1"].map((v) => '<button type="button" data-v="'.concat(v, '" aria-pressed="false">').concat(T[v], "</button>")).join(""), '</div><p class="n" id="stOutNote"></p><button type="button" class="b" id="stTest" hidden style="margin-top:8px">').concat(T.test, "</button>\n  <h3>").concat(Q.q, '</h3><div class="seg" id="stQ">').concat(["eco", "std", "high"].map((v) => '<button type="button" data-v="'.concat(v, '" aria-pressed="false">').concat(Q[v], "</button>")).join(""), '</div><p class="n" id="stQNote"></p>\n  <h3>').concat(Q.level, '</h3><canvas id="stMeter" width="600" height="44" aria-label="').concat(Q.level, '"></canvas><p class="n" style="margin-top:4px">').concat(Q.tip, "</p>\n  <h3>").concat(T.midi, '</h3><button type="button" class="b" id="stMidiGo">').concat(T.midiConnect, '</button><select id="stMidi" hidden aria-label="').concat(T.midi, '"></select><p class="n" id="stMidiMsg" hidden></p>\n  <label><input type="checkbox" id="stClock"').concat(clockOn ? " checked" : "", "> ").concat(T.clock, "</label>\n  <details><summary>").concat(T.midiMap, "</summary><p>").concat(T.map, "</p></details>\n  <h3>").concat(T.proj, '</h3><p class="n" style="margin-top:0">').concat(T.projNote, '</p>\n  <label><input type="checkbox" id="stAwake"').concat(awakeOn ? " checked" : "", "> ").concat(T.awake, '</label>\n  <div class="row"><button type="button" class="b" id="stProj">').concat(T.proj, '</button><button type="button" class="b" id="stClose">').concat(T.close, "</button></div>");
+    p.innerHTML = "<h2>".concat(T.title, "</h2>").concat(why, "\n  <h3>").concat(T.output, '</h3><div class="seg" id="stOut">').concat(["hrtf", "stereo", "pa", "mono", "5.1"].map((v) => '<button type="button" data-v="'.concat(v, '" aria-pressed="false">').concat(T[v], "</button>")).join(""), '</div><p class="n" id="stOutNote"></p><button type="button" class="b" id="stTest" hidden style="margin-top:8px">').concat(T.test, "</button>\n  <h3>").concat(Q.q, '</h3><div class="seg" id="stQ">').concat(["min", "eco", "std", "high"].map((v) => '<button type="button" data-v="'.concat(v, '" aria-pressed="false">').concat(Q[v], "</button>")).join(""), '</div><p class="n" id="stQNote"></p>\n  <h3>').concat(Q.level, '</h3><canvas id="stMeter" width="600" height="44" aria-label="').concat(Q.level, '"></canvas><p class="n" style="margin-top:4px">').concat(Q.tip, "</p>\n  <h3>").concat(T.midi, '</h3><button type="button" class="b" id="stMidiGo">').concat(T.midiConnect, '</button><select id="stMidi" hidden aria-label="').concat(T.midi, '"></select><p class="n" id="stMidiMsg" hidden></p>\n  <label><input type="checkbox" id="stClock"').concat(clockOn ? " checked" : "", "> ").concat(T.clock, "</label>\n  <details><summary>").concat(T.midiMap, "</summary><p>").concat(T.map, "</p></details>\n  <h3>").concat(T.proj, '</h3><p class="n" style="margin-top:0">').concat(T.projNote, '</p>\n  <label><input type="checkbox" id="stAwake"').concat(awakeOn ? " checked" : "", "> ").concat(T.awake, '</label>\n  <div class="row"><button type="button" class="b" id="stProj">').concat(T.proj, '</button><button type="button" class="b" id="stClose">').concat(T.close, "</button></div>");
     document.body.appendChild(p);
     syncOut();
     p.querySelectorAll("#stOut button").forEach((b) => b.onclick = () => MOTS.setOut(b.dataset.v));
@@ -4039,8 +4204,8 @@ function voiceOf(arr){const F=DATA.F,kb=DATA.kinds[arr[F.kind]],tb=DATA.tables[a
 // galaxy.js's loudness: 1 at −1.5 mag, 0 at 6.5
 const loudOf=m=>clamp((6.5-m)/8,0,1);
 /** the voice budget for the chord: the figure's brightest N */
-function cap(){const q=MOTS.quality?MOTS.quality():'std';return q==='eco'?6:q==='high'?24:LOWPOWER?10:16}
-const lite=()=>{const q=MOTS.quality?MOTS.quality():'std';return q==='eco'?2:LOWPOWER?1:0};   // 0 full, 1 phone (one notch, no vibrato on chords), 2 eco (no notches)
+function cap(){const q=MOTS.quality?MOTS.quality():'std';return q==='min'?4:q==='eco'?6:q==='high'?24:LOWPOWER?10:16}
+const lite=()=>{const q=MOTS.quality?MOTS.quality():'std';return q==='eco'||q==='min'?2:LOWPOWER?1:0};   // 0 full, 1 phone (one notch, no vibrato on chords), 2 eco (no notches)
 /** the figure as notes: per star its voice, loudness, pan; the walk with its timing */
 function score(c,o){o=o||{};const n=c.s.length,xs=c.xy.map(p=>p[0]),mx=Math.max(1e-6,...xs.map(Math.abs));
   const stars=c.s.map((_,i)=>{const a=starArr(c,i),mag=a[DATA.F.mag];return {i,v:voiceOf(a),mag,loud:loudOf(mag),pan:clamp(.85*c.xy[i][0]/mx,-.85,.85),d:a[DATA.F.d]}});
@@ -4079,7 +4244,10 @@ function softClip(){const n=2048,cv=new Float32Array(n),k=.45,c=.69;for(let i=0;
 /** a player on an audio context: into dest (its own gentle compressor + soft clip, unless o.raw) */
 function Player(ac,dest,po){po=po||{};const P={ac,notes:[],timer:0,gen:0,mode:null,c:null,lit:new Map()};
   const mg=ac.createGain();mg.gain.value=1;P.master=mg;
-  if(po.raw)mg.connect(dest);else{const cp=ac.createDynamicsCompressor();cp.threshold.value=-12;cp.knee.value=6;cp.ratio.value=4;cp.attack.value=.01;cp.release.value=.25;const cl=ac.createWaveShaper();cl.curve=softClip();cl.oversample='2x';mg.connect(cp);cp.connect(cl);cl.connect(dest);P.nodes=[cp,cl]}
+  if(po.raw)mg.connect(dest);
+  // (LIGHTEST) no compressor of its own: the soft clip alone (no oversampling), a little lower, with the page's limiter after it
+  else if(MOTS.quality&&MOTS.quality()==='min'){mg.gain.value=.7;const cl=ac.createWaveShaper();cl.curve=softClip();mg.connect(cl);cl.connect(dest);P.nodes=[cl]}
+  else{const cp=ac.createDynamicsCompressor();cp.threshold.value=-12;cp.knee.value=6;cp.ratio.value=4;cp.attack.value=.01;cp.release.value=.25;const cl=ac.createWaveShaper();cl.curve=softClip();cl.oversample='2x';mg.connect(cp);cp.connect(cl);cl.connect(dest);P.nodes=[cp,cl]}
   P.light=(i,lvl,t)=>{P.lit.set(i,{lvl,t,until:t})};
   P.stop=(fade)=>{P.gen++;clearTimeout(P.timer);const t=ac.currentTime;P.notes.forEach(N=>N.release(t,(fade||.6)/3));P.notes=[];P.mode=null;if(P.onState)P.onState(null)};
   P.dispose=()=>{P.stop(.3);setTimeout(()=>{try{mg.disconnect()}catch(e){}(P.nodes||[]).forEach(n=>{try{n.disconnect()}catch(e){}})},3000)};
@@ -5849,7 +6017,8 @@ function lower(a,t){let lo=0,hi=a.length;while(lo<hi){const m=(lo+hi)>>1;if(a[m]
 let BELL=null;
 const bellOf=ac=>{if(BELL&&BELL.ac===ac)return BELL.w;const re=new Float32Array([0,0,0,0,0]),im=new Float32Array([0,1,.14,.05,.02]);BELL={ac,w:ac.createPeriodicWave(re,im)};return BELL.w};
 function player(ac,dest,M,opts){
-  const o=opts||{},G=M.G,low=!!o.low,eco=!!o.eco,budget=o.budget||(eco?12:low?20:32);
+  // (LIGHTEST) six bells at once at most
+  const o=opts||{},G=M.G,low=!!o.low,min=!!(window.MOTS&&MOTS.quality&&MOTS.quality()==='min'),eco=!!o.eco||min,budget=o.budget||(min?6:eco?12:low?20:32);
   const P={M,sec:o.sec||DEF_SEC,t:o.t0||0,oct:o.oct||0,spread:o.spread==null?1:o.spread,frame:'still',active:0,on:false,timer:0,dropped:0,events:0,last:null,recent:[]};
   const out=ac.createGain();out.gain.value=0;out.connect(dest);P.out=out;
   const mk=(v,to)=>{const g=ac.createGain();g.gain.value=v;if(to)g.connect(to);return g};
@@ -6756,9 +6925,12 @@ const tgt=(param,v,tc=.08)=>{const l=LASTV.get(param);if(l!==undefined&&Math.abs
 // phones and tablets: fewer simultaneous voices and stereo panning by default
 const LOWPOWER=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
 // the voice budget follows the Quality setting in the Stage panel (Eco, Standard, High); voices are rebuilt as they come within it
-const QV={eco:[4,4],std:[LOWPOWER?5:7,LOWPOWER?5:8],high:[8,10]};
+const QV={min:[3,2],eco:[4,4],std:[LOWPOWER?5:7,LOWPOWER?5:8],high:[8,10]};
+// (LIGHTEST) for phones whose audio thread cannot keep up: three gods and two moons, each a pair of oscillators through one filter, no light
+// convolvers, no temple echo, stereo panners whose pan is worked out in JS (stage.js MOTS.lite) instead of 3D panners
+const MIN=()=>!!(window.MOTS&&MOTS.quality&&MOTS.quality()==='min');
 let MAXVOICES=QV.std[0], MAXMOONS=QV.std[1];
-function applyQuality(q){[MAXVOICES,MAXMOONS]=QV[q]||QV.std;if(AC){PANNERS.forEach(({p,hrtfOK})=>{p.panningModel=S.hrtf&&hrtfOK&&q!=='eco'?'HRTF':'equalpower'});setVerb()}}
+function applyQuality(q){[MAXVOICES,MAXMOONS]=QV[q]||QV.std;if(AC){PANNERS.forEach(({p,hrtfOK})=>{p.panningModel=S.hrtf&&hrtfOK&&q!=='eco'&&q!=='min'?'HRTF':'equalpower'});setVerb()}}
 if(window.MOTS&&MOTS.quality){applyQuality(MOTS.quality());MOTS.onQuality(applyQuality)}
 
 /* ---------- human voices: formant singers ---------- */
@@ -6782,7 +6954,7 @@ function glottal(tilt){
   return GLOT[key]=AC.createPeriodicWave(re,im);
 }
 function parseWords(s){return s.trim().split(/\s+/).map(tok=>{const hold=tok.endsWith(':');tok=tok.replace(':','');return {t:tok,hold}})}
-const NF=4; // formants per singer: four is enough for vowel identity and keeps the phone's audio thread light
+const NF=4; // formants per singer: four is enough for vowel identity and keeps the phone's audio thread light (two on Lightest: F1 and F2 still tell the vowels apart)
 let noiseBus=null, jitBus=null, inhaleBus=null, RETRO=null;
 const mkGain=(v,to)=>{const g=AC.createGain();g.gain.value=v;if(to)g.connect(to);return g};
 
@@ -6792,15 +6964,15 @@ function makeHuman(spec,dest,whisper){
   const tap=(bus,node)=>{bus.connect(node);h.taps.push([bus,node])};
   h.form=FT[spec.type];
   h.out=mkGain(0,dest);h.src=mkGain(1);
-  h.bps=[];h.bgs=[];
-  for(let k=0;k<NF;k++){const bp=AC.createBiquadFilter();bp.type='bandpass';const g=mkGain(0,h.out);h.src.connect(bp);bp.connect(g);h.bps.push(bp);h.bgs.push(g)}
+  h.bps=[];h.bgs=[];const nf=MIN()?2:NF;
+  for(let k=0;k<nf;k++){const bp=AC.createBiquadFilter();bp.type='bandpass';const g=mkGain(0,h.out);h.src.connect(bp);bp.connect(g);h.bps.push(bp);h.bgs.push(g)}
   setFormants(h,h.form.a,AC.currentTime,.001);
   if(!whisper){
     h.vg=mkGain(1,h.src);
     h.o1=AC.createOscillator();h.o1.setPeriodicWave(glottal(spec.tilt));h.o1.connect(h.vg);h.srcs.push(h.o1);
     h.vib=AC.createOscillator();h.vib.frequency.value=spec.vib[0];h.vibD=mkGain(0);h.vib.connect(h.vibD);h.vibD.connect(h.o1.frequency);h.srcs.push(h.vib);
     h.jit=mkGain(0);tap(jitBus,h.jit);h.jit.connect(h.o1.frequency);
-    if((spec.ens||0)>=.2){
+    if((spec.ens||0)>=.2&&!MIN()){
       h.o2=AC.createOscillator();h.o2.setPeriodicWave(glottal(spec.tilt));h.o2.detune.value=9;h.o2.connect(mkGain(spec.ens,h.vg));
       h.vibD.connect(h.o2.frequency);h.jit.connect(h.o2.frequency);h.srcs.push(h.o2);
     }
@@ -6821,7 +6993,7 @@ function killHuman(h){MEDH.delete(h);
   setTimeout(()=>{h.taps.forEach(([b,n])=>{try{b.disconnect(n)}catch(e){}});try{h.out.disconnect()}catch(e){}try{h.ig.disconnect()}catch(e){}},150);
 }
 function setFormants(h,tab,t,tc){
-  for(let k=0;k<NF;k++){const [F,db,bw]=tab[k];
+  for(let k=0;k<h.bps.length;k++){const [F,db,bw]=tab[k];
     h.bps[k].frequency.setTargetAtTime(F,t,tc);h.bps[k].Q.setTargetAtTime(F/bw,t,tc);
     h.bgs[k].gain.setTargetAtTime(Math.pow(10,db/20)*(h.whisper?4:2.6),t,tc);}
 }
@@ -6873,8 +7045,8 @@ function singMoon(m,dest,f){
   const env=mkGain(0),amp=.1*(.4+.6*m.sizeN);env.gain.setValueAtTime(0,t);
   const vs=((m.ph||m.name.toLowerCase()).match(/[aeiou]/g)||['a']).slice(0,2), seg=.24;
   const bps=[];
-  for(let k=0;k<3;k++){const bp=AC.createBiquadFilter();bp.type='bandpass';const g=mkGain(0,env);o.connect(bp);bp.connect(g);bps.push([bp,g])}
-  vs.forEach((v,j)=>{FT.child[v].slice(0,3).forEach(([F,db,bw],k)=>{const [bp,g]=bps[k];bp.frequency.setTargetAtTime(F,t+j*seg,j?.04:.001);bp.Q.setTargetAtTime(F/bw,t+j*seg,.02);g.gain.setTargetAtTime(Math.pow(10,db/20)*3,t+j*seg,.02)})});
+  const nb=MIN()?2:3;for(let k=0;k<nb;k++){const bp=AC.createBiquadFilter();bp.type='bandpass';const g=mkGain(0,env);o.connect(bp);bp.connect(g);bps.push([bp,g])}
+  vs.forEach((v,j)=>{FT.child[v].slice(0,nb).forEach(([F,db,bw],k)=>{const [bp,g]=bps[k];bp.frequency.setTargetAtTime(F,t+j*seg,j?.04:.001);bp.Q.setTargetAtTime(F/bw,t+j*seg,.02);g.gain.setTargetAtTime(Math.pow(10,db/20)*3,t+j*seg,.02)})});
   const end=t+seg*vs.length+.3;
   env.gain.linearRampToValueAtTime(amp,t+.06);env.gain.setTargetAtTime(amp*.8,t+.12,.1);env.gain.setTargetAtTime(0,end-.25,.09);
   env.connect(dest);o.start(t);vib.start(t);o.stop(end+.4);vib.stop(end+.4);
@@ -6910,12 +7082,15 @@ function buildInst(b,v,fadeIn){
     I.o1=AC.createOscillator();I.o1.type=C.w1||'sawtooth';I.o1.frequency.value=f0;
     I.o2=AC.createOscillator();I.o2.type=C.w2||'sawtooth';I.o2.frequency.value=f0;I.o2.detune.value=det;
     const src=mkGain(.34*(C.lvl||1));I.o1.connect(src);if(C.l2!==undefined)I.o2.connect(mkGain(C.l2,src));else I.o2.connect(src);I.srcs.push(I.o1,I.o2);
-    if(C.o3||(!C.w1&&b.sizeN>.85)){I.o3k=C.o3k||1;I.o3=AC.createOscillator();I.o3.type=C.w3||'sawtooth';I.o3.frequency.value=f0*I.o3k;I.o3.detune.value=C.det3!==undefined?C.det3:-(3+12*b.sizeN);I.o3.connect(src);I.srcs.push(I.o3)}
+    const lite=MIN();
+    if((C.o3||(!C.w1&&b.sizeN>.85))&&!lite){I.o3k=C.o3k||1;I.o3=AC.createOscillator();I.o3.type=C.w3||'sawtooth';I.o3.frequency.value=f0*I.o3k;I.o3.detune.value=C.det3!==undefined?C.det3:-(3+12*b.sizeN);I.o3.connect(src);I.srcs.push(I.o3)}
     I.br=C.br||2600;I.vdk=C.vdk||1;
     const form=mkGain(1);
-    (VOWELS[b.vowel]||VOWELS.a).forEach(([F,g],k)=>{const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=F;bp.Q.value=[7,10,13][k];src.connect(bp);bp.connect(mkGain(g*2.2,form))});
-    src.connect(mkGain(.12,form));
-    I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.Q.value=.6;I.lp.frequency.value=2500;form.connect(I.lp);
+    // on Lightest the vowel is only hinted: the lowpass sits a little lower and peaks gently near the first formant's region
+    if(lite)src.connect(mkGain(1.5,form));   // as loud as the formant bank it replaces (measured)
+    else{(VOWELS[b.vowel]||VOWELS.a).forEach(([F,g],k)=>{const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=F;bp.Q.value=[7,10,13][k];src.connect(bp);bp.connect(mkGain(g*2.2,form))});
+    src.connect(mkGain(.12,form))}
+    I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.Q.value=lite?2:.6;I.lp.frequency.value=lite?1600:2500;form.connect(I.lp);
     const trem=mkGain(.7,I.g);I.lp.connect(trem);
     // retrograde spin: a reversed swell built from four smooth harmonics, so the pulse never jumps
     I.tl=AC.createOscillator();if(b.rot<0)I.tl.setPeriodicWave(RETRO);else I.tl.type='sine';I.tl.frequency.value=v.rate;
@@ -6924,7 +7099,7 @@ function buildInst(b,v,fadeIn){
     I.vib.connect(I.vd);[I.o1,I.o2,I.o3].forEach(o=>o&&I.vd.connect(o.frequency));
     I.srcs.push(I.tl,I.vib);
     I.osc=[[I.o1,0],[I.o2,det]];if(I.o3)I.osc.push([I.o3,I.o3.detune.value]);
-    addTiltWobble(b,v,I,I.osc.map(x=>x[0]));
+    if(!lite)addTiltWobble(b,v,I,I.osc.map(x=>x[0]));
   }
   I.srcs.forEach(o=>o.start());
   return I;
@@ -6951,7 +7126,7 @@ function addTiltWobble(b,v,part,oscs){
 /* ---------- bodies, sun, moons ---------- */
 const PANNERS=[];
 function mkPanner(hrtfOK){
-  const p=AC.createPanner();p.panningModel=S.hrtf&&hrtfOK&&!(window.MOTS&&MOTS.quality&&MOTS.quality()==='eco')?'HRTF':'equalpower';p.distanceModel='linear';
+  const p=MIN()&&MOTS.lite?MOTS.lite.panner(AC):AC.createPanner();p.panningModel=S.hrtf&&hrtfOK&&!(window.MOTS&&MOTS.quality&&['eco','min'].includes(MOTS.quality()))?'HRTF':'equalpower';p.distanceModel='linear';
   p.refDistance=1;p.maxDistance=10000;p.rolloffFactor=0;p.coneInnerAngle=360;p.coneOuterAngle=360;
   p.connect(bus);PANNERS.push({p,hrtfOK});if(window.MOTS&&MOTS.surround)MOTS.surround.add(p);return p;
 }
@@ -6961,7 +7136,7 @@ function makeVoice(b){
   // distance colours the sound as well as its loudness: far planets lose a little of their brightness (not on low-power devices)
   if(b.kind==='planet'&&!LOWPOWER){v.air=AC.createBiquadFilter();v.air.type='lowpass';v.air.frequency.value=16000;v.air.Q.value=.5;v.air.connect(v.pan)}
   // the light module (light.js) colours the voice with the body's reflectance spectrum, between its volume and the panner
-  const dest0=v.air||v.pan;v.vol=mkGain(0,window.MOTS&&MOTS.light?MOTS.light.voice(b,v,dest0):dest0);
+  const dest0=v.air||v.pan;v.vol=mkGain(0,window.MOTS&&MOTS.light&&!MIN()?MOTS.light.voice(b,v,dest0):dest0);
   v.rate=Math.min(7,6*Math.pow(3.9/Math.abs(b.rot),.45));
   v.moonBus=mkGain(1);v.moonVol=mkGain(0,v.pan);v.moonBus.connect(v.moonVol);
   (b.moons||[]).forEach(m=>{
@@ -6975,12 +7150,13 @@ function makeSun(){
 }
 function buildSunInst(v,fadeIn){
   const I={srcs:[]};I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,fadeIn?.15:.001);
-  const breath=mkGain(.75);const bl=AC.createOscillator();bl.frequency.value=.07;const bd=mkGain(.25);bl.connect(bd);bd.connect(breath.gain);
+  // Lightest: the drone holds still (no slow breathing LFO)
+  const breath=mkGain(.75),bl=MIN()?null:AC.createOscillator();if(bl){bl.frequency.value=.07;const bd=mkGain(.25);bl.connect(bd);bd.connect(breath.gain)}
   const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=900;breath.connect(lp);lp.connect(I.g);
   I.d1=AC.createOscillator();I.d1.type='triangle';I.d2=AC.createOscillator();I.d2.type='triangle';I.d3=AC.createOscillator();I.d3.type='sine';
   const [a,b2,c]=droneFreqs();I.d1.frequency.value=a;I.d2.frequency.value=b2;I.d3.frequency.value=c;
   I.d1.connect(breath);I.d2.connect(mkGain(.55,breath));I.d3.connect(mkGain(.8,breath));
-  I.srcs.push(I.d1,I.d2,I.d3,bl);I.srcs.forEach(o=>o.start());
+  I.srcs.push(I.d1,I.d2,I.d3);if(bl)I.srcs.push(bl);I.srcs.forEach(o=>o.start());
   return I;
 }
 function droneFreqs(){if(SYS.tonic)return [SYS.tonic,SYS.tonic*1.5,SYS.tonic/2];let t=C_BASE*PY[S.mode]*8*Math.pow(2,keyShift());return [t,t*1.5,t/2]}
@@ -6998,7 +7174,7 @@ const APOLLO=[{type:'bass',tilt:1.25,vib:[4.6,.02],breath:.08,jit:.003,syl:2.0,r
 const LNX=()=>window.MOTS&&MOTS.light&&MOTS.light.lines;
 function lmode(){const L=LNX();return L?L.mode():'gods'}
 // a voice's style: rebuilt when the voices, the lines option, true pitch or the number of lines (the Quality) change
-function lkey(m){const L=LNX(),lm=lmode();return lm==='gods'?m:(lm==='lines'?'lines':m)+'|'+lm+'|'+(L.truePitch()?1:0)+'|'+L.n()+'|'+lineK()}
+function lkey(m){const L=LNX(),lm=lmode();if(MIN())m+='|min';return lm==='gods'?m:(lm==='lines'?'lines':m)+'|'+lm+'|'+(L.truePitch()?1:0)+'|'+L.n()+'|'+lineK()}
 const SPEC_OF={moon:'selene',sun:'sun'};
 const specOf=b=>b.spec||SPEC_OF[b.id]||b.id;
 // a line chord at RMS 1, matched to a god's instrument part (measured on the page's output: Today's sky about 0.11 RMS with the lines,
@@ -7040,7 +7216,7 @@ function applyVoiceMode(){
     if(lp){sunV.part=lp;sunV.mode='lines'}
     else{
     if(mode==='human'){const part={g:mkGain(0,sunV.vol)};part.g.gain.setTargetAtTime(.9,AC.currentTime,.15);
-      part.hums=APOLLO.map(sp=>{const h=makeHuman(sp,part.g,false);h.next=AC.currentTime+.6;return h});sunV.part=part;}
+      part.hums=(MIN()?APOLLO.slice(0,1):APOLLO).map(sp=>{const h=makeHuman(sp,part.g,false);h.next=AC.currentTime+.6;return h});sunV.part=part;}
     else sunV.part=buildSunInst(sunV,sunV.mode!==null);
     sunV.mode=mode;if(lm==='both')lineAdd(sunV.part,'sun',f0,APOLLO[0],.5,.55)}
     sunV.lkey=key;linesPre();
@@ -7078,7 +7254,7 @@ function initAudio(){
   // the voices' bus passes through a gain the stage module turns down as the crowd grows, before the compressor (see stage.js)
   verbIn=AC.createGain();const pre=AC.createGain();bus.connect(pre);pre.connect(dry);dry.connect(master);
   // two rooms behind one send: the temple echo (Standard and Eco) and, in High quality, a convolution reverb; the Quality setting crossfades them
-  verbT=mkGain(1,wet);const tIn=mkGain(1);verbIn.connect(tIn);verbC=mkGain(0,wet);wet.connect(comp);
+  verbT=mkGain(1,wet);const tIn=verbTIn=mkGain(1);verbIn.connect(tIn);verbC=mkGain(0,wet);wet.connect(comp);
   // last line of defence: a limiter just under full scale (the stage module sets it and puts its automatic gain staging in front, see stage.js)
   master.connect(medEntry());
   setVerb();
@@ -7089,7 +7265,7 @@ function initAudio(){
   const ib=AC.createBiquadFilter();ib.type='bandpass';ib.frequency.value=1600;ib.Q.value=.6;noiseBus.connect(ib);inhaleBus=mkGain(.16);ib.connect(inhaleBus);
   const re=new Float32Array(5),im=new Float32Array(5);for(let n=1;n<5;n++)im[n]=-1/n;RETRO=AC.createPeriodicWave(re,im);
   if(window.MOTS&&MOTS.light)MOTS.light.attach({ctx:AC,noise:()=>noiseBus,jd:()=>S.jd,pos:id=>P[id],listener:listenerPos,byId,bodies:BODIES});
-  for(let k=0;k<8;k++){const p=mkPanner(false);POOL.push({p,g:mkGain(0,p)})}
+  for(let k=0;k<(MIN()?3:8);k++){const p=mkPanner(false);POOL.push({p,g:mkGain(0,p)})}
   for(let k=0;k<3;k++)BELTP.push(mkPanner(false));
   makeAspectVoices();
   computePositions();
@@ -7097,20 +7273,27 @@ function initAudio(){
   sunV=makeSun();
   applyVoiceMode();
 }
-let verbT=null,verbC=null,verbInC=null,verbIn=null;
-function setVerb(){if(!AC)return;tgt(wet.gain,S.verb*1.1,.1);tgt(dry.gain,1-S.verb*.35,.1);
+let verbT=null,verbC=null,verbInC=null,verbIn=null,verbTIn=null;
+let verbCut=false;
+function setVerb(){if(!AC)return;
+  // Lightest: no echo at all; the temple's delay lines are unhooked at both ends so the audio thread no longer works them
+  const lite=MIN();if(lite!==verbCut&&verbT&&verbTIn){verbCut=lite;try{if(lite){verbIn.disconnect(verbTIn);verbT.disconnect(wet)}else{verbIn.connect(verbTIn);verbT.connect(wet)}}catch(e){}}
+  tgt(wet.gain,lite?0:S.verb*1.1,.1);tgt(dry.gain,lite?1:1-S.verb*.35,.1);
   const high=!!(window.MOTS&&MOTS.quality&&MOTS.quality()==='high');
   if(high&&!conv){conv=AC.createConvolver();conv.buffer=makeIR(3.2);verbInC=mkGain(.8);verbIn.connect(verbInC);verbInC.connect(conv);conv.connect(verbC)}
   if(verbT){tgt(verbT.gain,high?0:1,.4);tgt(verbC.gain,high?1:0,.4)}}
 
 function setListener(ang){
   const l=AC.listener, fx=Math.cos(ang), fz=-Math.sin(ang);
+  // Lightest: the stereo panners are told where you face; the listener is set outright, not glided (a moving listener makes every 3D panner left from before work sample by sample)
+  if(MIN()&&MOTS.lite){MOTS.lite.listen(AC,{f:[fx,0,fz],u:[0,1,0]});if(l.forwardX){l.forwardX.value=fx;l.forwardY.value=0;l.forwardZ.value=fz}return}
   if(l.forwardX){const t=AC.currentTime;l.forwardX.setTargetAtTime(fx,t,.08);l.forwardY.setTargetAtTime(0,t,.08);l.forwardZ.setTargetAtTime(fz,t,.08);}
   else{l.setOrientation(fx,0,fz,0,1,0)}
 }
 function setPos(p,x,y,z,tc=.08){
   const q=p.__last;if(q&&Math.abs(q[0]-x)+Math.abs(q[1]-y)+Math.abs(q[2]-z)<.003)return;p.__last=[x,y,z];
-  if(p.positionX){const t=AC.currentTime;p.positionX.setTargetAtTime(x,t,tc);p.positionY.setTargetAtTime(y,t,tc);p.positionZ.setTargetAtTime(z,t,tc);}
+  if(p.positionX&&!p.__lite&&MIN()){p.positionX.value=x;p.positionY.value=y;p.positionZ.value=z}
+  else if(p.positionX){const t=AC.currentTime;p.positionX.setTargetAtTime(x,t,tc);p.positionY.setTargetAtTime(y,t,tc);p.positionZ.setTargetAtTime(z,t,tc);}
   else p.setPosition(x,y,z);
 }
 function audioDir(src,L){
@@ -7307,7 +7490,7 @@ function computeAspects(){
 }
 const ASP=[];
 function makeAspectVoices(){
-  for(let k=0;k<(LOWPOWER?2:3);k++){
+  for(let k=0;k<(MIN()?1:LOWPOWER?2:3);k++){
     const pan=mkPanner(false), g=mkGain(0,pan);
     const o1=AC.createOscillator();o1.type='sine';const o2=AC.createOscillator();o2.type='sine';
     o1.connect(g);o2.connect(mkGain(.8,g));o1.start();o2.start();ASP.push({pan,g,o1,o2});
@@ -7883,15 +8066,21 @@ function motion(v,w,dtR){
   v.rate=S.playing?Math.min(6,.8*Math.sqrt(Math.abs(v.omega)*S.speed)):0;
   if(!athens()){v.rate=0;v.ingress=false}
 }
+let SIRVIB=null;
 function buildSiren(v,f,vowel){
   const I={srcs:[]};I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,.3);
-  I.o1=AC.createOscillator();I.o1.type='sawtooth';I.o1.frequency.value=f;I.o2=AC.createOscillator();I.o2.type='triangle';I.o2.frequency.value=f;I.o2.detune.value=7;
-  const src=mkGain(.3);I.o1.connect(src);I.o2.connect(mkGain(.9,src));const form=mkGain(1);
-  (VOWELS[vowel]||VOWELS.a).slice(0,2).forEach(([F,g],k)=>{const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=F;bp.Q.value=[6,9][k];src.connect(bp);bp.connect(mkGain(g*2,form))});
-  src.connect(mkGain(.18,form));I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.frequency.value=2800;form.connect(I.lp);
+  // Lightest: a heaven has up to nine sirens at once, so each is one sawtooth and its vibrato through one lowpass (o2 is a silent stand-in the articulation can still move)
+  const lite=MIN();
+  I.o1=AC.createOscillator();I.o1.type='sawtooth';I.o1.frequency.value=f;I.o2=lite?{frequency:AC.createGain().gain,detune:AC.createGain().gain}:AC.createOscillator();if(!lite){I.o2.type='triangle';I.o2.frequency.value=f;I.o2.detune.value=7}
+  const src=mkGain(lite?.42:.3);I.o1.connect(src);if(!lite)I.o2.connect(mkGain(.9,src));const form=mkGain(1);
+  if(!lite)(VOWELS[vowel]||VOWELS.a).slice(0,2).forEach(([F,g],k)=>{const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=F;bp.Q.value=[6,9][k];src.connect(bp);bp.connect(mkGain(g*2,form))});
+  src.connect(mkGain(lite?.9:.18,form));I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.frequency.value=2800;if(lite)I.lp.Q.value=2;form.connect(I.lp);
   I.art=mkGain(.5,I.g);I.lp.connect(I.art);
-  I.vib=AC.createOscillator();I.vib.frequency.value=4.5+Math.random()*1.2;I.vd=mkGain(f*.005);I.vib.connect(I.vd);I.vd.connect(I.o1.frequency);I.vd.connect(I.o2.frequency);
-  I.srcs.push(I.o1,I.o2,I.vib);I.srcs.forEach(o=>o.start());return I;
+  I.vd=mkGain(f*.005);I.vd.connect(I.o1.frequency);
+  // Lightest: the sirens share one vibrato (one oscillator for the whole heaven instead of one each)
+  if(lite){if(!SIRVIB||SIRVIB.context!==AC){SIRVIB=AC.createOscillator();SIRVIB.frequency.value=5.1;SIRVIB.start()}SIRVIB.connect(I.vd);I.taps=[[SIRVIB,I.vd]];I.srcs.push(I.o1)}
+  else{I.vib=AC.createOscillator();I.vib.frequency.value=4.5+Math.random()*1.2;I.vib.connect(I.vd);I.vd.connect(I.o2.frequency);I.srcs.push(I.o1,I.o2,I.vib)}
+  I.srcs.forEach(o=>o.start());return I;
 }
 // a sung attack: a swell with a short ornament into the note, rising when the body moves forward, falling when it moves backward
 function articulate(I,f,retro,flourish){
@@ -8376,7 +8565,8 @@ function thinkerAudio(){
       if(k<sc.length){const r=sc[k];let w=list[0][0],best=0;list.forEach(([x,rx])=>{if(rx<=r+1e-6&&rx>=best){best=rx;w=x}});const v=sirenVoice(w);
         if(!SIR.solo||SIR.solo===w){plk(w,v.pl,baseOf()*r,.026,.8,true);SIR.plk[w]=performance.now()}}
       SIR.fillK++;SIR.fillNext+=.22*MED.fillK}}
-  let built=0,humans=0;const humanCap=(window.MOTS&&MOTS.quality&&MOTS.quality()==='eco')?3:LOWPOWER?6:99;
+  // Lightest: two singers on the dial; Meditate keeps Eco's three (its other sirens stay silent rather than play, and it sings two phrases at once at most)
+  let built=0,humans=0;const humanCap=MIN()?(window.MEDITATE?3:2):(window.MOTS&&MOTS.quality&&MOTS.quality()==='eco')?3:LOWPOWER?6:99;
   list.forEach(([w,r])=>{
     const v=sirenVoice(w),silent=w==='counter',fate=FATES.includes(w);
     motion(v,w,dtR);
@@ -8619,10 +8809,11 @@ const medEntry=()=>dialG;
 function medInit(){
   if(AC)return;
   initAudio();   // the dial's: makes the context through medContext(), the shared noise, the voices of every body, the Sun, the aspects
-  const setQ=q=>{const high=q==='high';
+  const setQ=q=>{const high=q==='high',lite=q==='min';
     if(high&&!VERB.conv&&window.MOTS&&MOTS.makeIR){VERB.conv=makeVerb(AC,true);mVerbIn.connect(VERB.conv.input);VERB.conv.output.connect(verbOut)}
+    liteVerb(lite);liteGlue(lite);
     VERB.useConv=high&&!!VERB.conv;applyEcho();
-    shaper.oversample=clip.oversample=q==='eco'?'none':'2x'};
+    shaper.oversample=clip.oversample=q==='eco'||lite?'none':'2x'};
   if(window.MOTS&&MOTS.quality){setQ(MOTS.quality());MOTS.onQuality(q=>{setQ(q);if(M.state!=='idle')Object.values(ACTIVE).forEach(i=>i.rebuild())})}
   // the stage: master = the mix (where it measures), lim = the plain gain it joins (a GainNode, so the stage leaves our limiter's settings alone)
   if(window.MOTS&&MOTS.surround){MOTS.surround.attach({ctx:AC,master:mix,lim:pre,limiter:null,entry:mix,verb:mVerbIn,trim:1});
@@ -8634,7 +8825,19 @@ function applyWarm(now){if(!AC)return;const w=M.warm/100,t=AC.currentTime,tc=now
   warmIn.gain.setTargetAtTime(.9+1.1*w,t,tc);post.gain.setTargetAtTime(1/(.9+1.1*w)*(1+.1*w),t,tc);
   lp.frequency.setTargetAtTime(5200-3400*w,t,tc)}
 // the Echo setting: the send and the decay of the temple echo; the reverb not in use gets no send at all
-function applyEcho(now){if(!AC||!VERB)return;const e=M.echo/100;VERB.fdn.set(VERB.useConv?null:e,now);if(VERB.conv)VERB.conv.set(VERB.useConv?e:null,now)}
+function applyEcho(now){if(!AC||!VERB)return;const e=M.echo/100;VERB.fdn.set(VERB.useConv||VERB.liteOn?null:e,now);if(VERB.conv)VERB.conv.set(VERB.useConv?e:null,now);if(VERB.lite)VERB.lite.set(VERB.liteOn?e:null,now)}
+/* (LIGHTEST) for phones whose audio thread cannot keep up: the temple's feedback network (a worklet on the audio thread) is unhooked and one
+   short echo takes its place, a single damped delay (0.27 s, its repeats dying within about a second and a half); the glue compressor is
+   stepped round (a fixed gain in its place makes up its make-up gain), so the limiter alone holds the peaks */
+function liteVerb(on){if(!AC||!VERB||!!VERB.liteOn===on)return;
+  if(on&&!VERB.lite){const c=AC,inp=mkG(c,0),d=c.createDelay(.5),lp=c.createBiquadFilter(),fb=mkG(c,.32),out=mkG(c,1.6);d.delayTime.value=.27;lp.type='lowpass';lp.frequency.value=1600;lp.Q.value=-3;
+    inp.connect(d);d.connect(lp);lp.connect(fb);fb.connect(d);lp.connect(out);
+    VERB.lite={input:inp,output:out,set:(e,now)=>{const t=c.currentTime,tc=now?.001:.2;inp.gain.setTargetAtTime(e==null?0:.06+.24*e,t,tc);if(e!=null)fb.gain.setTargetAtTime(.22+.2*e,t,tc)}}}
+  const L=VERB.lite,F=VERB.fdn,sw=(a,b,c)=>{try{if(c)a.connect(b);else a.disconnect(b)}catch(e){}};
+  sw(mVerbIn,F.input,!on);sw(F.output,verbOut,!on);sw(mVerbIn,L.input,on);sw(L.output,verbOut,on);VERB.liteOn=on}
+let glueBy=null,glueOff=false;
+function liteGlue(on){if(!AC||on===glueOff)return;if(!glueBy)glueBy=mkG(AC,Math.pow(10,2.9/20));
+  try{if(on){pre.disconnect(cmp);cmp.disconnect(lim);pre.connect(glueBy);glueBy.connect(lim)}else{pre.disconnect(glueBy);glueBy.disconnect();pre.connect(cmp);cmp.connect(lim)}}catch(e){}glueOff=on}
 /* the temple echo: a four-line feedback delay network (Jot/Stautner–Puckette) in an AudioWorklet: mutually prime delays of 44…80 ms, a
    Hadamard mixing matrix (every line feeds every line, so the tail is diffuse and no single comb rings on a voice's pitch), a one-pole lowpass
    in each loop (the damping, darker as the echo grows), every line slowly modulated by a third of a millisecond (the comb peaks never stand
@@ -8728,7 +8931,7 @@ function mkBreath(c,dest,on,off,first){const g=mkG(c,0);g.connect(dest);let next
 const fadeOut=(out,fade)=>{const t=AC.currentTime;out.gain.cancelScheduledValues(t);out.gain.setTargetAtTime(0,t,(fade||.5)/3);setTimeout(()=>{try{out.disconnect()}catch(e){}},(fade||.5)*6000)};
 /* --- the Sun's hum: stochastically excited damped oscillators at the Sun's own mode frequencies (BiSON, l = 0…3), sped up 2^depth times --- */
 SCAPES.sun={
-  count(){const q=QUAL();return Math.round((q==='high'?SUN.modes.length:q==='eco'?12:LOWPOWER?20:32)*CAPMUL())},
+  count(){const q=QUAL();return Math.round((q==='high'?SUN.modes.length:q==='min'?6:q==='eco'?12:LOWPOWER?20:32)*CAPMUL())},
   // a mode's lifetime, seconds of real time: τ = 1/(π Γ), Γ the linewidth, ~1 µHz at νmax and growing with frequency (Chaplin et al.)
   tau(nu){const G=1.0*Math.exp((nu-SUN.numax)/650);return 1e6/(Math.PI*G)},
   make(){
@@ -8773,8 +8976,8 @@ function mkVoice(to,f,pan,tri,cut){const o1=AC.createOscillator(),o2=AC.createOs
   v.f0=f;return v}
 /* --- the nearest and brightest stars: a slow, wide field of tones by the Galaxy engine's rules --- */
 SCAPES.stars={
-  cap(){const q=QUAL();return Math.max(2,Math.round((q==='eco'?3:LOWPOWER?4:5)*CAPMUL()))},
-  nLines(){const q=QUAL();return q==='eco'?0:LOWPOWER?1:2},
+  cap(){const q=QUAL();return Math.max(2,Math.round((q==='eco'||q==='min'?3:LOWPOWER?4:5)*CAPMUL())-(q==='min'?1:0))},
+  nLines(){const q=QUAL();return q==='eco'||q==='min'?0:LOWPOWER?1:2},
   make(){
     const out=mkG(AC,0);out.connect(mBus);let V=[],last=0;
     const sounding=new Set(),recent=new Map();
@@ -8809,7 +9012,7 @@ SCAPES.galaxy={
   make(){
     const out=mkG(AC,0);out.connect(mBus);let V=[],last=0;
     const f=r=>r[1]*Math.pow(2,REG());
-    const build=()=>{const t=AC.currentTime,n=Math.max(3,Math.round((QUAL()==='eco'?6:RINGS.length)*CAPMUL())),base=.15/Math.sqrt(n/2);
+    const build=()=>{const t=AC.currentTime,n=Math.max(3,Math.round((QUAL()==='min'?4:QUAL()==='eco'?6:RINGS.length)*CAPMUL())),base=.15/Math.sqrt(n/2);
       V=RINGS.slice(0,n).map((r,k)=>{const v=mkVoice(out,f(r),0,.15,f(r)*2.5);v.r=r;v.lvl=base*Math.pow(.86,k)*1.6;v.a=1;
         // each ring turns at its own Ω (its tone is Ω raised 61 octaves), its sound sweeping round with it and swelling as it comes past, once a turn:
         // the outermost in 44 s, the inner ones faster in proportion (a ring at 3 kpc every 6 s), each swell a gaussian a quarter of the turn wide (1.6…3 s), so no ring flares up
@@ -8835,7 +9038,7 @@ const GYBASE=LANG==='en'?'./':'../';
 const GYSCAPE={
   make(){const out=mkG(AC,0);out.connect(mBus);let P=null,gen=0;
     const go=()=>{const G=window.GALAXY,Y=window.GYEAR;if(!G||!Y)return;G.load(GYBASE).then(()=>{if(gen<0||P)return;const q=QUAL();
-      const Mo=Y.model(G,{n:q==='eco'?6:LOWPOWER?8:12,herc:2});P=Y.player(AC,out,Mo,{sec:32,low:LOWPOWER,eco:q==='eco',level:GY_LVL});P.start(0,6)}).catch(e=>{MEDITATE.errors.push('gyear '+e)})};
+      const Mo=Y.model(G,{n:q==='eco'||q==='min'?6:LOWPOWER?8:12,herc:2});P=Y.player(AC,out,Mo,{sec:32,low:LOWPOWER,eco:q==='eco',level:GY_LVL});P.start(0,6)}).catch(e=>{MEDITATE.errors.push('gyear '+e)})};
     return{out,
       start(fade,l){gen=1;go();out.gain.setTargetAtTime(l==null?1:l,AC.currentTime,(fade||.5)/3)},
       stop(fade){gen=-1;fadeOut(out,fade);if(P)P.stop(fade||1);P=null},
