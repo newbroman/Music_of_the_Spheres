@@ -6940,6 +6940,8 @@ const QV={min:[3,2],eco:[4,4],std:[LOWPOWER?5:7,LOWPOWER?5:8],high:[8,10]};
 // (LIGHTEST) for phones whose audio thread cannot keep up: three gods and two moons, each a pair of oscillators through one filter, no light
 // convolvers, no temple echo, stereo panners whose pan is worked out in JS (stage.js MOTS.lite) instead of 3D panners
 const MIN=()=>!!(window.MOTS&&MOTS.quality&&MOTS.quality()==='min');
+// (PAN2D) Eco and Lightest place the voices with cheap stereo panners (stage.js MOTS.lite): a moving 3D panner costs as much as 20–30 oscillators
+const PAN2D=()=>!!(window.MOTS&&MOTS.quality&&['eco','min'].includes(MOTS.quality()));
 let MAXVOICES=QV.std[0], MAXMOONS=QV.std[1];
 function applyQuality(q){[MAXVOICES,MAXMOONS]=QV[q]||QV.std;if(AC){PANNERS.forEach(({p,hrtfOK})=>{p.panningModel=S.hrtf&&hrtfOK&&q!=='eco'&&q!=='min'?'HRTF':'equalpower'});setVerb()}}
 if(window.MOTS&&MOTS.quality){applyQuality(MOTS.quality());MOTS.onQuality(applyQuality)}
@@ -7137,7 +7139,7 @@ function addTiltWobble(b,v,part,oscs){
 /* ---------- bodies, sun, moons ---------- */
 const PANNERS=[];
 function mkPanner(hrtfOK){
-  const p=MIN()&&MOTS.lite?MOTS.lite.panner(AC):AC.createPanner();p.panningModel=S.hrtf&&hrtfOK&&!(window.MOTS&&MOTS.quality&&['eco','min'].includes(MOTS.quality()))?'HRTF':'equalpower';p.distanceModel='linear';
+  const p=PAN2D()&&MOTS.lite?MOTS.lite.panner(AC):AC.createPanner();p.panningModel=S.hrtf&&hrtfOK&&!(window.MOTS&&MOTS.quality&&['eco','min'].includes(MOTS.quality()))?'HRTF':'equalpower';p.distanceModel='linear';
   p.refDistance=1;p.maxDistance=10000;p.rolloffFactor=0;p.coneInnerAngle=360;p.coneOuterAngle=360;
   p.connect(bus);PANNERS.push({p,hrtfOK});if(window.MOTS&&MOTS.surround)MOTS.surround.add(p);return p;
 }
@@ -7297,13 +7299,13 @@ function setVerb(){if(!AC)return;
 function setListener(ang){
   const l=AC.listener, fx=Math.cos(ang), fz=-Math.sin(ang);
   // Lightest: the stereo panners are told where you face; the listener is set outright, not glided (a moving listener makes every 3D panner left from before work sample by sample)
-  if(MIN()&&MOTS.lite){MOTS.lite.listen(AC,{f:[fx,0,fz],u:[0,1,0]});if(l.forwardX){l.forwardX.value=fx;l.forwardY.value=0;l.forwardZ.value=fz}return}
+  if(PAN2D()&&MOTS.lite){MOTS.lite.listen(AC,{f:[fx,0,fz],u:[0,1,0]});if(l.forwardX){l.forwardX.value=fx;l.forwardY.value=0;l.forwardZ.value=fz}return}
   if(l.forwardX){const t=AC.currentTime;l.forwardX.setTargetAtTime(fx,t,.08);l.forwardY.setTargetAtTime(0,t,.08);l.forwardZ.setTargetAtTime(fz,t,.08);}
   else{l.setOrientation(fx,0,fz,0,1,0)}
 }
 function setPos(p,x,y,z,tc=.08){
   const q=p.__last;if(q&&Math.abs(q[0]-x)+Math.abs(q[1]-y)+Math.abs(q[2]-z)<.003)return;p.__last=[x,y,z];
-  if(p.positionX&&!p.__lite&&MIN()){p.positionX.value=x;p.positionY.value=y;p.positionZ.value=z}
+  if(p.positionX&&!p.__lite&&PAN2D()){p.positionX.value=x;p.positionY.value=y;p.positionZ.value=z}
   else if(p.positionX){const t=AC.currentTime;p.positionX.setTargetAtTime(x,t,tc);p.positionY.setTargetAtTime(y,t,tc);p.positionZ.setTargetAtTime(z,t,tc);}
   else p.setPosition(x,y,z);
 }
