@@ -369,7 +369,7 @@ setInterval(function(){C.ctxs.forEach(function(c){if(c.state==='closed')return;v
 C.bgNote=function(s){try{var k='mots.bglog',a=JSON.parse(LSg(k)||'[]');a.push(new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(5,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s);LSs(k,JSON.stringify(a.slice(-12)))}catch(e){}};
 C.report=report;
 var PANEL=null,tick=0;
-function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(PANEL.upd)PANEL.upd();var f=D.getElementById('mc-fix');if(f)f.value=String(routeNow());var qq=D.getElementById('mc-q');if(qq)qq.value=qNow();return}
+function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(PANEL.upd)PANEL.upd();var f=D.getElementById('mc-fix');if(f)f.value=String(routeNow());var qq=D.getElementById('mc-q');if(qq)qq.value=qNow();qGrey();return}
   var p=PANEL=el('div','mc-panel');p.id='mc-diag';p.setAttribute('role','dialog');p.setAttribute('aria-label',S('chk'));
   p.appendChild(el('h2',null,S('chk')));p.appendChild(el('p','mc-sub',S('sub')));
   var pre=el('pre');p.appendChild(pre);var msg=el('p','mc-msg');msg.setAttribute('aria-live','polite');p.appendChild(msg);
@@ -382,12 +382,14 @@ function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(P
   // (LIGHTEST) the Quality, here too: the Stage panel is locked for non-supporters in the Play app, so this is where they choose it
   var ql=el('label','mc-fixl');ql.appendChild(el('span',null,qT().q+' '));var qs=D.createElement('select');qs.id='mc-q';qs.className='mc-btn';
   QORDER.forEach(function(k){var o=D.createElement('option');o.value=k;o.textContent=qLabel(k);qs.appendChild(o)});qs.value=qNow();
-  qs.onchange=function(){setQ(qs.value)};ql.appendChild(qs);a.appendChild(ql);
+  qs.onchange=function(){setQ(qs.value)};ql.appendChild(qs);
+  // (GREY) the qualities above the one this device was measured to sustain are greyed, with "Measure again" beside them
+  a.appendChild(ql);var qa=el('button','mc-btn',qgT().again);qa.type='button';qa.id='mc-qagain';qa.style.display='none';qa.onclick=function(){qAgain()};a.appendChild(qa);
   var eb=el('button','mc-btn',ETL());eb.type='button';eb.id='mc-etest';eb.onclick=function(){engineTest(eb,msg)};a.appendChild(eb);
   var cb=el('button','mc-btn',S('copy'));cb.type='button';cb.onclick=function(){copy(report(),cb)};a.appendChild(cb);
   var xb=el('button','mc-btn',S('close'));xb.type='button';xb.onclick=function(){p.style.display='none';clearInterval(tick);tick=0};a.appendChild(xb);
   p.appendChild(a);var x=el('button','mc-x','×');x.type='button';x.setAttribute('aria-label',S('close'));x.onclick=xb.onclick;p.appendChild(x);
-  D.body.appendChild(p);upd();
+  D.body.appendChild(p);upd();qGrey();
   function upd(){pre.textContent=report();if(!tick)tick=setInterval(function(){if(p.style.display!=='none')pre.textContent=report()},1000)}
   PANEL.upd=upd})}
 C.open=openDiag;
@@ -431,7 +433,23 @@ var QFT={en:{q:'Quality:',min:'Lightest',eco:'Eco',std:'Standard',high:'High'},p
 function qT(){return QFT[lang()]||QFT.en}
 function qLabel(k){try{var M=window.MOTS;if(M&&M.qualityText&&M.qualityText[k])return M.qualityText[k]}catch(e){}return qT()[k]||QFT.en[k]}
 function qNow(){var q=null;try{if(window.MOTS&&window.MOTS.quality)q=window.MOTS.quality()}catch(e){}if(!q)q=LSg('mots.quality');return QORDER.indexOf(q)>=0?q:'std'}
-function setQ(q){if(QORDER.indexOf(q)<0)return;LSs('mots.quality.manual','1');var done=false;
+// (GREY) the quality the app's watchdog stepped down to on this device (stage.js, mots.qcap): the ones above it are too heavy here
+var QGT={en:['Too heavy for this phone (measured)','Too heavy for this device (measured)','Measure again'],pl:['Za ciężkie dla tego telefonu (zmierzone)','Za ciężkie dla tego urządzenia (zmierzone)','Zmierz ponownie'],
+ cy:['Rhy drwm i’r ffôn hwn (wedi’i fesur)','Rhy drwm i’r ddyfais hon (wedi’i fesur)','Mesur eto'],de:['Zu schwer für dieses Telefon (gemessen)','Zu schwer für dieses Gerät (gemessen)','Erneut messen'],
+ es:['Demasiado pesado para este teléfono (medido)','Demasiado pesado para este dispositivo (medido)','Medir de nuevo'],fr:['Trop lourd pour ce téléphone (mesuré)','Trop lourd pour cet appareil (mesuré)','Mesurer à nouveau'],
+ it:['Troppo pesante per questo telefono (misurato)','Troppo pesante per questo dispositivo (misurato)','Misura di nuovo'],zh:['对这部手机负担过重（已测量）','对此设备负担过重（已测量）','重新测量'],
+ ja:['このスマートフォンには重すぎます（測定済み）','この端末には重すぎます（測定済み）','もう一度測定'],vi:['Quá nặng cho điện thoại này (đã đo)','Quá nặng cho thiết bị này (đã đo)','Đo lại'],
+ bg:['Твърде тежко за този телефон (измерено)','Твърде тежко за това устройство (измерено)','Измери отново'],pt:['Pesado demais para este celular (medido)','Pesado demais para este aparelho (medido)','Medir de novo']};
+function qgT(){var t=QGT[lang()]||QGT.en,ph=false;try{ph=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(N.userAgent)}catch(e){}return {heavy:ph?t[0]:t[1],again:t[2]}}
+function qCap(){var c=LSg('mots.qcap');return QORDER.indexOf(c)>=0?c:null}
+function qOver(q){var c=qCap();return !!c&&QORDER.indexOf(q)>QORDER.indexOf(c)}
+function qGrey(){var qs=D.getElementById('mc-q');if(!qs)return;var any=false,i,o;
+  for(i=0;i<qs.options.length;i++){o=qs.options[i];var over=qOver(o.value);if(over)any=true;o.disabled=over;o.textContent=qLabel(o.value)+(over?' — '+qgT().heavy:'')}
+  var qa=D.getElementById('mc-qagain');if(qa)qa.style.display=any?'':'none';qs.title=any?qgT().heavy:'';qs.value=qNow()}
+function qAgain(){var done=false;try{if(W.MOTS&&MOTS.qcap&&MOTS.qcap.again){MOTS.qcap.again();done=true}}catch(e){}
+  if(!done){LSs('mots.qcap');LSs('mots.quality.manual');flog('quality limit cleared (Measure again)')}
+  qGrey();if(PANEL&&PANEL.upd)PANEL.upd()}
+function setQ(q){if(QORDER.indexOf(q)<0||qOver(q))return;LSs('mots.quality.manual','1');var done=false;
   try{if(window.MOTS&&window.MOTS.setQuality){window.MOTS.setQuality(q);done=true}}catch(e){}
   if(!done||LSg('mots.quality')!==q)LSs('mots.quality',q);
   flog('quality: '+q+' (chosen in the Sound check)');if(PANEL&&PANEL.upd)PANEL.upd()}

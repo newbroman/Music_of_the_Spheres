@@ -369,7 +369,7 @@ setInterval(function(){C.ctxs.forEach(function(c){if(c.state==='closed')return;v
 C.bgNote=function(s){try{var k='mots.bglog',a=JSON.parse(LSg(k)||'[]');a.push(new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(5,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s);LSs(k,JSON.stringify(a.slice(-12)))}catch(e){}};
 C.report=report;
 var PANEL=null,tick=0;
-function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(PANEL.upd)PANEL.upd();var f=D.getElementById('mc-fix');if(f)f.value=String(routeNow());var qq=D.getElementById('mc-q');if(qq)qq.value=qNow();return}
+function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(PANEL.upd)PANEL.upd();var f=D.getElementById('mc-fix');if(f)f.value=String(routeNow());var qq=D.getElementById('mc-q');if(qq)qq.value=qNow();qGrey();return}
   var p=PANEL=el('div','mc-panel');p.id='mc-diag';p.setAttribute('role','dialog');p.setAttribute('aria-label',S('chk'));
   p.appendChild(el('h2',null,S('chk')));p.appendChild(el('p','mc-sub',S('sub')));
   var pre=el('pre');p.appendChild(pre);var msg=el('p','mc-msg');msg.setAttribute('aria-live','polite');p.appendChild(msg);
@@ -382,12 +382,14 @@ function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(P
   // (LIGHTEST) the Quality, here too: the Stage panel is locked for non-supporters in the Play app, so this is where they choose it
   var ql=el('label','mc-fixl');ql.appendChild(el('span',null,qT().q+' '));var qs=D.createElement('select');qs.id='mc-q';qs.className='mc-btn';
   QORDER.forEach(function(k){var o=D.createElement('option');o.value=k;o.textContent=qLabel(k);qs.appendChild(o)});qs.value=qNow();
-  qs.onchange=function(){setQ(qs.value)};ql.appendChild(qs);a.appendChild(ql);
+  qs.onchange=function(){setQ(qs.value)};ql.appendChild(qs);
+  // (GREY) the qualities above the one this device was measured to sustain are greyed, with "Measure again" beside them
+  a.appendChild(ql);var qa=el('button','mc-btn',qgT().again);qa.type='button';qa.id='mc-qagain';qa.style.display='none';qa.onclick=function(){qAgain()};a.appendChild(qa);
   var eb=el('button','mc-btn',ETL());eb.type='button';eb.id='mc-etest';eb.onclick=function(){engineTest(eb,msg)};a.appendChild(eb);
   var cb=el('button','mc-btn',S('copy'));cb.type='button';cb.onclick=function(){copy(report(),cb)};a.appendChild(cb);
   var xb=el('button','mc-btn',S('close'));xb.type='button';xb.onclick=function(){p.style.display='none';clearInterval(tick);tick=0};a.appendChild(xb);
   p.appendChild(a);var x=el('button','mc-x','×');x.type='button';x.setAttribute('aria-label',S('close'));x.onclick=xb.onclick;p.appendChild(x);
-  D.body.appendChild(p);upd();
+  D.body.appendChild(p);upd();qGrey();
   function upd(){pre.textContent=report();if(!tick)tick=setInterval(function(){if(p.style.display!=='none')pre.textContent=report()},1000)}
   PANEL.upd=upd})}
 C.open=openDiag;
@@ -431,7 +433,23 @@ var QFT={en:{q:'Quality:',min:'Lightest',eco:'Eco',std:'Standard',high:'High'},p
 function qT(){return QFT[lang()]||QFT.en}
 function qLabel(k){try{var M=window.MOTS;if(M&&M.qualityText&&M.qualityText[k])return M.qualityText[k]}catch(e){}return qT()[k]||QFT.en[k]}
 function qNow(){var q=null;try{if(window.MOTS&&window.MOTS.quality)q=window.MOTS.quality()}catch(e){}if(!q)q=LSg('mots.quality');return QORDER.indexOf(q)>=0?q:'std'}
-function setQ(q){if(QORDER.indexOf(q)<0)return;LSs('mots.quality.manual','1');var done=false;
+// (GREY) the quality the app's watchdog stepped down to on this device (stage.js, mots.qcap): the ones above it are too heavy here
+var QGT={en:['Too heavy for this phone (measured)','Too heavy for this device (measured)','Measure again'],pl:['Za ciężkie dla tego telefonu (zmierzone)','Za ciężkie dla tego urządzenia (zmierzone)','Zmierz ponownie'],
+ cy:['Rhy drwm i’r ffôn hwn (wedi’i fesur)','Rhy drwm i’r ddyfais hon (wedi’i fesur)','Mesur eto'],de:['Zu schwer für dieses Telefon (gemessen)','Zu schwer für dieses Gerät (gemessen)','Erneut messen'],
+ es:['Demasiado pesado para este teléfono (medido)','Demasiado pesado para este dispositivo (medido)','Medir de nuevo'],fr:['Trop lourd pour ce téléphone (mesuré)','Trop lourd pour cet appareil (mesuré)','Mesurer à nouveau'],
+ it:['Troppo pesante per questo telefono (misurato)','Troppo pesante per questo dispositivo (misurato)','Misura di nuovo'],zh:['对这部手机负担过重（已测量）','对此设备负担过重（已测量）','重新测量'],
+ ja:['このスマートフォンには重すぎます（測定済み）','この端末には重すぎます（測定済み）','もう一度測定'],vi:['Quá nặng cho điện thoại này (đã đo)','Quá nặng cho thiết bị này (đã đo)','Đo lại'],
+ bg:['Твърде тежко за този телефон (измерено)','Твърде тежко за това устройство (измерено)','Измери отново'],pt:['Pesado demais para este celular (medido)','Pesado demais para este aparelho (medido)','Medir de novo']};
+function qgT(){var t=QGT[lang()]||QGT.en,ph=false;try{ph=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(N.userAgent)}catch(e){}return {heavy:ph?t[0]:t[1],again:t[2]}}
+function qCap(){var c=LSg('mots.qcap');return QORDER.indexOf(c)>=0?c:null}
+function qOver(q){var c=qCap();return !!c&&QORDER.indexOf(q)>QORDER.indexOf(c)}
+function qGrey(){var qs=D.getElementById('mc-q');if(!qs)return;var any=false,i,o;
+  for(i=0;i<qs.options.length;i++){o=qs.options[i];var over=qOver(o.value);if(over)any=true;o.disabled=over;o.textContent=qLabel(o.value)+(over?' — '+qgT().heavy:'')}
+  var qa=D.getElementById('mc-qagain');if(qa)qa.style.display=any?'':'none';qs.title=any?qgT().heavy:'';qs.value=qNow()}
+function qAgain(){var done=false;try{if(W.MOTS&&MOTS.qcap&&MOTS.qcap.again){MOTS.qcap.again();done=true}}catch(e){}
+  if(!done){LSs('mots.qcap');LSs('mots.quality.manual');flog('quality limit cleared (Measure again)')}
+  qGrey();if(PANEL&&PANEL.upd)PANEL.upd()}
+function setQ(q){if(QORDER.indexOf(q)<0||qOver(q))return;LSs('mots.quality.manual','1');var done=false;
   try{if(window.MOTS&&window.MOTS.setQuality){window.MOTS.setQuality(q);done=true}}catch(e){}
   if(!done||LSg('mots.quality')!==q)LSs('mots.quality',q);
   flog('quality: '+q+' (chosen in the Sound check)');if(PANEL&&PANEL.upd)PANEL.upd()}
@@ -942,8 +960,19 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
   };
   const Q = QT[LANG] || QT.en;
   const LOWP = matchMedia("(hover:none)").matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
+  const QRANK = { min: 0, eco: 1, std: 2, high: 3 };
+  const qcap = () => {
+    const c = LS.get("mots.qcap");
+    return QRANK[c] != null ? c : null;
+  };
+  const capped = (q) => {
+    const c = qcap();
+    return !!c && QRANK[q] > QRANK[c];
+  };
+  const qDefault = () => LOWP || (navigator.hardwareConcurrency || 4) < 4 ? "std" : "high";
   let quality = LS.get("mots.quality");
-  if (!["min", "eco", "std", "high"].includes(quality)) quality = LOWP || (navigator.hardwareConcurrency || 4) < 4 ? "std" : "high";
+  if (!["min", "eco", "std", "high"].includes(quality)) quality = qDefault();
+  if (capped(quality)) quality = qcap();
   const qFns = [];
   MOTS.quality = () => quality;
   MOTS.qualityText = Q;
@@ -951,7 +980,7 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     qFns.push(fn);
   };
   MOTS.setQuality = (q, tmp) => {
-    if (!QT.en[q] || q === quality) return;
+    if (!QT.en[q] || q === quality || capped(q)) return;
     quality = q;
     if (!tmp) LS.set("mots.quality", q);
     qFns.forEach((f) => {
@@ -1155,6 +1184,10 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
         cool = 5;
         MOTS.setQuality(q);
         say(q);
+        if (!document.hidden && LS.get("mots.quality.manual") !== "1") {
+          LS.set("mots.qcap", q);
+          if (MOTS.greyRefresh) MOTS.greyRefresh();
+        }
         if (q === "min" && LOWP) {
           try {
             if (!LS.get("mots.afix") && LS.get("mots.route") !== "media") {
@@ -1981,7 +2014,7 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
       pk = Math.max(pk, Math.abs(x));
     }
     const dB = (x) => x > 1e-7 ? (20 * Math.log10(x)).toFixed(1) : "−∞";
-    return "output: level " + dB(Math.sqrt(q / b.length)) + " dB, peak " + dB(pk) + " dB · " + ctx.state + " · route " + (BG.media ? "media player" + (BG.on ? " (hidden)" : "") : BG.on ? "background (" + BG.st.mode + ")" : "direct") + (BG.gD ? " · direct " + BG.gD.gain.value.toFixed(3) + " stream " + BG.gS.gain.value.toFixed(3) : "") + " · level control " + AGC.cur.toFixed(2) + (AGC.duck !== 1 ? " ducked " + AGC.duck : "") + " · quality " + quality + (LS.get("mots.quality.manual") === "1" ? " (chosen by hand)" : LS.get("mots.quality") ? " (stepped down)" : " (default)") + (SAFE ? " · safety −" + (-SAFE.reduction).toFixed(1) + " dB" : "");
+    return "output: level " + dB(Math.sqrt(q / b.length)) + " dB, peak " + dB(pk) + " dB · " + ctx.state + " · route " + (BG.media ? "media player" + (BG.on ? " (hidden)" : "") : BG.on ? "background (" + BG.st.mode + ")" : "direct") + (BG.gD ? " · direct " + BG.gD.gain.value.toFixed(3) + " stream " + BG.gS.gain.value.toFixed(3) : "") + " · level control " + AGC.cur.toFixed(2) + (AGC.duck !== 1 ? " ducked " + AGC.duck : "") + " · quality " + quality + (LS.get("mots.quality.manual") === "1" ? " (chosen by hand)" : LS.get("mots.quality") ? " (stepped down)" : " (default)") + (qcap() ? " · measured limit " + qcap() : "") + (SAFE ? " · safety −" + (-SAFE.reduction).toFixed(1) + " dB" : "");
   });
   MOTS.master = { duck: masterDuck, gain: () => AGC.cur, pre: () => AGC.curPre, trim: () => SUR.cfg ? SUR.cfg.trim : 1, reduction: () => {
     const C = SUR.cfg;
@@ -2144,8 +2177,11 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
       else msg("");
     } catch (e) {
       msg(T.midiDenied);
+      MIDI_DENIED = true;
+      if (MOTS.greyRefresh) MOTS.greyRefresh();
     }
   }
+  let MIDI_DENIED = false;
   function pickOut(id) {
     allOff();
     stopClock();
@@ -2760,6 +2796,284 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     if (s.state === "granted") connectMIDI();
   }).catch(() => {
   });
+  {
+    let refresh = function() {
+      if (busy) return;
+      busy = true;
+      try {
+        RULES.forEach(([sel, f]) => document.querySelectorAll(sel).forEach((el) => {
+          let w = "";
+          try {
+            w = f(el) || "";
+          } catch (e) {
+          }
+          set(el, w);
+        }));
+        NOTES.forEach(([id, sel, at, named]) => {
+          const els = [...document.querySelectorAll(sel)].filter((e) => e.hasAttribute("data-na"));
+          const after = at();
+          const old = document.getElementById(id);
+          if (!els.length || !after) {
+            if (old) old.remove();
+            return;
+          }
+          const by = /* @__PURE__ */ new Map();
+          els.forEach((e) => {
+            const w = e.getAttribute("data-na");
+            if (!by.has(w)) by.set(w, []);
+            by.get(w).push(e.textContent.replace(/\s+/g, " ").trim());
+          });
+          const esc2 = (x) => String(x).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+          let h = [...by].map(([w, ns]) => (named ? "<b>" + esc2(ns.join(LANG === "zh" || LANG === "ja" ? "、" : ", ")) + "</b>" + (LANG === "zh" || LANG === "ja" ? "：" : ": ") : "") + esc2(w)).join("<br>");
+          if (id === "naQ") h += '<br><button type="button" class="mots-again">' + esc2(NA.again) + "</button>";
+          const n = noteOf2(id, after);
+          if (n.innerHTML !== h) {
+            n.innerHTML = h;
+            const a = n.querySelector(".mots-again");
+            if (a) a.onclick = () => MOTS.qcap.again();
+          }
+        });
+        {
+          const r = document.getElementById("stProj"), old = document.getElementById("naFs");
+          if (r && !CAN.fs()) {
+            const row = r.closest(".row") || r;
+            if (!old) {
+              const n = document.createElement("p");
+              n.id = "naFs";
+              n.className = "mots-na-note";
+              n.textContent = NA.fs;
+              row.insertAdjacentElement("beforebegin", n);
+            }
+          } else if (old) old.remove();
+        }
+      } finally {
+        busy = false;
+      }
+    };
+    const NAT = {
+      en: { rec: "This browser can’t record sound", ring: "This browser can’t capture sound", midi: "No Web MIDI in this browser", midiDen: "MIDI permission was refused", s51: "Needs a 6-channel output; this device has {n}", mic: "No microphone access in this browser", fs: "Full screen isn’t available here: the view fills the window instead.", d3: "3D needs Standard or High quality", voice: "No speech voice for this language on this device", heavyP: "Too heavy for this phone (measured)", heavyD: "Too heavy for this device (measured)", again: "Measure again" },
+      pl: { rec: "Ta przeglądarka nie nagrywa dźwięku", ring: "Ta przeglądarka nie może przechwycić dźwięku", midi: "Brak Web MIDI w tej przeglądarce", midiDen: "Odmówiono dostępu do MIDI", s51: "Wymaga wyjścia 6-kanałowego; to urządzenie ma {n}", mic: "Brak dostępu do mikrofonu w tej przeglądarce", fs: "Pełny ekran nie jest tu dostępny: widok wypełnia okno.", d3: "Dźwięk 3D wymaga jakości Standardowej lub Wysokiej", voice: "Brak głosu mowy dla tego języka na tym urządzeniu", heavyP: "Za ciężkie dla tego telefonu (zmierzone)", heavyD: "Za ciężkie dla tego urządzenia (zmierzone)", again: "Zmierz ponownie" },
+      cy: { rec: "Ni all y porwr hwn recordio sain", ring: "Ni all y porwr hwn gipio sain", midi: "Dim Web MIDI yn y porwr hwn", midiDen: "Gwrthodwyd caniatâd MIDI", s51: "Angen allbwn 6 sianel; mae gan y ddyfais hon {n}", mic: "Dim mynediad at feicroffon yn y porwr hwn", fs: "Does dim sgrin lawn yma: mae’r olwg yn llenwi’r ffenestr yn lle hynny.", d3: "Mae 3D angen ansawdd Safonol neu Uchel", voice: "Dim llais llefaru i’r iaith hon ar y ddyfais hon", heavyP: "Rhy drwm i’r ffôn hwn (wedi’i fesur)", heavyD: "Rhy drwm i’r ddyfais hon (wedi’i fesur)", again: "Mesur eto" },
+      de: { rec: "Dieser Browser kann keinen Ton aufnehmen", ring: "Dieser Browser kann keinen Ton mitschneiden", midi: "Kein Web MIDI in diesem Browser", midiDen: "MIDI-Zugriff wurde verweigert", s51: "Braucht einen 6-Kanal-Ausgang; dieses Gerät hat {n}", mic: "Kein Mikrofonzugriff in diesem Browser", fs: "Vollbild ist hier nicht verfügbar: Die Ansicht füllt stattdessen das Fenster.", d3: "3D braucht die Qualität Standard oder Hoch", voice: "Keine Sprachstimme für diese Sprache auf diesem Gerät", heavyP: "Zu schwer für dieses Telefon (gemessen)", heavyD: "Zu schwer für dieses Gerät (gemessen)", again: "Erneut messen" },
+      es: { rec: "Este navegador no puede grabar sonido", ring: "Este navegador no puede capturar sonido", midi: "Este navegador no tiene Web MIDI", midiDen: "Se denegó el permiso de MIDI", s51: "Necesita una salida de 6 canales; este dispositivo tiene {n}", mic: "Este navegador no da acceso al micrófono", fs: "La pantalla completa no está disponible aquí: la vista llena la ventana.", d3: "El 3D necesita calidad Estándar o Alta", voice: "No hay voz de lectura para este idioma en este dispositivo", heavyP: "Demasiado pesado para este teléfono (medido)", heavyD: "Demasiado pesado para este dispositivo (medido)", again: "Medir de nuevo" },
+      fr: { rec: "Ce navigateur ne peut pas enregistrer le son", ring: "Ce navigateur ne peut pas capturer le son", midi: "Pas de Web MIDI dans ce navigateur", midiDen: "L’accès MIDI a été refusé", s51: "Il faut une sortie 6 canaux ; cet appareil en a {n}", mic: "Pas d’accès au micro dans ce navigateur", fs: "Le plein écran n’est pas disponible ici : la vue remplit la fenêtre.", d3: "La 3D demande la qualité Standard ou Haute", voice: "Aucune voix de synthèse pour cette langue sur cet appareil", heavyP: "Trop lourd pour ce téléphone (mesuré)", heavyD: "Trop lourd pour cet appareil (mesuré)", again: "Mesurer à nouveau" },
+      it: { rec: "Questo browser non può registrare il suono", ring: "Questo browser non può catturare il suono", midi: "Nessun Web MIDI in questo browser", midiDen: "Il permesso MIDI è stato negato", s51: "Serve un’uscita a 6 canali; questo dispositivo ne ha {n}", mic: "Nessun accesso al microfono in questo browser", fs: "Lo schermo intero non è disponibile qui: la vista riempie la finestra.", d3: "Il 3D richiede la qualità Standard o Alta", voice: "Nessuna voce di sintesi per questa lingua su questo dispositivo", heavyP: "Troppo pesante per questo telefono (misurato)", heavyD: "Troppo pesante per questo dispositivo (misurato)", again: "Misura di nuovo" },
+      zh: { rec: "此浏览器无法录音", ring: "此浏览器无法截取声音", midi: "此浏览器不支持 Web MIDI", midiDen: "MIDI 权限被拒绝", s51: "需要 6 声道输出；此设备只有 {n} 个", mic: "此浏览器无法使用麦克风", fs: "此处无法全屏：视图会填满窗口。", d3: "3D 需要“标准”或“高”音质", voice: "此设备上没有该语言的语音", heavyP: "对这部手机负担过重（已测量）", heavyD: "对此设备负担过重（已测量）", again: "重新测量" },
+      ja: { rec: "このブラウザーでは録音できません", ring: "このブラウザーでは音を取り込めません", midi: "このブラウザーには Web MIDI がありません", midiDen: "MIDI の使用が拒否されました", s51: "6 チャンネル出力が必要です（この端末は {n}）", mic: "このブラウザーではマイクを使えません", fs: "ここでは全画面にできません。表示はウィンドウいっぱいに広がります。", d3: "3D には「標準」か「高」の音質が必要です", voice: "この端末にはこの言語の音声がありません", heavyP: "このスマートフォンには重すぎます（測定済み）", heavyD: "この端末には重すぎます（測定済み）", again: "もう一度測定" },
+      vi: { rec: "Trình duyệt này không ghi âm được", ring: "Trình duyệt này không thu được âm thanh", midi: "Trình duyệt này không có Web MIDI", midiDen: "Quyền MIDI đã bị từ chối", s51: "Cần đầu ra 6 kênh; thiết bị này có {n}", mic: "Trình duyệt này không truy cập được micrô", fs: "Không có chế độ toàn màn hình ở đây: khung nhìn sẽ lấp đầy cửa sổ.", d3: "3D cần chất lượng Chuẩn hoặc Cao", voice: "Thiết bị này không có giọng đọc cho ngôn ngữ này", heavyP: "Quá nặng cho điện thoại này (đã đo)", heavyD: "Quá nặng cho thiết bị này (đã đo)", again: "Đo lại" },
+      bg: { rec: "Този браузър не може да записва звук", ring: "Този браузър не може да улови звука", midi: "Няма Web MIDI в този браузър", midiDen: "Достъпът до MIDI беше отказан", s51: "Нужен е 6-канален изход; това устройство има {n}", mic: "Няма достъп до микрофона в този браузър", fs: "Цял екран не е достъпен тук: изгледът запълва прозореца.", d3: "3D изисква качество Стандартен или Висок", voice: "Няма глас за този език на това устройство", heavyP: "Твърде тежко за този телефон (измерено)", heavyD: "Твърде тежко за това устройство (измерено)", again: "Измери отново" },
+      pt: { rec: "Este navegador não consegue gravar som", ring: "Este navegador não consegue capturar som", midi: "Este navegador não tem Web MIDI", midiDen: "A permissão de MIDI foi negada", s51: "Precisa de uma saída de 6 canais; este aparelho tem {n}", mic: "Este navegador não dá acesso ao microfone", fs: "Tela cheia não está disponível aqui: a visão ocupa a janela.", d3: "O 3D precisa da qualidade Padrão ou Alta", voice: "Não há voz de leitura para este idioma neste aparelho", heavyP: "Pesado demais para este celular (medido)", heavyD: "Pesado demais para este aparelho (medido)", again: "Medir de novo" }
+    };
+    const NA = NAT[LANG] || NAT.en, heavy = () => LOWP ? NA.heavyP : NA.heavyD;
+    const AC = window.AudioContext || window.webkitAudioContext, ACP = AC ? AC.prototype : {};
+    const CAN = {
+      rec: () => {
+        const M2 = window.MediaRecorder;
+        if (!M2 || !ACP.createMediaStreamDestination) return false;
+        if (typeof M2.isTypeSupported !== "function") return true;
+        return ["audio/mp4", "audio/webm", "audio/ogg", "audio/webm;codecs=opus", "audio/ogg;codecs=opus"].some((t) => {
+          try {
+            return M2.isTypeSupported(t);
+          } catch (e) {
+            return false;
+          }
+        });
+      },
+      ring: () => !!AC && (!!(window.AudioWorkletNode && "audioWorklet" in ACP) || !!ACP.createScriptProcessor),
+      midi: () => !!navigator.requestMIDIAccess,
+      mic: () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+      fs: () => !!document.documentElement.requestFullscreen
+    };
+    let VOK = true;
+    const vCheck = () => {
+      let n = 0;
+      try {
+        const S = window.speechSynthesis;
+        n = S ? (S.getVoices() || []).filter((v) => String(v.lang || "").toLowerCase().replace("_", "-").slice(0, 2) === LANG).length : 0;
+      } catch (e) {
+      }
+      if (n) {
+        if (!VOK) {
+          VOK = true;
+          refresh();
+        }
+        return;
+      }
+      if (vCheck.f) return;
+      vCheck.f = 1;
+      try {
+        fetch((LANG === "en" ? "" : "../") + "voice/manifest.json").then((r) => r.ok ? r.json() : null).then((m) => {
+          if (!m) return;
+          const ok = !!(m[LANG] && Object.keys(m[LANG]).length);
+          if (ok !== VOK) {
+            VOK = ok;
+            refresh();
+          }
+        }).catch(() => {
+        });
+      } catch (e) {
+      }
+    };
+    try {
+      if (window.speechSynthesis && speechSynthesis.addEventListener) speechSynthesis.addEventListener("voiceschanged", vCheck);
+    } catch (e) {
+    }
+    setTimeout(vCheck, window.speechSynthesis ? 2500 : 0);
+    try {
+      if (navigator.permissions && navigator.requestMIDIAccess) navigator.permissions.query({ name: "midi" }).then((s) => {
+        const f = () => {
+          const d = s.state === "denied";
+          if (d !== MIDI_DENIED) {
+            MIDI_DENIED = d;
+            refresh();
+          }
+        };
+        f();
+        s.onchange = f;
+      }).catch(() => {
+      });
+    } catch (e) {
+    }
+    const fill = (s, o) => s.replace(/\{(\w+)\}/g, (_, k) => o[k]);
+    const lo = () => quality === "eco" || quality === "min";
+    const RULES = [
+      ["#recBtn", () => CAN.rec() ? "" : NA.rec],
+      ["#ringBtn", () => CAN.ring() ? "" : NA.ring],
+      ["#stMidiGo,#stMidi,#stClock", () => !CAN.midi() ? NA.midi : MIDI_DENIED ? NA.midiDen : ""],
+      ['#stOut button[data-v="5.1"]', () => surOK() ? "" : fill(NA.s51, { n: MOTS.surround.channels() || 2 })],
+      ['#stOut button[data-v="hrtf"],#spatial button[data-v="hrtf"],#hrtf', () => lo() ? NA.d3 : ""],
+      ["#lsMic", () => CAN.mic() ? "" : NA.mic],
+      ["#speak,#gods", () => VOK ? "" : NA.voice],
+      ["#stQ button", (b) => capped(b.dataset.v) ? heavy() : ""]
+    ];
+    const lab = (el) => el.closest("label") || el;
+    const NOTES = [
+      ["naOut", "#stOut button", () => document.getElementById("stOutNote"), true],
+      ["naQ", "#stQ button", () => document.getElementById("stQNote"), true],
+      ["naMidi", "#stMidiGo", () => document.getElementById("stMidiMsg"), false],
+      ["naSpatial", "#spatial button", () => document.getElementById("spatial"), true],
+      ["naHrtf", "#hrtf", () => {
+        const e = document.getElementById("hrtf");
+        return e && lab(e);
+      }, false],
+      ["naSpeak", "#speak", () => {
+        const e = document.getElementById("speak");
+        return e && lab(e);
+      }, false],
+      ["naGods", "#gods", () => {
+        const e = document.getElementById("gods");
+        return e && e.closest(".field") || e && lab(e);
+      }, false],
+      ["naMic", "#lsMic", () => {
+        const e = document.getElementById("lsMic");
+        return e && (e.closest(".row") || e);
+      }, false]
+    ];
+    const css2 = document.createElement("style");
+    css2.textContent = '.mots-na{opacity:.55;cursor:not-allowed!important}#stPanel .seg button.mots-na:hover,#stPanel .b.mots-na:hover{background:transparent}.mots-na-note{margin:4px 0 0;font-size:.86em;line-height:1.35;color:#c9c1aa;font-style:normal;text-align:left}.mots-na-note b{font-weight:600;color:#ddd4bb}.mots-na-note .mots-again{appearance:none;border:1px solid #c9984f;background:transparent;color:#e9d093;border-radius:999px;padding:.35em .9em;font:inherit;cursor:pointer;min-height:44px;margin:4px 0 0 0;display:inline-flex;align-items:center}.mots-na-note .mots-again:hover{background:rgba(201,152,79,.12)}.mots-na-note .mots-again:focus-visible{outline:3px solid #c9984f;outline-offset:2px}#motsNaSay{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9600;max-width:min(92vw,520px);background:#13162a;color:#e9e1cc;border:1px solid #c9984f;border-radius:12px;padding:10px 14px;font:15px/1.4 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.5);transition:opacity .4s}';
+    document.head.appendChild(css2);
+    const naSay = (t) => {
+      let d = document.getElementById("motsNaSay");
+      if (!d) {
+        d = document.createElement("div");
+        d.id = "motsNaSay";
+        d.setAttribute("role", "status");
+        document.body.appendChild(d);
+      }
+      d.textContent = t;
+      d.style.opacity = "1";
+      clearTimeout(naSay.t);
+      naSay.t = setTimeout(() => {
+        d.style.opacity = "0";
+        setTimeout(() => {
+          if (d.style.opacity === "0") d.remove();
+        }, 450);
+      }, 4e3);
+    };
+    const set = (el, why) => {
+      const was = el.getAttribute("data-na");
+      if ((was || "") === why) return;
+      const inp = el.tagName === "INPUT" || el.tagName === "SELECT", L = inp ? el.closest("label") : null;
+      if (why) {
+        if (was == null) el.setAttribute("data-na-t", el.getAttribute("title") || "");
+        el.setAttribute("data-na", why);
+        el.setAttribute("aria-disabled", "true");
+        el.classList.add("mots-na");
+        el.title = why;
+        if (inp) {
+          el.disabled = true;
+          if (L) {
+            L.classList.add("mots-na");
+            L.setAttribute("data-na", why);
+            L.title = why;
+          }
+        }
+      } else {
+        const t = el.getAttribute("data-na-t");
+        el.removeAttribute("data-na");
+        el.removeAttribute("data-na-t");
+        el.removeAttribute("aria-disabled");
+        el.classList.remove("mots-na");
+        if (t) el.title = t;
+        else el.removeAttribute("title");
+        if (inp) {
+          el.disabled = false;
+          if (L) {
+            L.classList.remove("mots-na");
+            L.removeAttribute("data-na");
+            L.removeAttribute("title");
+          }
+        }
+      }
+    };
+    const noteOf2 = (id, after) => {
+      let n = document.getElementById(id);
+      if (n && n.previousElementSibling === after) return n;
+      if (n) n.remove();
+      n = document.createElement("p");
+      n.id = id;
+      n.className = "mots-na-note";
+      after.insertAdjacentElement("afterend", n);
+      return n;
+    };
+    let busy = false;
+    MOTS.greyRefresh = refresh;
+    MOTS.qcap = {
+      get: qcap,
+      capped,
+      // clear the measured limit (and a quality chosen by hand), so the watchdog can find it again from the device's usual quality
+      again() {
+        try {
+          localStorage.removeItem("mots.qcap");
+          localStorage.removeItem("mots.quality.manual");
+        } catch (e) {
+        }
+        const d = qDefault();
+        if (QRANK[d] > QRANK[quality]) MOTS.setQuality(d);
+        refresh();
+        try {
+          const c = window.MOTS_COMPAT;
+          if (c && c.flog) c.flog("quality limit cleared (Measure again)");
+        } catch (e) {
+        }
+      }
+    };
+    MOTS.caps = { rec: CAN.rec, ring: CAN.ring, midi: CAN.midi, mic: CAN.mic, fullscreen: CAN.fs, surround: surOK, voice: () => VOK, midiDenied: () => MIDI_DENIED };
+    document.addEventListener("click", (e) => {
+      const t = e.target && e.target.closest ? e.target.closest(".mots-na") : null;
+      if (!t) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      naSay(t.getAttribute("data-na") || t.title || "");
+    }, true);
+    qFns.push(() => refresh());
+    const go = () => {
+      refresh();
+      if (window.MutationObserver) new MutationObserver(refresh).observe(document.body, { childList: true, subtree: true });
+    };
+    if (document.body) go();
+    else addEventListener("DOMContentLoaded", go);
+  }
 })();
 </script>
 <script>
@@ -4064,6 +4378,20 @@ const s=document.createElement('style');s.id='motsPulseCss';s.textContent=css;(d
 (()=>{
 "use strict";
 const WN=[
+ {id:'phones',d:'2026-10-24a',s:'♪',go:{p:'help.html',h:'phones'},t:{
+  en:['The sound adapts to your phone','A new Lightest quality, and Eco now places the voices simply left and right. The Sound check can choose the quality and the sound route, and a new Help guide, “Your phone and the sound”, explains it all. Options your phone cannot use are greyed out.'],
+  pl:['Dźwięk dostosowuje się do telefonu','Nowa jakość Najlżejsza, a Eko umieszcza teraz głosy po prostu w lewo i w prawo. Test dźwięku pozwala wybrać jakość i drogę dźwięku, a nowy przewodnik w Pomocy, „Telefon i dźwięk”, wszystko wyjaśnia. Opcje, z których telefon nie może skorzystać, są wyszarzone.'],
+  cy:['Mae’r sain yn addasu i’ch ffôn','Ansawdd newydd, Ysgafnaf, ac mae Eco bellach yn gosod y lleisiau’n syml i’r chwith ac i’r dde. Gall y Prawf sain ddewis yr ansawdd a llwybr y sain, ac mae canllaw Cymorth newydd, “Eich ffôn a’r sain”, yn esbonio’r cyfan. Mae dewisiadau na all eich ffôn eu defnyddio wedi’u llwydo.'],
+  de:['Der Klang passt sich deinem Handy an','Eine neue Qualität Minimal, und Öko platziert die Stimmen jetzt einfach links und rechts. Im Soundcheck lassen sich Qualität und Tonweg wählen, und eine neue Anleitung in der Hilfe, „Dein Handy und der Klang“, erklärt alles. Optionen, die dein Handy nicht nutzen kann, sind ausgegraut.'],
+  es:['El sonido se adapta a tu teléfono','Una calidad nueva, Mínima, y Eco ahora coloca las voces simplemente a izquierda y derecha. La Prueba de sonido puede elegir la calidad y la ruta del sonido, y una nueva guía de la Ayuda, «Tu teléfono y el sonido», lo explica todo. Las opciones que tu teléfono no puede usar aparecen atenuadas.'],
+  fr:['Le son s’adapte à votre téléphone','Une nouvelle qualité, Minimale, et Éco place désormais les voix simplement à gauche et à droite. Le Test du son peut choisir la qualité et le chemin du son, et un nouveau guide de l’Aide, « Votre téléphone et le son », explique tout. Les options que votre téléphone ne peut pas utiliser sont grisées.'],
+  it:['Il suono si adatta al tuo telefono','Una nuova qualità, Minima, ed Eco ora colloca le voci semplicemente a sinistra e a destra. La Prova audio può scegliere la qualità e il percorso del suono, e una nuova guida dell’Aiuto, «Il tuo telefono e il suono», spiega tutto. Le opzioni che il tuo telefono non può usare sono in grigio.'],
+  zh:['声音会适应你的手机','新增“最轻”音质，“省电”现在只做简单的左右定位。声音检测可以选择音质和声音路径，说明里的新指南《你的手机与声音》会解释一切。手机无法使用的选项会变灰。'],
+  ja:['音がスマートフォンに合わせて変わります','新しい音質「最軽量」が加わり、「エコ」では声を左右だけにシンプルに配置するようになりました。サウンドチェックで音質と音の経路を選べます。使い方の新しいガイド「スマートフォンと音」がすべてを説明します。スマートフォンで使えない選択肢はグレー表示になります。'],
+  vi:['Âm thanh thích ứng với điện thoại của bạn','Có mức chất lượng mới là Nhẹ nhất, và Tiết kiệm giờ đặt các giọng đơn giản sang trái và phải. Kiểm tra âm thanh có thể chọn chất lượng và đường âm thanh, và một hướng dẫn mới trong Trợ giúp, “Điện thoại của bạn và âm thanh”, giải thích tất cả. Các tùy chọn điện thoại của bạn không dùng được sẽ bị làm mờ.'],
+  bg:['Звукът се нагажда към телефона ти','Ново качество Най-лек, а Икономичен вече разполага гласовете просто вляво и вдясно. Проверката на звука може да избира качеството и пътя на звука, а нов наръчник в Помощ, „Телефонът ти и звукът“, обяснява всичко. Опциите, които телефонът ти не може да използва, са посивени.'],
+  pt:['O som se adapta ao seu celular','Uma qualidade nova, Mínima, e o Econômico agora posiciona as vozes de modo simples à esquerda e à direita. O Teste de som pode escolher a qualidade e o caminho do som, e um novo guia da Ajuda, “Seu celular e o som”, explica tudo. As opções que o seu celular não consegue usar ficam esmaecidas.'],
+ }},
  {id:'mayaperc',d:'2026-10-20c',s:'⁘',go:{p:'dance.html',a:'style:mayaperc'},t:{
   en:['Maya percussion, a reconstruction','A new band in the World row: a percussion piece reconstructed from the instruments painted at Bonampak and found in excavations. No Maya music survives in notation; the rhythms follow the codex’s counts, turtle shells on thirteen and the drum on twenty, the sections following Venus, not any known Maya piece.'],
   pl:['Perkusja Majów, rekonstrukcja','Nowy zespół w rzędzie Świat: utwór perkusyjny zrekonstruowany z instrumentów namalowanych w Bonampak i odnalezionych w wykopaliskach. Muzyka Majów nie zachowała się w zapisie; rytmy idą za rachubami kodeksu, skorupy żółwi na trzynaście, bęben na dwadzieścia, części za Wenus, a nie za żadnym znanym utworem Majów.'],

@@ -369,7 +369,7 @@ setInterval(function(){C.ctxs.forEach(function(c){if(c.state==='closed')return;v
 C.bgNote=function(s){try{var k='mots.bglog',a=JSON.parse(LSg(k)||'[]');a.push(new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(5,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s);LSs(k,JSON.stringify(a.slice(-12)))}catch(e){}};
 C.report=report;
 var PANEL=null,tick=0;
-function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(PANEL.upd)PANEL.upd();var f=D.getElementById('mc-fix');if(f)f.value=String(routeNow());var qq=D.getElementById('mc-q');if(qq)qq.value=qNow();return}
+function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(PANEL.upd)PANEL.upd();var f=D.getElementById('mc-fix');if(f)f.value=String(routeNow());var qq=D.getElementById('mc-q');if(qq)qq.value=qNow();qGrey();return}
   var p=PANEL=el('div','mc-panel');p.id='mc-diag';p.setAttribute('role','dialog');p.setAttribute('aria-label',S('chk'));
   p.appendChild(el('h2',null,S('chk')));p.appendChild(el('p','mc-sub',S('sub')));
   var pre=el('pre');p.appendChild(pre);var msg=el('p','mc-msg');msg.setAttribute('aria-live','polite');p.appendChild(msg);
@@ -382,12 +382,14 @@ function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(P
   // (LIGHTEST) the Quality, here too: the Stage panel is locked for non-supporters in the Play app, so this is where they choose it
   var ql=el('label','mc-fixl');ql.appendChild(el('span',null,qT().q+' '));var qs=D.createElement('select');qs.id='mc-q';qs.className='mc-btn';
   QORDER.forEach(function(k){var o=D.createElement('option');o.value=k;o.textContent=qLabel(k);qs.appendChild(o)});qs.value=qNow();
-  qs.onchange=function(){setQ(qs.value)};ql.appendChild(qs);a.appendChild(ql);
+  qs.onchange=function(){setQ(qs.value)};ql.appendChild(qs);
+  // (GREY) the qualities above the one this device was measured to sustain are greyed, with "Measure again" beside them
+  a.appendChild(ql);var qa=el('button','mc-btn',qgT().again);qa.type='button';qa.id='mc-qagain';qa.style.display='none';qa.onclick=function(){qAgain()};a.appendChild(qa);
   var eb=el('button','mc-btn',ETL());eb.type='button';eb.id='mc-etest';eb.onclick=function(){engineTest(eb,msg)};a.appendChild(eb);
   var cb=el('button','mc-btn',S('copy'));cb.type='button';cb.onclick=function(){copy(report(),cb)};a.appendChild(cb);
   var xb=el('button','mc-btn',S('close'));xb.type='button';xb.onclick=function(){p.style.display='none';clearInterval(tick);tick=0};a.appendChild(xb);
   p.appendChild(a);var x=el('button','mc-x','×');x.type='button';x.setAttribute('aria-label',S('close'));x.onclick=xb.onclick;p.appendChild(x);
-  D.body.appendChild(p);upd();
+  D.body.appendChild(p);upd();qGrey();
   function upd(){pre.textContent=report();if(!tick)tick=setInterval(function(){if(p.style.display!=='none')pre.textContent=report()},1000)}
   PANEL.upd=upd})}
 C.open=openDiag;
@@ -431,7 +433,23 @@ var QFT={en:{q:'Quality:',min:'Lightest',eco:'Eco',std:'Standard',high:'High'},p
 function qT(){return QFT[lang()]||QFT.en}
 function qLabel(k){try{var M=window.MOTS;if(M&&M.qualityText&&M.qualityText[k])return M.qualityText[k]}catch(e){}return qT()[k]||QFT.en[k]}
 function qNow(){var q=null;try{if(window.MOTS&&window.MOTS.quality)q=window.MOTS.quality()}catch(e){}if(!q)q=LSg('mots.quality');return QORDER.indexOf(q)>=0?q:'std'}
-function setQ(q){if(QORDER.indexOf(q)<0)return;LSs('mots.quality.manual','1');var done=false;
+// (GREY) the quality the app's watchdog stepped down to on this device (stage.js, mots.qcap): the ones above it are too heavy here
+var QGT={en:['Too heavy for this phone (measured)','Too heavy for this device (measured)','Measure again'],pl:['Za ciężkie dla tego telefonu (zmierzone)','Za ciężkie dla tego urządzenia (zmierzone)','Zmierz ponownie'],
+ cy:['Rhy drwm i’r ffôn hwn (wedi’i fesur)','Rhy drwm i’r ddyfais hon (wedi’i fesur)','Mesur eto'],de:['Zu schwer für dieses Telefon (gemessen)','Zu schwer für dieses Gerät (gemessen)','Erneut messen'],
+ es:['Demasiado pesado para este teléfono (medido)','Demasiado pesado para este dispositivo (medido)','Medir de nuevo'],fr:['Trop lourd pour ce téléphone (mesuré)','Trop lourd pour cet appareil (mesuré)','Mesurer à nouveau'],
+ it:['Troppo pesante per questo telefono (misurato)','Troppo pesante per questo dispositivo (misurato)','Misura di nuovo'],zh:['对这部手机负担过重（已测量）','对此设备负担过重（已测量）','重新测量'],
+ ja:['このスマートフォンには重すぎます（測定済み）','この端末には重すぎます（測定済み）','もう一度測定'],vi:['Quá nặng cho điện thoại này (đã đo)','Quá nặng cho thiết bị này (đã đo)','Đo lại'],
+ bg:['Твърде тежко за този телефон (измерено)','Твърде тежко за това устройство (измерено)','Измери отново'],pt:['Pesado demais para este celular (medido)','Pesado demais para este aparelho (medido)','Medir de novo']};
+function qgT(){var t=QGT[lang()]||QGT.en,ph=false;try{ph=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(N.userAgent)}catch(e){}return {heavy:ph?t[0]:t[1],again:t[2]}}
+function qCap(){var c=LSg('mots.qcap');return QORDER.indexOf(c)>=0?c:null}
+function qOver(q){var c=qCap();return !!c&&QORDER.indexOf(q)>QORDER.indexOf(c)}
+function qGrey(){var qs=D.getElementById('mc-q');if(!qs)return;var any=false,i,o;
+  for(i=0;i<qs.options.length;i++){o=qs.options[i];var over=qOver(o.value);if(over)any=true;o.disabled=over;o.textContent=qLabel(o.value)+(over?' — '+qgT().heavy:'')}
+  var qa=D.getElementById('mc-qagain');if(qa)qa.style.display=any?'':'none';qs.title=any?qgT().heavy:'';qs.value=qNow()}
+function qAgain(){var done=false;try{if(W.MOTS&&MOTS.qcap&&MOTS.qcap.again){MOTS.qcap.again();done=true}}catch(e){}
+  if(!done){LSs('mots.qcap');LSs('mots.quality.manual');flog('quality limit cleared (Measure again)')}
+  qGrey();if(PANEL&&PANEL.upd)PANEL.upd()}
+function setQ(q){if(QORDER.indexOf(q)<0||qOver(q))return;LSs('mots.quality.manual','1');var done=false;
   try{if(window.MOTS&&window.MOTS.setQuality){window.MOTS.setQuality(q);done=true}}catch(e){}
   if(!done||LSg('mots.quality')!==q)LSs('mots.quality',q);
   flog('quality: '+q+' (chosen in the Sound check)');if(PANEL&&PANEL.upd)PANEL.upd()}
@@ -1029,6 +1047,20 @@ const s=document.createElement('style');s.id='motsPulseCss';s.textContent=css;(d
 (()=>{
 "use strict";
 const WN=[
+ {id:'phones',d:'2026-10-24a',s:'♪',go:{p:'help.html',h:'phones'},t:{
+  en:['The sound adapts to your phone','A new Lightest quality, and Eco now places the voices simply left and right. The Sound check can choose the quality and the sound route, and a new Help guide, “Your phone and the sound”, explains it all. Options your phone cannot use are greyed out.'],
+  pl:['Dźwięk dostosowuje się do telefonu','Nowa jakość Najlżejsza, a Eko umieszcza teraz głosy po prostu w lewo i w prawo. Test dźwięku pozwala wybrać jakość i drogę dźwięku, a nowy przewodnik w Pomocy, „Telefon i dźwięk”, wszystko wyjaśnia. Opcje, z których telefon nie może skorzystać, są wyszarzone.'],
+  cy:['Mae’r sain yn addasu i’ch ffôn','Ansawdd newydd, Ysgafnaf, ac mae Eco bellach yn gosod y lleisiau’n syml i’r chwith ac i’r dde. Gall y Prawf sain ddewis yr ansawdd a llwybr y sain, ac mae canllaw Cymorth newydd, “Eich ffôn a’r sain”, yn esbonio’r cyfan. Mae dewisiadau na all eich ffôn eu defnyddio wedi’u llwydo.'],
+  de:['Der Klang passt sich deinem Handy an','Eine neue Qualität Minimal, und Öko platziert die Stimmen jetzt einfach links und rechts. Im Soundcheck lassen sich Qualität und Tonweg wählen, und eine neue Anleitung in der Hilfe, „Dein Handy und der Klang“, erklärt alles. Optionen, die dein Handy nicht nutzen kann, sind ausgegraut.'],
+  es:['El sonido se adapta a tu teléfono','Una calidad nueva, Mínima, y Eco ahora coloca las voces simplemente a izquierda y derecha. La Prueba de sonido puede elegir la calidad y la ruta del sonido, y una nueva guía de la Ayuda, «Tu teléfono y el sonido», lo explica todo. Las opciones que tu teléfono no puede usar aparecen atenuadas.'],
+  fr:['Le son s’adapte à votre téléphone','Une nouvelle qualité, Minimale, et Éco place désormais les voix simplement à gauche et à droite. Le Test du son peut choisir la qualité et le chemin du son, et un nouveau guide de l’Aide, « Votre téléphone et le son », explique tout. Les options que votre téléphone ne peut pas utiliser sont grisées.'],
+  it:['Il suono si adatta al tuo telefono','Una nuova qualità, Minima, ed Eco ora colloca le voci semplicemente a sinistra e a destra. La Prova audio può scegliere la qualità e il percorso del suono, e una nuova guida dell’Aiuto, «Il tuo telefono e il suono», spiega tutto. Le opzioni che il tuo telefono non può usare sono in grigio.'],
+  zh:['声音会适应你的手机','新增“最轻”音质，“省电”现在只做简单的左右定位。声音检测可以选择音质和声音路径，说明里的新指南《你的手机与声音》会解释一切。手机无法使用的选项会变灰。'],
+  ja:['音がスマートフォンに合わせて変わります','新しい音質「最軽量」が加わり、「エコ」では声を左右だけにシンプルに配置するようになりました。サウンドチェックで音質と音の経路を選べます。使い方の新しいガイド「スマートフォンと音」がすべてを説明します。スマートフォンで使えない選択肢はグレー表示になります。'],
+  vi:['Âm thanh thích ứng với điện thoại của bạn','Có mức chất lượng mới là Nhẹ nhất, và Tiết kiệm giờ đặt các giọng đơn giản sang trái và phải. Kiểm tra âm thanh có thể chọn chất lượng và đường âm thanh, và một hướng dẫn mới trong Trợ giúp, “Điện thoại của bạn và âm thanh”, giải thích tất cả. Các tùy chọn điện thoại của bạn không dùng được sẽ bị làm mờ.'],
+  bg:['Звукът се нагажда към телефона ти','Ново качество Най-лек, а Икономичен вече разполага гласовете просто вляво и вдясно. Проверката на звука може да избира качеството и пътя на звука, а нов наръчник в Помощ, „Телефонът ти и звукът“, обяснява всичко. Опциите, които телефонът ти не може да използва, са посивени.'],
+  pt:['O som se adapta ao seu celular','Uma qualidade nova, Mínima, e o Econômico agora posiciona as vozes de modo simples à esquerda e à direita. O Teste de som pode escolher a qualidade e o caminho do som, e um novo guia da Ajuda, “Seu celular e o som”, explica tudo. As opções que o seu celular não consegue usar ficam esmaecidas.'],
+ }},
  {id:'mayaperc',d:'2026-10-20c',s:'⁘',go:{p:'dance.html',a:'style:mayaperc'},t:{
   en:['Maya percussion, a reconstruction','A new band in the World row: a percussion piece reconstructed from the instruments painted at Bonampak and found in excavations. No Maya music survives in notation; the rhythms follow the codex’s counts, turtle shells on thirteen and the drum on twenty, the sections following Venus, not any known Maya piece.'],
   pl:['Perkusja Majów, rekonstrukcja','Nowy zespół w rzędzie Świat: utwór perkusyjny zrekonstruowany z instrumentów namalowanych w Bonampak i odnalezionych w wykopaliskach. Muzyka Majów nie zachowała się w zapisie; rytmy idą za rachubami kodeksu, skorupy żółwi na trzynaście, bęben na dwadzieścia, części za Wenus, a nie za żadnym znanym utworem Majów.'],
@@ -1735,6 +1767,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <li><a href="#light">Ánh sáng và vô tuyến</a></li>
     <li><a href="#constellations">Âm thanh của các chòm sao</a></li>
     <li><a href="#gyear">Năm thiên hà</a></li>
+    <li><a href="#phones">Điện thoại của bạn và âm thanh</a></li>
     <li><a href="#tips">Mẹo và khắc phục sự cố</a></li>
     <li><a href="#data">Dữ liệu, độ chính xác và đọc thêm</a></li>
   </ol>
@@ -2143,6 +2176,45 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   <p class="note">Nguồn: McMillan 2017; Schönrich, Binney &amp; Dehnen 2010; Reid et al. 2019; Portail et al. 2017 (39 ± 3.5 km/s/kpc), Bovy et al. 2019 (41 ± 3); Dehnen 1998, 2000; Pérez-Villegas et al. 2017; Hunt &amp; Bovy 2018.</p>
 </section>
 
+<section id="phones">
+  <div class="greek">ὄργανα</div>
+  <h2>Điện thoại của bạn và âm thanh</h2>
+  <p>Mọi giọng trong ứng dụng đều được tính toán trực tiếp, khi bạn nghe, bởi bộ xử lý của điện thoại: không có gì là bản ghi âm ngoại trừ lời nói của các vị thần và nhạc cụ của ban nhạc. Những lúc nặng nhất là Bay giữa các vì sao, Synth và Vũ điệu; mặt số và Thiền nhẹ hơn. Một chiếc điện thoại không theo kịp sẽ không chậm lại một cách lịch sự: âm thanh lạo xạo, giật cục hoặc, trên một số điện thoại, dừng hẳn.</p>
+  <h3>Bốn mức chất lượng</h3>
+  <ul>
+    <li><b>Cao</b>: hồi âm phòng hòa nhạc phong phú và âm thanh 3D cho tai nghe. Dành cho máy tính.</li>
+    <li><b>Chuẩn</b>: mọi giọng, với vị trí 3D quanh bạn (tốt nhất khi dùng tai nghe). Dành cho điện thoại đời mới.</li>
+    <li><b>Tiết kiệm</b>: ít giọng hơn, tiếng vang nhẹ, và các giọng được đặt đơn giản sang trái và phải thay vì 3D. Dành cho hầu hết điện thoại tầm trung và đời cũ.</li>
+    <li><b>Nhẹ nhất</b>: chỉ vài giọng, không có tiếng vang, đặt vị trí trái–phải đơn giản, không thêm gì cả. Dành cho điện thoại lạo xạo ngay cả ở mức Tiết kiệm.</li>
+  </ul>
+  <p>Ứng dụng theo dõi đồng hồ âm thanh của chính nó. Nếu điện thoại bị tụt lại, nó tự hạ chất lượng (Cao → Chuẩn → Tiết kiệm → Nhẹ nhất) và báo cho bạn; ở mức Nhẹ nhất, nó còn yêu cầu bộ đệm âm thanh lớn hơn vào lần âm thanh bắt đầu tiếp theo. Bạn có thể tự chọn chất lượng trong <em>Sân khấu → Chất lượng</em>, hoặc trong <em>⋯ → Kiểm tra âm thanh → Chất lượng</em>.</p>
+  <p>Các tùy chọn điện thoại của bạn không dùng được sẽ bị làm mờ, kèm lý do bên cạnh: một tính năng mà trình duyệt của nó không có (ghi âm, MIDI, âm thanh vòm 5.1, micrô cho Lắng nghe, giọng đọc bằng ngôn ngữ của bạn), hoặc một mức chất lượng mà ứng dụng đã đo và thấy là quá nặng với nó. Giới hạn đã đo không phải là cuối cùng: <em>Đo lại</em> sẽ xóa nó, chẳng hạn sau khi bạn tắt chế độ tiết kiệm pin.</p>
+  <h3>Hướng dẫn sơ lược</h3>
+  <ul>
+    <li><b>Điện thoại tầm trung đời mới và cao cấp</b> (từ khoảng 2021 trở đi: Snapdragon dòng 7 và 8, Google Tensor, các chip Dimensity mới hơn, iPhone 12 trở lên): Chuẩn. Hãy đeo tai nghe để nghe dàn hợp xướng 3D.</li>
+    <li><b>Điện thoại tầm trung đời cũ hơn</b> (khoảng 2018–2020: Snapdragon dòng 6, chip Helio P và G, bộ nhớ 3–4 GB): Tiết kiệm. Ứng dụng thường sẽ tự chọn cho bạn.</li>
+    <li><b>Điện thoại giá rẻ, siêu bền và đời cũ</b> (bộ nhớ 2 GB, chip cũ, hoặc điện thoại lạo xạo ở mức Tiết kiệm): Nhẹ nhất với bộ đệm lớn hơn. Chẳng hạn, Blackview BV9900E (Helio P90) chỉ phát mượt ở mức Nhẹ nhất với bộ đệm lớn hơn.</li>
+    <li><b>Máy tính và máy tính bảng</b>: Cao hoặc Chuẩn.</li>
+  </ul>
+  <h3>Nếu âm thanh im lặng, giật cục hoặc lạo xạo</h3>
+  <ol>
+    <li>Mở <em>⋯ → Kiểm tra âm thanh</em> trên trang đang gặp sự cố và nhấn <em>Phát âm thử</em>. Nếu âm thử cũng im lặng, hãy kiểm tra âm lượng phương tiện và xem điện thoại có đang ở chế độ im lặng hoặc đang kết nối với loa Bluetooth mà bạn không nghe thấy không.</li>
+    <li>Nếu âm thử rõ nhưng nhạc thì không, đặt <em>Chất lượng</em> thành <em>Nhẹ nhất</em>.</li>
+    <li>Nếu vẫn lạo xạo, đặt <em>Đường âm thanh</em> thành <em>bộ đệm đầu ra lớn hơn</em>. Âm thanh bắt đầu trễ một phần giây, nhưng phát mượt trên những điện thoại có bộ đệm âm thanh quá nhỏ.</li>
+    <li>Trên một vài điện thoại, âm thanh chỉ phát khi ứng dụng ở chế độ nền. Đặt <em>Đường âm thanh</em> thành <em>qua trình phát đa phương tiện</em>, cách này gửi âm thanh theo cách mà chế độ nền làm.</li>
+    <li>Đóng các ứng dụng khác đang phát hoặc ghi âm thanh, và tắt chế độ tiết kiệm pin khi nghe.</li>
+    <li>Nếu không có gì giúp được, nhấn <em>Sao chép</em> trong Kiểm tra âm thanh và gửi báo cáo: nó cho biết chính xác điện thoại của bạn đã làm gì.</li>
+  </ol>
+  <h3>Nghe khi tắt màn hình</h3>
+  <p>Android làm chậm các ứng dụng mà nó cho là đang nhàn rỗi. Nếu nhạc giật hoặc dừng khi tắt màn hình, hãy mở <em>Cài đặt → Ứng dụng</em> của điện thoại, tìm Chrome (hoặc Music of the Spheres, nếu có trong danh sách), rồi <em>Pin</em>, và chọn <em>Không hạn chế</em>. Một số điện thoại (Xiaomi, Huawei, Oppo, Samsung) có trình quản lý pin bổ sung riêng: hãy cho phép ứng dụng chạy nền ở đó nữa.</p>
+  <h3>Tai nghe, Bluetooth và sân khấu</h3>
+  <ul>
+    <li><b>Tai nghe có dây</b> cho vị trí 3D rõ nhất ở mức Chuẩn và Cao.</li>
+    <li><b>Bluetooth</b> thêm độ trễ một phần năm giây hoặc hơn: ổn khi nghe, nhưng dễ nhận ra khi bạn chơi Synth trực tiếp.</li>
+    <li><b>Với hệ thống PA hoặc máy chiếu</b>, hãy dùng cáp (âm thanh USB hoặc dây tai nghe) thay vì Bluetooth, để điện thoại cắm sạc, và chọn Chuẩn nếu điện thoại xử lý được.</li>
+  </ul>
+</section>
+
 <section id="tips">
   <div class="greek">συμβουλαί</div>
   <h2>Mẹo và khắc phục sự cố</h2>
@@ -2150,7 +2222,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <li><b>Hãy đeo tai nghe.</b> Vị trí, độ cao và sự xoay chuyển của dàn hợp xướng khi bạn di chuyển sẽ rõ hơn nhiều.</li>
     <li><b>Không có âm thanh?</b> Trình duyệt chỉ cho phép âm thanh sau khi bạn chạm, nên hãy nhấn <em>Bắt đầu hòa âm</em>, <em>Phát</em> hoặc một hành tinh. Kiểm tra điện thoại không ở chế độ im lặng.</li>
     <li><b>Trong ứng dụng điện thoại</b>, nếu điện thoại không phát âm thanh, hãy kiểm tra âm lượng phương tiện và chắc chắn máy không ở chế độ im lặng; nếu vẫn không có tiếng, hãy mở trang web trong trình duyệt của điện thoại.</li>
-    <li><b>Tiếng lạo xạo trên điện thoại</b> nghĩa là điện thoại đang thiếu sức xử lý âm thanh. Ứng dụng đã hát ít giọng hơn trên điện thoại. Nếu bạn vẫn nghe thấy, hãy tắt <em>Các vị thần tự giới thiệu</em> và, trong 3D, để <em>Âm thanh 3D cho tai nghe</em> tắt.</li>
+    <li><b>Tiếng lạo xạo hoặc im lặng trên điện thoại</b>: xem <a href="#phones">Điện thoại của bạn và âm thanh</a>.</li>
     <li><b>Ghi âm</b> thu đúng những gì bạn nghe trên bất kỳ trang nào trong ba trang. Nhấn để bắt đầu (nó cũng khởi động âm thanh) và nhấn lần nữa để dừng. Sau đó bạn có thể nghe lại bản ghi và lưu thành tệp âm thanh (.m4a trên hầu hết điện thoại và máy tính, .webm trên một số) để nghe ở bất cứ đâu. Lời tự giới thiệu đến từ giọng đọc của thiết bị, nên không được ghi lại. <b>Nhạc chuông</b> bên cạnh ghi 3, 30 hoặc 60 giây tiếp theo thành tệp WAV cho âm thông báo, nhạc chuông hoặc báo thức của điện thoại, và chỉ chỗ cài đặt (Android chọn tệp trong Cài đặt → Âm thanh; iPhone cần GarageBand hoặc máy tính).</li>
     <li><b>Mỗi trang nhớ âm lượng riêng</b>, nên mặt số 2D, chuyến bay 3D và vũ điệu có thể ở những mức khác nhau.</li>
     <li><b>Tăng tốc thời gian</b> làm nổi bật các cú trượt, giai điệu của các mặt trăng và sự xoay chuyển của giọng qua một năm.</li>
