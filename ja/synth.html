@@ -452,7 +452,12 @@ function qAgain(){var done=false;try{if(W.MOTS&&MOTS.qcap&&MOTS.qcap.again){MOTS
 function setQ(q){if(QORDER.indexOf(q)<0||qOver(q))return;LSs('mots.quality.manual','1');var done=false;
   try{if(window.MOTS&&window.MOTS.setQuality){window.MOTS.setQuality(q);done=true}}catch(e){}
   if(!done||LSg('mots.quality')!==q)LSs('mots.quality',q);
-  flog('quality: '+q+' (chosen in the Sound check)');if(PANEL&&PANEL.upd)PANEL.upd()}
+  flog('quality: '+q+' (chosen in the Sound check)');
+  // (LITE-BUFFER) Lightest on a phone brings the larger output buffer with it (the Blackview crackled without it); a route other than
+  // standard, chosen here before, is kept. The buffer takes effect when the sound next starts: the page reloads.
+  var phone=/Android|iPhone|iPad/i.test(N.userAgent)||(W.matchMedia&&matchMedia('(hover:none)').matches);
+  if(q==='min'&&phone&&routeNow()===0){FIX.level=1;LSs('mots.afix','1');flog('larger output buffer with Lightest');pageCtxs().forEach(function(x){try{x.close()}catch(e){}});setTimeout(function(){location.reload()},200);return}
+  if(PANEL&&PANEL.upd)PANEL.upd()}
 // the routes: [self-repair level, through the media player]
 var ROUTES=[[0,false],[1,false],[2,false],[0,true],[1,true],[2,true]];
 function fixT(){return FIXT[lang()]||FIXT.en}
@@ -8463,7 +8468,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     const lite = MIN();
     I.lite = lite;
     if (lite) {
-      I.o1 = mk(hard);
+      I.o1 = mk(type === "god" || type === "choir" || type === "vowel" ? "triangle" : soft);
       I.o2 = stubNode(hard);
       I.g1 = mkGain(0);
       I.g2 = mkGain(0.5);

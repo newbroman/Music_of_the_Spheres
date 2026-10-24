@@ -452,7 +452,12 @@ function qAgain(){var done=false;try{if(W.MOTS&&MOTS.qcap&&MOTS.qcap.again){MOTS
 function setQ(q){if(QORDER.indexOf(q)<0||qOver(q))return;LSs('mots.quality.manual','1');var done=false;
   try{if(window.MOTS&&window.MOTS.setQuality){window.MOTS.setQuality(q);done=true}}catch(e){}
   if(!done||LSg('mots.quality')!==q)LSs('mots.quality',q);
-  flog('quality: '+q+' (chosen in the Sound check)');if(PANEL&&PANEL.upd)PANEL.upd()}
+  flog('quality: '+q+' (chosen in the Sound check)');
+  // (LITE-BUFFER) Lightest on a phone brings the larger output buffer with it (the Blackview crackled without it); a route other than
+  // standard, chosen here before, is kept. The buffer takes effect when the sound next starts: the page reloads.
+  var phone=/Android|iPhone|iPad/i.test(N.userAgent)||(W.matchMedia&&matchMedia('(hover:none)').matches);
+  if(q==='min'&&phone&&routeNow()===0){FIX.level=1;LSs('mots.afix','1');flog('larger output buffer with Lightest');pageCtxs().forEach(function(x){try{x.close()}catch(e){}});setTimeout(function(){location.reload()},200);return}
+  if(PANEL&&PANEL.upd)PANEL.upd()}
 // the routes: [self-repair level, through the media player]
 var ROUTES=[[0,false],[1,false],[2,false],[0,true],[1,true],[2,true]];
 function fixT(){return FIXT[lang()]||FIXT.en}
@@ -7424,14 +7429,17 @@ function buildInst(b,v,fadeIn){
     I.o2=AC.createOscillator();I.o2.type=C.w2||'sawtooth';I.o2.frequency.value=f0;I.o2.detune.value=det;
     const src=mkGain(.34*(C.lvl||1));I.o1.connect(src);if(C.l2!==undefined)I.o2.connect(mkGain(C.l2,src));else I.o2.connect(src);I.srcs.push(I.o1,I.o2);
     const lite=MIN();
+    // (SOFT-LITE) without the vowel filters a sawtooth or square is heard raw, as a buzz: on Lightest a triangle and a quiet detuned sine
+    // (the god's own spread and vibrato kept) give a smooth tone at the same cost
+    if(lite){I.o1.type='triangle';I.o2.type='sine'}
     if((C.o3||(!C.w1&&b.sizeN>.85))&&!lite){I.o3k=C.o3k||1;I.o3=AC.createOscillator();I.o3.type=C.w3||'sawtooth';I.o3.frequency.value=f0*I.o3k;I.o3.detune.value=C.det3!==undefined?C.det3:-(3+12*b.sizeN);I.o3.connect(src);I.srcs.push(I.o3)}
     I.br=C.br||2600;I.vdk=C.vdk||1;
     const form=mkGain(1);
     // on Lightest the vowel is only hinted: the lowpass sits a little lower and peaks gently near the first formant's region
-    if(lite)src.connect(mkGain(1.5,form));   // as loud as the formant bank it replaces (measured)
+    if(lite)src.connect(mkGain(2.2,form));   // as loud as the formant bank it replaces (the softer waves need a little more)
     else{(VOWELS[b.vowel]||VOWELS.a).forEach(([F,g],k)=>{const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=F;bp.Q.value=[7,10,13][k];src.connect(bp);bp.connect(mkGain(g*2.2,form))});
     src.connect(mkGain(.12,form))}
-    I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.Q.value=lite?2:.6;I.lp.frequency.value=lite?1600:2500;form.connect(I.lp);
+    I.lp=AC.createBiquadFilter();I.lp.type='lowpass';I.lp.Q.value=lite?.7:.6;I.lp.frequency.value=lite?1500:2500;form.connect(I.lp);
     const trem=mkGain(.7,I.g);I.lp.connect(trem);
     // retrograde spin: a reversed swell built from four smooth harmonics, so the pulse never jumps
     I.tl=AC.createOscillator();if(b.rot<0)I.tl.setPeriodicWave(RETRO);else I.tl.type='sine';I.tl.frequency.value=v.rate;
