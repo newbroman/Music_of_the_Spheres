@@ -139,6 +139,7 @@ if(C.cssFix){
 
 /* ---------- 2. Web Audio fallbacks ---------- */
 var AC0=W.AudioContext||W.webkitAudioContext,OAC=W.OfflineAudioContext||W.webkitOfflineAudioContext;
+var CN0=W.AudioNode&&AudioNode.prototype.connect;   // the browser's own connect, before the pages wrap it (the engine test needs it bare)
 C.feat={webAudio:!!AC0,prefixed:!W.AudioContext&&!!W.webkitAudioContext,offline:!!OAC,
   worklet:!!(AC0&&W.AudioWorkletNode&&('audioWorklet' in AC0.prototype)),stereoPanner:!!(AC0&&AC0.prototype.createStereoPanner),
   streamDest:!!(AC0&&AC0.prototype.createMediaStreamDestination),constantSource:!!(AC0&&AC0.prototype.createConstantSource),
@@ -193,7 +194,7 @@ function watch(c){var m=c.__mt;if(!m||m.watching)return;m.watching=true;
     var t1=c.currentTime;setTimeout(function(){if(c.state!=='running'||m.appSus||D.hidden)return;
       if(c.currentTime===t1)repair('clock',S('clock'),c);else listen(c)},1200)},3000)}
 if(AC0){
-  var Wr=function AudioContext(o){var c=null;
+  var Wr=function AudioContext(o){var c=null;try{C.pageOpts=o===undefined?null:JSON.parse(JSON.stringify(o))}catch(e){}
     if(FIX.level){var fo=fixOpts(o);try{c=new AC0(fo)}catch(e){log('AudioContext('+JSON.stringify(fo)+') failed: '+e.message);if(FIX.level>=2){try{c=new AC0({latencyHint:'playback'})}catch(e2){}}}}
     if(!c&&o!==undefined){try{c=new AC0(o)}catch(e){log('AudioContext('+JSON.stringify(o)+') failed, plain constructor instead: '+e.message)}}
     if(!c){try{c=new AC0()}catch(e){fail((e.name?e.name+': ':'')+e.message);throw e}}
@@ -353,6 +354,7 @@ function report(){var L=[];
   if(C.notes.length)L.push('notes: '+C.notes.slice(-4).join(' | '));
   {var pc=null;C.ctxs.forEach(function(c){if(c.state!=='closed'&&c!==toneCtx)pc=c});if(pc&&pc.__clk&&pc.__clk.length>2){var A=pc.__clk[0],B=pc.__clk[pc.__clk.length-1],dw=(B[0]-A[0])/1000;if(dw>1)L.push('sound clock: '+Math.round(100*(B[1]-A[1])/dw)+'% of real time over the last '+Math.round(dw)+' s'+(D.hidden?' (hidden)':''))}}
   {var rc=null;C.ctxs.forEach(function(c){if(c.state!=='closed'&&c.__rc&&c.__rc.avg!=null)rc=c.__rc});if(rc)L.push('audio thread: busy '+Math.round(100*rc.avg)+'% (peak '+Math.round(100*rc.peak)+'%) · deadlines missed '+Math.round(100*rc.under)+'%');}
+  if(C.etest)L.push('engine test (sound clock): '+C.etest.join(' · '));
   L.push('self-repair: level '+FIX.level+(LSg('mots.route')==='media'?' · through the media player':'')+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
   {var bl=[];try{bl=JSON.parse(LSg('mots.bglog')||'[]')}catch(e){}L.push('screen off / other app ('+bl.length+'):'+(bl.length?'\n  '+bl.join('\n  '):' nothing recorded yet'))}
   try{var DL=W.MOTS&&MOTS.diagLines;if(DL&&DL.length){L.push('live:');DL.forEach(function(f){try{var x=f();if(x)L.push('  '+x)}catch(e){L.push('  ('+e.message+')')}})}}catch(e){}
@@ -377,6 +379,7 @@ function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(P
   var fl=el('label','mc-fixl');fl.appendChild(el('span',null,fixT()[0]+' '));var fs=D.createElement('select');fs.id='mc-fix';fs.className='mc-btn';
   ROUTES.forEach(function(r,i){var o=D.createElement('option');o.value=String(i);o.textContent=fixT()[3][i];fs.appendChild(o)});fs.value=String(routeNow());
   fs.onchange=function(){setRoute(+fs.value)};fl.appendChild(fs);a.appendChild(fl);
+  var eb=el('button','mc-btn',ETL());eb.type='button';eb.id='mc-etest';eb.onclick=function(){engineTest(eb,msg)};a.appendChild(eb);
   var cb=el('button','mc-btn',S('copy'));cb.type='button';cb.onclick=function(){copy(report(),cb)};a.appendChild(cb);
   var xb=el('button','mc-btn',S('close'));xb.type='button';xb.onclick=function(){p.style.display='none';clearInterval(tick);tick=0};a.appendChild(xb);
   p.appendChild(a);var x=el('button','mc-x','×');x.type='button';x.setAttribute('aria-label',S('close'));x.onclick=xb.onclick;p.appendChild(x);
@@ -384,6 +387,22 @@ function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(P
   function upd(){pre.textContent=report();if(!tick)tick=setInterval(function(){if(p.style.display!=='none')pre.textContent=report()},1000)}
   PANEL.upd=upd})}
 C.open=openDiag;
+/* (ENGINE-TEST) fresh sound engines, each with one more of the app's parts, their clocks measured for 3 s each: which part slows a phone's
+   sound clock (the Blackview kept 74 % of real time on Eco, yet a plain test tone was clean). The results go into the report. */
+function ETL(){var t={en:'Test the sound engine',pl:'Sprawdź silnik dźwięku',cy:'Profi’r peiriant sain',de:'Klang-Engine testen',es:'Probar el motor de sonido',fr:'Tester le moteur audio',it:'Prova il motore audio',zh:'测试声音引擎',ja:'音声エンジンをテスト',vi:'Kiểm tra bộ máy âm thanh',bg:'Тествай звуковия двигател',pt:'Testar o motor de som'};return t[lang()]||t.en}
+C.etest=null;
+function engineTest(btn,msg){if(btn.disabled)return;btn.disabled=true;var steps=[['plain tone',0],['+ recording tap',1],['+ output stage',2],['+ 60 voices',3],['all with the app\'s options '+(C.pageOpts?JSON.stringify(C.pageOpts):'(none)'),3]],out=[],i=0;
+  function one(){if(i>=steps.length){C.etest=out;btn.disabled=false;msg.textContent='';if(PANEL&&PANEL.upd)PANEL.upd();return}
+    var st=steps[i],c;try{c=i===4&&C.pageOpts?new AC0(C.pageOpts):new AC0()}catch(e){out.push(st[0]+': could not start');i++;one();return}
+    msg.textContent=ETL()+' '+(i+1)+'/'+steps.length+'…';
+    try{var g=c.createGain();g.gain.value=.03;var o=c.createOscillator();o.frequency.value=440;CN0.call(o,g);var end=c.destination;
+      if(st[1]>=2){var ws=c.createWaveShaper();var cv=new Float32Array(2048);for(var k=0;k<2048;k++){var x=k/1023.5-1;cv[k]=Math.tanh(x)}ws.curve=cv;ws.oversample='2x';var dc=c.createDynamicsCompressor();CN0.call(ws,dc);CN0.call(dc,c.destination);end=ws}
+      CN0.call(g,end);
+      if(st[1]>=1&&c.createMediaStreamDestination){var md=c.createMediaStreamDestination();CN0.call(g,md)}
+      if(st[1]>=3){for(var v=0;v<60;v++){var ov=c.createOscillator();ov.type='sawtooth';ov.frequency.value=110+v*7;var bq=c.createBiquadFilter();bq.frequency.value=800+v*20;var gv=c.createGain();gv.gain.value=.0005;CN0.call(ov,bq);CN0.call(bq,gv);CN0.call(gv,end);ov.start()}}
+      o.start()}catch(e){out.push(st[0]+': '+e.message)}
+    var p=c.resume?c.resume():null;setTimeout(function(){var w0=Date.now(),a0=c.currentTime;setTimeout(function(){var r=(c.currentTime-a0)/((Date.now()-w0)/1000);out.push(st[0]+' '+Math.round(100*r)+'%');try{c.close()}catch(e){}i++;one()},3000)},600)}
+  one()}
 var FIXT={en:['Sound route:',0,0,['standard','a larger output buffer','larger buffer and the other sample rate','through the media player','media player and a larger buffer','through the media player + larger buffer and the other sample rate']],
  pl:['Droga dźwięku:',0,0,['zwykła','większy bufor wyjścia','większy bufor i inna częstotliwość próbkowania','przez odtwarzacz multimediów','odtwarzacz i większy bufor','przez odtwarzacz multimediów + większy bufor i inna częstotliwość próbkowania']],
  cy:['Llwybr y sain:',0,0,['arferol','byffer allbwn mwy','byffer mwy a’r gyfradd samplu arall','drwy’r chwaraewr cyfryngau','chwaraewr cyfryngau a byffer mwy','drwy’r chwaraewr cyfryngau + byffer mwy a’r gyfradd samplu arall']],
