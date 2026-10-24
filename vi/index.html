@@ -351,7 +351,7 @@ function report(){var L=[];
     L.push('audio #'+m.i+(c===app?' (page)':'')+': '+s+' · made '+m.born+(m.pre?' before':' after')+' the first tap'+(m.appSus?' · paused by the page':'')+(m.err?' · '+(m.err.name||'')+': '+m.err.message:''))});
   if(C.fails.length)L.push('could not start: '+C.fails.slice(-4).join(' | '));
   if(C.notes.length)L.push('notes: '+C.notes.slice(-4).join(' | '));
-  L.push('self-repair: level '+FIX.level+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
+  L.push('self-repair: level '+FIX.level+(LSg('mots.route')==='media'?' · through the media player':'')+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
   {var bl=[];try{bl=JSON.parse(LSg('mots.bglog')||'[]')}catch(e){}L.push('screen off / other app ('+bl.length+'):'+(bl.length?'\n  '+bl.join('\n  '):' nothing recorded yet'))}
   try{var DL=W.MOTS&&MOTS.diagLines;if(DL&&DL.length){L.push('live:');DL.forEach(function(f){try{var x=f();if(x)L.push('  '+x)}catch(e){L.push('  ('+e.message+')')}})}}catch(e){}
   L.push('errors ('+C.errs.length+'):'+(C.errs.length?'\n  '+C.errs.slice(-12).join('\n  '):' none'));
@@ -361,12 +361,14 @@ try{if(W.caches&&caches.keys)caches.keys().then(function(k){var m=k.filter(funct
 C.bgNote=function(s){try{var k='mots.bglog',a=JSON.parse(LSg(k)||'[]');a.push(new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(5,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s);LSs(k,JSON.stringify(a.slice(-12)))}catch(e){}};
 C.report=report;
 var PANEL=null,tick=0;
-function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';upd();return}
+function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(PANEL.upd)PANEL.upd();var f=D.getElementById('mc-fix');if(f)f.textContent=fixLabel();return}
   var p=PANEL=el('div','mc-panel');p.id='mc-diag';p.setAttribute('role','dialog');p.setAttribute('aria-label',S('chk'));
   p.appendChild(el('h2',null,S('chk')));p.appendChild(el('p','mc-sub',S('sub')));
   var pre=el('pre');p.appendChild(pre);var msg=el('p','mc-msg');msg.setAttribute('aria-live','polite');p.appendChild(msg);
   var a=el('div','mc-acts');
   var tb=el('button','mc-btn',S('tone'));tb.type='button';tb.id='mc-tone';tb.onclick=function(){testTone(msg)};a.appendChild(tb);
+  // (FIX-LADDER) the listener hears nothing although the report shows sound reaching the output: try the next way of reaching the speaker
+  var fb=el('button','mc-btn',fixLabel());fb.type='button';fb.id='mc-fix';fb.onclick=function(){nextFix()};a.appendChild(fb);
   var cb=el('button','mc-btn',S('copy'));cb.type='button';cb.onclick=function(){copy(report(),cb)};a.appendChild(cb);
   var xb=el('button','mc-btn',S('close'));xb.type='button';xb.onclick=function(){p.style.display='none';clearInterval(tick);tick=0};a.appendChild(xb);
   p.appendChild(a);var x=el('button','mc-x','×');x.type='button';x.setAttribute('aria-label',S('close'));x.onclick=xb.onclick;p.appendChild(x);
@@ -374,6 +376,26 @@ function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';upd(
   function upd(){pre.textContent=report();if(!tick)tick=setInterval(function(){if(p.style.display!=='none')pre.textContent=report()},1000)}
   PANEL.upd=upd})}
 C.open=openDiag;
+var FIXT={en:['Heard nothing? Try the next fix','Back to standard sound','now: {s}',['standard','a larger output buffer','also the other sample rate','through the media player']],
+ pl:['Nic nie słychać? Spróbuj kolejnej poprawki','Wróć do zwykłego dźwięku','teraz: {s}',['zwykły','większy bufor wyjścia','także inna częstotliwość próbkowania','przez odtwarzacz multimediów']],
+ cy:['Dim byd i’w glywed? Rhowch gynnig ar y trwsiad nesaf','Yn ôl i’r sain arferol','nawr: {s}',['arferol','byffer allbwn mwy','hefyd y gyfradd samplu arall','drwy’r chwaraewr cyfryngau']],
+ de:['Nichts zu hören? Nächste Abhilfe versuchen','Zurück zum normalen Ton','jetzt: {s}',['normal','größerer Ausgabepuffer','dazu die andere Abtastrate','über den Mediaplayer']],
+ es:['¿No oyes nada? Prueba el siguiente arreglo','Volver al sonido normal','ahora: {s}',['normal','un búfer de salida mayor','además la otra frecuencia de muestreo','a través del reproductor multimedia']],
+ fr:['Rien entendu ? Essayer le correctif suivant','Revenir au son normal','maintenant : {s}',['normal','un tampon de sortie plus grand','et l’autre fréquence d’échantillonnage','par le lecteur multimédia']],
+ it:['Non senti nulla? Prova la correzione successiva','Torna all’audio normale','ora: {s}',['normale','un buffer di uscita più grande','anche l’altra frequenza di campionamento','attraverso il lettore multimediale']],
+ zh:['听不到声音？试试下一个修复','恢复标准声音','当前：{s}',['标准','更大的输出缓冲','另一种采样率','通过媒体播放器']],
+ ja:['何も聞こえない？次の対処を試す','標準の音に戻す','現在：{s}',['標準','大きな出力バッファ','別のサンプリング周波数も','メディアプレーヤー経由']],
+ vi:['Không nghe thấy gì? Thử cách sửa tiếp theo','Quay lại âm thanh chuẩn','hiện tại: {s}',['chuẩn','bộ đệm đầu ra lớn hơn','thêm tần số lấy mẫu khác','qua trình phát đa phương tiện']],
+ bg:['Нищо не се чува? Опитай следващата поправка','Обратно към стандартния звук','сега: {s}',['стандартен','по-голям изходен буфер','и другата честота на дискретизация','през медийния плейър']],
+ pt:['Não ouve nada? Tente a próxima correção','Voltar ao som normal','agora: {s}',['normal','um buffer de saída maior','também a outra taxa de amostragem','pelo reprodutor de mídia']]};
+function fixT(){return FIXT[lang()]||FIXT.en}
+function fixStep(){return LSg('mots.route')==='media'?3:FIX.level}
+function fixLabel(){var t=fixT(),k=fixStep();return (k>=3?t[1]:t[0])+' · '+t[2].replace('{s}',t[3][k])}
+function nextFix(){var k=fixStep();
+  if(k>=3){LSs('mots.route');LSs('mots.afix');FIX.level=0;flog('back to standard sound (chosen in the Sound check)')}
+  else if(k===2){LSs('mots.route','media');flog('sound through the media player (chosen in the Sound check)')}
+  else{FIX.level=k+1;LSs('mots.afix',String(FIX.level));flog('sound settings '+FIX.level+' (chosen in the Sound check)')}
+  pageCtxs().forEach(function(x){try{x.close()}catch(e){}});setTimeout(function(){location.reload()},200)}
 function copy(t,b){var done=function(){b.textContent=S('copied');setTimeout(function(){b.textContent=S('copy')},1500)};
   try{if(N.clipboard&&N.clipboard.writeText){N.clipboard.writeText(t).then(done,old);return}}catch(e){}old();
   function old(){var ta=el('textarea');ta.value=t;ta.style.cssText='position:fixed;top:0;left:0;opacity:0';D.body.appendChild(ta);ta.select();try{D.execCommand('copy');done()}catch(e){}D.body.removeChild(ta)}}
@@ -1279,6 +1301,26 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
         }
         return;
       }
+      if (hidden && !BG.on && BG.media) {
+        BG.on = true;
+        bgClock();
+        BG.st.n++;
+        BG.st.w0 = performance.now();
+        BG.st.a0 = ctx.currentTime;
+        BG.st.mode = "media";
+        BG.sky = MOTS.skyHidden;
+        MOTS.skyHidden = () => true;
+        return;
+      }
+      if (!hidden && BG.on && BG.media) {
+        BG.on = false;
+        MOTS.skyHidden = BG.sky;
+        BG.sky = void 0;
+        const q = BG.q;
+        BG.q = [];
+        q.forEach((cb) => _raf(cb));
+        return;
+      }
       if (hidden && !BG.on) {
         if (ctx.state !== "running" || MOTS.projPaused) {
           if (!MOTS.projPaused && ctx.state !== "closed" && BG.lastNo !== ctx.state) {
@@ -1382,6 +1424,35 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     d.onclick = () => d.remove();
   }
   document.addEventListener("visibilitychange", () => bgRoute(document.visibilityState === "hidden"));
+  const mediaWanted = () => BG_PHONE && LS.get("mots.route") === "media";
+  function mediaRoute() {
+    try {
+      if (!mediaWanted() || !ctx || !GUARD || ctx.state !== "running" || MOTS.projPaused || typeof SUR !== "undefined" && SUR.on) return;
+      if (BG.media && BG.el && !BG.el.paused) return;
+      bgWire();
+      if (!BG.el) {
+        BG.el = new Audio();
+        BG.el.setAttribute("playsinline", "");
+        BG.el.srcObject = BG.msd.stream;
+      }
+      BG.el.play().then(() => {
+        BG.media = true;
+        const t = ctx.currentTime;
+        bgSet(BG.gS.gain, 1, t, 0.03);
+        BG.gD.gain.cancelScheduledValues(t);
+        ST0.call(BG.gD.gain, 1e-4, t + 0.15, 0.04);
+        bgSession("playing");
+      }).catch((e) => {
+        if (!BG.mErr) {
+          BG.mErr = 1;
+          bgNote("the media route was refused (" + (e && e.name || e) + ")");
+        }
+      });
+    } catch (e) {
+    }
+  }
+  setInterval(mediaRoute, 1e3);
+  document.addEventListener("pointerup", () => setTimeout(mediaRoute, 50), true);
   addEventListener("pagehide", () => bgRoute(true));
   setInterval(() => {
     if (ctx && ctx.state === "running" && !MOTS.projPaused && navigator.mediaSession && navigator.mediaSession.playbackState !== "playing") bgSession("playing");
@@ -1710,7 +1781,7 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
       pk = Math.max(pk, Math.abs(x));
     }
     const dB = (x) => x > 1e-7 ? (20 * Math.log10(x)).toFixed(1) : "−∞";
-    return "output: level " + dB(Math.sqrt(q / b.length)) + " dB, peak " + dB(pk) + " dB · " + ctx.state + " · route " + (BG.on ? "background (" + BG.st.mode + ")" : "direct") + (BG.gD ? " · direct " + BG.gD.gain.value.toFixed(3) + " stream " + BG.gS.gain.value.toFixed(3) : "") + " · level control " + AGC.cur.toFixed(2) + (AGC.duck !== 1 ? " ducked " + AGC.duck : "") + (SAFE ? " · safety −" + (-SAFE.reduction).toFixed(1) + " dB" : "");
+    return "output: level " + dB(Math.sqrt(q / b.length)) + " dB, peak " + dB(pk) + " dB · " + ctx.state + " · route " + (BG.media ? "media player" + (BG.on ? " (hidden)" : "") : BG.on ? "background (" + BG.st.mode + ")" : "direct") + (BG.gD ? " · direct " + BG.gD.gain.value.toFixed(3) + " stream " + BG.gS.gain.value.toFixed(3) : "") + " · level control " + AGC.cur.toFixed(2) + (AGC.duck !== 1 ? " ducked " + AGC.duck : "") + (SAFE ? " · safety −" + (-SAFE.reduction).toFixed(1) + " dB" : "");
   });
   MOTS.master = { duck: masterDuck, gain: () => AGC.cur, pre: () => AGC.curPre, trim: () => SUR.cfg ? SUR.cfg.trim : 1, reduction: () => {
     const C = SUR.cfg;
