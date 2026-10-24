@@ -353,6 +353,7 @@ function report(){var L=[];
   if(C.notes.length)L.push('notes: '+C.notes.slice(-4).join(' | '));
   L.push('self-repair: level '+FIX.level+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
   {var bl=[];try{bl=JSON.parse(LSg('mots.bglog')||'[]')}catch(e){}L.push('screen off / other app ('+bl.length+'):'+(bl.length?'\n  '+bl.join('\n  '):' nothing recorded yet'))}
+  try{var DL=W.MOTS&&MOTS.diagLines;if(DL&&DL.length){L.push('live:');DL.forEach(function(f){try{var x=f();if(x)L.push('  '+x)}catch(e){L.push('  ('+e.message+')')}})}}catch(e){}
   L.push('errors ('+C.errs.length+'):'+(C.errs.length?'\n  '+C.errs.slice(-12).join('\n  '):' none'));
   return L.join('\n')}
 // which version of the app this phone is running: the offline cache is named after it (read once at load, for the Sound check report)
@@ -1619,6 +1620,18 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
     const C = SUR.cfg;
     if (C && C.agc) C.agc.gain.setTargetAtTime(AGC.cur * k, C.ctx.currentTime, tc || 0.25);
   }
+  (MOTS.diagLines = MOTS.diagLines || []).push(() => {
+    if (!an || !ctx) return "output: not built yet";
+    const b = new Float32Array(an.fftSize);
+    an.getFloatTimeDomainData(b);
+    let q = 0, pk = 0;
+    for (const x of b) {
+      q += x * x;
+      pk = Math.max(pk, Math.abs(x));
+    }
+    const dB = (x) => x > 1e-7 ? (20 * Math.log10(x)).toFixed(1) : "−∞";
+    return "output: level " + dB(Math.sqrt(q / b.length)) + " dB, peak " + dB(pk) + " dB · " + ctx.state + " · route " + (BG.on ? "background (" + BG.st.mode + ")" : "direct") + (BG.gD ? " · direct " + BG.gD.gain.value.toFixed(3) + " stream " + BG.gS.gain.value.toFixed(3) : "") + " · level control " + AGC.cur.toFixed(2) + (AGC.duck !== 1 ? " ducked " + AGC.duck : "") + (SAFE ? " · safety −" + (-SAFE.reduction).toFixed(1) + " dB" : "");
+  });
   MOTS.master = { duck: masterDuck, gain: () => AGC.cur, pre: () => AGC.curPre, trim: () => SUR.cfg ? SUR.cfg.trim : 1, reduction: () => {
     const C = SUR.cfg;
     return C && C.limiter ? -C.limiter.reduction : 0;
@@ -9671,7 +9684,11 @@ function refreshOutput(){
   // never while the page is hidden: a phone with its screen off may refuse the resume, and the music would stay paused
   if(refreshing||!AC||document.hidden)return;refreshing=true;
   tgt(master.gain,0,.012);
-  setTimeout(()=>AC.suspend().catch(()=>{}).then(()=>AC.resume().catch(()=>{})).then(()=>{refreshing=false;if(audioOn)tgt(master.gain,S.vol,.05)}),45);
+  // (REFRESH-GUARD) a phone that never settles the suspend or the resume would otherwise leave the music at zero for good: after 1.5 s
+  // the music comes back whatever the promises did, and the context is asked once more to run
+  const back=()=>{if(!refreshing)return;refreshing=false;clearTimeout(refreshOutput.t);if(audioOn){if(AC.state!=='running')AC.resume().catch(()=>{});tgt(master.gain,S.vol,.05)}};
+  refreshOutput.t=setTimeout(back,1500);
+  setTimeout(()=>AC.suspend().catch(()=>{}).then(()=>AC.resume().catch(()=>{})).then(back),45);
 }
 function stopSpeech(){if(SYN)SYN.cancel();if(clipNow){try{clipNow.stop()}catch(e){}clipNow=null}S.speaking=false}
 // the gods' own recorded voices (Google's Chirp 3 HD voices, one per god, the same god in every language; Welsh from Bangor University's BU-TTS); the device's speech is the fall-back
@@ -10025,6 +10042,8 @@ function bindHold(el,v){
 }
 bindHold($('fwd'),1);bindHold($('bwd'),-1);
 
+// (DIAG) the flight's own line in the Sound check
+(window.MOTS=window.MOTS||{},MOTS.diagLines=MOTS.diagLines||[]).push(()=>'flight: sound '+(audioOn?'on':'off')+' · music '+(master?master.gain.value.toFixed(3):'-')+' of '+(+S.vol).toFixed(2)+(S.speaking?' · speaking':'')+(typeof refreshing!=='undefined'&&refreshing?' · output restarting':'')+' · '+(ship.gap||ship.ap?'travelling':'still')+(window.FLYG&&FLYG.ST?' · '+(FLYG.ST.r>2e5?'among the stars':'in the solar system'):''));
 /* ---- labels ---- */
 const LBL={};
 function lbl(id,text,cls){const d=document.createElement('div');d.className='lbl '+(cls||'');d.innerHTML=text;d.onclick=()=>travelTo(id);$('labels').appendChild(d);LBL[id]=d;return d}
@@ -12971,6 +12990,8 @@ function drawRadio(c,W,H,body){const g=G(),R=TV.rd,lo=Math.log10(10),hi=Math.log
 function hearBus(){if(!AC)return null;if(!GA)audioInit();if(!GA.hearG){GA.hearV=mkGain(S.vol,AC.destination);GA.hearG=mkGain(1,GA.hearV)}return GA.hearG}
 function hearVolTick(){if(GA&&GA.hearV)tgt(GA.hearV.gain,S.vol,.05)}
 // the page's music a little lower while a sheet sounds (light.js's planets' sheet calls this too)
+(MOTS.diagLines=MOTS.diagLines||[]).push(()=>{if(!GA)return 'galaxy: no sound yet';const n=a=>a.filter(s=>s&&s.row).length;
+  return 'galaxy: bus '+GA.bus.gain.value.toFixed(3)+(GA.starG?' · stars '+GA.starG.gain.value.toFixed(3):'')+(GA.chordG?' · chord '+GA.chordG.gain.value.toFixed(3):'')+' · voices '+n(GA.star)+' stars, '+n(GA.pulsar)+' pulsars, '+n(GA.gal)+' galaxies'+(HEAR?' · sheet '+HEAR.kind+(GA.hearV?' at '+GA.hearV.gain.value.toFixed(3):''):'')});
 MOTS.sheetDuck=on=>{if(typeof master==='undefined'||!master||!AC||!audioOn||S.speaking)return;if(MOTS.master&&MOTS.master.duck){MOTS.master.duck(on?.35:1,on?.25:.8);return}tgt(master.gain,S.vol*(on?.35:1),on?.25:.8)};
 /* ---------- "Hear its lines" (step 4d): the star's absorption lines as a sustained chord ----------
    Each line of GALAXY.lineChord(row) sounds at its wavelength lowered forty octaves (unfolded: Hα is 415.5 Hz in every star), its loudness

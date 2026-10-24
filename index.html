@@ -353,6 +353,7 @@ function report(){var L=[];
   if(C.notes.length)L.push('notes: '+C.notes.slice(-4).join(' | '));
   L.push('self-repair: level '+FIX.level+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
   {var bl=[];try{bl=JSON.parse(LSg('mots.bglog')||'[]')}catch(e){}L.push('screen off / other app ('+bl.length+'):'+(bl.length?'\n  '+bl.join('\n  '):' nothing recorded yet'))}
+  try{var DL=W.MOTS&&MOTS.diagLines;if(DL&&DL.length){L.push('live:');DL.forEach(function(f){try{var x=f();if(x)L.push('  '+x)}catch(e){L.push('  ('+e.message+')')}})}}catch(e){}
   L.push('errors ('+C.errs.length+'):'+(C.errs.length?'\n  '+C.errs.slice(-12).join('\n  '):' none'));
   return L.join('\n')}
 // which version of the app this phone is running: the offline cache is named after it (read once at load, for the Sound check report)
@@ -1697,6 +1698,18 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     const C = SUR.cfg;
     if (C && C.agc) C.agc.gain.setTargetAtTime(AGC.cur * k, C.ctx.currentTime, tc || 0.25);
   }
+  (MOTS.diagLines = MOTS.diagLines || []).push(() => {
+    if (!an || !ctx) return "output: not built yet";
+    const b = new Float32Array(an.fftSize);
+    an.getFloatTimeDomainData(b);
+    let q = 0, pk = 0;
+    for (const x of b) {
+      q += x * x;
+      pk = Math.max(pk, Math.abs(x));
+    }
+    const dB = (x) => x > 1e-7 ? (20 * Math.log10(x)).toFixed(1) : "−∞";
+    return "output: level " + dB(Math.sqrt(q / b.length)) + " dB, peak " + dB(pk) + " dB · " + ctx.state + " · route " + (BG.on ? "background (" + BG.st.mode + ")" : "direct") + (BG.gD ? " · direct " + BG.gD.gain.value.toFixed(3) + " stream " + BG.gS.gain.value.toFixed(3) : "") + " · level control " + AGC.cur.toFixed(2) + (AGC.duck !== 1 ? " ducked " + AGC.duck : "") + (SAFE ? " · safety −" + (-SAFE.reduction).toFixed(1) + " dB" : "");
+  });
   MOTS.master = { duck: masterDuck, gain: () => AGC.cur, pre: () => AGC.curPre, trim: () => SUR.cfg ? SUR.cfg.trim : 1, reduction: () => {
     const C = SUR.cfg;
     return C && C.limiter ? -C.limiter.reduction : 0;
@@ -12347,12 +12360,20 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     if (refreshing || !AC || document.hidden) return;
     refreshing = true;
     tgt(master.gain, 0, 0.012);
+    const back = () => {
+      if (!refreshing) return;
+      refreshing = false;
+      clearTimeout(refreshOutput.t);
+      if (audioOn) {
+        if (AC.state !== "running") AC.resume().catch(() => {
+        });
+        tgt(master.gain, S.vol, 0.05);
+      }
+    };
+    refreshOutput.t = setTimeout(back, 1500);
     setTimeout(() => AC.suspend().catch(() => {
     }).then(() => AC.resume().catch(() => {
-    })).then(() => {
-      refreshing = false;
-      if (audioOn) tgt(master.gain, S.vol, 0.05);
-    }), 45);
+    })).then(back), 45);
   }
   function stopSpeech() {
     if (SYN) SYN.cancel();
