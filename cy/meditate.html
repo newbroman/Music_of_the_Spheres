@@ -8577,6 +8577,41 @@ function bhaA(){return MED.plkA}
 // (STROKE-LITE) on Lightest the struck instruments of Java, the Maya and Egypt are lighter: two partials, no beating pair, no strike noise.
 // A phone that needs Lightest cannot build a gamelan's six or eight oscillators at once every couple of seconds without a glitch.
 const strokeLite=()=>{try{return !!(window.MOTS&&MOTS.quality&&MOTS.quality()==='min')}catch(e){return false}};
+// (STRIKE-WORKLET) one worklet per destination plays every stroke sent to it (see strike_wl.py for the hit format)
+const STRIKE_CODE=`class MotsStrike extends AudioWorkletProcessor{
+constructor(){super();this.v=[];this.port.onmessage=e=>{const h=e.data;for(let i=0;i<h.length;i++)this.add(h[i])}}
+add(h){const sr=sampleRate,o={s0:Math.round(h.t*sr),e0:Math.round(h.end*sr),lvl:h.a,env:0};
+ if(h.n){o.n=1;o.k=Math.exp(-1/(Math.max(1e-4,h.d)*sr));o.env=h.a;const w=2*Math.PI*h.bf/sr,c=Math.cos(w),al=Math.sin(w)/(2*h.q);let b0,b1,b2;
+  if(h.ft==='lp'){b0=(1-c)/2;b1=1-c;b2=(1-c)/2}else{b0=al;b1=0;b2=-al}const a0=1+al;o.b0=b0/a0;o.b1=b1/a0;o.b2=b2/a0;o.a1=-2*c/a0;o.a2=(1-al)/a0;o.x1=o.x2=o.y1=o.y2=0}
+ else{o.f=h.f;o.f1=h.f1||h.f;o.gl=Math.round((h.gl||0)*sr);o.A=Math.max(1,Math.round(h.A*sr));o.k=Math.exp(-1/(Math.max(1e-4,h.d)*sr));o.tri=h.w==='tri';o.x=1;o.y=0;o.ph=0;o.i=0}
+ this.v.push(o)}
+process(_,outs){const out=outs[0][0];if(!out)return true;const n=out.length,f0=currentFrame,sr=sampleRate,v=this.v;let live=0;
+ for(let j=0;j<v.length;j++){const o=v[j];if(o.dead)continue;if(o.s0>=f0+n){v[live++]=o;continue}
+  let k=Math.max(0,o.s0-f0);
+  if(o.n){for(;k<n;k++){if(f0+k>=o.e0||o.env<1e-5){o.dead=1;break}const x=Math.random()*2-1,y=o.b0*x+o.b1*o.x1+o.b2*o.x2-o.a1*o.y1-o.a2*o.y2;o.x2=o.x1;o.x1=x;o.y2=o.y1;o.y1=y;out[k]+=y*o.env;o.env*=o.k}}
+  else{let f=o.gl&&o.i<o.gl?o.f*Math.pow(o.f1/o.f,o.i/o.gl):o.f1,w=2*Math.PI*f/sr,c=Math.cos(w),s=Math.sin(w),q=0;
+   for(;k<n;k++){if(f0+k>=o.e0){o.dead=1;break}
+    if(o.i<o.A)o.env=o.lvl*(o.i+1)/o.A;else{o.env*=o.k;if(o.env<1e-5*o.lvl){o.dead=1;break}}
+    if(o.gl&&o.i<o.gl&&(++q&15)===0){f=o.f*Math.pow(o.f1/o.f,o.i/o.gl);w=2*Math.PI*f/sr;c=Math.cos(w);s=Math.sin(w)}
+    let val;if(o.tri){o.ph+=f/sr;if(o.ph>=1)o.ph-=1;val=o.ph<.5?4*o.ph-1:3-4*o.ph}else{const x=o.x*c-o.y*s;o.y=o.x*s+o.y*c;o.x=x;val=o.y}
+    out[k]+=val*o.env;o.i++}
+   if(!o.tri){const m=1/Math.sqrt(o.x*o.x+o.y*o.y);o.x*=m;o.y*=m}}
+  if(!o.dead)v[live++]=o}
+ v.length=live;return true}}
+registerProcessor('mots-strike',MotsStrike)`;
+const STRK={ac:null,ready:false,nodes:new Map(),off:false};
+function strikeLoad(){if(STRK.off||!AC)return false;if(STRK.ac!==AC){STRK.ac=AC;STRK.ready=false;STRK.nodes=new Map();
+    try{if(!AC.audioWorklet||!window.AudioWorkletNode)return false;AC.audioWorklet.addModule(URL.createObjectURL(new Blob([STRIKE_CODE],{type:'text/javascript'}))).then(()=>{if(STRK.ac===AC)STRK.ready=true},()=>{STRK.off=true})}catch(e){STRK.off=true}}
+  return STRK.ready}
+function strikeNode(dest){if(!strikeLoad())return null;let w=STRK.nodes.get(dest);if(w)return w;
+  try{w=new AudioWorkletNode(AC,'mots-strike',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[1]});w.connect(dest);STRK.nodes.set(dest,w);return w}catch(e){STRK.off=true;return null}}
+// the same hits built from nodes, for browsers without AudioWorklet (and until the worklet has loaded)
+function strikeNodes(dest,hits){hits.forEach(h=>{const g=mkGain(0,dest);
+  if(h.n){const s=AC.createBufferSource();s.buffer=noiseBuf;const fl=AC.createBiquadFilter();fl.type=h.ft==='lp'?'lowpass':'bandpass';fl.frequency.value=h.bf;if(h.ft!=='lp')fl.Q.value=h.q;
+    g.gain.setValueAtTime(h.a,h.t);g.gain.setTargetAtTime(0,h.t,h.d);s.connect(fl);fl.connect(g);s.start(h.t,Math.random()*.5);s.stop(h.end)}
+  else{const o=AC.createOscillator();o.type=h.w==='tri'?'triangle':'sine';if(h.gl){o.frequency.setValueAtTime(h.f,h.t);o.frequency.exponentialRampToValueAtTime(h.f1,h.t+h.gl)}else o.frequency.value=h.f;
+    g.gain.setValueAtTime(0,h.t);g.gain.linearRampToValueAtTime(h.a,h.t+h.A);g.gain.setTargetAtTime(0,h.t+h.A,h.d);o.connect(g);o.start(h.t);o.stop(h.end)}})}
+function strike(dest,hits){if(!AC||!hits.length)return;const w=strikeNode(dest);if(w){try{w.port.postMessage(hits);return}catch(e){}}strikeNodes(dest,hits)}
 function bhaPace(){return 4}
 function bhaDroneK(){return 0}
 function bhaSingK(){return .12}
@@ -8711,12 +8746,9 @@ function jwOut(id,x){return bhaPan('jw_'+id,x)}
 function jwMetal(dest,t,f,lvl,parts,beat,thud){
   if(!AC||!bhaOK(f,parts[0][2]*.8))return false;const A=Math.max(.003,bhaA());
   if(strokeLite()){parts=parts.slice(0,2);beat=0;thud=null}
-  parts.forEach(([r,a,d],j)=>{const n=beat&&j===0?2:1;for(let q=0;q<n;q++){const o=AC.createOscillator();o.type='sine';o.frequency.value=f*r+(q?beat:0);const g=mkGain(0,dest),L=lvl*a*(n>1?.62:1);
-    g.gain.setValueAtTime(0,t);if(A>.05){g.gain.setValueAtTime(L*.063,t+.001);g.gain.exponentialRampToValueAtTime(L,t+A)}else g.gain.linearRampToValueAtTime(L,t+A);g.gain.setTargetAtTime(0,t+A,d);
-    o.connect(g);o.start(t);o.stop(t+A+d*6+.1)}});
-  if(thud&&bhaA()<.05){const n=AC.createBufferSource();n.buffer=noiseBuf;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=thud[0];bp.Q.value=1.2;const g=mkGain(0,dest);
-    g.gain.setValueAtTime(lvl*thud[1],t);g.gain.setTargetAtTime(0,t,thud[2]);n.connect(bp);bp.connect(g);n.start(t,Math.random()*.5);n.stop(t+.25)}
-  return true}
+  const H=[];parts.forEach(([r,a,d],j)=>{const n=beat&&j===0?2:1;for(let q=0;q<n;q++)H.push({t,f:f*r+(q?beat:0),a:lvl*a*(n>1?.62:1),A,d,end:t+A+d*6+.1})});
+  if(thud&&bhaA()<.05)H.push({t,n:1,bf:thud[0],q:1.2,a:lvl*thud[1],d:thud[2],end:t+.25});
+  strike(dest,H);return true}
 function jwEv(w,t,f,lvl,dec){bhaLight(w,t);if(window.MOTS&&MOTS.midi&&MOTS.midi.hit)MOTS.midi.hit(w,t,f,Math.min(1,lvl*8),dec);if(window.MOTS&&MOTS.score&&MOTS.score.attack)setTimeout(()=>MOTS.score.attack(w,f,false),Math.max(0,(t-AC.currentTime)*1000))}
 // the instruments; w is the voice (an instrument as written, a planet heard from Yogyakarta), dest where it sounds
 function jwPlay(kind,w,dest,t,n,v){if(SIR.solo&&SIR.solo!==w)return;if(jwCalm()&&/^(bonang|kethuk|dhah|dhung|tung|tak)$/.test(kind))return;v=(v===undefined?1:v)*(SIR.solo?1:.62);let f=0,ok=false;
@@ -8731,10 +8763,9 @@ function jwPlay(kind,w,dest,t,n,v){if(SIR.solo&&SIR.solo!==w)return;if(jwCalm()&
     case 'slenthem':f=jwNoteF(n,-1);ok=jwMetal(dest,t,f,.08*v,[[1,1,2.4],[2.0,.15,.8]],1.2,null);break;
     case 'peking':f=jwNoteF(n,2);ok=jwMetal(dest,t,f,.05*v,[[1,1,.7],[2.76,.18,.2]],0,[4500,.3,.008]);break;
     case 'bonang':f=jwNoteF(n,1);ok=jwMetal(dest,t,f,.06*v,[[1,1,.9],[2.02,.3,.4],[3.1,.12,.2]],1.4,[1800,.3,.012]);break;
-    case 'dhah':case 'dhung':case 'tung':{f=kind==='dhah'?82:kind==='dhung'?150:230;if(!AC||!bhaOK(f,.3))return;const o=AC.createOscillator();o.type='sine';o.frequency.setValueAtTime(f*1.25,t);o.frequency.exponentialRampToValueAtTime(f,t+.06);
-      const g=mkGain(0,dest),L=(kind==='dhah'?.3:kind==='dhung'?.2:.14)*v,A=Math.max(.003,bhaA());g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(L,t+A);g.gain.setTargetAtTime(0,t+A,kind==='dhah'?.22:.12);o.connect(g);o.start(t);o.stop(t+A+1.4);ok=true;break}
-    case 'tak':{f=2400;if(!AC||!bhaOK(f,.05))return;const s=AC.createBufferSource();s.buffer=noiseBuf;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=2400;bp.Q.value=1.4;const g=mkGain(0,dest);
-      g.gain.setValueAtTime(.16*v,t);g.gain.setTargetAtTime(0,t,.035);s.connect(bp);bp.connect(g);s.start(t,Math.random()*.5);s.stop(t+.3);ok=true;break}
+    case 'dhah':case 'dhung':case 'tung':{f=kind==='dhah'?82:kind==='dhung'?150:230;if(!AC||!bhaOK(f,.3))return;const A=Math.max(.003,bhaA());
+      strike(dest,[{t,f:f*1.25,f1:f,gl:.06,a:(kind==='dhah'?.3:kind==='dhung'?.2:.14)*v,A,d:kind==='dhah'?.22:.12,end:t+A+1.4}]);ok=true;break}
+    case 'tak':{f=2400;if(!AC||!bhaOK(f,.05))return;strike(dest,[{t,n:1,bf:2400,q:1.4,a:.16*v,d:.035,end:t+.3}]);ok=true;break}
   }
   if(ok)jwEv(w,t,f||200,.06*v,.8)}
 // one round as it is played and reckoned: a gongan of the ladrang, then the 210 days of a pawukon from Ahad Pahing of wuku Sinta, a day to a beat:
@@ -8816,14 +8847,12 @@ function myOut(id,x){return bhaPan('my_'+id,x)}
 function myPlay(kind,t,v,f0){if(jwCalm()&&kind==='rattle')return;const w=kind==='low'||kind==='high'?'ahk':kind;if(SIR.solo&&SIR.solo!==w)return;v=v===undefined?1:v;const VK=SIR.solo?1:.75;const dest=myOut(w,{ahk:-.4,pax:.25,rattle:.55,chakek:-.1,conch:0}[w]);let f=0;
   if(!AC)return;const A=Math.max(.003,bhaA());
   if(kind==='low'||kind==='high'){f=kind==='low'?410:640;if(!bhaOK(f,.15))return;
-    (strokeLite()?[[1,1,.07]]:[[1,1,.07],[1.62,.45,.05],[2.3,.2,.03]]).forEach(([r,a,d])=>{const o=AC.createOscillator();o.type='sine';o.frequency.value=f*r;const g=mkGain(0,dest);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.16*v*a*VK,t+A);g.gain.setTargetAtTime(0,t+A,d);o.connect(g);o.start(t);o.stop(t+A+.6)});
-    const s=AC.createBufferSource();s.buffer=noiseBuf;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f*2.2;bp.Q.value=2;const g=mkGain(0,dest);g.gain.setValueAtTime(.12*v*VK,t);g.gain.setTargetAtTime(0,t,.015);s.connect(bp);bp.connect(g);s.start(t,Math.random()*.5);s.stop(t+.2)}
-  else if(kind==='pax'){f=78;if(!bhaOK(f,.4))return;const o=AC.createOscillator();o.type='sine';o.frequency.setValueAtTime(f*1.35,t);o.frequency.exponentialRampToValueAtTime(f,t+.08);const g=mkGain(0,dest);
-    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.32*v*VK,t+A);g.gain.setTargetAtTime(0,t+A,.24);o.connect(g);o.start(t);o.stop(t+A+1.6);
-    const o2=AC.createOscillator();o2.type='sine';o2.frequency.value=f*2.3;const g2=mkGain(0,dest);g2.gain.setValueAtTime(0,t);g2.gain.linearRampToValueAtTime(.06*v*VK,t+A);g2.gain.setTargetAtTime(0,t+A,.08);o2.connect(g2);o2.start(t);o2.stop(t+A+.6);
-    const s=AC.createBufferSource();s.buffer=noiseBuf;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=700;const gn=mkGain(0,dest);gn.gain.setValueAtTime(.08*v*VK,t);gn.gain.setTargetAtTime(0,t,.03);s.connect(lp);lp.connect(gn);s.start(t,Math.random()*.5);s.stop(t+.3)}
-  else if(kind==='rattle'){f=5000;if(!bhaOK(f,.08))return;const s=AC.createBufferSource();s.buffer=noiseBuf;const hp=AC.createBiquadFilter();hp.type='bandpass';hp.frequency.value=4200+800*Math.random();hp.Q.value=.9;const g=mkGain(0,dest);
-    g.gain.setValueAtTime(0,t);for(let q=0;q<6;q++){const tt=t+q*.011+Math.random()*.006;g.gain.setValueAtTime(.11*v*VK*(1-q*.13),tt);g.gain.setTargetAtTime(0,tt+.002,.009)}s.connect(hp);hp.connect(g);s.start(t,Math.random()*.5);s.stop(t+.12)}
+    const H=(strokeLite()?[[1,1,.07]]:[[1,1,.07],[1.62,.45,.05],[2.3,.2,.03]]).map(([r,a,d])=>({t,f:f*r,a:.16*v*a*VK,A,d,end:t+A+.6}));
+    H.push({t,n:1,bf:f*2.2,q:2,a:.12*v*VK,d:.015,end:t+.2});strike(dest,H)}
+  else if(kind==='pax'){f=78;if(!bhaOK(f,.4))return;
+    strike(dest,[{t,f:f*1.35,f1:f,gl:.08,a:.32*v*VK,A,d:.24,end:t+A+1.6},{t,f:f*2.3,a:.06*v*VK,A,d:.08,end:t+A+.6},{t,n:1,ft:'lp',bf:700,q:.707,a:.08*v*VK,d:.03,end:t+.3}])}
+  else if(kind==='rattle'){f=5000;if(!bhaOK(f,.08))return;const bf=4200+800*Math.random(),H=[];
+    for(let q=0;q<6;q++){const tt=t+q*.011+Math.random()*.006;H.push({t:tt,n:1,bf,q:.9,a:.11*v*VK*(1-q*.13),d:.009,end:Math.min(t+.12,tt+.06)})}strike(dest,H)}
   else if(kind==='conch'){f=f0||130;if(!bhaOK(f,2))return;const o=AC.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(f*.94,t);o.frequency.setTargetAtTime(f,t+.05,.12);o.frequency.setTargetAtTime(f*1.03,t+1.3,.3);
     const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(300,t);lp.frequency.setTargetAtTime(1100,t+.05,.25);lp.frequency.setTargetAtTime(400,t+1.5,.3);
     const g=mkGain(0,dest),A2=Math.max(.12,A);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.11*v,t+A2);g.gain.setValueAtTime(.11*v,t+1.4);g.gain.setTargetAtTime(0,t+1.4,.25);o.connect(lp);lp.connect(g);o.start(t);o.stop(t+3.2)}
@@ -8912,15 +8941,13 @@ function egStatus(){if(athens()){const J=egJ(),c=egCivil(J),h=egNightHour();
 // the instruments, all reconstructions from their kind: an arched harp, the sistrum, a frame drum, the trumpet (as Tutankhamun's)
 function egOut(k,x){if(!EG.g)EG.g=mkGain(1,bus);if(EG.sp[k])return EG.sp[k];const g=mkGain(1);try{const p=AC.createStereoPanner();p.pan.value=x;g.connect(p);p.connect(EG.g)}catch(e){g.connect(EG.g)}return EG.sp[k]=g}
 function egHarp(t,f,v){if(!AC)return;const dest=egOut('harp',-.35),A=.004;
-  (strokeLite()?[[1,1,.9]]:[[1,1,1.1],[2,.35,.55],[3,.12,.28]]).forEach(([r,a,d])=>{const o=AC.createOscillator();o.type=r===1?'triangle':'sine';o.frequency.value=f*r;const g=mkGain(0,dest);
-    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.1*v*a,t+A);g.gain.setTargetAtTime(0,t+A,d*.45);o.connect(g);o.start(t);o.stop(t+A+d*3+.1)});
+  strike(dest,(strokeLite()?[[1,1,.9]]:[[1,1,1.1],[2,.35,.55],[3,.12,.28]]).map(([r,a,d])=>({t,f:f*r,w:r===1?'tri':'sin',a:.1*v*a,A,d:d*.45,end:t+A+d*3+.1})));
   if(window.MOTS&&MOTS.midi&&MOTS.midi.hit)MOTS.midi.hit('sun',t,f,.4,.6)}
-function egSistrum(t,v){if(!AC)return;const dest=egOut('sis',.4),s=AC.createBufferSource();s.buffer=noiseBuf;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=5200;bp.Q.value=1.1;const g=mkGain(0,dest);
-  g.gain.setValueAtTime(0,t);const n=strokeLite()?3:6;for(let q=0;q<n;q++){const tt=t+q*.028+Math.random()*.008;g.gain.setValueAtTime(.07*v*(1-q*.12),tt);g.gain.setTargetAtTime(0,tt+.002,.016)}s.connect(bp);bp.connect(g);s.start(t,Math.random()*.5);s.stop(t+.3);
-  if(!strokeLite())[3150,4420].forEach(f=>{const o=AC.createOscillator();o.type='sine';o.frequency.value=f;const go=mkGain(0,dest);go.gain.setValueAtTime(0,t);go.gain.linearRampToValueAtTime(.012*v,t+.004);go.gain.setTargetAtTime(0,t+.004,.09);o.connect(go);o.start(t);o.stop(t+.6)})}
-function egDrum(t,v,deep){if(!AC)return;const dest=egOut('drum',.1),f=deep?70:105,o=AC.createOscillator();o.type='sine';o.frequency.setValueAtTime(f*1.4,t);o.frequency.exponentialRampToValueAtTime(f,t+.07);const g=mkGain(0,dest);
-  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.26*v,t+.004);g.gain.setTargetAtTime(0,t+.004,deep?.25:.13);o.connect(g);o.start(t);o.stop(t+1.4);
-  if(!strokeLite()){const s=AC.createBufferSource();s.buffer=noiseBuf;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=800;const gn=mkGain(0,dest);gn.gain.setValueAtTime(.06*v,t);gn.gain.setTargetAtTime(0,t,.03);s.connect(lp);lp.connect(gn);s.start(t,Math.random()*.5);s.stop(t+.3)}}
+function egSistrum(t,v){if(!AC)return;const dest=egOut('sis',.4),H=[],n=strokeLite()?3:6;
+  for(let q=0;q<n;q++){const tt=t+q*.028+Math.random()*.008;H.push({t:tt,n:1,bf:5200,q:1.1,a:.07*v*(1-q*.12),d:.016,end:Math.min(t+.3,tt+.1)})}
+  if(!strokeLite())[3150,4420].forEach(f=>H.push({t,f,a:.012*v,A:.004,d:.09,end:t+.6}));strike(dest,H)}
+function egDrum(t,v,deep){if(!AC)return;const dest=egOut('drum',.1),f=deep?70:105,H=[{t,f:f*1.4,f1:f,gl:.07,a:.26*v,A:.004,d:deep?.25:.13,end:t+1.4}];
+  if(!strokeLite())H.push({t,n:1,ft:'lp',bf:800,q:.707,a:.06*v,d:.03,end:t+.3});strike(dest,H)}
 function egTrumpet(t,f,len,v){if(!AC)return;const dest=egOut('tr',0),o=AC.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(f*.96,t);o.frequency.setTargetAtTime(f,t+.03,.06);
   const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(500,t);lp.frequency.setTargetAtTime(1900,t+.03,.12);lp.frequency.setTargetAtTime(900,t+len*.6,.2);
   const g=mkGain(0,dest);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.08*v,t+.05);g.gain.setValueAtTime(.08*v,t+len);g.gain.setTargetAtTime(0,t+len,.12);o.connect(lp);lp.connect(g);o.start(t);o.stop(t+len+1)}

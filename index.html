@@ -14112,6 +14112,85 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       return false;
     }
   };
+  const STRIKE_CODE = "class MotsStrike extends AudioWorkletProcessor{\nconstructor(){super();this.v=[];this.port.onmessage=e=>{const h=e.data;for(let i=0;i<h.length;i++)this.add(h[i])}}\nadd(h){const sr=sampleRate,o={s0:Math.round(h.t*sr),e0:Math.round(h.end*sr),lvl:h.a,env:0};\n if(h.n){o.n=1;o.k=Math.exp(-1/(Math.max(1e-4,h.d)*sr));o.env=h.a;const w=2*Math.PI*h.bf/sr,c=Math.cos(w),al=Math.sin(w)/(2*h.q);let b0,b1,b2;\n  if(h.ft==='lp'){b0=(1-c)/2;b1=1-c;b2=(1-c)/2}else{b0=al;b1=0;b2=-al}const a0=1+al;o.b0=b0/a0;o.b1=b1/a0;o.b2=b2/a0;o.a1=-2*c/a0;o.a2=(1-al)/a0;o.x1=o.x2=o.y1=o.y2=0}\n else{o.f=h.f;o.f1=h.f1||h.f;o.gl=Math.round((h.gl||0)*sr);o.A=Math.max(1,Math.round(h.A*sr));o.k=Math.exp(-1/(Math.max(1e-4,h.d)*sr));o.tri=h.w==='tri';o.x=1;o.y=0;o.ph=0;o.i=0}\n this.v.push(o)}\nprocess(_,outs){const out=outs[0][0];if(!out)return true;const n=out.length,f0=currentFrame,sr=sampleRate,v=this.v;let live=0;\n for(let j=0;j<v.length;j++){const o=v[j];if(o.dead)continue;if(o.s0>=f0+n){v[live++]=o;continue}\n  let k=Math.max(0,o.s0-f0);\n  if(o.n){for(;k<n;k++){if(f0+k>=o.e0||o.env<1e-5){o.dead=1;break}const x=Math.random()*2-1,y=o.b0*x+o.b1*o.x1+o.b2*o.x2-o.a1*o.y1-o.a2*o.y2;o.x2=o.x1;o.x1=x;o.y2=o.y1;o.y1=y;out[k]+=y*o.env;o.env*=o.k}}\n  else{let f=o.gl&&o.i<o.gl?o.f*Math.pow(o.f1/o.f,o.i/o.gl):o.f1,w=2*Math.PI*f/sr,c=Math.cos(w),s=Math.sin(w),q=0;\n   for(;k<n;k++){if(f0+k>=o.e0){o.dead=1;break}\n    if(o.i<o.A)o.env=o.lvl*(o.i+1)/o.A;else{o.env*=o.k;if(o.env<1e-5*o.lvl){o.dead=1;break}}\n    if(o.gl&&o.i<o.gl&&(++q&15)===0){f=o.f*Math.pow(o.f1/o.f,o.i/o.gl);w=2*Math.PI*f/sr;c=Math.cos(w);s=Math.sin(w)}\n    let val;if(o.tri){o.ph+=f/sr;if(o.ph>=1)o.ph-=1;val=o.ph<.5?4*o.ph-1:3-4*o.ph}else{const x=o.x*c-o.y*s;o.y=o.x*s+o.y*c;o.x=x;val=o.y}\n    out[k]+=val*o.env;o.i++}\n   if(!o.tri){const m=1/Math.sqrt(o.x*o.x+o.y*o.y);o.x*=m;o.y*=m}}\n  if(!o.dead)v[live++]=o}\n v.length=live;return true}}\nregisterProcessor('mots-strike',MotsStrike)";
+  const STRK = { ac: null, ready: false, nodes: /* @__PURE__ */ new Map(), off: false };
+  function strikeLoad() {
+    if (STRK.off || !AC) return false;
+    if (STRK.ac !== AC) {
+      STRK.ac = AC;
+      STRK.ready = false;
+      STRK.nodes = /* @__PURE__ */ new Map();
+      try {
+        if (!AC.audioWorklet || !window.AudioWorkletNode) return false;
+        AC.audioWorklet.addModule(URL.createObjectURL(new Blob([STRIKE_CODE], { type: "text/javascript" }))).then(() => {
+          if (STRK.ac === AC) STRK.ready = true;
+        }, () => {
+          STRK.off = true;
+        });
+      } catch (e) {
+        STRK.off = true;
+      }
+    }
+    return STRK.ready;
+  }
+  function strikeNode(dest) {
+    if (!strikeLoad()) return null;
+    let w = STRK.nodes.get(dest);
+    if (w) return w;
+    try {
+      w = new AudioWorkletNode(AC, "mots-strike", { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1] });
+      w.connect(dest);
+      STRK.nodes.set(dest, w);
+      return w;
+    } catch (e) {
+      STRK.off = true;
+      return null;
+    }
+  }
+  function strikeNodes(dest, hits) {
+    hits.forEach((h) => {
+      const g = mkGain(0, dest);
+      if (h.n) {
+        const s = AC.createBufferSource();
+        s.buffer = noiseBuf;
+        const fl = AC.createBiquadFilter();
+        fl.type = h.ft === "lp" ? "lowpass" : "bandpass";
+        fl.frequency.value = h.bf;
+        if (h.ft !== "lp") fl.Q.value = h.q;
+        g.gain.setValueAtTime(h.a, h.t);
+        g.gain.setTargetAtTime(0, h.t, h.d);
+        s.connect(fl);
+        fl.connect(g);
+        s.start(h.t, Math.random() * 0.5);
+        s.stop(h.end);
+      } else {
+        const o = AC.createOscillator();
+        o.type = h.w === "tri" ? "triangle" : "sine";
+        if (h.gl) {
+          o.frequency.setValueAtTime(h.f, h.t);
+          o.frequency.exponentialRampToValueAtTime(h.f1, h.t + h.gl);
+        } else o.frequency.value = h.f;
+        g.gain.setValueAtTime(0, h.t);
+        g.gain.linearRampToValueAtTime(h.a, h.t + h.A);
+        g.gain.setTargetAtTime(0, h.t + h.A, h.d);
+        o.connect(g);
+        o.start(h.t);
+        o.stop(h.end);
+      }
+    });
+  }
+  function strike(dest, hits) {
+    if (!AC || !hits.length) return;
+    const w = strikeNode(dest);
+    if (w) {
+      try {
+        w.port.postMessage(hits);
+        return;
+      } catch (e) {
+      }
+    }
+    strikeNodes(dest, hits);
+  }
   function bhaPace() {
     return 1;
   }
@@ -14460,39 +14539,13 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       beat = 0;
       thud = null;
     }
+    const H2 = [];
     parts.forEach(([r, a, d], j) => {
       const n = beat && j === 0 ? 2 : 1;
-      for (let q = 0; q < n; q++) {
-        const o = AC.createOscillator();
-        o.type = "sine";
-        o.frequency.value = f * r + (q ? beat : 0);
-        const g = mkGain(0, dest), L = lvl * a * (n > 1 ? 0.62 : 1);
-        g.gain.setValueAtTime(0, t);
-        if (A > 0.05) {
-          g.gain.setValueAtTime(L * 0.063, t + 1e-3);
-          g.gain.exponentialRampToValueAtTime(L, t + A);
-        } else g.gain.linearRampToValueAtTime(L, t + A);
-        g.gain.setTargetAtTime(0, t + A, d);
-        o.connect(g);
-        o.start(t);
-        o.stop(t + A + d * 6 + 0.1);
-      }
+      for (let q = 0; q < n; q++) H2.push({ t, f: f * r + (q ? beat : 0), a: lvl * a * (n > 1 ? 0.62 : 1), A, d, end: t + A + d * 6 + 0.1 });
     });
-    if (thud && bhaA() < 0.05) {
-      const n = AC.createBufferSource();
-      n.buffer = noiseBuf;
-      const bp = AC.createBiquadFilter();
-      bp.type = "bandpass";
-      bp.frequency.value = thud[0];
-      bp.Q.value = 1.2;
-      const g = mkGain(0, dest);
-      g.gain.setValueAtTime(lvl * thud[1], t);
-      g.gain.setTargetAtTime(0, t, thud[2]);
-      n.connect(bp);
-      bp.connect(g);
-      n.start(t, Math.random() * 0.5);
-      n.stop(t + 0.25);
-    }
+    if (thud && bhaA() < 0.05) H2.push({ t, n: 1, bf: thud[0], q: 1.2, a: lvl * thud[1], d: thud[2], end: t + 0.25 });
+    strike(dest, H2);
     return true;
   }
   function jwEv(w, t, f, lvl, dec) {
@@ -14551,36 +14604,15 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       case "tung": {
         f = kind === "dhah" ? 82 : kind === "dhung" ? 150 : 230;
         if (!AC || !bhaOK(f, 0.3)) return;
-        const o = AC.createOscillator();
-        o.type = "sine";
-        o.frequency.setValueAtTime(f * 1.25, t);
-        o.frequency.exponentialRampToValueAtTime(f, t + 0.06);
-        const g = mkGain(0, dest), L = (kind === "dhah" ? 0.3 : kind === "dhung" ? 0.2 : 0.14) * v, A = Math.max(3e-3, bhaA());
-        g.gain.setValueAtTime(0, t);
-        g.gain.linearRampToValueAtTime(L, t + A);
-        g.gain.setTargetAtTime(0, t + A, kind === "dhah" ? 0.22 : 0.12);
-        o.connect(g);
-        o.start(t);
-        o.stop(t + A + 1.4);
+        const A = Math.max(3e-3, bhaA());
+        strike(dest, [{ t, f: f * 1.25, f1: f, gl: 0.06, a: (kind === "dhah" ? 0.3 : kind === "dhung" ? 0.2 : 0.14) * v, A, d: kind === "dhah" ? 0.22 : 0.12, end: t + A + 1.4 }]);
         ok = true;
         break;
       }
       case "tak": {
         f = 2400;
         if (!AC || !bhaOK(f, 0.05)) return;
-        const s = AC.createBufferSource();
-        s.buffer = noiseBuf;
-        const bp = AC.createBiquadFilter();
-        bp.type = "bandpass";
-        bp.frequency.value = 2400;
-        bp.Q.value = 1.4;
-        const g = mkGain(0, dest);
-        g.gain.setValueAtTime(0.16 * v, t);
-        g.gain.setTargetAtTime(0, t, 0.035);
-        s.connect(bp);
-        bp.connect(g);
-        s.start(t, Math.random() * 0.5);
-        s.stop(t + 0.3);
+        strike(dest, [{ t, n: 1, bf: 2400, q: 1.4, a: 0.16 * v, d: 0.035, end: t + 0.3 }]);
         ok = true;
         break;
       }
@@ -14789,87 +14821,22 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     if (kind === "low" || kind === "high") {
       f = kind === "low" ? 410 : 640;
       if (!bhaOK(f, 0.15)) return;
-      (strokeLite() ? [[1, 1, 0.07]] : [[1, 1, 0.07], [1.62, 0.45, 0.05], [2.3, 0.2, 0.03]]).forEach(([r, a, d]) => {
-        const o = AC.createOscillator();
-        o.type = "sine";
-        o.frequency.value = f * r;
-        const g2 = mkGain(0, dest);
-        g2.gain.setValueAtTime(0, t);
-        g2.gain.linearRampToValueAtTime(0.16 * v * a * VK, t + A);
-        g2.gain.setTargetAtTime(0, t + A, d);
-        o.connect(g2);
-        o.start(t);
-        o.stop(t + A + 0.6);
-      });
-      const s = AC.createBufferSource();
-      s.buffer = noiseBuf;
-      const bp = AC.createBiquadFilter();
-      bp.type = "bandpass";
-      bp.frequency.value = f * 2.2;
-      bp.Q.value = 2;
-      const g = mkGain(0, dest);
-      g.gain.setValueAtTime(0.12 * v * VK, t);
-      g.gain.setTargetAtTime(0, t, 0.015);
-      s.connect(bp);
-      bp.connect(g);
-      s.start(t, Math.random() * 0.5);
-      s.stop(t + 0.2);
+      const H2 = (strokeLite() ? [[1, 1, 0.07]] : [[1, 1, 0.07], [1.62, 0.45, 0.05], [2.3, 0.2, 0.03]]).map(([r, a, d]) => ({ t, f: f * r, a: 0.16 * v * a * VK, A, d, end: t + A + 0.6 }));
+      H2.push({ t, n: 1, bf: f * 2.2, q: 2, a: 0.12 * v * VK, d: 0.015, end: t + 0.2 });
+      strike(dest, H2);
     } else if (kind === "pax") {
       f = 78;
       if (!bhaOK(f, 0.4)) return;
-      const o = AC.createOscillator();
-      o.type = "sine";
-      o.frequency.setValueAtTime(f * 1.35, t);
-      o.frequency.exponentialRampToValueAtTime(f, t + 0.08);
-      const g = mkGain(0, dest);
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.32 * v * VK, t + A);
-      g.gain.setTargetAtTime(0, t + A, 0.24);
-      o.connect(g);
-      o.start(t);
-      o.stop(t + A + 1.6);
-      const o2 = AC.createOscillator();
-      o2.type = "sine";
-      o2.frequency.value = f * 2.3;
-      const g2 = mkGain(0, dest);
-      g2.gain.setValueAtTime(0, t);
-      g2.gain.linearRampToValueAtTime(0.06 * v * VK, t + A);
-      g2.gain.setTargetAtTime(0, t + A, 0.08);
-      o2.connect(g2);
-      o2.start(t);
-      o2.stop(t + A + 0.6);
-      const s = AC.createBufferSource();
-      s.buffer = noiseBuf;
-      const lp = AC.createBiquadFilter();
-      lp.type = "lowpass";
-      lp.frequency.value = 700;
-      const gn = mkGain(0, dest);
-      gn.gain.setValueAtTime(0.08 * v * VK, t);
-      gn.gain.setTargetAtTime(0, t, 0.03);
-      s.connect(lp);
-      lp.connect(gn);
-      s.start(t, Math.random() * 0.5);
-      s.stop(t + 0.3);
+      strike(dest, [{ t, f: f * 1.35, f1: f, gl: 0.08, a: 0.32 * v * VK, A, d: 0.24, end: t + A + 1.6 }, { t, f: f * 2.3, a: 0.06 * v * VK, A, d: 0.08, end: t + A + 0.6 }, { t, n: 1, ft: "lp", bf: 700, q: 0.707, a: 0.08 * v * VK, d: 0.03, end: t + 0.3 }]);
     } else if (kind === "rattle") {
       f = 5e3;
       if (!bhaOK(f, 0.08)) return;
-      const s = AC.createBufferSource();
-      s.buffer = noiseBuf;
-      const hp = AC.createBiquadFilter();
-      hp.type = "bandpass";
-      hp.frequency.value = 4200 + 800 * Math.random();
-      hp.Q.value = 0.9;
-      const g = mkGain(0, dest);
-      g.gain.setValueAtTime(0, t);
+      const bf = 4200 + 800 * Math.random(), H2 = [];
       for (let q = 0; q < 6; q++) {
         const tt = t + q * 0.011 + Math.random() * 6e-3;
-        g.gain.setValueAtTime(0.11 * v * VK * (1 - q * 0.13), tt);
-        g.gain.setTargetAtTime(0, tt + 2e-3, 9e-3);
+        H2.push({ t: tt, n: 1, bf, q: 0.9, a: 0.11 * v * VK * (1 - q * 0.13), d: 9e-3, end: Math.min(t + 0.12, tt + 0.06) });
       }
-      s.connect(hp);
-      hp.connect(g);
-      s.start(t, Math.random() * 0.5);
-      s.stop(t + 0.12);
+      strike(dest, H2);
     } else if (kind === "conch") {
       f = f0 || 130;
       if (!bhaOK(f, 2)) return;
@@ -15147,80 +15114,24 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
   function egHarp(t, f, v) {
     if (!AC) return;
     const dest = egOut("harp", -0.35), A = 4e-3;
-    (strokeLite() ? [[1, 1, 0.9]] : [[1, 1, 1.1], [2, 0.35, 0.55], [3, 0.12, 0.28]]).forEach(([r, a, d]) => {
-      const o = AC.createOscillator();
-      o.type = r === 1 ? "triangle" : "sine";
-      o.frequency.value = f * r;
-      const g = mkGain(0, dest);
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.1 * v * a, t + A);
-      g.gain.setTargetAtTime(0, t + A, d * 0.45);
-      o.connect(g);
-      o.start(t);
-      o.stop(t + A + d * 3 + 0.1);
-    });
+    strike(dest, (strokeLite() ? [[1, 1, 0.9]] : [[1, 1, 1.1], [2, 0.35, 0.55], [3, 0.12, 0.28]]).map(([r, a, d]) => ({ t, f: f * r, w: r === 1 ? "tri" : "sin", a: 0.1 * v * a, A, d: d * 0.45, end: t + A + d * 3 + 0.1 })));
     if (window.MOTS && MOTS.midi && MOTS.midi.hit) MOTS.midi.hit("sun", t, f, 0.4, 0.6);
   }
   function egSistrum(t, v) {
     if (!AC) return;
-    const dest = egOut("sis", 0.4), s = AC.createBufferSource();
-    s.buffer = noiseBuf;
-    const bp = AC.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.value = 5200;
-    bp.Q.value = 1.1;
-    const g = mkGain(0, dest);
-    g.gain.setValueAtTime(0, t);
-    const n = strokeLite() ? 3 : 6;
+    const dest = egOut("sis", 0.4), H2 = [], n = strokeLite() ? 3 : 6;
     for (let q = 0; q < n; q++) {
       const tt = t + q * 0.028 + Math.random() * 8e-3;
-      g.gain.setValueAtTime(0.07 * v * (1 - q * 0.12), tt);
-      g.gain.setTargetAtTime(0, tt + 2e-3, 0.016);
+      H2.push({ t: tt, n: 1, bf: 5200, q: 1.1, a: 0.07 * v * (1 - q * 0.12), d: 0.016, end: Math.min(t + 0.3, tt + 0.1) });
     }
-    s.connect(bp);
-    bp.connect(g);
-    s.start(t, Math.random() * 0.5);
-    s.stop(t + 0.3);
-    if (!strokeLite()) [3150, 4420].forEach((f) => {
-      const o = AC.createOscillator();
-      o.type = "sine";
-      o.frequency.value = f;
-      const go = mkGain(0, dest);
-      go.gain.setValueAtTime(0, t);
-      go.gain.linearRampToValueAtTime(0.012 * v, t + 4e-3);
-      go.gain.setTargetAtTime(0, t + 4e-3, 0.09);
-      o.connect(go);
-      o.start(t);
-      o.stop(t + 0.6);
-    });
+    if (!strokeLite()) [3150, 4420].forEach((f) => H2.push({ t, f, a: 0.012 * v, A: 4e-3, d: 0.09, end: t + 0.6 }));
+    strike(dest, H2);
   }
   function egDrum(t, v, deep) {
     if (!AC) return;
-    const dest = egOut("drum", 0.1), f = deep ? 70 : 105, o = AC.createOscillator();
-    o.type = "sine";
-    o.frequency.setValueAtTime(f * 1.4, t);
-    o.frequency.exponentialRampToValueAtTime(f, t + 0.07);
-    const g = mkGain(0, dest);
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.26 * v, t + 4e-3);
-    g.gain.setTargetAtTime(0, t + 4e-3, deep ? 0.25 : 0.13);
-    o.connect(g);
-    o.start(t);
-    o.stop(t + 1.4);
-    if (!strokeLite()) {
-      const s = AC.createBufferSource();
-      s.buffer = noiseBuf;
-      const lp = AC.createBiquadFilter();
-      lp.type = "lowpass";
-      lp.frequency.value = 800;
-      const gn = mkGain(0, dest);
-      gn.gain.setValueAtTime(0.06 * v, t);
-      gn.gain.setTargetAtTime(0, t, 0.03);
-      s.connect(lp);
-      lp.connect(gn);
-      s.start(t, Math.random() * 0.5);
-      s.stop(t + 0.3);
-    }
+    const dest = egOut("drum", 0.1), f = deep ? 70 : 105, H2 = [{ t, f: f * 1.4, f1: f, gl: 0.07, a: 0.26 * v, A: 4e-3, d: deep ? 0.25 : 0.13, end: t + 1.4 }];
+    if (!strokeLite()) H2.push({ t, n: 1, ft: "lp", bf: 800, q: 0.707, a: 0.06 * v, d: 0.03, end: t + 0.3 });
+    strike(dest, H2);
   }
   function egTrumpet(t, f, len, v) {
     if (!AC) return;
