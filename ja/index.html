@@ -1026,12 +1026,10 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     };
     const apply = (c, s, n) => {
       const v = panOf(s, n);
-      if (Math.abs(v - n.__pan) < 4e-3) return;
+      if (Math.abs(v - n.__pan) < 0.01) return;
       const t = c.currentTime, pp = n.pan;
       try {
-        pp.cancelScheduledValues(t);
-        pp.setValueAtTime(n.__pan, t);
-        pp.linearRampToValueAtTime(v, t + 0.05);
+        pp.setTargetAtTime(v, t, 0.02);
       } catch (e) {
         pp.value = v;
       }
@@ -10851,6 +10849,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     ns.connect(noiseBus);
     ns.start();
     voiceWL();
+    strikeLoad();
     const jl = AC.createBiquadFilter();
     jl.type = "lowpass";
     jl.frequency.value = 7;
@@ -11143,7 +11142,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       if (want && !v.part && builds < 3) {
         buildPart(b, v);
         builds++;
-      } else if (!want && v.part && now - (v.born || 0) > 2.5) {
+      } else if (!want && v.part && now - (v.born || 0) > 6) {
         killPart(v.part);
         v.part = null;
         v.mode = null;
@@ -11222,7 +11221,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
           buildAny(sv.body, sv, mf);
           sv.born = now;
           sv.dead = null;
-        } else if (!wantM && sv.part && now - sv.born > 2.5) {
+        } else if (!wantM && sv.part && now - sv.born > 6) {
           killPart(sv.part);
           sv.part = null;
         }
@@ -11433,6 +11432,11 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     f = quantize(f);
     const pan = BELTP[beltIx++ % BELTP.length];
     setPos(pan, a.x, a.y, a.z, 0.01);
+    if (strikeNode(pan)) {
+      const amp2 = 0.035 * S.groups.belt.vol * Math.pow(1 / (1 + a.d / 3), 0.5);
+      strike(pan, [{ t, f, a: amp2, A: 0.02, d: 0.35, end: t + 2 }, { t, f: f * 2.76, a: amp2 * 0.15, A: 0.02, d: 0.35, end: t + 2 }]);
+      return;
+    }
     const o = AC.createOscillator();
     o.type = "sine";
     o.frequency.value = f;
@@ -14070,6 +14074,19 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     if (window.MOTS && MOTS.midi && MOTS.midi.hit) MOTS.midi.hit(w, AC.currentTime + 0.02, f, Math.min(1, lvl * 12), Math.min(2, dec * 1.2));
   }
   function strPluck(dest, f, lvl, dec, harm) {
+    if (strikeNode(dest)) {
+      const t2 = AC.currentTime + 0.02, A = 4e-3, lite = strokeLite(), H2 = [];
+      if (harm) {
+        H2.push({ t: t2, f, w: "sin", a: lvl * 0.81, A, d: dec, end: t2 + A + dec * 6 });
+        if (!lite) H2.push({ t: t2, f: f * 3, a: lvl * 0.09, A, d: dec * 0.4, end: t2 + A + dec * 3 });
+      } else {
+        const N = lite ? 3 : Math.max(1, Math.min(12, Math.floor(12e3 / f)));
+        for (let n = 1; n <= N; n++) H2.push({ t: t2, f: f * n, a: lvl * 0.64 / n, A, d: n === 1 ? dec : dec / (1 + (n - 1) * 1.2), end: t2 + A + dec * 6 });
+      }
+      if (!lite) H2.push({ t: t2, f: f * 2.003, w: "tri", a: lvl * 0.2, A, d: dec / 2.2, end: t2 + A + dec * 4 });
+      strike(dest, H2);
+      return;
+    }
     const t = AC.currentTime + 0.02, o = AC.createOscillator(), o2 = AC.createOscillator();
     o.type = harm ? "triangle" : "sawtooth";
     o2.type = "triangle";
@@ -14306,6 +14323,12 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
   }
   function bellStrike(dest, f, lvl, long) {
     const t = AC.currentTime + 0.02, dec = long ? 2.6 : 1.1;
+    if (strikeNode(dest)) {
+      const H2 = [[1, 1, 1], [2, 0.5, 0.7], [2.76, 0.32, 0.45], [4.07, 0.14, 0.25], [5.4, 0.07, 0.15]].slice(0, strokeLite() ? 3 : 5).map(([r, a, d]) => ({ t, f: f * r, a: lvl * a, A: 6e-3, d: dec * d, end: t + dec * d * 6 + 0.5 }));
+      H2.push({ t, n: 1, bf: f * 6, q: 3, a: lvl * 0.5, d: 0.02, end: t + 0.3 });
+      strike(dest, H2);
+      return;
+    }
     [[1, 1, 1], [2, 0.5, 0.7], [2.76, 0.32, 0.45], [4.07, 0.14, 0.25], [5.4, 0.07, 0.15]].forEach(([r, a, d]) => {
       const o = AC.createOscillator();
       o.type = "sine";
@@ -14353,6 +14376,14 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     }, 350 + k * 380));
   }
   function traiDrum(strong) {
+    if (!TRAI.g) {
+      TRAI.g = mkGain(1, bus);
+    }
+    if (strikeNode(TRAI.g)) {
+      const t2 = AC.currentTime + 0.02;
+      strike(TRAI.g, [{ t: t2, f: strong ? 110 : 95, f1: 42, gl: 0.18, a: strong ? 0.2 : 0.11, A: 8e-3, d: strong ? 0.22 : 0.14, end: t2 + 1.2 }, { t: t2, n: 1, ft: "lp", bf: 900, q: 0.707, a: strong ? 0.06 : 0.03, d: 0.03, end: t2 + 0.3 }]);
+      return;
+    }
     const t = AC.currentTime + 0.02, o = AC.createOscillator();
     o.type = "sine";
     o.frequency.setValueAtTime(strong ? 110 : 95, t);
@@ -14463,21 +14494,82 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       return false;
     }
   };
-  const STRIKE_CODE = "class MotsStrike extends AudioWorkletProcessor{\nconstructor(){super();this.v=[];this.port.onmessage=e=>{const h=e.data;for(let i=0;i<h.length;i++)this.add(h[i])}}\nadd(h){const sr=sampleRate,o={s0:Math.round(h.t*sr),e0:Math.round(h.end*sr),lvl:h.a,env:0};\n if(h.n){o.n=1;o.k=Math.exp(-1/(Math.max(1e-4,h.d)*sr));o.env=h.a;const w=2*Math.PI*h.bf/sr,c=Math.cos(w),al=Math.sin(w)/(2*h.q);let b0,b1,b2;\n  if(h.ft==='lp'){b0=(1-c)/2;b1=1-c;b2=(1-c)/2}else{b0=al;b1=0;b2=-al}const a0=1+al;o.b0=b0/a0;o.b1=b1/a0;o.b2=b2/a0;o.a1=-2*c/a0;o.a2=(1-al)/a0;o.x1=o.x2=o.y1=o.y2=0}\n else{o.f=h.f;o.f1=h.f1||h.f;o.gl=Math.round((h.gl||0)*sr);o.A=Math.max(1,Math.round(h.A*sr));o.k=Math.exp(-1/(Math.max(1e-4,h.d)*sr));o.tri=h.w==='tri';o.x=1;o.y=0;o.ph=0;o.i=0}\n this.v.push(o)}\nprocess(_,outs){const out=outs[0][0];if(!out)return true;const n=out.length,f0=currentFrame,sr=sampleRate,v=this.v;let live=0;\n for(let j=0;j<v.length;j++){const o=v[j];if(o.dead)continue;if(o.s0>=f0+n){v[live++]=o;continue}\n  let k=Math.max(0,o.s0-f0);\n  if(o.n){for(;k<n;k++){if(f0+k>=o.e0||o.env<1e-5){o.dead=1;break}const x=Math.random()*2-1,y=o.b0*x+o.b1*o.x1+o.b2*o.x2-o.a1*o.y1-o.a2*o.y2;o.x2=o.x1;o.x1=x;o.y2=o.y1;o.y1=y;out[k]+=y*o.env;o.env*=o.k}}\n  else{let f=o.gl&&o.i<o.gl?o.f*Math.pow(o.f1/o.f,o.i/o.gl):o.f1,w=2*Math.PI*f/sr,c=Math.cos(w),s=Math.sin(w),q=0;\n   for(;k<n;k++){if(f0+k>=o.e0){o.dead=1;break}\n    if(o.i<o.A)o.env=o.lvl*(o.i+1)/o.A;else{o.env*=o.k;if(o.env<1e-5*o.lvl){o.dead=1;break}}\n    if(o.gl&&o.i<o.gl&&(++q&15)===0){f=o.f*Math.pow(o.f1/o.f,o.i/o.gl);w=2*Math.PI*f/sr;c=Math.cos(w);s=Math.sin(w)}\n    let val;if(o.tri){o.ph+=f/sr;if(o.ph>=1)o.ph-=1;val=o.ph<.5?4*o.ph-1:3-4*o.ph}else{const x=o.x*c-o.y*s;o.y=o.x*s+o.y*c;o.x=x;val=o.y}\n    out[k]+=val*o.env;o.i++}\n   if(!o.tri){const m=1/Math.sqrt(o.x*o.x+o.y*o.y);o.x*=m;o.y*=m}}\n  if(!o.dead)v[live++]=o}\n v.length=live;return true}}\nregisterProcessor('mots-strike',MotsStrike)";
-  const VOICE_CODE = "const TS=2048,NM=65535,NZ=new Float32Array(NM+1);for(let i=0;i<=NM;i++)NZ[i]=Math.random()*2-1;\nconst SIN=new Float32Array(TS);for(let i=0;i<TS;i++)SIN[i]=Math.sin(2*Math.PI*i/TS);\nconst TAB={};\n// a band-limited wavetable: one table per power-of-two harmonic count, each with a guard point\nfunction tab(key,amp,hmax,norm){if(TAB[key])return TAB[key];const L=[];let hs=[];for(let h=1;h<hmax;h*=2)hs.push(h);hs.push(hmax);\n let peak=0;const full=new Float32Array(TS);for(let n=1;n<=hmax;n++){const a=amp(n);if(!a)continue;for(let i=0;i<TS;i++)full[i]+=a*SIN[(n*i)%TS]}\n if(norm){for(let i=0;i<TS;i++)peak=Math.max(peak,Math.abs(full[i]))}const k=norm&&peak?1/peak:1;\n for(const H of hs){const d=new Float32Array(TS+1);for(let n=1;n<=H;n++){const a=amp(n);if(!a)continue;for(let i=0;i<TS;i++)d[i]+=a*SIN[(n*i)%TS]}for(let i=0;i<TS;i++)d[i]*=k;d[TS]=d[0];L.push([H,d])}\n return TAB[key]=L}\nfunction lev(L,f){const m=.5*sampleRate/Math.max(1,f);let d=L[0][1];for(let i=0;i<L.length;i++){if(L[i][0]<=m)d=L[i][1];else break}return d}\nfunction rd(d,ph){const x=ph*TS,i=x|0,fr=x-i;return d[i]+fr*(d[i+1]-d[i])}\n// band-pass (constant 0 dB peak) and low-pass (Q in dB, as the Web Audio filters) coefficients into c[0..4]: b0 b1 b2 a1 a2\nfunction bpC(c,f,Q){const w=2*Math.PI*Math.min(f,.49*sampleRate)/sampleRate,al=Math.sin(w)/(2*Math.max(1e-4,Q)),a0=1+al;c[0]=al/a0;c[1]=0;c[2]=-al/a0;c[3]=-2*Math.cos(w)/a0;c[4]=(1-al)/a0}\nfunction lpC(c,f,QdB){const w=2*Math.PI*Math.min(f,.49*sampleRate)/sampleRate,cs=Math.cos(w),al=Math.sin(w)/(2*Math.pow(10,QdB/20)),a0=1+al;c[0]=(1-cs)/2/a0;c[1]=(1-cs)/a0;c[2]=c[0];c[3]=-2*cs/a0;c[4]=(1-al)/a0}\nclass MotsVoice extends AudioWorkletProcessor{\nstatic get parameterDescriptors(){return [{name:'detune',defaultValue:0,automationRate:'k-rate'}]}\nconstructor(o){super();const p=o.processorOptions;this.o=p;this.P=p.init.map(v=>({v,g:null,tc:.1,e:[],lt:0,lv:v}));this.end=0;\n const sr=sampleRate;this.ph1=Math.random();this.ph2=Math.random();this.ni=(Math.random()*NM)|0;this.jy=0;this.ja=1-Math.exp(-2*Math.PI*7/sr);\n const vw=2*Math.PI*p.vib/sr;this.vc=Math.cos(vw);this.vs=Math.sin(vw);this.vx=1;this.vy=0;\n if(p.kind==='human'){this.g1=tab('g'+p.tilt.toFixed(2),n=>Math.pow(n,-p.tilt)*(n%2?1:.82),63,true);this.nf=p.nf;\n  this.fc=[];this.fz=[];this.fk=[];for(let k=0;k<p.nf;k++){this.fc.push(new Float64Array(5));this.fz.push(new Float64Array(4));this.fk.push([-1,-1])}\n  this.rc=new Float64Array(5);this.rz=new Float64Array(4);this.rk=-1;this.ic=new Float64Array(5);bpC(this.ic,1600,.6);this.iz=new Float64Array(4)}\n else{this.saw=tab('saw',n=>2/Math.PI*(n%2?1:-1)/n,1023,false);this.tri=tab('tri',n=>n%2?8/(Math.PI*Math.PI)*((n-1)/2%2?-1:1)/(n*n):0,1023,false);\n  this.fc=[];this.fz=[];p.form.forEach(([F,g,Q])=>{const c=new Float64Array(5);bpC(c,F,Q);this.fc.push(c);this.fz.push(new Float64Array(4))});\n  this.lc=new Float64Array(5);this.lz=new Float64Array(4);this.lk=-1}\n this.port.onmessage=e=>{const a=e.data;if(a.end){this.end=currentTime+.2;const P=this.P[this.o.kind==='human'?3:4];P.e.length=0;P.g=0;P.tc=.03;return}for(let i=0;i<a.length;i+=5)this.ev(a[i],a[i+1],a[i+2],a[i+3],a[i+4])}}\n// the params' automation, played back on the audio clock: 0 setTarget, 1 setValue (NaN holds the present value), 2 linear ramp, 3 cancel\nev(i,ty,t,v,tc){const P=this.P[i];if(!P)return;if(ty===3){P.e=P.e.filter(x=>x[0]<t);return}const e=P.e;let j=e.length;while(j>0&&e[j-1][0]>t)j--;e.splice(j,0,[t,ty,v,tc])}\nstep(P,T,dt){const e=P.e;\n while(e.length){const x=e[0];\n  if(x[1]===2){if(T>=x[0]){P.v=x[2];P.lt=x[0];P.lv=x[2];P.g=null;e.shift();continue}if(T>=P.lt){P.v=P.lv+(x[2]-P.lv)*(T-P.lt)/Math.max(1e-6,x[0]-P.lt);P.g=null}return}\n  if(x[0]>T)break;e.shift();if(x[1]===1){if(x[2]===x[2])P.v=x[2];P.g=null}else{P.g=x[2];P.tc=x[3]}P.lt=x[0];P.lv=P.v}\n if(P.g!==null)P.v+=(P.g-P.v)*(1-Math.exp(-dt/Math.max(1e-4,P.tc)))}\nprocess(_,outs,par){const out=outs[0][0];if(this.end&&currentTime>this.end)return false;if(!out)return true;\n const n=out.length,sr=sampleRate,B=16,dt=B/sr,P=this.P,o=this.o,dm=Math.pow(2,par.detune[0]/1200);\n for(let b=0;b<n;b+=B){const T=currentTime+b/sr;for(let i=0;i<P.length;i++)this.step(P[i],T,dt);const e=Math.min(n,b+B);\n  // the vibrato: a rotating phasor, renormalised each block\n  const m=1/Math.sqrt(this.vx*this.vx+this.vy*this.vy);this.vx*=m;this.vy*=m;\n  if(o.kind==='human')this.human(out,b,e,dm);else this.siren(out,b,e,dm)}\n return true}\nhuman(out,b,e,dm){const P=this.P,o=this.o,F=P[0].v,VG=P[1].v,BG=P[2].v,OUT=P[3].v,IG=P[4].v*.16,VD=P[5].v,JT=P[6].v,FG=P[7].v,sr=sampleRate;\n for(let k=0;k<this.nf;k++){const f=P[9+3*k].v,q=P[10+3*k].v,K=this.fk[k];if(Math.abs(f-K[0])>f*1e-3||Math.abs(q-K[1])>q*1e-3){bpC(this.fc[k],f,q);K[0]=f;K[1]=q}}\n const fr=P[8].v;if(Math.abs(fr-this.rk)>fr*1e-3){bpC(this.rc,fr,1.2);this.rk=fr}\n const f0=Math.max(1,F*dm),d1=lev(this.g1,f0*1.02),ens=o.ens,d2=ens?lev(this.g1,f0*1.03):null,r2=Math.pow(2,9/1200),wh=o.whisper,nf=this.nf;\n const gk=[];for(let k=0;k<nf;k++)gk.push(P[11+3*k].v);\n for(let i=b;i<e;i++){const x=this.vx*this.vc-this.vy*this.vs;this.vy=this.vx*this.vs+this.vy*this.vc;this.vx=x;\n  const nz=NZ[(this.ni=(this.ni+1)&NM)];this.jy+=this.ja*(nz-this.jy);\n  let src;if(wh)src=VG*nz;else{const f=(F+VD*this.vy+JT*this.jy)*dm;this.ph1+=f/sr;if(this.ph1>=1)this.ph1-=Math.floor(this.ph1);let v=rd(d1,this.ph1);\n   if(ens){this.ph2+=f*r2/sr;if(this.ph2>=1)this.ph2-=Math.floor(this.ph2);v+=ens*rd(d2,this.ph2)}src=VG*v+BG*nz}\n  let y=0;for(let k=0;k<nf;k++){const c=this.fc[k],z=this.fz[k],w=c[0]*src+c[1]*z[0]+c[2]*z[1]-c[3]*z[2]-c[4]*z[3];z[1]=z[0];z[0]=src;z[3]=z[2];z[2]=w;y+=gk[k]*w}\n  if(FG>1e-5){const c=this.rc,z=this.rz,w=c[0]*nz+c[2]*z[1]-c[3]*z[2]-c[4]*z[3];z[1]=z[0];z[0]=nz;z[3]=z[2];z[2]=w;y+=FG*w}\n  let s=OUT*y;if(IG>1e-6){const c=this.ic,z=this.iz,w=c[0]*nz+c[2]*z[1]-c[3]*z[2]-c[4]*z[3];z[1]=z[0];z[0]=nz;z[3]=z[2];z[2]=w;s+=IG*w}\n  out[i]=s}}\nsiren(out,b,e,dm){const P=this.P,o=this.o,F=P[0].v,F2=P[1].v,D2=Math.pow(2,P[2].v/1200),LP=P[3].v,ART=P[4].v,VD=P[5].v,sr=sampleRate;\n if(Math.abs(LP-this.lk)>LP*1e-3){lpC(this.lc,LP,o.lpq);this.lk=LP}\n const d1=lev(this.saw,F*dm*1.02),lite=o.lite,d2=lite?null:lev(this.tri,F2*dm*D2*1.02),fc=this.fc,fz=this.fz,nf=fc.length,fg=o.form,dir=o.dir,a1=o.a1,a2=o.a2;\n for(let i=b;i<e;i++){const x=this.vx*this.vc-this.vy*this.vs;this.vy=this.vx*this.vs+this.vy*this.vc;this.vx=x;\n  const vb=VD*this.vy;this.ph1+=(F+vb)*dm/sr;if(this.ph1>=1)this.ph1-=Math.floor(this.ph1);else if(this.ph1<0)this.ph1-=Math.floor(this.ph1);let src=a1*rd(d1,this.ph1);\n  if(!lite){this.ph2+=(F2+vb)*dm*D2/sr;if(this.ph2>=1)this.ph2-=Math.floor(this.ph2);else if(this.ph2<0)this.ph2-=Math.floor(this.ph2);src+=a2*rd(d2,this.ph2)}\n  let y=dir*src;for(let k=0;k<nf;k++){const c=fc[k],z=fz[k],w=c[0]*src+c[2]*z[1]-c[3]*z[2]-c[4]*z[3];z[1]=z[0];z[0]=src;z[3]=z[2];z[2]=w;y+=fg[k][1]*w}\n  const c=this.lc,z=this.lz,w=c[0]*y+c[1]*z[0]+c[2]*z[1]-c[3]*z[2]-c[4]*z[3];z[1]=z[0];z[0]=y;z[3]=z[2];z[2]=w;out[i]=ART*w}}}\nregisterProcessor('mots-voice',MotsVoice)";
+  const STRIKE_CODE = "const SNM=16383,SNZ=new Float32Array(SNM+1);for(let i=0;i<=SNM;i++)SNZ[i]=Math.random()*2-1;\nconst STAB=globalThis.__motsTab||(globalThis.__motsTab={});\nfunction slev(L,f){const m=.5*sampleRate/Math.max(1,f);let d=L[0][1];for(let i=0;i<L.length;i++){if(L[i][0]<=m)d=L[i][1];else break}return d}\nfunction srd(d,ph){const x=ph*2048,i=x|0,fr=x-i;return d[i]+fr*(d[i+1]-d[i])}\nfunction sbp(c,f,Q){f=Math.min(Math.max(f,1),.49*sampleRate);const w=2*Math.PI*f/sampleRate,al=Math.sin(w)/(2*Math.max(1e-4,Q)),a0=1+al;c[0]=al/a0;c[1]=0;c[2]=-al/a0;c[3]=-2*Math.cos(w)/a0;c[4]=(1-al)/a0}\nfunction slp(c,f,QdB){f=Math.min(Math.max(f,1),.49*sampleRate);const w=2*Math.PI*f/sampleRate,cs=Math.cos(w),al=Math.sin(w)/(2*Math.pow(10,QdB/20)),a0=1+al;c[0]=(1-cs)/2/a0;c[1]=(1-cs)/a0;c[2]=c[0];c[3]=-2*cs/a0;c[4]=(1-al)/a0}\nclass MotsStrike extends AudioWorkletProcessor{\nconstructor(){super();this.v=[];this.idle=0;this.asked=0;this.bye=0;this.ni=(Math.random()*SNM)|0;\n this.port.onmessage=e=>{const h=e.data;if(h&&h.bye){this.bye=1;return}this.asked=0;this.idle=0;for(let i=0;i<h.length;i++)this.add(h[i])}}\nadd(h){const sr=sampleRate;if(!h||!(h.end>h.t)||!(h.a===h.a))return;if(!h.n&&!(h.f>0))return;\n const o={s0:Math.round(h.t*sr),e0:Math.round(h.end*sr),lvl:h.a,env:0,th:Math.max(1e-5*Math.abs(h.a),2e-5)};\n if(h.s){if(!STAB.saw||!STAB.tri)return;o.s=1;o.f=h.f;o.fr=h.from||0;o.A=Math.max(1,Math.round(h.A*sr));o.ax=!!h.ax;o.k=Math.exp(-1/(Math.max(1e-4,h.d)*sr));\n  o.lp0=h.lp0;o.lp1=h.lp1;o.lptc=Math.max(1e-3,h.lptc);o.lpq=h.lpq||0;o.bpg=h.bpg||0;o.bp0=h.bp0||1;o.bp1=h.bp1||1;o.bpd=Math.max(1e-3,h.bpd||1);o.bpq=h.bpq||1;o.mix=h.mix||1;o.m2=h.m2||0;\n  o.ph1=0;o.ph2=0;o.i=0;o.lc=new Float64Array(5);o.lz=new Float64Array(4);o.bc=new Float64Array(5);o.bz=new Float64Array(4)}\n else if(h.n){o.n=1;o.k=Math.exp(-1/(Math.max(1e-4,h.d)*sr));o.env=h.a;const w=2*Math.PI*Math.min(Math.max(h.bf,1),.49*sr)/sr,c=Math.cos(w),al=Math.sin(w)/(2*Math.max(1e-3,h.q));let b0,b1,b2;\n  if(h.ft==='lp'){b0=(1-c)/2;b1=1-c;b2=(1-c)/2}else{b0=al;b1=0;b2=-al}const a0=1+al;o.b0=b0/a0;o.b1=b1/a0;o.b2=b2/a0;o.a1=-2*c/a0;o.a2=(1-al)/a0;o.x1=o.x2=o.y1=o.y2=0;o.i=0;o.H=Math.round((h.hold||0)*sr)}\n else{o.f=h.f;o.f1=h.f1>0?h.f1:h.f;o.gl=Math.round((h.gl||0)*sr);o.A=Math.max(1,Math.round(h.A*sr));o.k=Math.exp(-1/(Math.max(1e-4,h.d)*sr));o.tri=h.w==='tri';o.x=1;o.y=0;o.ph=0;o.i=0;o.H=o.A+Math.round((h.hold||0)*sr)}\n this.v.push(o)}\nprocess(_,outs){if(this.bye)return false;const out=outs[0][0];if(!out)return true;const n=out.length,f0=currentFrame,sr=sampleRate,v=this.v;let live=0;\n for(let j=0;j<v.length;j++){const o=v[j];if(o.dead)continue;if(o.s0>=f0+n){v[live++]=o;continue}\n  let k=Math.max(0,o.s0-f0);\n  if(o.n){for(;k<n;k++){if(f0+k>=o.e0||o.env<1e-5){o.dead=1;break}const x=SNZ[(this.ni=(this.ni+1)&SNM)],y=o.b0*x+o.b1*o.x1+o.b2*o.x2-o.a1*o.y1-o.a2*o.y2;o.x2=o.x1;o.x1=x;o.y2=o.y1;o.y1=y;out[k]+=y*o.env;if(o.i++>=o.H)o.env*=o.k}}\n  else if(o.s){\n   // a string: sawtooth and triangle (an octave up) through a closing low-pass and a sweeping band-pass, its pitch gliding in from o.fr\n   while(k<n&&!o.dead){const tau=o.i/sr;let f=o.f;if(o.fr)f=tau<.06?o.fr:o.f+(o.fr-o.f)*Math.exp(-(tau-.06)/.08);\n    slp(o.lc,o.lp1+(o.lp0-o.lp1)*Math.exp(-tau/o.lptc),o.lpq);if(o.bpg)sbp(o.bc,o.bp0*Math.pow(o.bp1/o.bp0,Math.min(1,tau/o.bpd)),o.bpq);\n    const d1=slev(STAB.saw,f*1.03),d2=o.m2?slev(STAB.tri,f*2.07):null,e=Math.min(n,k+16),lc=o.lc,lz=o.lz,bc=o.bc,bz=o.bz;\n    for(;k<e;k++){if(f0+k>=o.e0){o.dead=1;break}\n     if(o.i<o.A)o.env=o.ax?o.lvl*.063*Math.pow(15.873,(o.i+1)/o.A):o.lvl*(o.i+1)/o.A;else{o.env*=o.k;if(o.env<o.th){o.dead=1;break}}\n     o.ph1+=f/sr;if(o.ph1>=1)o.ph1-=1;let x=srd(d1,o.ph1);if(d2){o.ph2+=f*2.003/sr;if(o.ph2>=1)o.ph2-=1;x+=o.m2*srd(d2,o.ph2)}x*=o.mix;\n     const y=lc[0]*x+lc[1]*lz[0]+lc[2]*lz[1]-lc[3]*lz[2]-lc[4]*lz[3];lz[1]=lz[0];lz[0]=x;lz[3]=lz[2];lz[2]=y;let s=y;\n     if(o.bpg){const w=bc[0]*x+bc[2]*bz[1]-bc[3]*bz[2]-bc[4]*bz[3];bz[1]=bz[0];bz[0]=x;bz[3]=bz[2];bz[2]=w;s+=o.bpg*w}\n     out[k]+=s*o.env;o.i++}}}\n  else{let f=o.gl&&o.i<o.gl?o.f*Math.pow(o.f1/o.f,o.i/o.gl):o.f1,w=2*Math.PI*f/sr,c=Math.cos(w),s=Math.sin(w),q=0;\n   for(;k<n;k++){if(f0+k>=o.e0){o.dead=1;break}\n    if(o.i<o.A)o.env=o.lvl*(o.i+1)/o.A;else if(o.i<o.H)o.env=o.lvl;else{o.env*=o.k;if(o.env<o.th){o.dead=1;break}}\n    if(o.gl&&o.i<o.gl&&(++q&15)===0){f=o.f*Math.pow(o.f1/o.f,o.i/o.gl);w=2*Math.PI*f/sr;c=Math.cos(w);s=Math.sin(w)}\n    let val;if(o.tri){o.ph+=f/sr;if(o.ph>=1)o.ph-=1;val=o.ph<.5?4*o.ph-1:3-4*o.ph}else{const x=o.x*c-o.y*s;o.y=o.x*s+o.y*c;o.x=x;val=o.y}\n    out[k]+=val*o.env;o.i++}\n   if(!o.tri){const m=1/Math.sqrt(o.x*o.x+o.y*o.y);o.x*=m;o.y*=m}}\n  if(!o.dead)v[live++]=o}\n v.length=live;\n // nothing to play for 4 s: ask to retire (the page ends this node unless it has just sent something)\n if(!live){this.idle+=n;if(this.idle>sr*4&&!this.asked){this.asked=1;this.port.postMessage({idle:1})}}else this.idle=0;\n return true}}\nregisterProcessor('mots-strike',MotsStrike)";
+  function mkTab(amp, hmax, norm) {
+    const TS = 2048, SN = new Float64Array(TS);
+    for (let i = 0; i < TS; i++) SN[i] = Math.sin(2 * Math.PI * i / TS);
+    const L = [], hs = [];
+    for (let h = 1; h < hmax; h *= 2) hs.push(h);
+    hs.push(hmax);
+    const acc = new Float64Array(TS);
+    let n = 1;
+    for (const H2 of hs) {
+      for (; n <= H2; n++) {
+        const a = amp(n);
+        if (!a) continue;
+        let p = 0;
+        for (let i = 0; i < TS; i++) {
+          acc[i] += a * SN[p];
+          p += n;
+          if (p >= TS) p -= TS;
+        }
+      }
+      const d = new Float32Array(TS + 1);
+      d.set(acc);
+      L.push([H2, d]);
+    }
+    let k = 1;
+    if (norm) {
+      let pk = 0;
+      const top = L[L.length - 1][1];
+      for (let i = 0; i < TS; i++) pk = Math.max(pk, Math.abs(top[i]));
+      if (pk) k = 1 / pk;
+    }
+    for (const [H2, d] of L) {
+      if (k !== 1) for (let i = 0; i < TS; i++) d[i] *= k;
+      d[TS] = d[0];
+    }
+    return L;
+  }
+  const VAMP_SAW = (n) => 2 / Math.PI * (n % 2 ? 1 : -1) / n, VAMP_TRI = (n) => n % 2 ? 8 / (Math.PI * Math.PI) * ((n - 1) / 2 % 2 ? -1 : 1) / (n * n) : 0, VAMP_GLOT = (t) => (n) => Math.pow(n, -t) * (n % 2 ? 1 : 0.82);
+  const VTILTS = [0.95, 1, 1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.35];
+  const VOICE_CODE = "const NM=16383,NZ=new Float32Array(NM+1);for(let i=0;i<=NM;i++)NZ[i]=Math.random()*2-1;\nconst TAB=globalThis.__motsTab||(globalThis.__motsTab={});\n".concat(mkTab, "\nconst AMP={saw:").concat(VAMP_SAW, ",tri:").concat(VAMP_TRI, ",glot:").concat(VAMP_GLOT, "};\nfunction tab(key,amp,hmax,norm){return TAB[key]||(TAB[key]=mkTab(amp,hmax,norm))}\n// the loader: the page's tables into this scope, then gone\nclass MotsTables extends AudioWorkletProcessor{constructor(o){super();const t=o.processorOptions.tables;for(const k in t)TAB[k]=t[k]}process(){return false}}\nregisterProcessor('mots-tables',MotsTables);\nfunction lev(L,f){const m=.5*sampleRate/Math.max(1,f);let d=L[0][1];for(let i=0;i<L.length;i++){if(L[i][0]<=m)d=L[i][1];else break}return d}\nfunction rd(d,ph){const x=ph*2048,i=x|0,fr=x-i;return d[i]+fr*(d[i+1]-d[i])}\n// band-pass (constant 0 dB peak, Q linear) and low-pass (Q in dB), as the Web Audio filters: c = b0 b1 b2 a1 a2\nfunction bpC(c,f,Q){f=Math.min(Math.max(f,1),.49*sampleRate);const w=2*Math.PI*f/sampleRate,al=Math.sin(w)/(2*Math.max(1e-4,Q)),a0=1+al;c[0]=al/a0;c[1]=0;c[2]=-al/a0;c[3]=-2*Math.cos(w)/a0;c[4]=(1-al)/a0}\nfunction lpC(c,f,QdB){f=Math.min(Math.max(f,1),.49*sampleRate);const w=2*Math.PI*f/sampleRate,cs=Math.cos(w),al=Math.sin(w)/(2*Math.pow(10,QdB/20)),a0=1+al;c[0]=(1-cs)/2/a0;c[1]=(1-cs)/a0;c[2]=c[0];c[3]=-2*cs/a0;c[4]=(1-al)/a0}\nconst R9=1.0052119;\nclass MotsVoice extends AudioWorkletProcessor{\nstatic get parameterDescriptors(){return [{name:'detune',defaultValue:0,automationRate:'k-rate'}]}\nconstructor(o){super();const p=o.processorOptions;this.o=p;this.P=p.init.map(v=>({v,g:null,tc:.1,k:0,ktc:-1,e:[],lt:0,lv:v}));this.end=0;\n const sr=sampleRate;this.ph1=Math.random();this.ph2=Math.random();this.ni=(Math.random()*NM)|0;this.jy=0;this.ja=1-Math.exp(-2*Math.PI*7/sr);\n const vw=2*Math.PI*p.vib/sr;this.vc=Math.cos(vw);this.vs=Math.sin(vw);this.vx=1;this.vy=0;this.d1=null;this.d2=null;\n if(p.kind==='human'){this.g1=tab('g'+p.tilt.toFixed(2),AMP.glot(p.tilt),63,true);this.nf=p.nf;this.gk=new Float64Array(p.nf);\n  this.fc=[];this.fz=[];this.fk=[];for(let k=0;k<p.nf;k++){this.fc.push(new Float64Array(5));this.fz.push(new Float64Array(4));this.fk.push(new Float64Array([-1,-1]))}\n  this.rc=new Float64Array(5);this.rz=new Float64Array(4);this.rk=-1;this.ic=new Float64Array(5);bpC(this.ic,1600,.6);this.iz=new Float64Array(4)}\n else{this.saw=tab('saw',AMP.saw,1023,false);this.tri=tab('tri',AMP.tri,1023,false);\n  this.fc=[];this.fz=[];this.fg=new Float64Array(p.form.length);p.form.forEach(([F,g,Q],k)=>{const c=new Float64Array(5);bpC(c,F,Q);this.fc.push(c);this.fz.push(new Float64Array(4));this.fg[k]=g});\n  this.lc=new Float64Array(5);this.lz=new Float64Array(4);this.lk=-1}\n this.port.onmessage=e=>{const a=e.data;if(a.end){this.end=currentTime+.2;const P=this.P[this.o.kind==='human'?3:4];P.e.length=0;P.g=0;P.tc=.03;return}for(let i=0;i<a.length;i+=5)this.ev(a[i],a[i+1],a[i+2],a[i+3],a[i+4])}}\n// the params' automation, played back on the audio clock: 0 setTarget, 1 setValue (NaN holds the present value), 2 linear ramp, 3 cancel\nev(i,ty,t,v,tc){const P=this.P[i];if(!P)return;if(!(t>=0))t=currentTime;if(ty===3){P.e=P.e.filter(x=>x[0]<t);return}if(ty!==1&&v!==v)return;\n const e=P.e;let j=e.length;while(j>0&&e[j-1][0]>t)j--;e.splice(j,0,[t,ty,v,tc])}\nstep(P,T,dt){const e=P.e;\n while(e.length){const x=e[0];\n  if(x[1]===2){if(T>=x[0]){P.v=x[2];P.lt=x[0];P.lv=x[2];P.g=null;e.shift();continue}if(T>=P.lt){P.v=P.lv+(x[2]-P.lv)*(T-P.lt)/Math.max(1e-6,x[0]-P.lt);P.g=null}return}\n  if(x[0]>T)break;e.shift();if(x[1]===1){if(x[2]===x[2])P.v=x[2];P.g=null}else{P.g=x[2];P.tc=x[3]}P.lt=x[0];P.lv=P.v}\n const g=P.g;if(g!==null){if(P.tc!==P.ktc){P.ktc=P.tc;P.k=1-Math.exp(-dt/Math.max(1e-4,P.tc))}const v=P.v+(g-P.v)*P.k;if(Math.abs(v-g)<=1e-6*Math.max(1,Math.abs(g))){P.v=g;P.g=null}else P.v=v}}\nprocess(_,outs,par){const out=outs[0][0];if(this.end&&currentTime>this.end)return false;if(!out)return true;\n const n=out.length,sr=sampleRate,B=16,dt=B/sr,P=this.P,o=this.o,dm=Math.pow(2,par.detune[0]/1200);\n for(let b=0;b<n;b+=B){const T=currentTime+b/sr;for(let i=0;i<P.length;i++)this.step(P[i],T,dt);const e=Math.min(n,b+B);\n  if(b===0)this.coefs(dm);\n  const m=1/Math.sqrt(this.vx*this.vx+this.vy*this.vy);this.vx*=m;this.vy*=m;\n  if(o.kind==='human')this.human(out,b,e,dm);else this.siren(out,b,e,dm)}\n return true}\n// the filters and the wavetable levels, once a render quantum\ncoefs(dm){const P=this.P,o=this.o;\n if(o.kind==='human'){for(let k=0;k<this.nf;k++){const f=P[9+3*k].v,q=P[10+3*k].v,K=this.fk[k];if(Math.abs(f-K[0])>f*1e-3||Math.abs(q-K[1])>q*1e-3){bpC(this.fc[k],f,q);K[0]=f;K[1]=q}}\n  const fr=P[8].v;if(Math.abs(fr-this.rk)>fr*1e-3){bpC(this.rc,fr,1.2);this.rk=fr}\n  const f0=Math.max(1,P[0].v*dm);this.d1=lev(this.g1,f0*1.03);this.d2=o.ens?lev(this.g1,f0*1.04):null}\n else{const LP=P[3].v;if(Math.abs(LP-this.lk)>LP*1e-3){lpC(this.lc,LP,o.lpq);this.lk=LP}\n  this.d1=lev(this.saw,P[0].v*dm*1.03);this.d2=o.lite?null:lev(this.tri,P[1].v*dm*Math.pow(2,P[2].v/1200)*1.03)}}\nhuman(out,b,e,dm){const P=this.P,o=this.o,F=P[0].v,VG=P[1].v,BG=P[2].v,OUT=P[3].v,IG=P[4].v*.16,VD=P[5].v,JT=P[6].v,FG=P[7].v,sr=sampleRate;\n const d1=this.d1,d2=this.d2,ens=o.ens,wh=o.whisper,nf=this.nf,gk=this.gk,fc=this.fc,fz=this.fz;for(let k=0;k<nf;k++)gk[k]=P[11+3*k].v;\n for(let i=b;i<e;i++){const x=this.vx*this.vc-this.vy*this.vs;this.vy=this.vx*this.vs+this.vy*this.vc;this.vx=x;\n  const nz=NZ[(this.ni=(this.ni+1)&NM)];this.jy+=this.ja*(nz-this.jy);\n  let src;if(wh)src=VG*nz;else{const f=(F+VD*this.vy+JT*this.jy)*dm;this.ph1+=f/sr;if(this.ph1>=1||this.ph1<0)this.ph1-=Math.floor(this.ph1);let v=rd(d1,this.ph1);\n   if(ens){this.ph2+=f*R9/sr;if(this.ph2>=1||this.ph2<0)this.ph2-=Math.floor(this.ph2);v+=ens*rd(d2,this.ph2)}src=VG*v+BG*nz}\n  let y=0;for(let k=0;k<nf;k++){const c=fc[k],z=fz[k],w=c[0]*src+c[2]*z[1]-c[3]*z[2]-c[4]*z[3];z[1]=z[0];z[0]=src;z[3]=z[2];z[2]=w;y+=gk[k]*w}\n  if(FG>1e-5){const c=this.rc,z=this.rz,w=c[0]*nz+c[2]*z[1]-c[3]*z[2]-c[4]*z[3];z[1]=z[0];z[0]=nz;z[3]=z[2];z[2]=w;y+=FG*w}\n  let s=OUT*y;if(IG>1e-6){const c=this.ic,z=this.iz,w=c[0]*nz+c[2]*z[1]-c[3]*z[2]-c[4]*z[3];z[1]=z[0];z[0]=nz;z[3]=z[2];z[2]=w;s+=IG*w}\n  out[i]=s}}\nsiren(out,b,e,dm){const P=this.P,o=this.o,F=P[0].v,F2=P[1].v,D2=Math.pow(2,P[2].v/1200),ART=P[4].v,VD=P[5].v,sr=sampleRate;\n const d1=this.d1,lite=o.lite,d2=this.d2,fc=this.fc,fz=this.fz,nf=fc.length,fg=this.fg,dir=o.dir,a1=o.a1,a2=o.a2,lc=this.lc,lz=this.lz;\n for(let i=b;i<e;i++){const x=this.vx*this.vc-this.vy*this.vs;this.vy=this.vx*this.vs+this.vy*this.vc;this.vx=x;\n  const vb=VD*this.vy;this.ph1+=(F+vb)*dm/sr;if(this.ph1>=1||this.ph1<0)this.ph1-=Math.floor(this.ph1);let src=a1*rd(d1,this.ph1);\n  if(!lite){this.ph2+=(F2+vb)*dm*D2/sr;if(this.ph2>=1||this.ph2<0)this.ph2-=Math.floor(this.ph2);src+=a2*rd(d2,this.ph2)}\n  let y=dir*src;for(let k=0;k<nf;k++){const c=fc[k],z=fz[k],w=c[0]*src+c[2]*z[1]-c[3]*z[2]-c[4]*z[3];z[1]=z[0];z[0]=src;z[3]=z[2];z[2]=w;y+=fg[k]*w}\n  const w=lc[0]*y+lc[1]*lz[0]+lc[2]*lz[1]-lc[3]*lz[2]-lc[4]*lz[3];lz[1]=lz[0];lz[0]=y;lz[3]=lz[2];lz[2]=w;out[i]=ART*w}}}\nregisterProcessor('mots-voice',MotsVoice)");
   const VWL = { ac: null, ready: false, off: /[?&]nowl\b/.test(location.search) };
+  function voiceTables() {
+    const L = [["saw", () => mkTab(VAMP_SAW, 1023, false)], ["tri", () => mkTab(VAMP_TRI, 1023, false)]].concat(VTILTS.map((t) => ["g" + t.toFixed(2), () => mkTab(VAMP_GLOT(t), 63, true)]));
+    return new Promise((res) => {
+      const T = {};
+      let i = 0;
+      const go = () => {
+        const t0 = performance.now();
+        while (i < L.length && performance.now() - t0 < 12) {
+          const [k, f] = L[i++];
+          T[k] = f();
+        }
+        if (i < L.length) setTimeout(go, 0);
+        else res(T);
+      };
+      go();
+    });
+  }
   function voiceWL() {
     if (VWL.off || !AC) return false;
     if (VWL.ac !== AC) {
-      VWL.ac = AC;
+      const ac = AC;
+      VWL.ac = ac;
       VWL.ready = false;
       try {
-        if (!AC.audioWorklet || !window.AudioWorkletNode) {
+        if (!ac.audioWorklet || !window.AudioWorkletNode) {
           VWL.off = true;
           return false;
         }
-        AC.audioWorklet.addModule(URL.createObjectURL(new Blob([VOICE_CODE], { type: "text/javascript" }))).then(() => {
-          if (VWL.ac === AC) VWL.ready = true;
+        ac.audioWorklet.addModule(URL.createObjectURL(new Blob([VOICE_CODE], { type: "text/javascript" }))).then(voiceTables).then((T) => {
+          if (VWL.ac !== ac) return;
+          try {
+            new AudioWorkletNode(ac, "mots-tables", { numberOfInputs: 0, numberOfOutputs: 1, processorOptions: { tables: T } });
+          } catch (e) {
+          }
+          VWL.ready = true;
         }, () => {
           VWL.off = true;
         });
@@ -14595,7 +14687,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     I.g = mkGain(0, v.vol);
     I.g.gain.setTargetAtTime(1, AC.currentTime, 0.3);
     const form = lite ? [] : (VOWELS[vowel] || VOWELS.a).slice(0, 2).map(([F, g], k) => [F, g * 2, [6, 9][k]]);
-    const w = wlNode("siren", { lite, vib: lite ? 5.1 : 4.5 + Math.random() * 1.2, form, dir: lite ? 0.9 : 0.18, a1: lite ? 0.42 : 0.3, a2: 0.27, lpq: lite ? 2 : 1, init: [f, f, 7, 2800, 0.5, f * 5e-3] }, I.g);
+    const w = wlNode("siren", { lite, vib: lite ? 5.1 : 4.5 + Math.random() * 1.2, form, dir: lite ? 0.9 : 0.18, a1: lite ? 0.42 : 0.3, a2: 0.27, lpq: lite ? 2 : 0, init: [f, f, 7, 2800, 0.5, f * 5e-3] }, I.g);
     if (!w) {
       try {
         I.g.disconnect();
@@ -14646,6 +14738,22 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     try {
       w = new AudioWorkletNode(AC, "mots-strike", { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1] });
       w.connect(dest);
+      w.sent = 0;
+      w.port.onmessage = (e) => {
+        if (e.data && e.data.idle && STRK.nodes.get(dest) === w && performance.now() - w.sent > 1e3) {
+          STRK.nodes.delete(dest);
+          try {
+            w.port.postMessage({ bye: 1 });
+          } catch (x) {
+          }
+          setTimeout(() => {
+            try {
+              w.disconnect();
+            } catch (x) {
+            }
+          }, 500);
+        }
+      };
       STRK.nodes.set(dest, w);
       return w;
     } catch (e) {
@@ -14690,6 +14798,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     const w = strikeNode(dest);
     if (w) {
       try {
+        w.sent = performance.now();
         w.port.postMessage(hits);
         return;
       } catch (e) {
@@ -14728,6 +14837,32 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
   }
   function bhaString(dest, t, f, lvl, dec, from, tan) {
     if (!AC || !bhaOK(f, bhaA() + dec * 2.5)) return false;
+    if (VWL.ready && strikeNode(dest)) {
+      const A2 = bhaA();
+      strike(dest, [{
+        s: 1,
+        t,
+        f,
+        from: from || 0,
+        a: lvl,
+        A: Math.max(3e-3, A2),
+        ax: A2 > 0.05,
+        d: dec,
+        end: t + A2 + dec * 7,
+        lp0: Math.min(8e3, f * 9),
+        lp1: f * 2.5,
+        lptc: dec * 0.5,
+        lpq: 0,
+        bpg: tan ? 1.3 : 0.8,
+        bp0: f * (tan ? 2 : 3),
+        bp1: Math.min(6500, f * (tan ? 14 : 9)),
+        bpd: dec * (tan ? 1.6 : 0.9),
+        bpq: tan ? 3 : 2.2,
+        mix: 0.32,
+        m2: strokeLite() ? 0 : 0.18
+      }]);
+      return true;
+    }
     const A = bhaA(), o = AC.createOscillator(), o2 = AC.createOscillator();
     o.type = "sawtooth";
     o2.type = "triangle";
@@ -15213,8 +15348,12 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     const c = jwDay(jwJ());
     return TT.ui.jwToday.replace("{d}", JW_WEEK[c.w] + " " + JW_PAS[c.p]).replace("{w}", JW_WUKU[c.u]);
   }
+  function jwPace() {
+    const k = Math.max(-1, Math.min(strokeLite() ? 1 : 2, Math.round(Math.log2(Math.max(1e-6, S.speed * 24)) / 3)));
+    return Math.pow(2, -k);
+  }
   function jwHeard(now, list, dtR) {
-    const pace = bhaPace(), per = 0.9 * pace;
+    const pace = bhaPace() * jwPace(), per = 0.9 * pace;
     list.forEach(([w]) => {
       const v = sirenVoice(w), d = dirFor(w);
       setPos(v.pan, d.x, d.y, d.z, 0.15);
@@ -15369,40 +15508,45 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
       f = f0;
       const len = v > 1 ? v : 0.6;
       if (!bhaOK(f, len)) return;
-      const o = AC.createOscillator();
-      o.type = "sine";
-      o.frequency.setValueAtTime(f * 0.985, t);
-      o.frequency.setTargetAtTime(f, t, 0.04);
-      const o2 = AC.createOscillator();
-      o2.type = "sine";
-      o2.frequency.value = f * 2;
-      const g = mkGain(0, dest), L = 0.07, A2 = Math.max(0.04, A);
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(L, t + A2);
-      g.gain.setValueAtTime(L, t + Math.max(A2, len - 0.08));
-      g.gain.linearRampToValueAtTime(0, t + len + 0.06);
-      o.connect(g);
-      o2.connect(mkGain(0.08, g));
-      const s = AC.createBufferSource();
-      s.buffer = noiseBuf;
-      s.loop = true;
-      const bp = AC.createBiquadFilter();
-      bp.type = "bandpass";
-      bp.frequency.value = f * 1.5;
-      bp.Q.value = 2.5;
-      const gb = mkGain(0, dest);
-      gb.gain.setValueAtTime(0, t);
-      gb.gain.linearRampToValueAtTime(0.012, t + 0.03);
-      gb.gain.setTargetAtTime(0, t + len, 0.05);
-      s.connect(bp);
-      bp.connect(gb);
-      o.start(t);
-      o2.start(t);
-      s.start(t, Math.random());
-      const e = t + len + 0.3;
-      o.stop(e);
-      o2.stop(e);
-      s.stop(e);
+      if (strikeNode(dest)) {
+        const A2 = Math.max(0.04, A), hold = Math.max(0, len - 0.08 - A2), e = t + len + 0.3;
+        strike(dest, [{ t, f: f * 0.985, f1: f, gl: 0.12, a: 0.07, A: A2, hold, d: 0.045, end: e }, { t, f: f * 2, a: 0.07 * 0.08, A: A2, hold, d: 0.045, end: e }, { t, n: 1, bf: f * 1.5, q: 2.5, a: 0.012, hold: len, d: 0.05, end: e }]);
+      } else {
+        const o = AC.createOscillator();
+        o.type = "sine";
+        o.frequency.setValueAtTime(f * 0.985, t);
+        o.frequency.setTargetAtTime(f, t, 0.04);
+        const o2 = AC.createOscillator();
+        o2.type = "sine";
+        o2.frequency.value = f * 2;
+        const g = mkGain(0, dest), L = 0.07, A2 = Math.max(0.04, A);
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(L, t + A2);
+        g.gain.setValueAtTime(L, t + Math.max(A2, len - 0.08));
+        g.gain.linearRampToValueAtTime(0, t + len + 0.06);
+        o.connect(g);
+        o2.connect(mkGain(0.08, g));
+        const s = AC.createBufferSource();
+        s.buffer = noiseBuf;
+        s.loop = true;
+        const bp = AC.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.frequency.value = f * 1.5;
+        bp.Q.value = 2.5;
+        const gb = mkGain(0, dest);
+        gb.gain.setValueAtTime(0, t);
+        gb.gain.linearRampToValueAtTime(0.012, t + 0.03);
+        gb.gain.setTargetAtTime(0, t + len, 0.05);
+        s.connect(bp);
+        bp.connect(gb);
+        o.start(t);
+        o2.start(t);
+        s.start(t, Math.random());
+        const e = t + len + 0.3;
+        o.stop(e);
+        o2.stop(e);
+        s.stop(e);
+      }
     }
     bhaLight(w, t);
     if (f && window.MOTS && MOTS.midi && MOTS.midi.hit) MOTS.midi.hit(w, t, f, 0.5, 0.4);

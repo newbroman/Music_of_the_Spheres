@@ -943,12 +943,10 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
     };
     const apply = (c, s, n) => {
       const v = panOf(s, n);
-      if (Math.abs(v - n.__pan) < 4e-3) return;
+      if (Math.abs(v - n.__pan) < 0.01) return;
       const t = c.currentTime, pp = n.pan;
       try {
-        pp.cancelScheduledValues(t);
-        pp.setValueAtTime(n.__pan, t);
-        pp.linearRampToValueAtTime(v, t + 0.05);
+        pp.setTargetAtTime(v, t, 0.02);
       } catch (e) {
         pp.value = v;
       }
@@ -10674,7 +10672,7 @@ function initAudio(){
   setVerb();
   noiseBuf=AC.createBuffer(1,AC.sampleRate*3,AC.sampleRate);const nd=noiseBuf.getChannelData(0);for(let k=0;k<nd.length;k++)nd[k]=Math.random()*2-1;
   // one shared noise source feeds every breath, whisper and consonant
-  const ns=AC.createBufferSource();ns.buffer=noiseBuf;ns.loop=true;noiseBus=mkGain(1);ns.connect(noiseBus);ns.start();voiceWL();
+  const ns=AC.createBufferSource();ns.buffer=noiseBuf;ns.loop=true;noiseBus=mkGain(1);ns.connect(noiseBus);ns.start();voiceWL();strikeLoad();
   const jl=AC.createBiquadFilter();jl.type='lowpass';jl.frequency.value=7;noiseBus.connect(jl);jitBus=mkGain(1);jl.connect(jitBus);
   const ib=AC.createBiquadFilter();ib.type='bandpass';ib.frequency.value=1600;ib.Q.value=.6;noiseBus.connect(ib);inhaleBus=mkGain(.16);ib.connect(inhaleBus);
   const re=new Float32Array(5),im=new Float32Array(5);for(let n=1;n<5;n++)im[n]=-1/n;RETRO=AC.createPeriodicWave(re,im);
@@ -10817,7 +10815,7 @@ function updateAudio(){
     // only voices loud enough to hear are kept running (with a little hysteresis)
     const want=aud||(on&&!asWobble&&allowed.has(b.id)&&g>(v.part?.025:.035));
     if(want&&!v.part&&builds<3){buildPart(b,v);builds++}
-    else if(!want&&v.part&&now-(v.born||0)>2.5){killPart(v.part);v.part=null;v.mode=null}
+    else if(!want&&v.part&&now-(v.born||0)>6){killPart(v.part);v.part=null;v.mode=null}
     v.culled=!v.part;
     const I=v.mode==='instrument'?v.part:null, Hp=v.mode==='human'?v.part:null, W=WOB[b.id]||{c:0,a:0};
     const duck=aud&&S.speaking?.3:1;
@@ -10862,7 +10860,7 @@ function updateAudio(){
       const mf=melodyPitch(moonBase(p.f),moonPhase(b,m),m.P<0),pf=P[sv.body.id];if(pf)pf.f=mf;else P[sv.body.id]={f:mf};
       if(sv.part&&sv.lkey!==lkey(S.voices)){killPart(sv.part);sv.part=null}
       if(wantM&&!sv.part){buildAny(sv.body,sv,mf);sv.born=now;sv.dead=null}
-      else if(!wantM&&sv.part&&now-sv.born>2.5){killPart(sv.part);sv.part=null}
+      else if(!wantM&&sv.part&&now-sv.born>6){killPart(sv.part);sv.part=null}
       if(!sv.part){tgt(sv.vol.gain,0,.1);if(m.sm)smRelease(m,now);return}
       singAt(sv,mf,now);
       tgt(sv.vol.gain,her?.12:.07*rel,.12);
@@ -10968,6 +10966,7 @@ function beltPing(p,pos){
   const L=listenerPos(), a=audioDir(pos,L), t=AC.currentTime;
   let f=rawPitch(pos.om)*4;while(f>1600)f/=2;f=quantize(f);
   const pan=BELTP[beltIx++%BELTP.length];setPos(pan,a.x,a.y,a.z,.01);
+  if(strikeNode(pan)){const amp=.035*S.groups.belt.vol*Math.pow(1/(1+a.d/3),.5);strike(pan,[{t,f,a:amp,A:.02,d:.35,end:t+2},{t,f:f*2.76,a:amp*.15,A:.02,d:.35,end:t+2}]);return}
   const o=AC.createOscillator();o.type='sine';o.frequency.value=f;const o2=AC.createOscillator();o2.type='sine';o2.frequency.value=f*2.76;
   const g2=mkGain(.15);const g=mkGain(0);
   const amp=.035*S.groups.belt.vol*Math.pow(1/(1+a.d/3),.5);
