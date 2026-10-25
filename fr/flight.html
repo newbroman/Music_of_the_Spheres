@@ -10368,6 +10368,7 @@ const mkGain=(v,to)=>{const g=AC.createGain();g.gain.value=v;if(to)g.connect(to)
 
 /* ---------- human singer ---------- */
 function makeHuman(spec,dest,whisper){
+  if(voiceWL()){const hw=makeHumanWL(spec,dest,whisper);if(hw)return hw}
   const h={spec,whisper,next:0,shift:0,words:parseWords(spec.words),srcs:[],taps:[]};
   const tap=(bus,node)=>{bus.connect(node);h.taps.push([bus,node])};
   h.form=FT[spec.type];
@@ -10673,7 +10674,7 @@ function initAudio(){
   setVerb();
   noiseBuf=AC.createBuffer(1,AC.sampleRate*3,AC.sampleRate);const nd=noiseBuf.getChannelData(0);for(let k=0;k<nd.length;k++)nd[k]=Math.random()*2-1;
   // one shared noise source feeds every breath, whisper and consonant
-  const ns=AC.createBufferSource();ns.buffer=noiseBuf;ns.loop=true;noiseBus=mkGain(1);ns.connect(noiseBus);ns.start();
+  const ns=AC.createBufferSource();ns.buffer=noiseBuf;ns.loop=true;noiseBus=mkGain(1);ns.connect(noiseBus);ns.start();voiceWL();
   const jl=AC.createBiquadFilter();jl.type='lowpass';jl.frequency.value=7;noiseBus.connect(jl);jitBus=mkGain(1);jl.connect(jitBus);
   const ib=AC.createBiquadFilter();ib.type='bandpass';ib.frequency.value=1600;ib.Q.value=.6;noiseBus.connect(ib);inhaleBus=mkGain(.16);ib.connect(inhaleBus);
   const re=new Float32Array(5),im=new Float32Array(5);for(let n=1;n<5;n++)im[n]=-1/n;RETRO=AC.createPeriodicWave(re,im);
@@ -10875,7 +10876,7 @@ function updateAudio(){
   const sa=audioDir({x:0,y:0,z:0},L);setPos(sunV.pan,sa.x,sa.y,sa.z);
   const [d1,d2,d3]=droneFreqs(), sp=sunV.part;
   if(sunV.mode==='instrument'){tgt(sp.d1.frequency,d1,.3);tgt(sp.d2.frequency,d2,.3);tgt(sp.d3.frequency,d3,.3)}
-  else if(sunV.mode==='human'&&sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
+  else if(sunV.mode==='human'&&sp&&S.drone){humanTick(sp.hums[0],d3,1,now);if(sp.hums[1])humanTick(sp.hums[1],d2,1,now)}
   if(sp&&sp.L)linesTick(sp,d1,now);
   tgt(sunV.vol.gain,S.drone&&S.thinker==='today'&&!S.solo.size?(S.audition?.025:.07*(sa.self?.7:Math.max(.3,1-S.dist*.6*Math.min(1,sa.d/20)))):0,.3);
 }
@@ -11104,7 +11105,7 @@ function updateSystemAudio(){
   else{const sd={x:-pp.x,y:-pp.y,z:-pp.z}, sl=Math.hypot(sd.x,sd.y,sd.z)||1;setPos(sunV.pan,sd.x/sl,sd.z/sl,-sd.y/sl)}
   const [d1,d2,d3]=droneFreqs(), sp=sunV.part;
   if(sunV.mode==='instrument'){tgt(sp.d1.frequency,d1,.3);tgt(sp.d2.frequency,d2,.3);tgt(sp.d3.frequency,d3,.3)}
-  else if(sunV.mode==='human'&&sp&&S.drone){humanTick(sp.hums[0],d3,1,now);humanTick(sp.hums[1],d2,1,now)}
+  else if(sunV.mode==='human'&&sp&&S.drone){humanTick(sp.hums[0],d3,1,now);if(sp.hums[1])humanTick(sp.hums[1],d2,1,now)}
   if(sp&&sp.L)linesTick(sp,d1,now);
   tgt(sunV.vol.gain,S.drone?.03:0,.3);
   POOL.forEach(s=>tgt(s.g.gain,0,.1));
