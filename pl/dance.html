@@ -4290,7 +4290,7 @@ function gapAfter(el){const p=el.parentElement;if(!p)return 0;const cs=getComput
   if(/flex/.test(cs.display)&&/row/.test(cs.flexDirection)&&cs.flexWrap==='nowrap')return 0;return parseFloat(cs.rowGap)||0}
 function room(el){const cs=getComputedStyle(el);return el.offsetHeight+(parseFloat(cs.marginTop)||0)+gapAfter(el)}
 function tuck(el,on,go){
-  if(!el)return;const C=el.classList;if(!C.contains('drw-x'))C.add('drw-x');
+  if(!el)return;const C=el.classList;if(!C.contains('drw-x')){C.add('drw-x');if(on){if(go)el.dataset.drwGo=go;C.add('drw-tk','drw-gone');return}}
   if(go&&el.dataset.drwGo!==go)el.dataset.drwGo=go;
   if(on===C.contains('drw-tk'))return;
   clearTimeout(el._drwT);
@@ -4399,7 +4399,7 @@ function dialPage(){
   // the switch between the readings and Today's row of buttons stay
   const KEEP='h3,.interp,.acts,#interpSeg';
   const storyEls=()=>{const out=[];if(info)for(const c of info.children){if(c.classList.contains('voices2'))continue;
-      if(c.querySelector(KEEP)){for(const g of c.children)if(!g.matches(KEEP))out.push(g)}else out.push(c)}
+      if(c.querySelector(KEEP)){for(const g of c.children){if(g.matches('.interp')){for(const x of g.children)if(!x.matches('#interpSeg'))out.push(x)}else if(!g.matches(KEEP))out.push(g)}}else out.push(c)}
     const cn=q('section.canon');if(cn&&vis(cn))out.push(cn);return out};
   const choir=()=>{const r=$('roster')||$('groups');return r?r.closest('section.sec'):null};
   const voicesEls=()=>[info&&info.querySelector('.voices2'),choir()].filter(Boolean);
@@ -4425,7 +4425,10 @@ html.drw-on .drw-secbar .drw-tab::after{top:-4px;bottom:-4px}
 html.drw-on .drw-secbar .drw-tab[aria-expanded="true"]{color:var(--vellum,#e9e1cc);border-color:var(--bronze,#c9984f);background:linear-gradient(180deg,rgba(201,152,79,.24),rgba(201,152,79,.08)),rgba(8,10,20,.86)}
 html.drw-on .drw-pstrip{display:none!important}
 /* under the Menu tab when the header is tucked away */
-html.drw-on.drw-top-off .drw-secbar,html.drw-on.drw-clear .drw-secbar{top:calc(env(safe-area-inset-top,0px) + ${TABH+8}px + var(--drw-bar,0px))}
+html.drw-on.drw-top-off .drw-secbar,html.drw-on.drw-clear .drw-secbar{top:calc(env(safe-area-inset-top,0px) + ${TABH+8}px + var(--drw-bar,0px));box-shadow:0 -${TABH+8}px 0 0 rgba(10,12,24,.94)}
+html.drw-m-land .drw-tx{display:none}
+/* 2: on a narrow screen the sky's column lets the bar stick over the Controls too */
+@media (max-width:960px){html.drw-on .stage > div:first-child{display:contents}}
 /* a phone: the four buttons share one row */
 @media (max-width:620px){html.drw-on .drw-secbar{flex-wrap:nowrap;gap:4px}
   html.drw-on .drw-secbar .drw-tab{flex:1 1 0;min-width:0;padding:0 .35rem;gap:.25rem;font-size:.78rem;letter-spacing:.01em;text-transform:none}
@@ -4486,7 +4489,7 @@ aside.panel section.sec > h2.drw-fold:focus-visible{outline:2px solid var(--bron
     h.addEventListener('click',flip);h.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();flip(e)}});
     addEventListener('resize',()=>set(cur(),false));
     // something inside opened from elsewhere (focus, What's new) opens its section
-    sec.addEventListener('focusin',()=>{if(sec.classList.contains('drw-sf'))set(true,false)})});
+    sec.addEventListener('focusin',e=>{if(e.target===h)return;if(sec.classList.contains('drw-sf'))set(true,false)})});
   // the transport on the sky: backward, play or pause, today, slower and faster (they press the Time section's own buttons)
   const rev=$('rev'),play=$('play'),tdy=$('today'),spd=$('speed');
   if(rev&&play&&tdy&&dialEl){const tx=mk('div','drw-tx');tx.setAttribute('role','group');
@@ -4505,7 +4508,10 @@ aside.panel section.sec > h2.drw-fold:focus-visible{outline:2px solid var(--bron
       const rv=rev.textContent.trim()!==RW;bRev.setAttribute('aria-pressed',String(rv));bRev.textContent=rv?'▶':'◀';
       const t=tdy.textContent.trim();if(bTdy.textContent!==t)bTdy.textContent=t;
       // a silent tradition's card takes the sky: the transport steps aside
-      const sc=$('silentCard'),sil=!!(sc&&!sc.hidden);if(tx.hidden!==sil)tx.hidden=sil};
+      const sc=$('silentCard'),sil=!!(sc&&!sc.hidden),sb=q('#floorSw button[data-v="score"]'),scoreOn=!!(sb&&sb.getAttribute('aria-pressed')==='true');
+      const hide=sil||scoreOn;if(tx.hidden!==hide)tx.hidden=hide;
+      const rl=rev.title||rev.textContent.trim();if(bRev.title!==rl){bRev.title=rl;bRev.setAttribute('aria-label',rl)}
+      const db=dialEl.querySelector('.datebar');if(db&&db.offsetHeight){const y=db.offsetTop+db.offsetHeight+4+'px';if(tx.style.top!==y)tx.style.top=y}};
     sync();setInterval(sync,400)}
   // on a phone the header tucks itself away once, when the sound first starts (it is the Menu tab, with Begin or Silence beside it)
   const HK='mots.dial.hdtuck';let hdDone=false;try{hdDone=localStorage.getItem(HK)==='1'}catch(e){}
