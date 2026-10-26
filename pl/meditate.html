@@ -7388,7 +7388,7 @@ const mkGain=(v,to)=>{const g=AC.createGain();g.gain.value=v;if(to)g.connect(to)
 
 /* ---------- human singer ---------- */
 function makeHuman(spec,dest,whisper){
-  if(voiceWL()){const hw=makeHumanWL(spec,dest,whisper);if(hw)return hw}
+  if((typeof voiceWL==='function'&&voiceWL())){const hw=makeHumanWL(spec,dest,whisper);if(hw)return hw}
   const h={spec,whisper,next:0,shift:0,words:parseWords(spec.words),srcs:[],taps:[]};
   const tap=(bus,node)=>{bus.connect(node);h.taps.push([bus,node])};
   h.form=FT[spec.type];
@@ -7495,7 +7495,7 @@ const GODTONE={
   neptune:{w1:'triangle',w2:'sawtooth',w3:'triangle',o3:1,o3k:.5,det:8,det3:0,br:1600,vib:3.4,vdk:.8,lvl:1.4} // Poseidon: deep, with a voice an octave below
 };
 function buildInst(b,v,fadeIn){
-  if(b.kind!=='comet'&&voiceWL()){const iw=buildInstWL(b,v,fadeIn);if(iw)return iw}
+  if(b.kind!=='comet'&&(typeof voiceWL==='function'&&voiceWL())){const iw=buildInstWL(b,v,fadeIn);if(iw)return iw}
   const I={srcs:[],taps:[]}, f0=P[b.id].f;
   I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,fadeIn?.15:.001);
   if(b.kind==='comet'){
@@ -7987,7 +7987,7 @@ function beltPing(p,pos){
   const L=listenerPos(), a=audioDir(pos,L), t=AC.currentTime;
   let f=rawPitch(pos.om)*4;while(f>1600)f/=2;f=quantize(f);
   const pan=BELTP[beltIx++%BELTP.length];setPos(pan,a.x,a.y,a.z,.01);
-  if(strikeNode(pan)){const amp=.035*S.groups.belt.vol*Math.pow(1/(1+a.d/3),.5);strike(pan,[{t,f,a:amp,A:.02,d:.35,end:t+2},{t,f:f*2.76,a:amp*.15,A:.02,d:.35,end:t+2}]);return}
+  if(typeof strikeNode==='function'&&strikeNode(pan)){const amp=.035*S.groups.belt.vol*Math.pow(1/(1+a.d/3),.5);strike(pan,[{t,f,a:amp,A:.02,d:.35,end:t+2},{t,f:f*2.76,a:amp*.15,A:.02,d:.35,end:t+2}]);return}
   const o=AC.createOscillator();o.type='sine';o.frequency.value=f;const o2=AC.createOscillator();o2.type='sine';o2.frequency.value=f*2.76;
   const g2=mkGain(.15);const g=mkGain(0);
   const amp=.035*S.groups.belt.vol*Math.pow(1/(1+a.d/3),.5);
@@ -8526,7 +8526,7 @@ function motion(v,w,dtR){
 }
 let SIRVIB=null;
 function buildSiren(v,f,vowel){
-  if(voiceWL()){const iw=buildSirenWL(v,f,vowel);if(iw)return iw}
+  if((typeof voiceWL==='function'&&voiceWL())){const iw=buildSirenWL(v,f,vowel);if(iw)return iw}
   const I={srcs:[]};I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,.3);
   // Lightest: a heaven has up to nine sirens at once, so each is one sawtooth and its vibrato through one lowpass (o2 is a silent stand-in the articulation can still move)
   const lite=MIN();
@@ -8894,7 +8894,7 @@ function bhaPan(k,x){if(BHA.sp[k])return BHA.sp[k];const g=mkGain(1);let p=null;
 // from: the pitch it glides from (mīnd)
 function bhaString(dest,t,f,lvl,dec,from,tan){
   if(!AC||!bhaOK(f,bhaA()+dec*2.5))return false;
-  if(VWL.ready&&strikeNode(dest)){const A=bhaA();strike(dest,[{s:1,t,f,from:from||0,a:lvl,A:Math.max(.003,A),ax:A>.05,d:dec,end:t+A+dec*7,lp0:Math.min(8000,f*9),lp1:f*2.5,lptc:dec*.5,lpq:0,
+  if(typeof VWL!=='undefined'&&VWL.ready&&strikeNode(dest)){const A=bhaA();strike(dest,[{s:1,t,f,from:from||0,a:lvl,A:Math.max(.003,A),ax:A>.05,d:dec,end:t+A+dec*7,lp0:Math.min(8000,f*9),lp1:f*2.5,lptc:dec*.5,lpq:0,
     bpg:tan?1.3:.8,bp0:f*(tan?2:3),bp1:Math.min(6500,f*(tan?14:9)),bpd:dec*(tan?1.6:.9),bpq:tan?3:2.2,mix:.32,m2:strokeLite()?0:.18}]);return true}
   const A=bhaA(),o=AC.createOscillator(),o2=AC.createOscillator();o.type='sawtooth';o2.type='triangle';
   [[o,1],[o2,2.003]].forEach(([x,m])=>{const p=x.frequency;if(from){p.setValueAtTime(from*m,t);p.setTargetAtTime(f*m,t+.06,.08)}else p.setValueAtTime(f*m,t)});
