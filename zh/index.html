@@ -6646,7 +6646,7 @@ css.textContent=`
 #tour .ckl{color:#a39c89;text-align:left}
 #tour .ckb{display:inline-flex;margin:4px 0 0;padding:4px 12px;min-height:34px;font-size:14px}
 #tour .tp{margin:0;min-height:7.8em;color:#d8cfb8;flex-shrink:0}
-#tour .dots{display:flex;gap:8px;margin-top:auto;padding-top:6px;padding-bottom:10px}
+#tour .dots{display:flex;gap:8px;padding-top:2px;padding-bottom:2px}
 #tour .dots button{appearance:none;border:0;padding:0;width:26px;height:4px;border-radius:2px;background:#2b3050;cursor:pointer;position:relative;overflow:hidden}
 #tour .dots button i{position:absolute;inset:0;width:0;background:#c9984f}
 #tour .dots button.done i{width:100%}
@@ -6663,6 +6663,7 @@ css.textContent=`
 #tour .skip{position:absolute;top:10px;right:10px;z-index:2;background:rgba(5,6,12,.6)}
 @media (max-width:760px){#tour{padding:10px}#tour .tc{grid-template-columns:1fr}#tour .ti{min-height:0;aspect-ratio:4/3;border-radius:14px 14px 0 0;grid-row:1}#tour.check .ti{aspect-ratio:auto;height:120px}#tour .tt{padding:18px 18px 4px;gap:10px}#tour .tp{min-height:0}#tour .tf{grid-column:1;padding:10px 18px 14px}#tour .tf .nav{justify-content:space-between}#tour .tf .nav .b{flex:1 1 40%}}
 @media (max-height:520px) and (orientation:landscape){#tour{padding:8px}#tour .tc{max-height:calc(100dvh - 16px);grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}#tour .ti{min-height:0}#tour.check .ti{display:none}#tour .tt{padding:14px 20px 4px;gap:8px}#tour h2{font-size:24px}#tour .tp{min-height:0;font-size:15px}#tour .note{display:none}#tour .tf{padding:8px 20px 12px;flex-direction:row;align-items:center}#tour .tf .nav{flex-wrap:nowrap}#tour .tf .b{white-space:nowrap;padding:7px 12px;min-height:40px;font-size:14px}#tour .tf .go{width:auto;flex:1 1 150px;min-height:40px;padding:7px 12px;font-size:14px;line-height:1.25}}
+@media (max-width:760px){:lang(ja) #tour .go,:lang(zh) #tour .go{font-size:15px;letter-spacing:0;padding:13px 12px}#tour .tf label{font-size:13px}}
 @media (prefers-reduced-motion:reduce){#tour .ti img{transition:opacity .3s;transform:none!important}#tour .dots button.cur i{animation:none;width:100%}}
 `;
 document.head.appendChild(css);
@@ -6694,6 +6695,8 @@ function open(){
   <div class="tf"><div class="nav"><button type="button" class="b prev">← ${T.prev}</button><button type="button" class="b next">${T.next} →</button></div>
   <button type="button" class="go">${T.begin}</button></div></div>`;
   document.body.appendChild(el);
+  // the dots and the tick ride in the footer with the buttons, so a long step never hides them
+  {const tf=el.querySelector('.tf'),nav=tf.querySelector('.nav'),lab=el.querySelector('.tt > label');tf.insertBefore(el.querySelector('.dots'),nav);if(lab)tf.insertBefore(lab,nav)}
   el.querySelector('.go').onclick=begin;el.querySelector('.skip').onclick=close;
   el.querySelector('.next').onclick=()=>{pause(true);show(i+1)};el.querySelector('.prev').onclick=()=>{pause(true);show(i-1)};
   el.querySelectorAll('.dots button').forEach((d,k)=>d.onclick=()=>{pause(true);show(k)});
@@ -12019,7 +12022,7 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     });
   }
   const cv = document.getElementById("orrery"), cx2 = cv.getContext("2d");
-  let W = 0, H = 0, DPR = 1, CX = 0, CY = 0, RR = 0;
+  let W = 0, H = 0, DPR = 1, CX = 0, CY = 0, RR = 0, TI = 0;
   let K = 1, SK = 1;
   function resize() {
     const r = cv.getBoundingClientRect();
@@ -12029,15 +12032,23 @@ window.MOTS_FAM={LG,T,fill,esc,lab,MYTH,KNOWN,UNDRAWN,WHERE,EXTRA,SHOWER,where,m
     cv.width = Math.round(W * DPR);
     cv.height = Math.round(H * DPR);
     CX = W / 2;
-    CY = H / 2;
+    CY = TI + (H - TI) / 2;
     fitRR();
   }
+  window.MOTS = window.MOTS || {};
+  MOTS.dialInset = (v) => {
+    v = Math.max(0, Math.min(Math.round(v) || 0, 160));
+    if (v !== TI) {
+      TI = v;
+      resize();
+    }
+  };
   function fitRR() {
-    const base = Math.min(W, H) / 2 * 0.8;
+    const Hs = H - TI, base = Math.min(W, Hs) / 2 * 0.8;
     if (S.thinker !== "today") RR = base;
     else {
-      const st = Math.max(Math.sin(S.tilt), 0.45), mx = Math.max(6, W * 0.03), my = Math.max(6, H * 0.04);
-      RR = Math.min((W / 2 - mx) / 1.1, (H / 2 - my) / (1.1 * st));
+      const st = Math.max(Math.sin(S.tilt), 0.45), mx = Math.max(6, W * 0.03), my = Math.max(6, Hs * 0.04);
+      RR = Math.min((W / 2 - mx) / 1.1, (Hs / 2 - my) / (1.1 * st));
     }
     K = Math.max(1, Math.min(3.2, 0.55 + RR / 450));
     SK = Math.sqrt(K);
@@ -20211,7 +20222,9 @@ aside.panel section.sec > h2.drw-fold:focus-visible{outline:2px solid var(--bron
       const sc=$('silentCard'),sil=!!(sc&&!sc.hidden),sb=q('#floorSw button[data-v="score"]'),scoreOn=!!(sb&&sb.getAttribute('aria-pressed')==='true');
       const hide=sil||scoreOn;if(tx.hidden!==hide)tx.hidden=hide;
       const rl=rev.title||rev.textContent.trim();if(bRev.title!==rl){bRev.title=rl;bRev.setAttribute('aria-label',rl)}
-      const db=dialEl.querySelector('.datebar');if(db&&db.offsetHeight){const y=db.offsetTop+db.offsetHeight+4+'px';if(tx.style.top!==y)tx.style.top=y}};
+      const db=dialEl.querySelector('.datebar');if(db&&db.offsetHeight){const y=db.offsetTop+db.offsetHeight+4+'px';if(tx.style.top!==y)tx.style.top=y}
+      // on a phone the sky is drawn below the transport
+      if(MOTS.dialInset){const cvs=$('orrery'),on=modeOf()==='phone'&&!tx.hidden&&tx.offsetParent!==null&&cvs;MOTS.dialInset(on?tx.offsetTop+tx.offsetHeight+6-cvs.offsetTop:0)}};
     sync();setInterval(sync,400)}
   // on a phone the header tucks itself away once, when the sound first starts (it is the Menu tab, with Begin or Silence beside it)
   const HK='mots.dial.hdtuck';let hdDone=false;try{hdDone=localStorage.getItem(HK)==='1'}catch(e){}
