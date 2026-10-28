@@ -630,6 +630,11 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
 .gloss h4{margin:.6rem 0 .1rem;font-family:var(--f-display);font-weight:400;color:var(--bronze);font-size:1rem}
 .shTip{background:#13162a;color:#f3d9a4;border:1px solid #c9984f;font:600 11px/1 var(--f-mono);padding:2px 4px}.shTip::before{display:none}
 .shNote{background:rgba(19,22,42,.85);color:#e9e1cc;border:1px solid #c9984f;border-radius:6px;padding:3px 7px;font-size:12px}
+.eraRow{margin-top:.6rem}.eraCtl{display:flex;gap:.6rem;align-items:center}.eraCtl input{flex:1;accent-color:var(--bronze)}
+.monSel{width:100%;min-height:var(--tap);background:var(--sky-2);border:1px solid var(--line-2);border-radius:10px;padding:.3rem .6rem;margin-top:.4rem}
+.monInfo{margin-top:.6rem;padding:.7rem .9rem;border-left:3px solid #e0405a;background:rgba(224,64,90,.07);border-radius:0 10px 10px 0}
+.monInfo h4{margin:0;font-family:var(--f-display);font-weight:400;font-size:1.15rem;color:#f3d9a4}.monInfo p{margin:.35rem 0 0}.monInfo small{color:var(--vellum-dim)}
+.solList li.hh{color:var(--bronze);font-family:var(--f-display)}
 .tapHint{margin:.2rem 0 0;font-style:italic}
 .foot a{color:var(--vellum-dim)}
 .tools{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:.8rem}
@@ -695,6 +700,9 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
       <div class="dawnBtns"><button class="pb" id="dawnJun" type="button">☀ Høyr soloppgangen ved sumarsolkverv</button><button class="pb" id="dawnDec" type="button">☀ Høyr soloppgangen ved vintersolkverv</button></div>
     </div>
     <ul class="solList" id="solList"></ul>
+    <h3 class="sub">Monument</h3>
+    <select id="monSel" class="monSel" aria-label="Monument"></select>
+    <div class="monInfo" id="monInfo" hidden></div>
     <h3 class="sub">Innrettingar</h3>
     <p class="note"><span id="solWhere"></span> <button class="term" type="button" data-g="brg" aria-expanded="false">Retning</button> · <button class="term" type="button" data-g="gleam" aria-expanded="false">Første glimt</button></p>
     <div class="gloss" data-for="brg" hidden></div><div class="gloss" data-for="gleam" hidden></div>
@@ -704,11 +712,16 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
       <div class="alRow"><input id="alEq" type="checkbox" aria-label="Jamdøgn"><button class="term" type="button" data-g="eq" aria-expanded="false">Jamdøgn</button></div>
       <div class="alRow"><input id="alXq" type="checkbox" aria-label="Kvartdagar"><button class="term" type="button" data-g="xq" aria-expanded="false">Kvartdagar</button></div>
       <div class="alRow"><input id="alLun" type="checkbox" aria-label="Månestillstandar"><button class="term" type="button" data-g="lun" aria-expanded="false">Månestillstandar</button></div>
+      <div class="alRow"><input id="alStar" type="checkbox" aria-label="Lysande stjerner"><button class="term" type="button" data-g="star" aria-expanded="false">Lysande stjerner</button></div>
       <label class="sw" for="alSky"><input id="alSky" type="checkbox"><span>Vis på himmelen</span></label>
       <div class="field"><label for="alHz"><button class="term" type="button" data-g="hz" aria-expanded="false">Horisonthøgd</button> <output id="alHzOut"></output></label><input id="alHz" type="range" min="0" max="10" step=".1" value="0"></div>
     </div>
     <div class="gloss" data-for="sol" hidden></div><div class="gloss" data-for="eq" hidden></div><div class="gloss" data-for="xq" hidden></div><div class="gloss" data-for="lun" hidden></div><div class="gloss" data-for="hz" hidden></div>
+    <div class="field eraRow"><label for="alYear"><button class="term" type="button" data-g="era" aria-expanded="false">Epoke</button> <output id="alYearOut"></output></label>
+      <div class="eraCtl"><input id="alYear" type="range" min="-3500" max="2100" step="25" value="2025"><button class="pb" id="alYearNow" type="button">No</button></div></div>
+    <div class="gloss" data-for="star" hidden></div><div class="gloss" data-for="era" hidden></div>
     <table class="solTab" id="solTab"></table>
+    <ul class="solList" id="helList" hidden></ul>
     <div class="solMap" id="solMap" role="application" aria-label="Kart over innrettingane"></div>
     <div class="tools"><button class="pb" id="alStand" type="button">⌖ Stå her</button><button class="pb" id="alReset" type="button">Attende til staden</button><button class="pb" id="shGo" type="button">Stasjonssteinane ved Stonehenge</button><label class="sw" for="shHere"><input id="shHere" type="checkbox"><span>Legg ut stasjonssteinane her</span></label><button class="term" type="button" data-g="sh" aria-expanded="false" aria-label="Stasjonssteinane ved Stonehenge"></button></div>
     <div class="gloss" data-for="sh" hidden></div>
@@ -4370,7 +4383,7 @@ function rtShow(blob,secs,kind){
   "use strict";
   const TX = (
     /*TX*/
-    { "title": "Været sin song", "desc": "Været der du er, sunge av dei greske gudane for vindane, skyene, tordenen og regnbogen.", "lede": "Været der du er, spelt av gudane som styrde det: dei åtte vindane frå Vindane sitt tårn i Athen, skyene til Nephele, tordenen til Zevs og regnbogen til Iris. Lydane følgjer fysikken: Vinden speler på ei eolsharpe, og kvar regndråpe klingar i tonehøgda til luftboblen han fangar.", "navApp": "Appen", "navDial": "2D-skiva", "navHelp": "Slik verkar det", "placeHint": "Skriv inn eit stad", "find": "Søk", "here": "Bruk posisjonen min", "play": "Spel været", "stop": "Stopp", "sky": "Himmel", "wind": "Vind", "gusts": "Vindkast", "temp": "Temperatur", "cloud": "Skyer", "rain": "Regn", "humidity": "Luftfukt", "pressure": "Lufttrykk", "facing": "Du ser mot", "units": "Einingar", "volume": "Volum", "metric": "Metrisk (°C, km/h)", "imperial": "Imperial (°F, mph)", "imagineH": "Lag ditt eige vêr", "imagineP": "Flytt ein glidebrytar for å spele akkurat det været du vil: storm, hitebølgje eller tordenvêr. Det verkelege været kjem attende med knappen under.", "dirL": "Vind frå (grader, 0 = nord)", "thunder": "Torden", "snowL": "snø", "night": "natt", "back": "Attende til det verkelege været", "howH": "Slik høyrest været ut", "how1": "Vinden: guden for vindretninga syng, ein av dei åtte vindane som er hogne inn i Vindane sitt tårn i Athen, frå der vinden kjem i høve til kvar du ser. Eit vindkast bøyer stemma oppover, som ein vind som uler.", "how2": "Eolsharpa: seks strengar av ulik tjukkleik, stemde saman. Vind over ein streng løyser virvlar omtrent 0,2 × fart ÷ tjukkleik gonger i sekundet, og strengen syng den næraste overtonen, så akkordane skiftar når vinden aukar og minkar.", "how3": "Regn: kvar dråpe som fangar ei luftboble, klingar i tonehøgda åt boblen sjølv (Minnaert-frekvensen, omtrent 3,3 kHz for ei boble på 1 mm). Kraftigare regn har større dråpar og djupare klang; yr er fint og lyst.", "how4": "Ouranos, himmelen, held den djupe tonen: ein halvtone for kvar 2,5 hPa lufttrykk frå standard 1013. Temperaturen vel tonearten: frygisk i frost, lydisk i hitebølgje.", "how5": "Skyene til Nephele dempar himmelen (eit lågpassfilter som lukkar seg etter kvart som skyene tettnar); tåke lukkar han meir, og nyfallen snø, Khione sin, får alt til å dempast som ekte snø. Fuktig luft ber eit lengre ekko.", "how6": "Zevs: i tordenvêr lyner det fyrst, og tordenen følgjer med lydens fart etter avstanden, eit smell når det er nær, eit langt rulle når det er langt unna.", "how7": "Iris let ei regnbogeskala klinge når sola skin på regn; ei klar natt glimtar stjernene til Nyx. Været blir henta på nytt kvart kvarter.", "tools": "Ta opp og Scene", "record": "Ta opp", "foot": "Vêrdata:", "privacy": "Personvern", "pick": "Skriv inn eit stad over, eller bruk posisjonen din, for å høyre været der.", "searching": "Søkjer …", "fetching": "Hentar været …", "none": "Fann ikkje noko stad med det namnet.", "netErr": "Kunne ikkje hente været. Sjekk tilkoplinga og prøv igjen.", "noLoc": "Denne eininga gav inga posisjon. Skriv inn eit stad i staden.", "locDenied": "Posisjon vart ikkje tillaten. Skriv inn eit stad i staden.", "locating": "Finn ut kvar du er …", "hereName": "Posisjonen din ({c})", "cN": "N", "cS": "S", "cE": "Ø", "cW": "V", "asOf": "Været klokka {t} lokal tid.", "offline": "Fråkopla: været som sist vart henta, klokka {t}.", "imagined": "Ditt eige vêr", "calm": "Stille", "from": "frå {d}", "youFace": "▲", "d_n": "nord", "d_ne": "nordaust", "d_e": "aust", "d_se": "søraust", "d_s": "sør", "d_sw": "sørvest", "d_w": "vest", "d_nw": "nordvest", "g_boreas": "Boreas", "g_kaikias": "Kaikias", "g_apeliotes": "Apeliotes", "g_euros": "Euros", "g_notos": "Notos", "g_lips": "Lips", "g_zephyros": "Zefyr", "g_skiron": "Skiron", "gt_boreas": "Nordvinden, kald og sterk. På Vindane sitt tårn er han ein skjegget gamal mann i ei tung kappe som blæs i eit skjel. Han bortførte Oreithyia, prinsessa av Athen, og athenarane takka han for å ha knust den persiske flåten. Han syng djupast.", "gt_kaikias": "Nordaustvinden, haglet sin bringar. På tårnet held han eit skjold fullt av haglkorn ut over landet under. Ein mørk vind som syng lågt.", "gt_apeliotes": "Austvinden, venleg og varm, som bringar ei mild regn. På tårnet er han ein ung mann som ber frukt, kveite og honningkaker i kappa.", "gt_euros": "Søraustvinden, uheldig og stormfull. På tårnet er han ein gamal mann som har pakka seg inn mot vêret. Homer reknar han mellom dei fire store vindane.", "gt_notos": "Sørvinden, varm og fuktig, som bringar stormane på ettersommaren og hausten. På tårnet tømer han ei vasskrukke. Sjøfolk frykta Notos.", "gt_lips": "Sørvestvinden. På tårnet held han akterenden av eit skip, for han blåste skip heim til hamnene i Athen.", "gt_zephyros": "Vestvinden, den mildaste, vårens bodberar. På tårnet er han ein ung mann som strør blomar frå kappa. Han er gift med Chloris, blomane si gudinne, og syng høgast og søtast.", "gt_skiron": "Nordvestvinden, tørr og kald om vinteren, brennande om sommaren. På tårnet tømer han ein bronsegryte med glovarm oske og kol.", "m_phrygian": "frygisk", "m_aeolian": "eolisk", "m_dorian": "dorisk", "m_mixolydian": "mixolydisk", "m_ionian": "jonisk", "m_lydian": "lydisk", "wClear": "Klårt", "wMainly": "For det meste klårt", "wPartly": "Delvis skya", "wOvercast": "Overskya", "wFog": "Tåke", "wDrizzle": "Yr", "wFDrizzle": "Underkjølt yr", "wRain": "Regn", "wFRain": "Underkjølt regn", "wSnow": "Snø", "wGrains": "Kornsnø", "wShowers": "Regnbyer", "wSnowShowers": "Snøbyer", "wThunder": "Tordenvêr", "wHail": "Tordenvêr med hagl", "sCalm": "Vindane er stille", "sWind": "{g}, vinden frå {d}, syng", "sHarp": "vinden speler på eolsharpa", "sRain": "regndråpane klingar i tonehøgda til boblene sine", "sSnow": "snøen åt Khione dempar alt", "sHail": "haglet åt Kaikias smatrar", "sThunder": "tordenen åt Zevs rullar", "sStir": "Zevs rører på seg langt borte", "sFog": "tåka lukkar himmelen", "sCloud": "skyene åt Nephele dempar himmelen", "sClear": "himmelen er klår og open", "sIris": "Iris let ein regnboge klinge", "sStars": "stjernene åt Nyx glimtar", "sDrone": "tyngda av lufta ({p}) set den djupe tonen åt Ouranos, og {tp} gir tonearten {m}", "p_sun": "Helios", "p_moon": "Selene", "p_hermes": "Hermes", "p_aphrodite": "Afrodite", "p_ares": "Ares", "p_zeus": "Zevs", "p_kronos": "Kronos", "p_ouranos": "Ouranos", "p_poseidon": "Poseidon", "solH": "Solkvervet og innrettingar", "termsL": "Kva desse orda tyder", "shBtn": "Stasjonssteinane ved Stonehenge", "shAubrey": "Aubrey-hol", "shApprox": "omtrentlege posisjonar", "shHere": "Legg ut stasjonssteinane her", "shAngle": "Stasjonssteinar for denne breiddegraden: sidene møtest i {a}° (eit rektangel, 90°, berre nær Stonehenge)", "shPolar": "Her står ikkje sola eller månen opp og går ned på dei dagane, så steinane kan ikkje leggjast ut.", "mixH": "Røyster", "mixReset": "Alt attende til 100 %", "mute": "Demp", "mxVoices": "Røystene til vindane (anemoiane)", "mxWind": "Vinden", "mxHarp": "Eolsharpa", "mxRain": "Regn, snø og hagl", "mxDrone": "Den djupe tonen til Uranos", "mxThunder": "Tordenen til Zevs", "mxSparkle": "Iris og stjernene", "tapWord": "Trykk på eit ord for å sjå kva det tyder.", "gBrg": "Retning", "gGleam": "Første glimt", "solP": "Når neste solkverv og jamdøgn kjem, og kvar Sola og Månen står opp og går ned på dette staden på dei dagane gamle monument vart bygde for å markere, som Stonehenge, Newgrange og Bryn Celli Ddu.", "dawnJun": "Høyr soloppgangen ved sumarsolkverv", "dawnDec": "Høyr soloppgangen ved vintersolkverv", "alH": "Innrettingar", "alSol": "Solkverv", "alEq": "Jamdøgn", "alXq": "Kvartdagar", "alLun": "Månestillstandar", "alSky": "Vis på himmelen", "alHz": "Horisonthøgd", "mapL": "Kart over innrettingane", "alStand": "Stå her", "alReset": "Attende til staden", "lmHint": "Trykk på kartet for å setje ein markør på eit landemerke (ein bautastein, ein åstopp, eit gap i horisonten) og dra han til den nøyaktige staden. «Stå her» flyttar sentrum for siktelinene til markøren, eller til midten av kartet viss det ikkje finst nokon; den gylne markøren kan òg dragast.", "ev_jun": "Sumarsolkverv", "ev_dec": "Vintersolkverv", "midsum": "midtsumar", "midwin": "midtvinter", "ev_eq": "Jamdøgn", "mMar": "mars", "mSep": "september", "ev_xqn": "Kvartdagane tidleg i mai og tidleg i august", "ev_xqs": "Kvartdagane tidleg i november og tidleg i februar", "ev_xqF": "Kvartdag (Imbolc)", "ev_xqM": "Kvartdag (Beltane)", "ev_xqA": "Kvartdag (Lughnasadh)", "ev_xqN": "Kvartdag (Samhain)", "ev_lmajn": "Stor månestillstand, nord", "ev_lmajs": "Stor månestillstand, sør", "ev_lminn": "Liten månestillstand, nord", "ev_lmins": "Liten månestillstand, sør", "rs_sunrise": "soloppgang", "rs_sunset": "solnedgang", "rs_moonrise": "månoppgang", "rs_moonset": "månenedgang", "lineLab": "{e}: {r}", "evH": "Hending", "riseH": "Retning for oppgang", "setH": "Retning for nedgang", "inDays": "om {d} d, {h} t {m} min", "riseSetAt": "Den dagen ved {p}: soloppgang {r}, solnedgang {s} (tid · retning).", "standPoint": "ståstaden din", "athens": "Athen, Vindanes tårn", "solWhere": "Retningar frå {p} ({c}) over ein horisont {h} høg, målt med klokka frå sann nord.", "mapErr": "Kartet kunne ikkje lastast. Sjekk tilkoplinga.", "landmark": "Landemerke", "lmMeasuring": "Måler …", "lmHead": "Landemerket ligg i retning {b}, {d} unna og {h} over deg, så det ruvar {a} over ein flat horisont.", "lmMatch": "Det flukter med: {l}, innanfor {o}°.", "lmSunR": "Sola står opp bak det rundt {d}.", "lmSunS": "Sola går ned bak det rundt {d}.", "and": " og ", "lmMoonR": "Sola står aldri opp der; berre Månen gjer det, i åra rundt ein stor månestillstand (kvart 18,6. år: den siste nådde toppen i 2024–25, den neste kjem rundt 2043).", "lmMoonS": "Sola går aldri ned der; berre Månen gjer det, i åra rundt ein stor månestillstand (kvart 18,6. år: den siste nådde toppen i 2024–25, den neste kjem rundt 2043).", "lmNone": "Verken Sola eller Månen står opp eller går ned der.", "noRise": "På denne staden står ikkje Sola opp den dagen.", "dawnNow": "Soloppgang, {e}: {t}, i retning {a}. Førti minutt daggry i eitt: først Eos’ ljos, så stig Helios opp frå den sanne retninga du ser mot." }
+    { "title": "Været sin song", "desc": "Været der du er, sunge av dei greske gudane for vindane, skyene, tordenen og regnbogen.", "lede": "Været der du er, spelt av gudane som styrde det: dei åtte vindane frå Vindane sitt tårn i Athen, skyene til Nephele, tordenen til Zevs og regnbogen til Iris. Lydane følgjer fysikken: Vinden speler på ei eolsharpe, og kvar regndråpe klingar i tonehøgda til luftboblen han fangar.", "navApp": "Appen", "navDial": "2D-skiva", "navHelp": "Slik verkar det", "placeHint": "Skriv inn eit stad", "find": "Søk", "here": "Bruk posisjonen min", "play": "Spel været", "stop": "Stopp", "sky": "Himmel", "wind": "Vind", "gusts": "Vindkast", "temp": "Temperatur", "cloud": "Skyer", "rain": "Regn", "humidity": "Luftfukt", "pressure": "Lufttrykk", "facing": "Du ser mot", "units": "Einingar", "volume": "Volum", "metric": "Metrisk (°C, km/h)", "imperial": "Imperial (°F, mph)", "imagineH": "Lag ditt eige vêr", "imagineP": "Flytt ein glidebrytar for å spele akkurat det været du vil: storm, hitebølgje eller tordenvêr. Det verkelege været kjem attende med knappen under.", "dirL": "Vind frå (grader, 0 = nord)", "thunder": "Torden", "snowL": "snø", "night": "natt", "back": "Attende til det verkelege været", "howH": "Slik høyrest været ut", "how1": "Vinden: guden for vindretninga syng, ein av dei åtte vindane som er hogne inn i Vindane sitt tårn i Athen, frå der vinden kjem i høve til kvar du ser. Eit vindkast bøyer stemma oppover, som ein vind som uler.", "how2": "Eolsharpa: seks strengar av ulik tjukkleik, stemde saman. Vind over ein streng løyser virvlar omtrent 0,2 × fart ÷ tjukkleik gonger i sekundet, og strengen syng den næraste overtonen, så akkordane skiftar når vinden aukar og minkar.", "how3": "Regn: kvar dråpe som fangar ei luftboble, klingar i tonehøgda åt boblen sjølv (Minnaert-frekvensen, omtrent 3,3 kHz for ei boble på 1 mm). Kraftigare regn har større dråpar og djupare klang; yr er fint og lyst.", "how4": "Ouranos, himmelen, held den djupe tonen: ein halvtone for kvar 2,5 hPa lufttrykk frå standard 1013. Temperaturen vel tonearten: frygisk i frost, lydisk i hitebølgje.", "how5": "Skyene til Nephele dempar himmelen (eit lågpassfilter som lukkar seg etter kvart som skyene tettnar); tåke lukkar han meir, og nyfallen snø, Khione sin, får alt til å dempast som ekte snø. Fuktig luft ber eit lengre ekko.", "how6": "Zevs: i tordenvêr lyner det fyrst, og tordenen følgjer med lydens fart etter avstanden, eit smell når det er nær, eit langt rulle når det er langt unna.", "how7": "Iris let ei regnbogeskala klinge når sola skin på regn; ei klar natt glimtar stjernene til Nyx. Været blir henta på nytt kvart kvarter.", "tools": "Ta opp og Scene", "record": "Ta opp", "foot": "Vêrdata:", "privacy": "Personvern", "pick": "Skriv inn eit stad over, eller bruk posisjonen din, for å høyre været der.", "searching": "Søkjer …", "fetching": "Hentar været …", "none": "Fann ikkje noko stad med det namnet.", "netErr": "Kunne ikkje hente været. Sjekk tilkoplinga og prøv igjen.", "noLoc": "Denne eininga gav inga posisjon. Skriv inn eit stad i staden.", "locDenied": "Posisjon vart ikkje tillaten. Skriv inn eit stad i staden.", "locating": "Finn ut kvar du er …", "hereName": "Posisjonen din ({c})", "cN": "N", "cS": "S", "cE": "Ø", "cW": "V", "asOf": "Været klokka {t} lokal tid.", "offline": "Fråkopla: været som sist vart henta, klokka {t}.", "imagined": "Ditt eige vêr", "calm": "Stille", "from": "frå {d}", "youFace": "▲", "d_n": "nord", "d_ne": "nordaust", "d_e": "aust", "d_se": "søraust", "d_s": "sør", "d_sw": "sørvest", "d_w": "vest", "d_nw": "nordvest", "g_boreas": "Boreas", "g_kaikias": "Kaikias", "g_apeliotes": "Apeliotes", "g_euros": "Euros", "g_notos": "Notos", "g_lips": "Lips", "g_zephyros": "Zefyr", "g_skiron": "Skiron", "gt_boreas": "Nordvinden, kald og sterk. På Vindane sitt tårn er han ein skjegget gamal mann i ei tung kappe som blæs i eit skjel. Han bortførte Oreithyia, prinsessa av Athen, og athenarane takka han for å ha knust den persiske flåten. Han syng djupast.", "gt_kaikias": "Nordaustvinden, haglet sin bringar. På tårnet held han eit skjold fullt av haglkorn ut over landet under. Ein mørk vind som syng lågt.", "gt_apeliotes": "Austvinden, venleg og varm, som bringar ei mild regn. På tårnet er han ein ung mann som ber frukt, kveite og honningkaker i kappa.", "gt_euros": "Søraustvinden, uheldig og stormfull. På tårnet er han ein gamal mann som har pakka seg inn mot vêret. Homer reknar han mellom dei fire store vindane.", "gt_notos": "Sørvinden, varm og fuktig, som bringar stormane på ettersommaren og hausten. På tårnet tømer han ei vasskrukke. Sjøfolk frykta Notos.", "gt_lips": "Sørvestvinden. På tårnet held han akterenden av eit skip, for han blåste skip heim til hamnene i Athen.", "gt_zephyros": "Vestvinden, den mildaste, vårens bodberar. På tårnet er han ein ung mann som strør blomar frå kappa. Han er gift med Chloris, blomane si gudinne, og syng høgast og søtast.", "gt_skiron": "Nordvestvinden, tørr og kald om vinteren, brennande om sommaren. På tårnet tømer han ein bronsegryte med glovarm oske og kol.", "m_phrygian": "frygisk", "m_aeolian": "eolisk", "m_dorian": "dorisk", "m_mixolydian": "mixolydisk", "m_ionian": "jonisk", "m_lydian": "lydisk", "wClear": "Klårt", "wMainly": "For det meste klårt", "wPartly": "Delvis skya", "wOvercast": "Overskya", "wFog": "Tåke", "wDrizzle": "Yr", "wFDrizzle": "Underkjølt yr", "wRain": "Regn", "wFRain": "Underkjølt regn", "wSnow": "Snø", "wGrains": "Kornsnø", "wShowers": "Regnbyer", "wSnowShowers": "Snøbyer", "wThunder": "Tordenvêr", "wHail": "Tordenvêr med hagl", "sCalm": "Vindane er stille", "sWind": "{g}, vinden frå {d}, syng", "sHarp": "vinden speler på eolsharpa", "sRain": "regndråpane klingar i tonehøgda til boblene sine", "sSnow": "snøen åt Khione dempar alt", "sHail": "haglet åt Kaikias smatrar", "sThunder": "tordenen åt Zevs rullar", "sStir": "Zevs rører på seg langt borte", "sFog": "tåka lukkar himmelen", "sCloud": "skyene åt Nephele dempar himmelen", "sClear": "himmelen er klår og open", "sIris": "Iris let ein regnboge klinge", "sStars": "stjernene åt Nyx glimtar", "sDrone": "tyngda av lufta ({p}) set den djupe tonen åt Ouranos, og {tp} gir tonearten {m}", "p_sun": "Helios", "p_moon": "Selene", "p_hermes": "Hermes", "p_aphrodite": "Afrodite", "p_ares": "Ares", "p_zeus": "Zevs", "p_kronos": "Kronos", "p_ouranos": "Ouranos", "p_poseidon": "Poseidon", "solH": "Solkvervet og innrettingar", "termsL": "Kva desse orda tyder", "shBtn": "Stasjonssteinane ved Stonehenge", "shAubrey": "Aubrey-hol", "shApprox": "omtrentlege posisjonar", "moNow": "{m} — {t}, i retning {a}. Førti minutt himmel på eitt minutt, frå den verkelege retninga slik du står vend.", "alStar": "Lysande stjerner", "alEra": "Epoke", "eraNow": "No", "eraBC": "{y} f.Kr.", "eraAD": "{y} e.Kr.", "st_sirius": "Sirius", "st_canopus": "Canopus", "st_pleiades": "Plejadane", "st_orion": "Orions belte", "rs_starrise": "oppgang", "rs_starset": "nedgang", "helH": "Fyrste gong sett ved daggry (heliakisk oppgang)", "helLine": "{s}: om lag {d} dagar {ba} junisolkvervet", "before": "før", "after": "etter", "helToday": ", rundt {d} i år", "helNever": "{s}: går aldri opp her", "helNone": "{s}: er aldri skjult av Sola her, så ingen heliakisk oppgang", "shHere": "Legg ut stasjonssteinane her", "shAngle": "Stasjonssteinar for denne breiddegraden: sidene møtest i {a}° (eit rektangel, 90°, berre nær Stonehenge)", "shPolar": "Her står ikkje sola eller månen opp og går ned på dei dagane, så steinane kan ikkje leggjast ut.", "mixH": "Røyster", "mixReset": "Alt attende til 100 %", "mute": "Demp", "mxVoices": "Røystene til vindane (anemoiane)", "mxWind": "Vinden", "mxHarp": "Eolsharpa", "mxRain": "Regn, snø og hagl", "mxDrone": "Den djupe tonen til Uranos", "mxThunder": "Tordenen til Zevs", "mxSparkle": "Iris og stjernene", "tapWord": "Trykk på eit ord for å sjå kva det tyder.", "gBrg": "Retning", "gGleam": "Første glimt", "solP": "Når neste solkverv og jamdøgn kjem, og kvar Sola og Månen står opp og går ned på dette staden på dei dagane gamle monument vart bygde for å markere, som Stonehenge, Newgrange og Bryn Celli Ddu.", "dawnJun": "Høyr soloppgangen ved sumarsolkverv", "dawnDec": "Høyr soloppgangen ved vintersolkverv", "alH": "Innrettingar", "alSol": "Solkverv", "alEq": "Jamdøgn", "alXq": "Kvartdagar", "alLun": "Månestillstandar", "alSky": "Vis på himmelen", "alHz": "Horisonthøgd", "mapL": "Kart over innrettingane", "alStand": "Stå her", "alReset": "Attende til staden", "lmHint": "Trykk på kartet for å setje ein markør på eit landemerke (ein bautastein, ein åstopp, eit gap i horisonten) og dra han til den nøyaktige staden. «Stå her» flyttar sentrum for siktelinene til markøren, eller til midten av kartet viss det ikkje finst nokon; den gylne markøren kan òg dragast.", "ev_jun": "Sumarsolkverv", "ev_dec": "Vintersolkverv", "midsum": "midtsumar", "midwin": "midtvinter", "ev_eq": "Jamdøgn", "mMar": "mars", "mSep": "september", "ev_xqn": "Kvartdagane tidleg i mai og tidleg i august", "ev_xqs": "Kvartdagane tidleg i november og tidleg i februar", "ev_xqF": "Kvartdag (Imbolc)", "ev_xqM": "Kvartdag (Beltane)", "ev_xqA": "Kvartdag (Lughnasadh)", "ev_xqN": "Kvartdag (Samhain)", "ev_lmajn": "Stor månestillstand, nord", "ev_lmajs": "Stor månestillstand, sør", "ev_lminn": "Liten månestillstand, nord", "ev_lmins": "Liten månestillstand, sør", "rs_sunrise": "soloppgang", "rs_sunset": "solnedgang", "rs_moonrise": "månoppgang", "rs_moonset": "månenedgang", "lineLab": "{e}: {r}", "evH": "Hending", "riseH": "Retning for oppgang", "setH": "Retning for nedgang", "inDays": "om {d} d, {h} t {m} min", "riseSetAt": "Den dagen ved {p}: soloppgang {r}, solnedgang {s} (tid · retning).", "standPoint": "ståstaden din", "athens": "Athen, Vindanes tårn", "solWhere": "Retningar frå {p} ({c}) over ein horisont {h} høg, målt med klokka frå sann nord.", "mapErr": "Kartet kunne ikkje lastast. Sjekk tilkoplinga.", "landmark": "Landemerke", "lmMeasuring": "Måler …", "lmHead": "Landemerket ligg i retning {b}, {d} unna og {h} over deg, så det ruvar {a} over ein flat horisont.", "lmMatch": "Det flukter med: {l}, innanfor {o}°.", "lmSunR": "Sola står opp bak det rundt {d}.", "lmSunS": "Sola går ned bak det rundt {d}.", "and": " og ", "lmMoonR": "Sola står aldri opp der; berre Månen gjer det, i åra rundt ein stor månestillstand (kvart 18,6. år: den siste nådde toppen i 2024–25, den neste kjem rundt 2043).", "lmMoonS": "Sola går aldri ned der; berre Månen gjer det, i åra rundt ein stor månestillstand (kvart 18,6. år: den siste nådde toppen i 2024–25, den neste kjem rundt 2043).", "lmNone": "Verken Sola eller Månen står opp eller går ned der.", "noRise": "På denne staden står ikkje Sola opp den dagen.", "dawnNow": "Soloppgang, {e}: {t}, i retning {a}. Førti minutt daggry i eitt: først Eos’ ljos, så stig Helios opp frå den sanne retninga du ser mot.", "monH": "Monument", "monPick": "Vel eit monument …", "monHear": "Høyr", "monEra": "Bygd omkring {y}", "monNoEra": "Himmelen over det i dag", "tr_egypt": "Egypt", "tr_bharata": "India og Angkor", "tr_java": "Java", "tr_maya": "Maya", "tr_babylon": "Babylon", "tr_lu": "Kina", "tr_ikhwan": "Mekka", "tr_welsh": "Storbritannia og Irland", "tr_norse": "Skandinavia", "tr_greek": "Hellas", "stat_well": "godt etablert", "stat_wide": "brett akseptert", "stat_debated": "omstridd", "az_measured": "målt", "az_computed": "utrekna for denne breiddegraden", "az_nominal": "slik det vart bygd, ikkje målt", "monAxis": "Akse", "monStatus": "Status", "mo_eq": "jamdøgn", "mo_jun": "junisolkverv", "mo_dec": "desembersolkverv", "mo_date": "{d}", "moSunrise": "Soloppgang: {e}", "moSunset": "Solnedgang: {e}", "moStar": "{s}: fyrste gong sett ved daggry", "skyLink": "Deira himmelinnrettingar på kartet", "mn_khufu": "Keops-pyramiden, Giza", "md_khufu": "Sidene vender mot dei fire himmelretningane med ei nøyaktigheit på rundt 3 bueminutt, truleg lagde ut etter stjernene som sirklar rundt polen eller etter skuggen til Sola. Herifrå står Sola ved jamdøgn opp nesten nøyaktig langs austsida.", "mn_karnak": "Karnak, Amon-Ra-tempelet, Luxor", "md_karnak": "Hovudaksen i tempelet peikar mot søraust, til soloppgangen midtvinters, og mot nordvest, til solnedgangen midtsommars; på vintersolkvervs-morgonen skin Sola langs han.", "mn_abusimbel": "Abu Simbel, det store tempelet til Ramses II", "md_abusimbel": "To gonger i året, rundt 22. februar og 22. oktober, skin den stigande Sola 60 meter inn i helgedomen og lyser opp tre av dei fire sitjande gudane. Tempelet vart flytta på 1960-talet; datoane har forskove seg med om lag eitt døgn.", "mn_sirius_memphis": "Oppgangen til Sirius ved Memfis", "md_sirius_memphis": "Første gong Sirius (Sopdet) synte seg ved daggry, ante egyptarane at Nilflaumen var nær, og året deira tok til. Omkring 2500 f.Kr. fall det innanfor nokre få dagar av junisolkverv.", "mn_konark": "Solhelgedomen i Konarak, Odisha", "md_konark": "Bygd som solguden Surya sin vogn, med tolv par hjul; han vender mot aust, mot soloppgangen.", "mn_modhera": "Solhelgedomen i Modhera, Gujarat", "md_modhera": "Vert sagt å la soloppgangen ved jamdøgn falle på biletet av Surya i helgedomen; ei påstand som ofte vert gjentatt, men sjeldan er målt.", "mn_angkorwat": "Angkor Wat, Kambodsja", "md_angkorwat": "Eit hinduistisk tempel for Vishnu som vender mot vest. Frå den vestlege inngangen står Sola ved jamdøgn opp over det sentrale tårnet.", "mn_borobudur": "Borobudur, Java", "md_borobudur": "Den store buddhistiske stupaen er innretta etter himmelretningane. Ei studie finn ei siktline mot solnedgangen dei dagane Sola står i senit; andre tviler på det.", "mn_prambanan": "Prambanan, Java", "md_prambanan": "Dei hinduistiske templa vender mot aust, mot soloppgangen, og er innretta etter himmelretningane.", "mn_pranata_mangsa": "Pranata mangsa: bøndene sin himmel, Java", "md_pranata_mangsa": "Landbrukskalenderen på Java vart halden etter stjernene: Orions belte (Waluku, plogen) og Sjustjerna (Lintang Kartika), sette ved daggry og skumring, fortalde når åkrane skulle gjerast klare, såast og haustast.", "mn_uaxactun": "Uaxactún, gruppe E, Guatemala", "md_uaxactun": "Frå pyramiden i vest vert dei tre templa på austplattforma sagde å markere soloppgangen ved junisolkverv, jamdøgn og desembersolkverv; kor nøyaktige siktlinene var, er omstridd.", "mn_chichenitza": "Chichén Itzá, El Castillo, Mexico", "md_chichenitza": "Ved jamdøgn kastar ettermiddagssola ein slange av lys ned den nordlege trappa. Aksen peikar mot solnedgangane omkring 20. mai og 24. juli, dagane Sola står i senit der.", "mn_etemenanki": "Babylon, ziggurat Etemenanki", "md_etemenanki": "Det store tempeltårnet stod rett etter himmelretningane. Stjernekalenderen til babylonarane, MUL.APIN, tidfeste året etter heliakiske oppgangar, mellom dei Sirius sin.", "mn_gaocheng": "Gaocheng-observatoriet, Dengfeng", "md_gaocheng": "Eit steintårn med ein lang gnomon lagd nøyaktig nord–sør, der Guo Shoujing målte middagsskuggen ved solkvervet for å fastslå lengda på året (1276).", "mn_templeofheaven": "Himmeltempelet, Beijing", "md_templeofheaven": "Lagt ut på nord–sør-aksen i hovudstaden; her bar keisaren fram det store offeret til Himmelen ved daggry på vintersolkverv.", "mn_kaaba": "Kaba, Mekka", "md_kaaba": "Ei studie finn at den lengre aksen er vend mot oppgangen til Canopus og den kortare mot soloppgangen midtsommars; retningane her er utrekna for breiddegraden.", "mn_bryncelliddu": "Bryn Celli Ddu, Ynys Môn", "md_bryncelliddu": "Gangen i denne grava på Anglesey fangar soloppgangen midtsommars og lyser opp det indre kammeret.", "mn_newgrange": "Newgrange, Irland", "md_newgrange": "Nokre morgonar rundt vintersolkverv skin den stigande Sola gjennom takopninga ned den 19 meter lange gangen til det indre kammeret.", "mn_maeshowe": "Maeshowe, Orknøyane", "md_maeshowe": "I vekene rundt vintersolkverv skin den søkkande Sola, bak Hoy-åsane, ned gangen og på bakveggen i kammeret.", "mn_stonehenge": "Stonehenge", "md_stonehenge": "Aksen peikar i éi retning mot soloppgangen midtsommars og i den andre mot solnedgangen midtvinters; Stasjonssteinane legg til den store stillstanden til Månen.", "mn_alesstenar": "Ales stenar, Sverige", "md_alesstenar": "Ei skipsforma setting av 59 steinar på kysten av Skåne; den lange aksen vert sagd å peike mot solnedgangen midtsommars og soloppgangen midtvinters.", "mn_towerofwinds": "Vindane sitt tårn, Athen", "md_towerofwinds": "Dei åtte sidene bér dei åtte vindane som syng på denne sida, kvar vend i si eiga retning; det var solur på sidene og eit vassur inni." }
   );
   const LOC = (
     /*LOC*/
@@ -5267,7 +5280,7 @@ function rtShow(blob,secs,kind){
   MOTS.nowPlaying = () => {
     if (FX.dawn) {
       const [lat] = placeLL();
-      return { k: "Ἠώς", h: t("lineLab", { e: evName(FX.dawn.which, lat), r: t("rs_sunrise") }), p: AL.obs ? t("standPoint") : ST.place ? ST.place.name : t("athens"), d: fmtDT(FX.dawn.jd, 1) + " · " + degs(FX.dawn.az) };
+      return { k: FX.dawn.which === "sunset" ? "Νύξ" : "Ἠώς", h: FX.dawn.cap || "", p: AL.obs ? t("standPoint") : ST.place ? ST.place.name : t("athens"), d: fmtDT(FX.dawn.jd, 1) + " · " + degs(FX.dawn.az) };
     }
     const W = ST.data;
     if (!W) return null;
@@ -5282,7 +5295,7 @@ function rtShow(blob,secs,kind){
   MOTS.weather = { start, stop, state: () => ST, set: (o) => {
     Object.assign(ST.data || (ST.data = {}), o);
     ui();
-  }, probe: (fn) => fn({ ST, A, AC, WINDS, modeOf, AL, X: { seasonJD, riseSet, skyAt, lines, events, sunEq, moonEq, lonJD, msOf, jdOf } }) };
+  }, probe: (fn) => fn({ ST, A, AC, WINDS, modeOf, AL, X: { seasonJD, riseSet, skyAt, lines, events, sunEq, moonEq, lonJD, msOf, jdOf, epsEra, starEra, heliacal, sunYear, ERA_ST } }) };
   const FX = { flash: 0, iris: -1e9, stars: [], parts: [] };
   function draw() {
     requestAnimationFrame(draw);
@@ -5659,9 +5672,68 @@ function rtShow(blob,secs,kind){
     c.arc(cx, cy, RD, 0, 7);
     c.stroke();
   }
+  const yearNow = () => (/* @__PURE__ */ new Date()).getUTCFullYear();
+  const eraYear = () => AL.year == null ? yearNow() : AL.year < 0 ? AL.year + 1 : AL.year;
+  function epsEra(y) {
+    const t2 = (y - 2e3) / 1e4, u = [-4680.93, -1.55, 1999.25, -51.38, -249.67, -39.05, 7.12, 27.87, 5.79, 2.45];
+    let e = 84381.448, tt = t2;
+    for (const c of u) {
+      e += c * tt;
+      tt *= t2;
+    }
+    return e / 3600;
+  }
+  const ERA_ST = [
+    // id, RA, Dec (J2000, degrees), proper motion in RA·cos Dec and in Dec (mas a year, Hipparcos), magnitude, arcus visionis (°), colour
+    ["sirius", 101.28716, -16.71612, -546.01, -1223.07, -1.46, 10, "#cfe3ff"],
+    ["canopus", 95.98796, -52.69566, 19.93, 23.24, -0.74, 10.5, "#fff1c4"],
+    ["pleiades", 56.87115, 24.10514, 19.34, -43.67, 1.6, 15, "#d9c2ff"],
+    ["orion", 84.05339, -1.20192, 1.44, -0.78, 1.7, 14, "#a9d0ff"]
+  ];
+  function starEra(st, y) {
+    const yrs = y - 2e3, d0 = st[2] + st[4] * yrs / 36e5, a0 = st[1] + st[3] * yrs / 36e5 / Math.cos(st[2] * D2R), T = yrs / 100, as = (x) => x / 3600 * D2R;
+    const ze = as(2306.2181 * T + 0.30188 * T * T + 0.017998 * T ** 3), z = as(2306.2181 * T + 1.09468 * T * T + 0.018203 * T ** 3), th = as(2004.3109 * T - 0.42665 * T * T - 0.041833 * T ** 3);
+    const a = a0 * D2R, d = d0 * D2R, A2 = Math.cos(d) * Math.sin(a + ze), B = Math.cos(th) * Math.cos(d) * Math.cos(a + ze) - Math.sin(th) * Math.sin(d), C = Math.sin(th) * Math.cos(d) * Math.cos(a + ze) + Math.cos(th) * Math.sin(d);
+    return [((Math.atan2(A2, B) + z) * R2D % 360 + 360) % 360, Math.asin(clamp(C, -1, 1)) * R2D];
+  }
+  function sunYear(y) {
+    const T = (y - 2e3) / 100, e = 0.016708634 - 42037e-9 * T - 1267e-10 * T * T, pg = (102.93735 + 1.71946 * T + 46e-5 * T * T + 180) % 360, eps = epsEra(y) * D2R;
+    const nuToM = (nu) => {
+      const E = 2 * Math.atan(Math.sqrt((1 - e) / (1 + e)) * Math.tan(nu / 2));
+      return E - e * Math.sin(E);
+    }, MToNu = (M) => {
+      let E = M;
+      for (let i = 0; i < 8; i++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+      return 2 * Math.atan(Math.sqrt((1 + e) / (1 - e)) * Math.tan(E / 2));
+    };
+    const Ms = nuToM(((90 - pg) % 360 + 360) % 360 * D2R), n = 2 * Math.PI / 365.2596;
+    return (d) => {
+      const lam = MToNu(Ms + n * d) + pg * D2R;
+      return { lam: (lam * R2D % 360 + 360) % 360, ra: Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam)) * R2D, dec: Math.asin(Math.sin(eps) * Math.sin(lam)) * R2D };
+    };
+  }
+  function heliacal(st, lat, y) {
+    const [ra, dec] = starEra(st, y), sun = sunYear(y), hmin = 1, av = st[6];
+    let seen = null, hidden = 0;
+    for (let d = -200; d <= 200; d++) {
+      const s = sun(d), cH = (sinD(-av) - sinD(lat) * sinD(s.dec)) / (cosD(lat) * cosD(s.dec));
+      if (Math.abs(cH) > 1) {
+        seen = null;
+        continue;
+      }
+      const H = -acosD(cH), lst = s.ra + H, Hs = ((lst - ra) % 360 + 540) % 360 - 180, alt = asinD(sinD(lat) * sinD(dec) + cosD(lat) * cosD(dec) * cosD(Hs));
+      const vis = alt >= hmin && Hs < 0;
+      if (!vis) hidden++;
+      else {
+        if (hidden >= 15 && d > -170) return d;
+        hidden = 0;
+      }
+    }
+    return null;
+  }
   const AL = { obs: null, lm: null, hz: +(LS.get("mots.wx.hz") || 0), grp: JSON.parse(LS.get("mots.wx.grp") || '{"sol":1,"eq":1,"xq":0,"lun":0}'), onSky: LS.get("mots.wx.onsky") !== "0", map: null, elev: {} };
-  function lines(lat, hz) {
-    const T = (jdOf(Date.now()) - 2451545) / 36525, e = oblD(T), xq = asinD(sinD(e) * sinD(45)), i = 5.145, out = [];
+  function lines(lat, hz, yr) {
+    const y = yr == null ? eraYear() : yr, e = epsEra(y), xq = asinD(sinD(e) * sinD(45)), i = 5.145, out = [];
     const add = (id, grp, dec, moon, col, dash) => {
       const h = hz + (moon ? 0.125 : -0.833), c = (sinD(dec) - sinD(lat) * sinD(h)) / (cosD(lat) * cosD(h));
       if (Math.abs(c) > 1) return;
@@ -5673,6 +5745,12 @@ function rtShow(blob,secs,kind){
     add("eq", "eq", 0, 0, "#f2efe6");
     add("xqn", "xq", xq, 0, "#9fdc8a", [6, 4]);
     add("xqs", "xq", -xq, 0, "#c9a46a", [6, 4]);
+    ERA_ST.forEach((st) => {
+      const dec = starEra(st, y)[1], h = hz + 1, c = (sinD(dec) - sinD(lat) * sinD(h)) / (cosD(lat) * cosD(h));
+      if (Math.abs(c) > 1) return;
+      const A2 = acosD(c);
+      out.push({ id: "st_" + st[0] + "R", ev: "st_" + st[0], grp: "star", dec, star: 1, rise: 1, az: A2, col: st[7], dash: [8, 3, 2, 3] }, { id: "st_" + st[0] + "S", ev: "st_" + st[0], grp: "star", dec, star: 1, rise: 0, az: 360 - A2, col: st[7], dash: [8, 3, 2, 3] });
+    });
     add("lmajn", "lun", e + i, 1, "#b9c8ff", [2, 4]);
     add("lmajs", "lun", -(e + i), 1, "#b9c8ff", [2, 4]);
     add("lminn", "lun", e - i, 1, "#8ea0d8", [2, 4]);
@@ -5680,12 +5758,13 @@ function rtShow(blob,secs,kind){
     return out;
   }
   function evName(ev, lat) {
+    if (ev.startsWith("st_")) return t(ev);
     const hem = lat >= 0;
     if (ev === "jun") return t("ev_jun") + " (" + t(hem ? "midsum" : "midwin") + ")";
     if (ev === "dec") return t("ev_dec") + " (" + t(hem ? "midwin" : "midsum") + ")";
     return t("ev_" + ev);
   }
-  const rsName = (l) => t(l.moon ? l.rise ? "rs_moonrise" : "rs_moonset" : l.rise ? "rs_sunrise" : "rs_sunset");
+  const rsName = (l) => t(l.star ? l.rise ? "rs_starrise" : "rs_starset" : l.moon ? l.rise ? "rs_moonrise" : "rs_moonset" : l.rise ? "rs_sunrise" : "rs_sunset");
   const lineLab = (l, lat) => t("lineLab", { e: evName(l.ev, lat), r: rsName(l) });
   const MEEUS = [[485, 324.96, 1934.136], [203, 337.23, 32964.467], [199, 342.08, 20.186], [182, 27.85, 445267.112], [156, 73.14, 45036.886], [136, 171.52, 22518.443], [77, 222.54, 65928.934], [74, 296.72, 3034.906], [70, 243.58, 9037.513], [58, 119.81, 33718.147], [52, 297.17, 150.678], [50, 21.02, 2281.226], [45, 247.54, 29929.562], [44, 325.15, 31555.956], [29, 60.93, 4443.417], [18, 155.12, 67555.328], [17, 288.79, 4562.452], [16, 198.04, 62894.029], [14, 199.76, 31436.921], [12, 95.39, 14577.848], [12, 287.11, 31931.756], [12, 320.81, 34777.259], [9, 227.73, 1222.114], [8, 15.45, 16859.074]];
   function seasonJD(year, k) {
@@ -5740,7 +5819,7 @@ function rtShow(blob,secs,kind){
     return out;
   }
   const tzOpt = () => {
-    const z = ST.data && ST.data.tz;
+    const z = AL.mon && AL.mon.tz || !AL.mon && ST.data && ST.data.tz;
     try {
       if (z) {
         new Intl.DateTimeFormat("en", { timeZone: z });
@@ -5767,9 +5846,10 @@ function rtShow(blob,secs,kind){
   const degs = (a) => nf(a, 1) + "°";
   const GL = (
     /*GL*/
-    { "sol": ["<b>Solkverv.</b> Dei to tidspunkta i året då Sola når sitt nordlegaste (omtrent 21. juni) eller sørlegaste punkt (omtrent 21. desember). I nokre dagar rundt dei ser det ut til at punkta for soloppgang og solnedgang stansar og snur. Det norske ordet <em>solkverv</em> kjem av <em>sol</em> og <em>kverv</em>, «vending»: vendepunktet til Sola. Det engelske <em>solstice</em> kjem av latin <em>sol</em>, sol, og <em>sistere</em>, å stå still. Nord for ekvator gir solkvervet i juni den lengste dagen (midtsumar) og solkvervet i desember den kortaste (midtvinter); sør for ekvator er det omvendt.", "<b>Midtvinter: attkomsten til lyset.</b> For bøndene i nord var den kortaste dagen hengsla for overleving, augneblinken då Sola slutta å trekkje seg attende og tok til å koma att. Fleire av dei store monumenta er bygde for han. Ved Newgrange i Irland skin den oppgåande Sola ned den 19 meter lange gangen til det indre kammeret nokre morgonar rundt vintersolkvervet; ved Maeshowe på Orknøyane gjer den nedgåande Sola det same. Hovudaksen ved Stonehenge går frå soloppgangen ved sommarsolkvervet i éin retning til solnedgangen ved vintersolkvervet i den andre, og mange arkeologar meiner no at midtvinter var det største høvet: grisebeina i nærliggjande Durrington Walls viser at grisene vart slakta til fester midtvinters. På Anglesey fangar gangen i Bryn Celli Ddu soloppgangen ved midtsumar."], "eq": ["<b>Jamdøgn.</b> Omtrent 20. mars og 22. september, midt mellom solkvervi: dag og natt er nesten like lange overalt, og Sola står opp nesten rett i aust og går ned nesten rett i vest.", "<b>Jamdøgna.</b> Dag og natt er like lange, men soloppgangspunktet flyttar seg raskast ved jamdøgn, og dagen er vanskeleg å fastsetje med auga, så førhistoriske monument ser ut til å markere han sjeldnare. Dei tydde mykje for seinare kalendrar: datoen for påske blir rekna frå vårjamdøgnet, det persiske nyttåret, Nowruz, tek til med det, og ved Chichén Itzá i Mexico kastar den nedgåande Sola ved jamdøgn ein slange av lys nedover trappa på pyramiden."], "xq": ["<b>Kvartdagar.</b> Dei fire dagane midt mellom eit solkverv og eit jamdøgn, tidleg i februar, tidleg i mai, tidleg i august og tidleg i november. Dei deler året i åttedelar. I den gamle keltiske kalenderen i Irland, Skottland, Wales og på Isle of Man innleidde dei årstidene: <b>Imbolc</b> (tidleg i februar, dei første rørslene til våren; på walisisk Gŵyl Fair y Canhwyllau, på norsk kyndelsmesse), <b>Beltane</b> (1. mai, byrjinga på sumaren; Calan Mai), <b>Lughnasadh</b> (tidleg i august, byrjinga på innhaustinga; Gŵyl Awst, på engelsk Lammas) og <b>Samhain</b> (byrjinga på vinteren og den mørke halvdelen av året; Calan Gaeaf, no halloween og allehelgensdag). I dag blir dei haldne på faste datoar (1. februar, 1. mai, 1. august, 1. november); sida viser dei astronomiske dagane, då Sola står nøyaktig midt imellom, nokre dagar seinare. Fordi Sola står like høgt på himmelen på dagane i mai og august, har dei felles retning for soloppgangen, og dagane i november og februar har ei anna felles retning. Det blir ofte sagt at somme eldgamle monument vender mot dei: gangen i Gisselhaugen ved Tara i Irland skal fange soloppgangen ved Samhain og Imbolc.", "<b>Kvartdagane: gardsåret.</b> Dei markerte vendepunkta i eit liv med buskap. Ved Beltane vart kveget driven ut på sumarbeite mellom bål; ved Lughnasadh vart den første avlinga hausta, og folk møttest på marknader og leikar; ved Samhain kom buskapen inn, dyr som ikkje kunne fôrast gjennom vinteren vart slakta, og dei døde vart tekne for å koma nær; ved Imbolc tok sauene til å gi mjølk og lamme. Mykje av dette kjenner vi frå mellomalderske irske skrifter og seinare folkeskikk, og kor langt attende det rekk, er omdiskutert, men høgtidene vart haldne i Wales, Skottland og Irland i mange hundre år (mellom dei Calan Mai og Calan Gaeaf)."], "lun": ["<b>Månestillstandar.</b> Banen til Månen heller omtrent 5° i høve til banen til Sola, og denne helninga dreier seg ein heil runde kvart 18,6. år. Ved ein <b>stor månestillstand</b> (den siste var i 2024–25, den neste kjem rundt 2043) står Månen opp og går ned lenger nord og sør enn Sola nokon gong gjer, i eit år eller to; ved ein <b>liten månestillstand</b> (neste rundt 2034) er spennvidda minst, innanfor den til Sola. Nokre steinsirklar, som Callanish på Lewis og steinsirklane med liggjande stein i Aberdeenshire, blir rekna for å markere dei.", "<b>Den lange syklusen til Månen.</b> Månen gav månadene og lyset ein kunne reise og arbeide i om natta. Den 18,6 år lange svingen mellom stillstandane kan berre sjåast etter eit halvt menneskeliv med observasjon, så eit monument som markerer han, tyder på generasjonar med nøye observasjon som er gitt vidare. Ved Callanish på Lewis, ved ein stor månestillstand, glir Månen lågt langs åsane i sør og ser ut til å gå ned og så skine att mellom steinane; steinsirklane med liggjande stein i Aberdeenshire ramma inn den nedgåande Månen i sør mellom to ståande steinar. Kor tilsikta slike liner var, er det framleis strid om."], "brg": ["<b>Retning (asimut).</b> Ei retning målt med klokka frå sann nord: 90° er aust, 180° sør, 270° vest. Sann nord er retninga mot Nordpolen; eit magnetisk kompass kan avvike frå han med nokre grader."], "hz": ["<b>Horisonthøgd.</b> Kor høgt horisontlina står over ein flat horisont i retninga du ser, målt i grader (ein 100 m høg ås ein kilometer unna står om lag 6° opp). Ein heva horisont gjer at Sola dukkar opp seinare og lenger fram på banen, så soloppgangen flyttar seg mot sør og solnedgangen mot nord, eller omvendt sør for ekvator."], "gleam": ["<b>Fyrste glimt.</b> Tidene og retningane gjeld augneblinken då øvre kant av Sola fyrst viser seg eller sist forsvinn, og dei tek omsyn til at lufta bøyer lyset, som lyfter Sola omtrent ei halv grad ved horisonten. Derfor kjem soloppgangen nokre minutt før midtpunktet til Sola geometrisk er i høgd med horisonten."], "sh": ["<b>Stasjonssteinane ved Stonehenge.</b> Fire steinar, nummererte frå 91 til 94 (to står att), stod på ringen av dei 56 Aubrey-hola og markerer eit rektangel på omtrent 80 gonger 33 meter. Dei korte sidene går parallelt med aksen til monumentet, mot soloppgangen midtsommars den eine vegen og solnedgangen midtvinters den andre. Dei lange sidene peikar mot søraust til den sørlegaste månoppgangen og mot nordvest til den nordlegaste månnedgangen ved ein stor månestillstand, som kjem kvart 18,6. år (den siste i 2024–25). Berre innanfor omtrent 50 km frå breiddegraden til Stonehenge kryssar desse to retningane kvarandre i rett vinkel, så rektangelet kan passe til begge; nokre tek det som eit teikn på at staden vart vald for det, andre meiner at samanfallet er tilfeldig. På 1960-talet hevda astronomane Gerald Hawkins og Fred Hoyle at dei 56 Aubrey-hola, med markørar flytte rundt dei, kunne ha føresagt mørkingar (56 er nær tre syklusar på 18,6 år), men dei fleste arkeologar tviler på det: hola inneheldt kremasjonar og truleg blåsteinar. På kartet er steinane teikna inn på omtrentlege posisjonar etter den publiserte planen; samanlikn sidene deira med solkverv- og månestillstandslinene som er trekte frå sentrum."], "why_h": "Kvifor dei var viktige" }
+    { "sol": ["<b>Solkverv.</b> Dei to tidspunkta i året då Sola når sitt nordlegaste (omtrent 21. juni) eller sørlegaste punkt (omtrent 21. desember). I nokre dagar rundt dei ser det ut til at punkta for soloppgang og solnedgang stansar og snur. Det norske ordet <em>solkverv</em> kjem av <em>sol</em> og <em>kverv</em>, «vending»: vendepunktet til Sola. Det engelske <em>solstice</em> kjem av latin <em>sol</em>, sol, og <em>sistere</em>, å stå still. Nord for ekvator gir solkvervet i juni den lengste dagen (midtsumar) og solkvervet i desember den kortaste (midtvinter); sør for ekvator er det omvendt.", "<b>Midtvinter: attkomsten til lyset.</b> For bøndene i nord var den kortaste dagen hengsla for overleving, augneblinken då Sola slutta å trekkje seg attende og tok til å koma att. Fleire av dei store monumenta er bygde for han. Ved Newgrange i Irland skin den oppgåande Sola ned den 19 meter lange gangen til det indre kammeret nokre morgonar rundt vintersolkvervet; ved Maeshowe på Orknøyane gjer den nedgåande Sola det same. Hovudaksen ved Stonehenge går frå soloppgangen ved sommarsolkvervet i éin retning til solnedgangen ved vintersolkvervet i den andre, og mange arkeologar meiner no at midtvinter var det største høvet: grisebeina i nærliggjande Durrington Walls viser at grisene vart slakta til fester midtvinters. På Anglesey fangar gangen i Bryn Celli Ddu soloppgangen ved midtsumar."], "eq": ["<b>Jamdøgn.</b> Omtrent 20. mars og 22. september, midt mellom solkvervi: dag og natt er nesten like lange overalt, og Sola står opp nesten rett i aust og går ned nesten rett i vest.", "<b>Jamdøgna.</b> Dag og natt er like lange, men soloppgangspunktet flyttar seg raskast ved jamdøgn, og dagen er vanskeleg å fastsetje med auga, så førhistoriske monument ser ut til å markere han sjeldnare. Dei tydde mykje for seinare kalendrar: datoen for påske blir rekna frå vårjamdøgnet, det persiske nyttåret, Nowruz, tek til med det, og ved Chichén Itzá i Mexico kastar den nedgåande Sola ved jamdøgn ein slange av lys nedover trappa på pyramiden."], "xq": ["<b>Kvartdagar.</b> Dei fire dagane midt mellom eit solkverv og eit jamdøgn, tidleg i februar, tidleg i mai, tidleg i august og tidleg i november. Dei deler året i åttedelar. I den gamle keltiske kalenderen i Irland, Skottland, Wales og på Isle of Man innleidde dei årstidene: <b>Imbolc</b> (tidleg i februar, dei første rørslene til våren; på walisisk Gŵyl Fair y Canhwyllau, på norsk kyndelsmesse), <b>Beltane</b> (1. mai, byrjinga på sumaren; Calan Mai), <b>Lughnasadh</b> (tidleg i august, byrjinga på innhaustinga; Gŵyl Awst, på engelsk Lammas) og <b>Samhain</b> (byrjinga på vinteren og den mørke halvdelen av året; Calan Gaeaf, no halloween og allehelgensdag). I dag blir dei haldne på faste datoar (1. februar, 1. mai, 1. august, 1. november); sida viser dei astronomiske dagane, då Sola står nøyaktig midt imellom, nokre dagar seinare. Fordi Sola står like høgt på himmelen på dagane i mai og august, har dei felles retning for soloppgangen, og dagane i november og februar har ei anna felles retning. Det blir ofte sagt at somme eldgamle monument vender mot dei: gangen i Gisselhaugen ved Tara i Irland skal fange soloppgangen ved Samhain og Imbolc.", "<b>Kvartdagane: gardsåret.</b> Dei markerte vendepunkta i eit liv med buskap. Ved Beltane vart kveget driven ut på sumarbeite mellom bål; ved Lughnasadh vart den første avlinga hausta, og folk møttest på marknader og leikar; ved Samhain kom buskapen inn, dyr som ikkje kunne fôrast gjennom vinteren vart slakta, og dei døde vart tekne for å koma nær; ved Imbolc tok sauene til å gi mjølk og lamme. Mykje av dette kjenner vi frå mellomalderske irske skrifter og seinare folkeskikk, og kor langt attende det rekk, er omdiskutert, men høgtidene vart haldne i Wales, Skottland og Irland i mange hundre år (mellom dei Calan Mai og Calan Gaeaf)."], "lun": ["<b>Månestillstandar.</b> Banen til Månen heller omtrent 5° i høve til banen til Sola, og denne helninga dreier seg ein heil runde kvart 18,6. år. Ved ein <b>stor månestillstand</b> (den siste var i 2024–25, den neste kjem rundt 2043) står Månen opp og går ned lenger nord og sør enn Sola nokon gong gjer, i eit år eller to; ved ein <b>liten månestillstand</b> (neste rundt 2034) er spennvidda minst, innanfor den til Sola. Nokre steinsirklar, som Callanish på Lewis og steinsirklane med liggjande stein i Aberdeenshire, blir rekna for å markere dei.", "<b>Den lange syklusen til Månen.</b> Månen gav månadene og lyset ein kunne reise og arbeide i om natta. Den 18,6 år lange svingen mellom stillstandane kan berre sjåast etter eit halvt menneskeliv med observasjon, så eit monument som markerer han, tyder på generasjonar med nøye observasjon som er gitt vidare. Ved Callanish på Lewis, ved ein stor månestillstand, glir Månen lågt langs åsane i sør og ser ut til å gå ned og så skine att mellom steinane; steinsirklane med liggjande stein i Aberdeenshire ramma inn den nedgåande Månen i sør mellom to ståande steinar. Kor tilsikta slike liner var, er det framleis strid om."], "brg": ["<b>Retning (asimut).</b> Ei retning målt med klokka frå sann nord: 90° er aust, 180° sør, 270° vest. Sann nord er retninga mot Nordpolen; eit magnetisk kompass kan avvike frå han med nokre grader."], "hz": ["<b>Horisonthøgd.</b> Kor høgt horisontlina står over ein flat horisont i retninga du ser, målt i grader (ein 100 m høg ås ein kilometer unna står om lag 6° opp). Ein heva horisont gjer at Sola dukkar opp seinare og lenger fram på banen, så soloppgangen flyttar seg mot sør og solnedgangen mot nord, eller omvendt sør for ekvator."], "gleam": ["<b>Fyrste glimt.</b> Tidene og retningane gjeld augneblinken då øvre kant av Sola fyrst viser seg eller sist forsvinn, og dei tek omsyn til at lufta bøyer lyset, som lyfter Sola omtrent ei halv grad ved horisonten. Derfor kjem soloppgangen nokre minutt før midtpunktet til Sola geometrisk er i høgd med horisonten."], "sh": ["<b>Stasjonssteinane ved Stonehenge.</b> Fire steinar, nummererte frå 91 til 94 (to står att), stod på ringen av dei 56 Aubrey-hola og markerer eit rektangel på omtrent 80 gonger 33 meter. Dei korte sidene går parallelt med aksen til monumentet, mot soloppgangen midtsommars den eine vegen og solnedgangen midtvinters den andre. Dei lange sidene peikar mot søraust til den sørlegaste månoppgangen og mot nordvest til den nordlegaste månnedgangen ved ein stor månestillstand, som kjem kvart 18,6. år (den siste i 2024–25). Berre innanfor omtrent 50 km frå breiddegraden til Stonehenge kryssar desse to retningane kvarandre i rett vinkel, så rektangelet kan passe til begge; nokre tek det som eit teikn på at staden vart vald for det, andre meiner at samanfallet er tilfeldig. På 1960-talet hevda astronomane Gerald Hawkins og Fred Hoyle at dei 56 Aubrey-hola, med markørar flytte rundt dei, kunne ha føresagt mørkingar (56 er nær tre syklusar på 18,6 år), men dei fleste arkeologar tviler på det: hola inneheldt kremasjonar og truleg blåsteinar. På kartet er steinane teikna inn på omtrentlege posisjonar etter den publiserte planen; samanlikn sidene deira med solkverv- og månestillstandslinene som er trekte frå sentrum."], "star": ["<b>Lysande stjerner og den heliakiske oppgangen.</b> Ei stjerne går opp og ned i dei same to punkta på horisonten kvar natt, så oppgangspunktet kan merkast av som det til Sola. I nokre veker kvart år forsvinn ho i glansen frå Sola; den fyrste morgonen ho viser seg att, lågt i aust like før daggry, er den heliakiske oppgangen hennar, og mange folk målte tida etter han. Oppgangen til Sirius varsla egyptarane om at Nilflaumen var nær og starta året deira; Plejadane og Orions belte styrer framleis jordbrukssesongane i pranata mangsa på Java; babylonarane førte opp dusinvis av slike oppgangar; Canopus, den nest lysaste stjerna, går opp langt i sør. Linene viser kvar kvar stjerne går opp og ned, 1° over ein flat horisont; datoane er omtrentlege, innanfor nokre få dagar, fordi dei avheng av kor klår lufta er og av auga til observatøren."], "era": ["<b>Epoke.</b> Himmelen forskyv seg sakte. Helninga til Jorda, som avgjer kor langt nord og sør Sola og Månen svingar, var omtrent 24° då pyramidane og Stonehenge vart bygde, og er 23,4° i dag, så solkvervlinene har flytt seg om lag éin grad. Stjernene rører seg langt meir: Jordaksen slingrar rundt éin gong på om lag 26 000 år (presesjon), så oppgangspunktet til kvar stjerne driv, og Sirius, Plejadane og Orion gjekk opp på heilt andre stader for fem tusen år sidan. Flytt glidebrytaren til hundreåret åt monumentet sjølv for å sjå himmelen slik byggjarane såg han: linene for Sola og Månen, stjernene og dei heliakiske oppgangane deira følgjer alle med."], "why_h": "Kvifor dei var viktige" }
   );
-  const GRP = { jun: "sol", dec: "sol", eq: "eq", xqn: "xq", xqs: "xq", lmajn: "lun", lmajs: "lun", lminn: "lun", lmins: "lun" };
+  const GRP = { jun: "sol", dec: "sol", eq: "eq", xqn: "xq", xqs: "xq", lmajn: "lun", lmajs: "lun", lminn: "lun", lmins: "lun", st_sirius: "star", st_canopus: "star", st_pleiades: "star", st_orion: "star" };
+  const eraTxt = (y) => y == null || y === yearNow() ? t("eraNow") : y < 0 ? t("eraBC", { y: String(-y) }) : t("eraAD", { y: String(y) });
   function gloss(g, btn) {
     const box = document.querySelector('#solCard .gloss[data-for="' + g + '"]');
     if (!box || !GL[g]) return;
@@ -5781,6 +5861,124 @@ function rtShow(blob,secs,kind){
       const r = box.getBoundingClientRect();
       if (r.bottom > innerHeight || r.top < 0) box.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
+  }
+  const MON = (
+    /*MON*/
+    [{ "id": "khufu", "tr": "egypt", "ll": [29.97916, 31.13421], "era": -2554, "sl": [[359.95, "measured", null], [89.95, "measured", null]], "mom": [["sunrise", "eq"]], "st": "well" }, { "id": "karnak", "tr": "egypt", "ll": [25.71592, 32.65784], "era": -1950, "sl": [[117.2, "measured", null], [297.2, "measured", null]], "mom": [["sunrise", "dec"], ["sunset", "jun"]], "st": "wide" }, { "id": "abusimbel", "tr": "egypt", "ll": [22.33712, 31.6258], "era": -1265, "sl": [[101.1, "computed", 0]], "mom": [["sunrise", "02-22"], ["sunrise", "10-22"]], "st": "well" }, { "id": "sirius_memphis", "tr": "egypt", "ll": [29.85377, 31.25381], "era": -2500, "sl": [], "mom": [["star", "sirius"]], "st": "well" }, { "id": "konark", "tr": "bharata", "ll": [19.88756, 86.09449], "era": 1255, "sl": [[90, "nominal", null]], "mom": [["sunrise", "eq"]], "st": "wide" }, { "id": "modhera", "tr": "bharata", "ll": [23.58342, 72.13308], "era": 1026, "sl": [[90, "nominal", null]], "mom": [["sunrise", "eq"]], "st": "debated" }, { "id": "angkorwat", "tr": "bharata", "ll": [13.41252, 103.86659], "era": 1130, "sl": [[270.5, "measured", null], [90.67, "measured", 5]], "mom": [["sunrise", "eq"]], "st": "wide" }, { "id": "borobudur", "tr": "java", "ll": [-7.60796, 110.20382], "era": 800, "sl": [[0, "nominal", null], [263, "measured", 1.8]], "mom": [["sunset", "10-11"]], "st": "debated" }, { "id": "prambanan", "tr": "java", "ll": [-7.752, 110.49118], "era": 850, "sl": [[90, "nominal", null]], "mom": [["sunrise", "eq"]], "st": "wide" }, { "id": "pranata_mangsa", "tr": "java", "ll": [-7.7956, 110.3695], "era": null, "sl": [], "mom": [["star", "orion"], ["star", "pleiades"]], "st": "wide" }, { "id": "uaxactun", "tr": "maya", "ll": [17.39127, -89.62947], "era": -200, "sl": [[65.1, "computed", 0], [90, "nominal", null], [114.9, "computed", 0]], "mom": [["sunrise", "jun"], ["sunrise", "eq"], ["sunrise", "dec"]], "st": "debated" }, { "id": "chichenitza", "tr": "maya", "ll": [20.68299, -88.56864], "era": 1e3, "sl": [[291.72, "measured", null], [111.72, "measured", null]], "mom": [["sunset", "05-20"]], "st": "debated" }, { "id": "etemenanki", "tr": "babylon", "ll": [32.5363, 44.42108], "era": -600, "sl": [[0, "nominal", null], [90, "nominal", null]], "mom": [["star", "sirius"]], "st": "wide" }, { "id": "gaocheng", "tr": "lu", "ll": [34.40262, 113.14067], "era": 1276, "sl": [[0, "nominal", null]], "mom": [], "st": "well" }, { "id": "templeofheaven", "tr": "lu", "ll": [39.87558, 116.40696], "era": 1420, "sl": [[0, "nominal", null]], "mom": [["sunrise", "dec"]], "st": "well" }, { "id": "kaaba", "tr": "ikhwan", "ll": [21.42251, 39.82619], "era": null, "sl": [[147.7, "computed", 0], [64.5, "computed", 0]], "mom": [["star", "canopus"], ["sunrise", "jun"]], "st": "wide" }, { "id": "bryncelliddu", "tr": "welsh", "ll": [53.20772, -4.23614], "era": -3e3, "sl": [[47.2, "computed", 0]], "mom": [["sunrise", "jun"]], "st": "well" }, { "id": "newgrange", "tr": "welsh", "ll": [53.6947, -6.47555], "era": -3150, "sl": [[133.9, "measured", 0.92]], "mom": [["sunrise", "dec"]], "st": "well" }, { "id": "maeshowe", "tr": "welsh", "ll": [58.99652, -3.18817], "era": -2800, "sl": [[221, "measured", null]], "mom": [["sunset", "dec"]], "st": "well" }, { "id": "stonehenge", "tr": "welsh", "ll": [51.17883, -1.82618], "era": -2500, "sl": [[49.9, "nominal", null], [229.9, "nominal", null]], "mom": [["sunrise", "jun"], ["sunset", "dec"]], "st": "well" }, { "id": "alesstenar", "tr": "norse", "ll": [55.38265, 14.05441], "era": 600, "sl": [[314.8, "computed", 0], [134.8, "computed", 0]], "mom": [["sunset", "jun"], ["sunrise", "dec"]], "st": "debated" }, { "id": "towerofwinds", "tr": "greek", "ll": [37.9742, 23.72703], "era": -50, "sl": [[0, "nominal", null], [45, "nominal", null], [90, "nominal", null], [135, "nominal", null], [180, "nominal", null], [225, "nominal", null], [270, "nominal", null], [315, "nominal", null]], "mom": [], "st": "well" }]
+  );
+  const TRORD = ["egypt", "bharata", "java", "maya", "babylon", "lu", "ikhwan", "welsh", "norse", "greek"];
+  function monInit() {
+    const sel = $("monSel");
+    if (!sel) return;
+    sel.innerHTML = '<option value="">' + esc(t("monPick")) + "</option>" + TRORD.map((tr) => '<optgroup label="' + esc(t("tr_" + tr)) + '">' + MON.filter((m) => m.tr === tr).map((m) => '<option value="' + m.id + '">' + esc(t("mn_" + m.id)) + "</option>").join("") + "</optgroup>").join("");
+    sel.onchange = () => monGo(sel.value);
+  }
+  function monDay(spec) {
+    const y = yearNow(), now = jdOf(Date.now());
+    if (spec === "eq") {
+      const c = [seasonJD(y, 0), seasonJD(y, 2), seasonJD(y + 1, 0)];
+      return c.find((j2) => j2 > now - 1);
+    }
+    if (spec === "jun" || spec === "dec") {
+      const k = spec === "jun" ? 1 : 3;
+      let j2 = seasonJD(y, k);
+      if (j2 < now - 1) j2 = seasonJD(y + 1, k);
+      return j2;
+    }
+    const [mm, dd] = spec.split("-").map(Number);
+    let j = jdOf(Date.UTC(y, mm - 1, dd, 12));
+    if (j < now - 1) j = jdOf(Date.UTC(y + 1, mm - 1, dd, 12));
+    return j;
+  }
+  function moLabel(mo) {
+    if (mo[0] === "star") return t("moStar", { s: t("st_" + mo[1]) });
+    const e = /^\d/.test(mo[1]) ? fmtD(monDay(mo[1])) : t("mo_" + mo[1]);
+    return t(mo[0] === "sunrise" ? "moSunrise" : "moSunset", { e });
+  }
+  function monPlay(mo) {
+    const [lat, lon] = placeLL();
+    let ev = null, kind = mo[0];
+    if (kind === "star") {
+      const st = ERA_ST.find((x) => x[0] === mo[1]);
+      ev = st && starMoment(st);
+    } else {
+      const rs = riseSet(monDay(mo[1]), lat, lon, AL.hz);
+      ev = kind === "sunrise" ? rs.rise : rs.set;
+    }
+    if (!ev) {
+      msg(t("noRise"), true);
+      return;
+    }
+    const cap = (AL.mon ? t("mn_" + AL.mon.id) + " · " : "") + moLabel(mo);
+    return playMoment({ kind, jd: ev.jd, az: ev.az, warm: mo[1] === "jun" || /^0[4-8]/.test(mo[1]), cap, msg: t("moNow", { m: cap, t: fmtDT(ev.jd, 1), a: degs(ev.az) }) });
+  }
+  function monInfo() {
+    const box = $("monInfo"), m = AL.mon;
+    if (!box) return;
+    if (!m) {
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    const axes = m.sl.map(([az, ty]) => degs(az) + " <small>(" + esc(t("az_" + ty)) + ")</small>").join(" · ");
+    box.innerHTML = "<h4>" + esc(t("mn_" + m.id)) + "</h4><p>" + esc(t("md_" + m.id)) + '</p><p class="note">' + (m.era != null ? esc(t("monEra", { y: eraTxt(m.era) })) : esc(t("monNoEra"))) + " · " + esc(t("monStatus")) + ": " + esc(t("stat_" + m.st)) + (axes ? "<br>" + esc(t("monAxis")) + ": " + axes : "") + "</p>" + (m.mom.length ? '<div class="tools">' + m.mom.map((mo, i) => '<button class="pb" type="button" data-mo="' + i + '">♪ ' + esc(t("monHear")) + ": " + esc(moLabel(mo)) + "</button>").join("") + "</div>" : "");
+    box.querySelectorAll("[data-mo]").forEach((b) => b.onclick = () => monPlay(m.mom[+b.dataset.mo]));
+  }
+  function monGo(id) {
+    const m = MON.find((x) => x.id === id) || null;
+    AL.mon = m;
+    const sel = $("monSel");
+    if (sel && sel.value !== (id || "")) sel.value = id || "";
+    if (!m) {
+      monInfo();
+      mapLines();
+      return;
+    }
+    AL.year = m.era == null ? null : m.era;
+    const yr = $("alYear");
+    if (yr) yr.value = String(AL.year == null ? yearNow() : AL.year);
+    if (AL.lM) {
+      AL.lM.remove();
+      AL.lM = null;
+      AL.lm = null;
+    }
+    AL.obs = { lat: m.ll[0], lon: m.ll[1] };
+    SKY = null;
+    AL.grp.sol = 1;
+    if (m.mom.some((x) => x[0] === "star")) AL.grp.star = 1;
+    if (m.mom.some((x) => x[1] === "eq")) AL.grp.eq = 1;
+    ["alSol", "alEq", "alXq", "alLun", "alStar"].forEach((id2, i) => {
+      const e = $(id2);
+      if (e) e.checked = !!AL.grp[["sol", "eq", "xq", "lun", "star"][i]];
+    });
+    monInfo();
+    openMap().then(() => {
+      if (AL.map) {
+        AL.map.setView(m.ll, m.sl.length ? 16 : 11);
+        solUI();
+      }
+    });
+    if (!m.tz) getJSON(FC + "?latitude=" + m.ll[0].toFixed(3) + "&longitude=" + m.ll[1].toFixed(3) + "&current=temperature_2m&timezone=auto&forecast_days=1").then((j) => {
+      if (j && j.timezone) {
+        m.tz = j.timezone;
+        if (AL.mon === m) {
+          solUI();
+          monInfo();
+        }
+      }
+    }).catch(() => {
+    });
+  }
+  function monLines(km) {
+    const m = AL.mon, Lf = window.L;
+    if (!m || !AL.obs || Math.abs(AL.obs.lat - m.ll[0]) > 1e-6 || Math.abs(AL.obs.lon - m.ll[1]) > 1e-6) return;
+    m.sl.forEach(([az]) => {
+      [[az, 1], [az + 180, 0.3]].forEach(([b, op]) => {
+        const pts = [[m.ll[0], m.ll[1]]];
+        for (let k = 1; k <= 12; k++) pts.push(geoDest(m.ll[0], m.ll[1], b, km * k / 12));
+        Lf.polyline(pts, { color: "#e0405a", weight: op === 1 ? 4.5 : 2, opacity: op === 1 ? 0.95 : 0.5, interactive: false }).addTo(AL.lay);
+      });
+    });
   }
   function solUI() {
     const card = $("solCard");
@@ -5801,6 +5999,22 @@ function rtShow(blob,secs,kind){
       return '<tr><td><i style="background:' + l.col + '"></i><button class="term" type="button" data-g="' + GRP[k] + '" aria-expanded="' + !document.querySelector('#solCard .gloss[data-for="' + GRP[k] + '"]').hidden + '">' + esc(evName(k, lat)) + '</button></td><td class="mono">' + (x.r ? degs(x.r.az) : "—") + '</td><td class="mono">' + (x.s ? degs(x.s.az) : "—") + "</td></tr>";
     }).join("");
     $("solWhere").textContent = t("solWhere", { p: AL.obs ? t("standPoint") : ST.place ? ST.place.name : t("athens"), c: nf(Math.abs(lat), 3) + "°" + (lat >= 0 ? t("cN") : t("cS")) + " " + nf(Math.abs(lon), 3) + "°" + (lon >= 0 ? t("cE") : t("cW")), h: degs(AL.hz) });
+    const hl = $("helList");
+    if (hl) {
+      hl.hidden = !AL.grp.star;
+      if (AL.grp.star) {
+        const y = eraYear(), js = seasonJD(yearNow(), 1);
+        hl.innerHTML = '<li class="hh">' + esc(t("helH")) + " · " + esc(eraTxt(AL.year)) + "</li>" + ERA_ST.map((st) => {
+          const nm = t("st_" + st[0]), dec = starEra(st, y)[1];
+          if (dec < -(90 - Math.abs(lat)) && lat > 0 || dec > 90 - Math.abs(lat) && lat < 0) return "<li>" + esc(t("helNever", { s: nm })) + "</li>";
+          const d = heliacal(st, lat, y);
+          if (d == null) return "<li>" + esc(t("helNone", { s: nm })) + "</li>";
+          return "<li>" + esc(t("helLine", { s: nm, d: nf(Math.abs(d)), ba: t(d < 0 ? "before" : "after") })) + (y === yearNow() ? esc(t("helToday", { d: fmtD(js + d) })) : "") + "</li>";
+        }).join("");
+      }
+    }
+    const yo = $("alYearOut");
+    if (yo) yo.textContent = eraTxt(AL.year);
     mapLines();
   }
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -5892,6 +6106,7 @@ function rtShow(blob,secs,kind){
     if (AL.lm) Lf.polyline([[lat, lon], [AL.lm.lat, AL.lm.lon]], { color: "#b07ad8", weight: 2.5, dashArray: "8 6", interactive: false }).addTo(AL.lay);
     if (AL.oM) AL.oM.setLatLng([lat, lon]);
     shOverlay(km);
+    monLines(km);
   }
   const SH = { lat: 51.178882, lon: -1.826215 };
   function shOverlay(km) {
@@ -6030,13 +6245,43 @@ function rtShow(blob,secs,kind){
       msg(t("noRise"), true);
       return;
     }
+    return playMoment({
+      kind: "sunrise",
+      jd: rs.rise.jd,
+      az: rs.rise.az,
+      warm: which === "jun",
+      cap: t("lineLab", { e: evName(which, lat), r: t("rs_sunrise") }),
+      msg: t("dawnNow", { e: evName(which, lat), t: fmtDT(rs.rise.jd, 1), a: degs(rs.rise.az) })
+    });
+  }
+  function sunMoment(dec, rise) {
+    const [lat, lon] = placeLL(), ds = sunDates(dec);
+    if (!ds.length) return null;
+    const rs = riseSet(ds[0], lat, lon, AL.hz);
+    const e = rise ? rs.rise : rs.set;
+    return e ? { jd: e.jd, az: e.az } : null;
+  }
+  function starMoment(st) {
+    const [lat, lon] = placeLL(), y = yearNow(), d = heliacal(st, lat, y);
+    if (d == null) return null;
+    const j0 = Math.floor(seasonJD(y, 1) + d + lon / 360 + 0.5) - 0.5 - lon / 360;
+    const [ra, dec] = starEra(st, y), alt = (j) => altAz(ra * D2R, dec * D2R, j, lat, lon);
+    let prev = alt(j0)[0];
+    for (let k = 1; k <= 720; k++) {
+      const j = j0 + k / 720, a = alt(j);
+      if (prev < 1 && a[0] >= 1 && a[1] < 180) return { jd: j, az: a[1] };
+      prev = a[0];
+    }
+    return null;
+  }
+  async function playMoment(o) {
     if (!ST.data) {
-      ST.data = { t: (/* @__PURE__ */ new Date()).toISOString(), wind: 6, gust: 10, dir: 225, temp: which === "jun" ? 14 : 2, hum: 70, cloud: 10, pres: 1015, rain: 0, snow: 0, code: 0, day: 0, cape: 0 };
+      ST.data = { t: (/* @__PURE__ */ new Date()).toISOString(), wind: 6, gust: 10, dir: 225, temp: o.warm ? 14 : 4, hum: 70, cloud: 10, pres: 1015, rain: 0, snow: 0, code: 0, day: 0, cape: 0 };
     }
     if (!ST.playing) await start();
     if (!AC) return;
-    const dur = 60, t0 = AC.currentTime + 0.2, rise = t0 + 40, az = rs.rise.az;
-    FX.dawn = { t0: performance.now() + 200, dur: dur * 1e3, jdA: rs.rise.jd - 40 / 1440, jdB: rs.rise.jd + 20 / 1440, az, which, jd: rs.rise.jd };
+    const dur = 60, t0 = AC.currentTime + 0.2, ev = t0 + (o.kind === "sunrise" ? 40 : o.kind === "sunset" ? 22 : 25), az = o.az;
+    FX.dawn = { t0: performance.now() + 200, dur: dur * 1e3, jdA: o.jd - (ev - t0) * 40 / 60 / 1440, jdB: o.jd + (t0 + dur - ev) * 40 / 60 / 1440, az, which: o.kind, jd: o.jd, cap: o.cap };
     SKY = null;
     const out = AC.createGain();
     out.gain.value = 1;
@@ -6044,7 +6289,10 @@ function rtShow(blob,secs,kind){
     out.connect(A.verb);
     tgt(A.duck.gain, 0.3, 2);
     setTimeout(() => {
-      if (A.duck) tgt(A.duck.gain, 1, 3);
+      if (A.duck) {
+        A.duck.gain.__v = void 0;
+        tgt(A.duck.gain, 1, 3);
+      }
       FX.dawn = null;
       SKY = null;
       try {
@@ -6053,64 +6301,89 @@ function rtShow(blob,secs,kind){
       }
       ui();
     }, dur * 1e3 + 600);
-    const pan = clamp(Math.sin((az - ST.facing) * D2R), -1, 1), root = A.root || 110, md = modeOf(which === "jun" ? 22 : 2);
-    md.forEach((s, i) => {
-      const o = AC.createOscillator(), g = AC.createGain(), p = mkPan(clamp(pan * 0.6 + (i / 6 - 0.5) * 0.5, -1, 1));
-      o.frequency.value = root * 4 * Math.pow(2, s / 12);
-      o.type = "sine";
-      const st = t0 + i * 4.5;
-      g.gain.setValueAtTime(0, st);
-      g.gain.linearRampToValueAtTime(0.035, st + 12);
-      g.gain.setValueAtTime(0.035, rise + 6);
-      g.gain.linearRampToValueAtTime(0, t0 + dur);
-      o.connect(g);
-      g.connect(p);
-      p.connect(out);
-      o.start(st);
-      o.stop(t0 + dur + 0.2);
+    const pan = clamp(Math.sin((az - ST.facing) * D2R), -1, 1), root = A.root || 110, md = modeOf(o.warm ? 22 : 4);
+    const bell = (at, f, amp, p) => [[1, 1], [2.76, 0.38], [5.4, 0.19], [8.93, 0.09]].forEach(([r, a]) => {
+      const x = AC.createOscillator(), g = AC.createGain(), pp = mkPan(p);
+      x.frequency.value = f * r;
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(amp * a, at + 0.01);
+      g.gain.setTargetAtTime(0, at + 0.01, 2.2 / r ** 0.3);
+      x.connect(g);
+      g.connect(pp);
+      pp.connect(out);
+      x.start(at);
+      x.stop(at + 12);
     });
-    [[1, 0.32], [2.76, 0.12], [5.4, 0.06], [8.93, 0.03]].forEach(([r, a]) => {
-      const o = AC.createOscillator(), g = AC.createGain(), p = mkPan(pan);
-      o.frequency.value = root * r;
-      g.gain.setValueAtTime(0, rise);
-      g.gain.linearRampToValueAtTime(a, rise + 0.01);
-      g.gain.setTargetAtTime(0, rise + 0.01, 2.2 / r ** 0.3);
-      o.connect(g);
-      g.connect(p);
-      p.connect(out);
-      o.start(rise);
-      o.stop(rise + 12);
-    });
-    [[0, 0], [7, 0], [12, 0], [12 + md[2], 0], [19, 0]].forEach(([s], i) => {
-      const o = AC.createOscillator();
-      o.type = "sawtooth";
-      o.frequency.value = root * Math.pow(2, s / 12);
-      o.detune.value = (i - 2) * 4;
-      const fs = VOW.a.map((F, k2) => {
+    const choir = (vow, steps, base, a0, a1, a2, a3, gain, p) => steps.forEach((s, i) => {
+      const x = AC.createOscillator();
+      x.type = "sawtooth";
+      x.frequency.value = base * Math.pow(2, s / 12);
+      x.detune.value = (i - 2) * 4;
+      const fs = VOW[vow].map((F, k) => {
         const f = AC.createBiquadFilter();
         f.type = "bandpass";
         f.frequency.value = F * (1 + i * 0.02);
-        f.Q.value = [8, 11, 13][k2];
-        o.connect(f);
+        f.Q.value = [8, 11, 13][k];
+        x.connect(f);
         return f;
       });
-      const g = AC.createGain(), p = mkPan(clamp(pan + (i - 2) * 0.08, -1, 1));
-      fs.forEach((f, k2) => {
+      const g = AC.createGain(), pp = mkPan(clamp(p + (i - 2) * 0.08, -1, 1));
+      fs.forEach((f, k) => {
         const fg = AC.createGain();
-        fg.gain.value = [1, 0.5, 0.28][k2];
+        fg.gain.value = [1, 0.5, 0.28][k];
         f.connect(fg);
         fg.connect(g);
       });
-      g.gain.setValueAtTime(0, rise - 1);
-      g.gain.linearRampToValueAtTime(0.09, rise + 6);
-      g.gain.setValueAtTime(0.09, rise + 12);
+      g.gain.setValueAtTime(0, a0);
+      g.gain.linearRampToValueAtTime(gain, a1);
+      g.gain.setValueAtTime(gain, a2);
+      g.gain.linearRampToValueAtTime(0, a3);
+      g.connect(pp);
+      pp.connect(out);
+      x.start(a0);
+      x.stop(a3 + 0.2);
+    });
+    const eos = (from, to) => md.forEach((s, i) => {
+      const x = AC.createOscillator(), g = AC.createGain(), p = mkPan(clamp(pan * 0.6 + (i / 6 - 0.5) * 0.5, -1, 1));
+      x.frequency.value = root * 4 * Math.pow(2, s / 12);
+      const st = from + i * (to - from) / 9;
+      g.gain.setValueAtTime(0, st);
+      g.gain.linearRampToValueAtTime(0.035, st + 10);
+      g.gain.setValueAtTime(0.035, Math.max(st + 10, t0 + dur - 12));
       g.gain.linearRampToValueAtTime(0, t0 + dur);
+      x.connect(g);
       g.connect(p);
       p.connect(out);
-      o.start(rise - 1);
-      o.stop(t0 + dur + 0.2);
+      x.start(st);
+      x.stop(t0 + dur + 0.2);
     });
-    msg(t("dawnNow", { e: evName(which, lat), t: fmtDT(rs.rise.jd, 1), a: degs(az) }));
+    const triad = [0, 7, 12, 12 + md[2], 19];
+    if (o.kind === "sunrise") {
+      eos(t0, ev);
+      bell(ev, root, 0.32, pan);
+      choir("a", triad, root, ev - 1, ev + 6, ev + 12, t0 + dur, 0.09, pan);
+    } else if (o.kind === "sunset") {
+      choir("a", triad, root, t0, t0 + 5, ev - 6, ev + 3, 0.09, pan);
+      bell(ev, root, 0.3, pan);
+      for (let k = 0; k < 26; k++) {
+        const at = ev + 4 + k * 1.3 + Math.random(), f = root * 16 * Math.pow(2, md[Math.random() * 7 | 0] / 12) * (Math.random() < 0.5 ? 1 : 2);
+        const x = AC.createOscillator(), g = AC.createGain(), p = mkPan(rnd(-0.9, 0.9));
+        x.frequency.value = f;
+        g.gain.setValueAtTime(0, at);
+        g.gain.linearRampToValueAtTime(0.02, at + 0.01);
+        g.gain.setTargetAtTime(0, at + 0.01, 0.4);
+        x.connect(g);
+        g.connect(p);
+        p.connect(out);
+        x.start(at);
+        x.stop(at + 3);
+      }
+    } else {
+      bell(ev, root * 4, 0.16, pan);
+      choir("i", [12, 19, 24], root, ev - 0.5, ev + 4, ev + 14, t0 + dur, 0.05, pan);
+      eos(ev + 8, t0 + dur - 6);
+    }
+    if (o.msg) msg(o.msg);
   }
   function relTime(W) {
     try {
@@ -6430,6 +6703,44 @@ function rtShow(blob,secs,kind){
         solUI();
       };
       $("shGo").onclick = () => shGo();
+      monInit();
+      {
+        const h = location.hash.match(/^#(sky|site)=([a-z_]+)/);
+        if (h) {
+          const m = h[1] === "site" ? MON.find((x) => x.id === h[2]) : MON.find((x) => x.tr === h[2]);
+          if (m) {
+            card.open = true;
+            setTimeout(() => {
+              monGo(m.id);
+              card.scrollIntoView({ block: "start" });
+            }, 300);
+          }
+        }
+      }
+      {
+        const st = $("alStar");
+        st.checked = !!AL.grp.star;
+        st.onchange = () => {
+          AL.grp.star = st.checked ? 1 : 0;
+          LS.set("mots.wx.grp", JSON.stringify(AL.grp));
+          solUI();
+        };
+        const yr = $("alYear");
+        yr.max = String(Math.ceil(yearNow() / 25) * 25);
+        yr.value = String(AL.year == null ? yearNow() : AL.year);
+        yr.oninput = () => {
+          const v = +yr.value;
+          AL.year = Math.abs(v - yearNow()) < 25 ? null : v;
+          solUI();
+          if (AL.lm) judgeLm();
+        };
+        $("alYearNow").onclick = () => {
+          AL.year = null;
+          yr.value = String(yearNow());
+          solUI();
+          if (AL.lm) judgeLm();
+        };
+      }
       {
         const e = $("shHere");
         e.checked = AL.shHere = LS.get("mots.wx.shHere") === "1";

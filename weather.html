@@ -630,6 +630,11 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
 .gloss h4{margin:.6rem 0 .1rem;font-family:var(--f-display);font-weight:400;color:var(--bronze);font-size:1rem}
 .shTip{background:#13162a;color:#f3d9a4;border:1px solid #c9984f;font:600 11px/1 var(--f-mono);padding:2px 4px}.shTip::before{display:none}
 .shNote{background:rgba(19,22,42,.85);color:#e9e1cc;border:1px solid #c9984f;border-radius:6px;padding:3px 7px;font-size:12px}
+.eraRow{margin-top:.6rem}.eraCtl{display:flex;gap:.6rem;align-items:center}.eraCtl input{flex:1;accent-color:var(--bronze)}
+.monSel{width:100%;min-height:var(--tap);background:var(--sky-2);border:1px solid var(--line-2);border-radius:10px;padding:.3rem .6rem;margin-top:.4rem}
+.monInfo{margin-top:.6rem;padding:.7rem .9rem;border-left:3px solid #e0405a;background:rgba(224,64,90,.07);border-radius:0 10px 10px 0}
+.monInfo h4{margin:0;font-family:var(--f-display);font-weight:400;font-size:1.15rem;color:#f3d9a4}.monInfo p{margin:.35rem 0 0}.monInfo small{color:var(--vellum-dim)}
+.solList li.hh{color:var(--bronze);font-family:var(--f-display)}
 .tapHint{margin:.2rem 0 0;font-style:italic}
 .foot a{color:var(--vellum-dim)}
 .tools{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:.8rem}
@@ -695,6 +700,9 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
       <div class="dawnBtns"><button class="pb" id="dawnJun" type="button">☀ Hear the June solstice sunrise</button><button class="pb" id="dawnDec" type="button">☀ Hear the December solstice sunrise</button></div>
     </div>
     <ul class="solList" id="solList"></ul>
+    <h3 class="sub">Monuments</h3>
+    <select id="monSel" class="monSel" aria-label="Monuments"></select>
+    <div class="monInfo" id="monInfo" hidden></div>
     <h3 class="sub">Alignments</h3>
     <p class="note"><span id="solWhere"></span> <button class="term" type="button" data-g="brg" aria-expanded="false">Bearing</button> · <button class="term" type="button" data-g="gleam" aria-expanded="false">First gleam</button></p>
     <div class="gloss" data-for="brg" hidden></div><div class="gloss" data-for="gleam" hidden></div>
@@ -704,11 +712,16 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
       <div class="alRow"><input id="alEq" type="checkbox" aria-label="Equinoxes"><button class="term" type="button" data-g="eq" aria-expanded="false">Equinoxes</button></div>
       <div class="alRow"><input id="alXq" type="checkbox" aria-label="Cross-quarter days"><button class="term" type="button" data-g="xq" aria-expanded="false">Cross-quarter days</button></div>
       <div class="alRow"><input id="alLun" type="checkbox" aria-label="Lunar standstills"><button class="term" type="button" data-g="lun" aria-expanded="false">Lunar standstills</button></div>
+      <div class="alRow"><input id="alStar" type="checkbox" aria-label="Bright stars"><button class="term" type="button" data-g="star" aria-expanded="false">Bright stars</button></div>
       <label class="sw" for="alSky"><input id="alSky" type="checkbox"><span>Show on the sky</span></label>
       <div class="field"><label for="alHz"><button class="term" type="button" data-g="hz" aria-expanded="false">Horizon height</button> <output id="alHzOut"></output></label><input id="alHz" type="range" min="0" max="10" step=".1" value="0"></div>
     </div>
     <div class="gloss" data-for="sol" hidden></div><div class="gloss" data-for="eq" hidden></div><div class="gloss" data-for="xq" hidden></div><div class="gloss" data-for="lun" hidden></div><div class="gloss" data-for="hz" hidden></div>
+    <div class="field eraRow"><label for="alYear"><button class="term" type="button" data-g="era" aria-expanded="false">Era</button> <output id="alYearOut"></output></label>
+      <div class="eraCtl"><input id="alYear" type="range" min="-3500" max="2100" step="25" value="2025"><button class="pb" id="alYearNow" type="button">Now</button></div></div>
+    <div class="gloss" data-for="star" hidden></div><div class="gloss" data-for="era" hidden></div>
     <table class="solTab" id="solTab"></table>
+    <ul class="solList" id="helList" hidden></ul>
     <div class="solMap" id="solMap" role="application" aria-label="Map of the alignments"></div>
     <div class="tools"><button class="pb" id="alStand" type="button">⌖ Stand here</button><button class="pb" id="alReset" type="button">Back to the place</button><button class="pb" id="shGo" type="button">Stonehenge’s Station Stones</button><label class="sw" for="shHere"><input id="shHere" type="checkbox"><span>Lay out Station Stones here</span></label><button class="term" type="button" data-g="sh" aria-expanded="false" aria-label="Stonehenge’s Station Stones"></button></div>
     <div class="gloss" data-for="sh" hidden></div>
@@ -4370,7 +4383,7 @@ function rtShow(blob,secs,kind){
   "use strict";
   const TX = (
     /*TX*/
-    { "title": "The Weather’s Song", "desc": "The weather where you are, sung by the Greek gods of the winds, the clouds, the thunder and the rainbow.", "lede": "The weather where you are, played by the gods who ruled it: the eight winds of the Tower of the Winds in Athens, Nephele’s clouds, Zeus’s thunder and Iris’s rainbow. The sounds follow the physics: the wind plays an Aeolian harp, and each raindrop rings at the pitch of the air bubble it traps.", "navApp": "The app", "navDial": "2D dial", "navHelp": "How it works", "placeHint": "Type a town or place", "find": "Find", "here": "Use my location", "play": "Play the weather", "stop": "Stop", "sky": "Sky", "wind": "Wind", "gusts": "Gusts", "temp": "Temperature", "cloud": "Cloud", "rain": "Rain", "humidity": "Humidity", "pressure": "Pressure", "facing": "You face", "units": "Units", "volume": "Volume", "metric": "Metric (°C, km/h)", "imperial": "Imperial (°F, mph)", "imagineH": "Make your own weather", "imagineP": "Move a slider to play any weather you like, a gale, a heatwave or a thunderstorm. The real weather comes back with the button below.", "dirL": "Wind from (degrees, 0 = north)", "thunder": "Thunder", "snowL": "snow", "night": "night", "back": "Back to the real weather", "howH": "How the weather sounds", "how1": "The wind: the god of the wind’s direction sings, one of the eight winds carved on the Tower of the Winds in Athens, from where the wind comes as you face. A gust bends the voice up, as a wind howls.", "how2": "The Aeolian harp: six strings of different thickness, tuned together. Wind across a string sheds eddies about 0.2 × speed ÷ thickness times a second, and the string sings the harmonic nearest to that, so the chords change as the wind rises and falls.", "how3": "Rain: each drop that traps a bubble of air rings at the bubble’s own pitch (the Minnaert frequency, about 3.3 kHz for a bubble 1 mm across). Heavier rain has bigger drops and lower rings; drizzle is fine and high.", "how4": "Ouranos, the sky, holds the low note: one semitone for every 2.5 hPa of air pressure from the standard 1013. The temperature chooses the mode, Phrygian in a frost, Lydian in a heatwave.", "how5": "Nephele’s clouds muffle the sky (a low-pass closing as the cloud thickens); fog closes it more, and fresh snow, Khione’s, hushes everything as real snow does. Damp air carries a longer echo.", "how6": "Zeus: in a thunderstorm the lightning flashes first and the thunder follows at the speed of sound for its distance, a crack when it is close, a long roll when it is far.", "how7": "Iris rings a rainbow scale when the sun shines on rain; on a clear night Nyx’s stars glint. The weather is fetched again every quarter of an hour.", "tools": "Record and stage", "record": "Record", "foot": "Weather data:", "privacy": "Privacy", "pick": "Type a place above, or use your location, to hear its weather.", "searching": "Searching…", "fetching": "Fetching the weather…", "none": "No place of that name was found.", "netErr": "The weather could not be fetched. Check the connection and try again.", "noLoc": "This device could not give a location. Type a place instead.", "locDenied": "Location was not allowed. Type a place instead.", "locating": "Finding where you are…", "hereName": "Your location ({c})", "cN": "N", "cS": "S", "cE": "E", "cW": "W", "asOf": "The weather at {t} local time.", "offline": "Offline: the weather last fetched, at {t}.", "imagined": "Your own weather", "calm": "Calm", "from": "from the {d}", "youFace": "▲", "d_n": "north", "d_ne": "north-east", "d_e": "east", "d_se": "south-east", "d_s": "south", "d_sw": "south-west", "d_w": "west", "d_nw": "north-west", "g_boreas": "Boreas", "g_kaikias": "Kaikias", "g_apeliotes": "Apeliotes", "g_euros": "Euros", "g_notos": "Notos", "g_lips": "Lips", "g_zephyros": "Zephyros", "g_skiron": "Skiron", "gt_boreas": "The north wind, cold and strong. On the Tower of the Winds he is a bearded old man in a heavy cloak, blowing a conch shell. He carried off Oreithyia, the princess of Athens, and the Athenians thanked him for wrecking the Persian fleet. He sings the lowest.", "gt_kaikias": "The north-east wind, bringer of hail. On the Tower he tips a shield full of hailstones on the land below. A dark wind, singing low.", "gt_apeliotes": "The east wind, kindly and warm, bringing a gentle rain. On the Tower he is a young man carrying fruit, wheat and honeycomb in his cloak.", "gt_euros": "The south-east wind, unlucky and stormy. On the Tower he is an old man wrapped against the weather. Homer counts him among the four great winds.", "gt_notos": "The south wind, hot and wet, the bringer of the late-summer and autumn storms. On the Tower he empties a jar of water. Notos was feared by sailors.", "gt_lips": "The south-west wind. On the Tower he holds the stern of a ship, for he blew ships home into the harbours of Athens.", "gt_zephyros": "The west wind, the gentlest, the herald of spring. On the Tower he is a young man scattering flowers from his cloak. The husband of Chloris, the goddess of flowers, he sings the highest and sweetest.", "gt_skiron": "The north-west wind, dry and cold in winter, scorching in summer. On the Tower he tips out a bronze pot of hot ashes and charcoal.", "m_phrygian": "Phrygian", "m_aeolian": "Aeolian", "m_dorian": "Dorian", "m_mixolydian": "Mixolydian", "m_ionian": "Ionian", "m_lydian": "Lydian", "wClear": "Clear", "wMainly": "Mainly clear", "wPartly": "Partly cloudy", "wOvercast": "Overcast", "wFog": "Fog", "wDrizzle": "Drizzle", "wFDrizzle": "Freezing drizzle", "wRain": "Rain", "wFRain": "Freezing rain", "wSnow": "Snow", "wGrains": "Snow grains", "wShowers": "Showers", "wSnowShowers": "Snow showers", "wThunder": "Thunderstorm", "wHail": "Thunderstorm with hail", "sCalm": "The winds are still", "sWind": "{g}, the {d} wind, sings", "sHarp": "the wind plays the Aeolian harp", "sRain": "the raindrops ring at the pitch of their bubbles", "sSnow": "Khione’s snow hushes everything", "sHail": "Kaikias’s hail rattles", "sThunder": "Zeus’s thunder rolls", "sStir": "Zeus stirs far off", "sFog": "fog closes the sky", "sCloud": "Nephele’s clouds muffle the sky", "sClear": "the sky is clear and open", "sIris": "Iris rings a rainbow", "sStars": "Nyx’s stars glint", "sDrone": "the air’s weight ({p}) sets Ouranos’s low note, and {tp} the {m} mode", "p_sun": "Helios", "p_moon": "Selene", "p_hermes": "Hermes", "p_aphrodite": "Aphrodite", "p_ares": "Ares", "p_zeus": "Zeus", "p_kronos": "Kronos", "p_ouranos": "Ouranos", "p_poseidon": "Poseidon", "solH": "Solstices and alignments", "termsL": "What these words mean", "shBtn": "Stonehenge’s Station Stones", "shAubrey": "Aubrey Hole", "shApprox": "positions approximate", "shHere": "Lay out Station Stones here", "shAngle": "Station Stones for this latitude: the sides meet at {a}° (a rectangle, 90°, only near Stonehenge)", "shPolar": "Here the Sun or the Moon does not rise and set on those days, so the stones cannot be laid out.", "mixH": "Voices", "mixReset": "All back to 100 %", "mute": "Mute", "mxVoices": "The winds’ voices (the Anemoi)", "mxWind": "The wind", "mxHarp": "The Aeolian harp", "mxRain": "Rain, snow and hail", "mxDrone": "Ouranos’s low note", "mxThunder": "Zeus’s thunder", "mxSparkle": "Iris and the stars", "tapWord": "Tap a word to see what it means.", "gBrg": "Bearing", "gGleam": "First gleam", "solP": "When the next solstice and equinox fall, and where the Sun and Moon rise and set at this place on the days that ancient monuments were built to mark, as at Stonehenge, Newgrange and Bryn Celli Ddu.", "dawnJun": "Hear the June solstice sunrise", "dawnDec": "Hear the December solstice sunrise", "alH": "Alignments", "alSol": "Solstices", "alEq": "Equinoxes", "alXq": "Cross-quarter days", "alLun": "Lunar standstills", "alSky": "Show on the sky", "alHz": "Horizon height", "mapL": "Map of the alignments", "alStand": "Stand here", "alReset": "Back to the place", "lmHint": "Tap the map to drop a marker on a landmark (a standing stone, a hilltop, a gap in the skyline) and drag it to the exact spot. “Stand here” moves the centre of the alignments to the marker, or to the middle of the map if there is none; the gold marker can also be dragged.", "ev_jun": "June solstice", "ev_dec": "December solstice", "midsum": "midsummer", "midwin": "midwinter", "ev_eq": "Equinox", "mMar": "March", "mSep": "September", "ev_xqn": "Cross-quarter days of early May and early August", "ev_xqs": "Cross-quarter days of early November and early February", "ev_xqF": "Cross-quarter day (Imbolc)", "ev_xqM": "Cross-quarter day (Beltane)", "ev_xqA": "Cross-quarter day (Lughnasadh)", "ev_xqN": "Cross-quarter day (Samhain)", "ev_lmajn": "Major lunar standstill, north", "ev_lmajs": "Major lunar standstill, south", "ev_lminn": "Minor lunar standstill, north", "ev_lmins": "Minor lunar standstill, south", "rs_sunrise": "sunrise", "rs_sunset": "sunset", "rs_moonrise": "moonrise", "rs_moonset": "moonset", "lineLab": "{e} {r}", "evH": "Event", "riseH": "Rising bearing", "setH": "Setting bearing", "inDays": "in {d} days, {h} h {m} min", "riseSetAt": "That day at {p}: sunrise {r}, sunset {s} (time · bearing).", "standPoint": "your standing point", "athens": "Athens, the Tower of the Winds", "solWhere": "Bearings from {p} ({c}) over a horizon {h} high, measured clockwise from true north.", "mapErr": "The map could not be loaded. Check the connection.", "landmark": "Landmark", "lmMeasuring": "Measuring…", "lmHead": "The landmark is at a bearing of {b}, {d} away and {h} above you, so it stands {a} above a level horizon.", "lmMatch": "It lines up with the {l}, within {o}°.", "lmSunR": "The Sun rises behind it around {d}.", "lmSunS": "The Sun sets behind it around {d}.", "and": " and ", "lmMoonR": "The Sun never rises there; only the Moon does, in the years around a major lunar standstill (every 18.6 years: the last peaked in 2024–25, the next will be about 2043).", "lmMoonS": "The Sun never sets there; only the Moon does, in the years around a major lunar standstill (every 18.6 years: the last peaked in 2024–25, the next will be about 2043).", "lmNone": "Neither the Sun nor the Moon rises or sets there.", "noRise": "At this place the Sun does not rise on that day.", "dawnNow": "The {e} sunrise: {t}, at a bearing of {a}. Forty minutes of dawn in one: Eos’s light first, then Helios rises from the true direction as you face." }
+    { "title": "The Weather’s Song", "desc": "The weather where you are, sung by the Greek gods of the winds, the clouds, the thunder and the rainbow.", "lede": "The weather where you are, played by the gods who ruled it: the eight winds of the Tower of the Winds in Athens, Nephele’s clouds, Zeus’s thunder and Iris’s rainbow. The sounds follow the physics: the wind plays an Aeolian harp, and each raindrop rings at the pitch of the air bubble it traps.", "navApp": "The app", "navDial": "2D dial", "navHelp": "How it works", "placeHint": "Type a town or place", "find": "Find", "here": "Use my location", "play": "Play the weather", "stop": "Stop", "sky": "Sky", "wind": "Wind", "gusts": "Gusts", "temp": "Temperature", "cloud": "Cloud", "rain": "Rain", "humidity": "Humidity", "pressure": "Pressure", "facing": "You face", "units": "Units", "volume": "Volume", "metric": "Metric (°C, km/h)", "imperial": "Imperial (°F, mph)", "imagineH": "Make your own weather", "imagineP": "Move a slider to play any weather you like, a gale, a heatwave or a thunderstorm. The real weather comes back with the button below.", "dirL": "Wind from (degrees, 0 = north)", "thunder": "Thunder", "snowL": "snow", "night": "night", "back": "Back to the real weather", "howH": "How the weather sounds", "how1": "The wind: the god of the wind’s direction sings, one of the eight winds carved on the Tower of the Winds in Athens, from where the wind comes as you face. A gust bends the voice up, as a wind howls.", "how2": "The Aeolian harp: six strings of different thickness, tuned together. Wind across a string sheds eddies about 0.2 × speed ÷ thickness times a second, and the string sings the harmonic nearest to that, so the chords change as the wind rises and falls.", "how3": "Rain: each drop that traps a bubble of air rings at the bubble’s own pitch (the Minnaert frequency, about 3.3 kHz for a bubble 1 mm across). Heavier rain has bigger drops and lower rings; drizzle is fine and high.", "how4": "Ouranos, the sky, holds the low note: one semitone for every 2.5 hPa of air pressure from the standard 1013. The temperature chooses the mode, Phrygian in a frost, Lydian in a heatwave.", "how5": "Nephele’s clouds muffle the sky (a low-pass closing as the cloud thickens); fog closes it more, and fresh snow, Khione’s, hushes everything as real snow does. Damp air carries a longer echo.", "how6": "Zeus: in a thunderstorm the lightning flashes first and the thunder follows at the speed of sound for its distance, a crack when it is close, a long roll when it is far.", "how7": "Iris rings a rainbow scale when the sun shines on rain; on a clear night Nyx’s stars glint. The weather is fetched again every quarter of an hour.", "tools": "Record and stage", "record": "Record", "foot": "Weather data:", "privacy": "Privacy", "pick": "Type a place above, or use your location, to hear its weather.", "searching": "Searching…", "fetching": "Fetching the weather…", "none": "No place of that name was found.", "netErr": "The weather could not be fetched. Check the connection and try again.", "noLoc": "This device could not give a location. Type a place instead.", "locDenied": "Location was not allowed. Type a place instead.", "locating": "Finding where you are…", "hereName": "Your location ({c})", "cN": "N", "cS": "S", "cE": "E", "cW": "W", "asOf": "The weather at {t} local time.", "offline": "Offline: the weather last fetched, at {t}.", "imagined": "Your own weather", "calm": "Calm", "from": "from the {d}", "youFace": "▲", "d_n": "north", "d_ne": "north-east", "d_e": "east", "d_se": "south-east", "d_s": "south", "d_sw": "south-west", "d_w": "west", "d_nw": "north-west", "g_boreas": "Boreas", "g_kaikias": "Kaikias", "g_apeliotes": "Apeliotes", "g_euros": "Euros", "g_notos": "Notos", "g_lips": "Lips", "g_zephyros": "Zephyros", "g_skiron": "Skiron", "gt_boreas": "The north wind, cold and strong. On the Tower of the Winds he is a bearded old man in a heavy cloak, blowing a conch shell. He carried off Oreithyia, the princess of Athens, and the Athenians thanked him for wrecking the Persian fleet. He sings the lowest.", "gt_kaikias": "The north-east wind, bringer of hail. On the Tower he tips a shield full of hailstones on the land below. A dark wind, singing low.", "gt_apeliotes": "The east wind, kindly and warm, bringing a gentle rain. On the Tower he is a young man carrying fruit, wheat and honeycomb in his cloak.", "gt_euros": "The south-east wind, unlucky and stormy. On the Tower he is an old man wrapped against the weather. Homer counts him among the four great winds.", "gt_notos": "The south wind, hot and wet, the bringer of the late-summer and autumn storms. On the Tower he empties a jar of water. Notos was feared by sailors.", "gt_lips": "The south-west wind. On the Tower he holds the stern of a ship, for he blew ships home into the harbours of Athens.", "gt_zephyros": "The west wind, the gentlest, the herald of spring. On the Tower he is a young man scattering flowers from his cloak. The husband of Chloris, the goddess of flowers, he sings the highest and sweetest.", "gt_skiron": "The north-west wind, dry and cold in winter, scorching in summer. On the Tower he tips out a bronze pot of hot ashes and charcoal.", "m_phrygian": "Phrygian", "m_aeolian": "Aeolian", "m_dorian": "Dorian", "m_mixolydian": "Mixolydian", "m_ionian": "Ionian", "m_lydian": "Lydian", "wClear": "Clear", "wMainly": "Mainly clear", "wPartly": "Partly cloudy", "wOvercast": "Overcast", "wFog": "Fog", "wDrizzle": "Drizzle", "wFDrizzle": "Freezing drizzle", "wRain": "Rain", "wFRain": "Freezing rain", "wSnow": "Snow", "wGrains": "Snow grains", "wShowers": "Showers", "wSnowShowers": "Snow showers", "wThunder": "Thunderstorm", "wHail": "Thunderstorm with hail", "sCalm": "The winds are still", "sWind": "{g}, the {d} wind, sings", "sHarp": "the wind plays the Aeolian harp", "sRain": "the raindrops ring at the pitch of their bubbles", "sSnow": "Khione’s snow hushes everything", "sHail": "Kaikias’s hail rattles", "sThunder": "Zeus’s thunder rolls", "sStir": "Zeus stirs far off", "sFog": "fog closes the sky", "sCloud": "Nephele’s clouds muffle the sky", "sClear": "the sky is clear and open", "sIris": "Iris rings a rainbow", "sStars": "Nyx’s stars glint", "sDrone": "the air’s weight ({p}) sets Ouranos’s low note, and {tp} the {m} mode", "p_sun": "Helios", "p_moon": "Selene", "p_hermes": "Hermes", "p_aphrodite": "Aphrodite", "p_ares": "Ares", "p_zeus": "Zeus", "p_kronos": "Kronos", "p_ouranos": "Ouranos", "p_poseidon": "Poseidon", "solH": "Solstices and alignments", "termsL": "What these words mean", "shBtn": "Stonehenge’s Station Stones", "shAubrey": "Aubrey Hole", "shApprox": "positions approximate", "moNow": "{m} — {t}, at a bearing of {a}. Forty minutes of the sky in one minute, from the true direction as you face.", "alStar": "Bright stars", "alEra": "Era", "eraNow": "Now", "eraBC": "{y} BC", "eraAD": "AD {y}", "st_sirius": "Sirius", "st_canopus": "Canopus", "st_pleiades": "the Pleiades", "st_orion": "Orion’s Belt", "rs_starrise": "rising", "rs_starset": "setting", "helH": "First seen at dawn (heliacal rising)", "helLine": "{s}: about {d} days {ba} the June solstice", "before": "before", "after": "after", "helToday": ", around {d} this year", "helNever": "{s}: never rises here", "helNone": "{s}: never hidden by the Sun here, so no heliacal rising", "shHere": "Lay out Station Stones here", "shAngle": "Station Stones for this latitude: the sides meet at {a}° (a rectangle, 90°, only near Stonehenge)", "shPolar": "Here the Sun or the Moon does not rise and set on those days, so the stones cannot be laid out.", "mixH": "Voices", "mixReset": "All back to 100 %", "mute": "Mute", "mxVoices": "The winds’ voices (the Anemoi)", "mxWind": "The wind", "mxHarp": "The Aeolian harp", "mxRain": "Rain, snow and hail", "mxDrone": "Ouranos’s low note", "mxThunder": "Zeus’s thunder", "mxSparkle": "Iris and the stars", "tapWord": "Tap a word to see what it means.", "gBrg": "Bearing", "gGleam": "First gleam", "solP": "When the next solstice and equinox fall, and where the Sun and Moon rise and set at this place on the days that ancient monuments were built to mark, as at Stonehenge, Newgrange and Bryn Celli Ddu.", "dawnJun": "Hear the June solstice sunrise", "dawnDec": "Hear the December solstice sunrise", "alH": "Alignments", "alSol": "Solstices", "alEq": "Equinoxes", "alXq": "Cross-quarter days", "alLun": "Lunar standstills", "alSky": "Show on the sky", "alHz": "Horizon height", "mapL": "Map of the alignments", "alStand": "Stand here", "alReset": "Back to the place", "lmHint": "Tap the map to drop a marker on a landmark (a standing stone, a hilltop, a gap in the skyline) and drag it to the exact spot. “Stand here” moves the centre of the alignments to the marker, or to the middle of the map if there is none; the gold marker can also be dragged.", "ev_jun": "June solstice", "ev_dec": "December solstice", "midsum": "midsummer", "midwin": "midwinter", "ev_eq": "Equinox", "mMar": "March", "mSep": "September", "ev_xqn": "Cross-quarter days of early May and early August", "ev_xqs": "Cross-quarter days of early November and early February", "ev_xqF": "Cross-quarter day (Imbolc)", "ev_xqM": "Cross-quarter day (Beltane)", "ev_xqA": "Cross-quarter day (Lughnasadh)", "ev_xqN": "Cross-quarter day (Samhain)", "ev_lmajn": "Major lunar standstill, north", "ev_lmajs": "Major lunar standstill, south", "ev_lminn": "Minor lunar standstill, north", "ev_lmins": "Minor lunar standstill, south", "rs_sunrise": "sunrise", "rs_sunset": "sunset", "rs_moonrise": "moonrise", "rs_moonset": "moonset", "lineLab": "{e} {r}", "evH": "Event", "riseH": "Rising bearing", "setH": "Setting bearing", "inDays": "in {d} days, {h} h {m} min", "riseSetAt": "That day at {p}: sunrise {r}, sunset {s} (time · bearing).", "standPoint": "your standing point", "athens": "Athens, the Tower of the Winds", "solWhere": "Bearings from {p} ({c}) over a horizon {h} high, measured clockwise from true north.", "mapErr": "The map could not be loaded. Check the connection.", "landmark": "Landmark", "lmMeasuring": "Measuring…", "lmHead": "The landmark is at a bearing of {b}, {d} away and {h} above you, so it stands {a} above a level horizon.", "lmMatch": "It lines up with the {l}, within {o}°.", "lmSunR": "The Sun rises behind it around {d}.", "lmSunS": "The Sun sets behind it around {d}.", "and": " and ", "lmMoonR": "The Sun never rises there; only the Moon does, in the years around a major lunar standstill (every 18.6 years: the last peaked in 2024–25, the next will be about 2043).", "lmMoonS": "The Sun never sets there; only the Moon does, in the years around a major lunar standstill (every 18.6 years: the last peaked in 2024–25, the next will be about 2043).", "lmNone": "Neither the Sun nor the Moon rises or sets there.", "noRise": "At this place the Sun does not rise on that day.", "dawnNow": "The {e} sunrise: {t}, at a bearing of {a}. Forty minutes of dawn in one: Eos’s light first, then Helios rises from the true direction as you face.", "monH": "Monuments", "monPick": "Choose a monument…", "monHear": "Hear", "monEra": "Built about {y}", "monNoEra": "Its sky today", "tr_egypt": "Egypt", "tr_bharata": "India and Angkor", "tr_java": "Java", "tr_maya": "The Maya", "tr_babylon": "Babylon", "tr_lu": "China", "tr_ikhwan": "Mecca", "tr_welsh": "Britain and Ireland", "tr_norse": "Scandinavia", "tr_greek": "Greece", "stat_well": "well established", "stat_wide": "widely accepted", "stat_debated": "debated", "az_measured": "measured", "az_computed": "worked out for this latitude", "az_nominal": "as built, not measured", "monAxis": "Axis", "monStatus": "Status", "mo_eq": "the equinox", "mo_jun": "the June solstice", "mo_dec": "the December solstice", "mo_date": "{d}", "moSunrise": "Sunrise: {e}", "moSunset": "Sunset: {e}", "moStar": "{s}: first seen at dawn", "skyLink": "Their sky alignments on the map", "mn_khufu": "The Great Pyramid of Khufu, Giza", "md_khufu": "Its sides face the four cardinal points to within about 3 arcminutes, probably laid out by the stars circling the pole or by the Sun’s shadow. Seen from here, the equinox Sun rises almost exactly along its east face.", "mn_karnak": "Karnak, Temple of Amun-Ra, Luxor", "md_karnak": "The temple’s great axis runs south-east to the midwinter sunrise and north-west to the midsummer sunset; on the winter solstice morning the Sun shines along it.", "mn_abusimbel": "Abu Simbel, Great Temple of Ramesses II", "md_abusimbel": "Twice a year, around 22 February and 22 October, the rising Sun shines 60 metres into the sanctuary and lights three of its four seated gods. The temple was moved in the 1960s; the dates have shifted by about a day.", "mn_sirius_memphis": "Sirius rising at Memphis", "md_sirius_memphis": "The first dawn showing of Sirius (Sopdet) told the Egyptians that the Nile flood was near and began their year. Around 2500 BC it fell within a few days of the June solstice.", "mn_konark": "Konark Sun Temple, Odisha", "md_konark": "Built as the chariot of the Sun god Surya, with twelve pairs of wheels; it faces east, to the sunrise.", "mn_modhera": "Modhera Sun Temple, Gujarat", "md_modhera": "Said to let the equinox sunrise fall on the image of Surya in its sanctum; a claim repeated often but rarely measured.", "mn_angkorwat": "Angkor Wat, Cambodia", "md_angkorwat": "A Hindu temple to Vishnu that faces west. From its western entrance the equinox Sun rises over the central tower.", "mn_borobudur": "Borobudur, Java", "md_borobudur": "The great Buddhist stupa is set to the cardinal points. One study finds a sight-line to sunset on the days the Sun passes overhead; others doubt it.", "mn_prambanan": "Prambanan, Java", "md_prambanan": "The Hindu temples face east, to the sunrise, set to the cardinal points.", "mn_pranata_mangsa": "Pranata mangsa: the farmers’ sky, Java", "md_pranata_mangsa": "Java’s farming calendar was kept by the stars: Orion’s Belt (Waluku, the plough) and the Pleiades (Lintang Kartika) seen at dawn and dusk told when to prepare the fields, plant and harvest.", "mn_uaxactun": "Uaxactún, Group E, Guatemala", "md_uaxactun": "From the pyramid on the west, the three temples on the east platform are said to mark the sunrise at the June solstice, the equinoxes and the December solstice; how exact the sight-lines were is debated.", "mn_chichenitza": "Chichén Itzá, El Castillo, Mexico", "md_chichenitza": "At the equinoxes the afternoon Sun throws a serpent of light down its northern stair. Its axis points to the sunsets of about 20 May and 24 July, the days the Sun passes overhead there.", "mn_etemenanki": "Babylon, the ziggurat Etemenanki", "md_etemenanki": "The great temple-tower stood square to the cardinal points. The Babylonians’ star calendar, MUL.APIN, timed the year by heliacal risings, among them Sirius’s.", "mn_gaocheng": "Gaocheng Observatory, Dengfeng", "md_gaocheng": "A stone tower with a long gnomon laid exactly north–south, where Guo Shoujing measured the noon shadow at the solstices to fix the length of the year (1276).", "mn_templeofheaven": "Temple of Heaven, Beijing", "md_templeofheaven": "Laid out on the north–south axis of the capital; here the emperor offered the great sacrifice to Heaven at dawn on the winter solstice.", "mn_kaaba": "The Kaaba, Mecca", "md_kaaba": "One study finds its longer axis turned to the rising of Canopus and its shorter axis to the midsummer sunrise; the bearings here are worked out for its latitude.", "mn_bryncelliddu": "Bryn Celli Ddu, Ynys Môn", "md_bryncelliddu": "The passage of this tomb on Anglesey catches the sunrise at midsummer, lighting the inner chamber.", "mn_newgrange": "Newgrange, Ireland", "md_newgrange": "For a few mornings around the winter solstice, the rising Sun shines through the roof-box down the 19-metre passage to the inner chamber.", "mn_maeshowe": "Maeshowe, Orkney", "md_maeshowe": "In the weeks around the winter solstice the setting Sun, sinking behind the Hoy hills, shines down the passage onto the back wall of the chamber.", "mn_stonehenge": "Stonehenge", "md_stonehenge": "Its axis runs to the midsummer sunrise one way and the midwinter sunset the other; the Station Stones add the Moon’s major standstill.", "mn_alesstenar": "Ale’s Stones, Sweden", "md_alesstenar": "A ship-shaped setting of 59 stones on the coast of Skåne; its long axis is said to point to the midsummer sunset and the midwinter sunrise.", "mn_towerofwinds": "The Tower of the Winds, Athens", "md_towerofwinds": "The eight faces carry the eight winds that sing on this page, each facing its own direction; there were sundials on its faces and a water clock inside." }
   );
   const LOC = (
     /*LOC*/
@@ -5267,7 +5280,7 @@ function rtShow(blob,secs,kind){
   MOTS.nowPlaying = () => {
     if (FX.dawn) {
       const [lat] = placeLL();
-      return { k: "Ἠώς", h: t("lineLab", { e: evName(FX.dawn.which, lat), r: t("rs_sunrise") }), p: AL.obs ? t("standPoint") : ST.place ? ST.place.name : t("athens"), d: fmtDT(FX.dawn.jd, 1) + " · " + degs(FX.dawn.az) };
+      return { k: FX.dawn.which === "sunset" ? "Νύξ" : "Ἠώς", h: FX.dawn.cap || "", p: AL.obs ? t("standPoint") : ST.place ? ST.place.name : t("athens"), d: fmtDT(FX.dawn.jd, 1) + " · " + degs(FX.dawn.az) };
     }
     const W = ST.data;
     if (!W) return null;
@@ -5282,7 +5295,7 @@ function rtShow(blob,secs,kind){
   MOTS.weather = { start, stop, state: () => ST, set: (o) => {
     Object.assign(ST.data || (ST.data = {}), o);
     ui();
-  }, probe: (fn) => fn({ ST, A, AC, WINDS, modeOf, AL, X: { seasonJD, riseSet, skyAt, lines, events, sunEq, moonEq, lonJD, msOf, jdOf } }) };
+  }, probe: (fn) => fn({ ST, A, AC, WINDS, modeOf, AL, X: { seasonJD, riseSet, skyAt, lines, events, sunEq, moonEq, lonJD, msOf, jdOf, epsEra, starEra, heliacal, sunYear, ERA_ST } }) };
   const FX = { flash: 0, iris: -1e9, stars: [], parts: [] };
   function draw() {
     requestAnimationFrame(draw);
@@ -5659,9 +5672,68 @@ function rtShow(blob,secs,kind){
     c.arc(cx, cy, RD, 0, 7);
     c.stroke();
   }
+  const yearNow = () => (/* @__PURE__ */ new Date()).getUTCFullYear();
+  const eraYear = () => AL.year == null ? yearNow() : AL.year < 0 ? AL.year + 1 : AL.year;
+  function epsEra(y) {
+    const t2 = (y - 2e3) / 1e4, u = [-4680.93, -1.55, 1999.25, -51.38, -249.67, -39.05, 7.12, 27.87, 5.79, 2.45];
+    let e = 84381.448, tt = t2;
+    for (const c of u) {
+      e += c * tt;
+      tt *= t2;
+    }
+    return e / 3600;
+  }
+  const ERA_ST = [
+    // id, RA, Dec (J2000, degrees), proper motion in RA·cos Dec and in Dec (mas a year, Hipparcos), magnitude, arcus visionis (°), colour
+    ["sirius", 101.28716, -16.71612, -546.01, -1223.07, -1.46, 10, "#cfe3ff"],
+    ["canopus", 95.98796, -52.69566, 19.93, 23.24, -0.74, 10.5, "#fff1c4"],
+    ["pleiades", 56.87115, 24.10514, 19.34, -43.67, 1.6, 15, "#d9c2ff"],
+    ["orion", 84.05339, -1.20192, 1.44, -0.78, 1.7, 14, "#a9d0ff"]
+  ];
+  function starEra(st, y) {
+    const yrs = y - 2e3, d0 = st[2] + st[4] * yrs / 36e5, a0 = st[1] + st[3] * yrs / 36e5 / Math.cos(st[2] * D2R), T = yrs / 100, as = (x) => x / 3600 * D2R;
+    const ze = as(2306.2181 * T + 0.30188 * T * T + 0.017998 * T ** 3), z = as(2306.2181 * T + 1.09468 * T * T + 0.018203 * T ** 3), th = as(2004.3109 * T - 0.42665 * T * T - 0.041833 * T ** 3);
+    const a = a0 * D2R, d = d0 * D2R, A2 = Math.cos(d) * Math.sin(a + ze), B = Math.cos(th) * Math.cos(d) * Math.cos(a + ze) - Math.sin(th) * Math.sin(d), C = Math.sin(th) * Math.cos(d) * Math.cos(a + ze) + Math.cos(th) * Math.sin(d);
+    return [((Math.atan2(A2, B) + z) * R2D % 360 + 360) % 360, Math.asin(clamp(C, -1, 1)) * R2D];
+  }
+  function sunYear(y) {
+    const T = (y - 2e3) / 100, e = 0.016708634 - 42037e-9 * T - 1267e-10 * T * T, pg = (102.93735 + 1.71946 * T + 46e-5 * T * T + 180) % 360, eps = epsEra(y) * D2R;
+    const nuToM = (nu) => {
+      const E = 2 * Math.atan(Math.sqrt((1 - e) / (1 + e)) * Math.tan(nu / 2));
+      return E - e * Math.sin(E);
+    }, MToNu = (M) => {
+      let E = M;
+      for (let i = 0; i < 8; i++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+      return 2 * Math.atan(Math.sqrt((1 + e) / (1 - e)) * Math.tan(E / 2));
+    };
+    const Ms = nuToM(((90 - pg) % 360 + 360) % 360 * D2R), n = 2 * Math.PI / 365.2596;
+    return (d) => {
+      const lam = MToNu(Ms + n * d) + pg * D2R;
+      return { lam: (lam * R2D % 360 + 360) % 360, ra: Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam)) * R2D, dec: Math.asin(Math.sin(eps) * Math.sin(lam)) * R2D };
+    };
+  }
+  function heliacal(st, lat, y) {
+    const [ra, dec] = starEra(st, y), sun = sunYear(y), hmin = 1, av = st[6];
+    let seen = null, hidden = 0;
+    for (let d = -200; d <= 200; d++) {
+      const s = sun(d), cH = (sinD(-av) - sinD(lat) * sinD(s.dec)) / (cosD(lat) * cosD(s.dec));
+      if (Math.abs(cH) > 1) {
+        seen = null;
+        continue;
+      }
+      const H = -acosD(cH), lst = s.ra + H, Hs = ((lst - ra) % 360 + 540) % 360 - 180, alt = asinD(sinD(lat) * sinD(dec) + cosD(lat) * cosD(dec) * cosD(Hs));
+      const vis = alt >= hmin && Hs < 0;
+      if (!vis) hidden++;
+      else {
+        if (hidden >= 15 && d > -170) return d;
+        hidden = 0;
+      }
+    }
+    return null;
+  }
   const AL = { obs: null, lm: null, hz: +(LS.get("mots.wx.hz") || 0), grp: JSON.parse(LS.get("mots.wx.grp") || '{"sol":1,"eq":1,"xq":0,"lun":0}'), onSky: LS.get("mots.wx.onsky") !== "0", map: null, elev: {} };
-  function lines(lat, hz) {
-    const T = (jdOf(Date.now()) - 2451545) / 36525, e = oblD(T), xq = asinD(sinD(e) * sinD(45)), i = 5.145, out = [];
+  function lines(lat, hz, yr) {
+    const y = yr == null ? eraYear() : yr, e = epsEra(y), xq = asinD(sinD(e) * sinD(45)), i = 5.145, out = [];
     const add = (id, grp, dec, moon, col, dash) => {
       const h = hz + (moon ? 0.125 : -0.833), c = (sinD(dec) - sinD(lat) * sinD(h)) / (cosD(lat) * cosD(h));
       if (Math.abs(c) > 1) return;
@@ -5673,6 +5745,12 @@ function rtShow(blob,secs,kind){
     add("eq", "eq", 0, 0, "#f2efe6");
     add("xqn", "xq", xq, 0, "#9fdc8a", [6, 4]);
     add("xqs", "xq", -xq, 0, "#c9a46a", [6, 4]);
+    ERA_ST.forEach((st) => {
+      const dec = starEra(st, y)[1], h = hz + 1, c = (sinD(dec) - sinD(lat) * sinD(h)) / (cosD(lat) * cosD(h));
+      if (Math.abs(c) > 1) return;
+      const A2 = acosD(c);
+      out.push({ id: "st_" + st[0] + "R", ev: "st_" + st[0], grp: "star", dec, star: 1, rise: 1, az: A2, col: st[7], dash: [8, 3, 2, 3] }, { id: "st_" + st[0] + "S", ev: "st_" + st[0], grp: "star", dec, star: 1, rise: 0, az: 360 - A2, col: st[7], dash: [8, 3, 2, 3] });
+    });
     add("lmajn", "lun", e + i, 1, "#b9c8ff", [2, 4]);
     add("lmajs", "lun", -(e + i), 1, "#b9c8ff", [2, 4]);
     add("lminn", "lun", e - i, 1, "#8ea0d8", [2, 4]);
@@ -5680,12 +5758,13 @@ function rtShow(blob,secs,kind){
     return out;
   }
   function evName(ev, lat) {
+    if (ev.startsWith("st_")) return t(ev);
     const hem = lat >= 0;
     if (ev === "jun") return t("ev_jun") + " (" + t(hem ? "midsum" : "midwin") + ")";
     if (ev === "dec") return t("ev_dec") + " (" + t(hem ? "midwin" : "midsum") + ")";
     return t("ev_" + ev);
   }
-  const rsName = (l) => t(l.moon ? l.rise ? "rs_moonrise" : "rs_moonset" : l.rise ? "rs_sunrise" : "rs_sunset");
+  const rsName = (l) => t(l.star ? l.rise ? "rs_starrise" : "rs_starset" : l.moon ? l.rise ? "rs_moonrise" : "rs_moonset" : l.rise ? "rs_sunrise" : "rs_sunset");
   const lineLab = (l, lat) => t("lineLab", { e: evName(l.ev, lat), r: rsName(l) });
   const MEEUS = [[485, 324.96, 1934.136], [203, 337.23, 32964.467], [199, 342.08, 20.186], [182, 27.85, 445267.112], [156, 73.14, 45036.886], [136, 171.52, 22518.443], [77, 222.54, 65928.934], [74, 296.72, 3034.906], [70, 243.58, 9037.513], [58, 119.81, 33718.147], [52, 297.17, 150.678], [50, 21.02, 2281.226], [45, 247.54, 29929.562], [44, 325.15, 31555.956], [29, 60.93, 4443.417], [18, 155.12, 67555.328], [17, 288.79, 4562.452], [16, 198.04, 62894.029], [14, 199.76, 31436.921], [12, 95.39, 14577.848], [12, 287.11, 31931.756], [12, 320.81, 34777.259], [9, 227.73, 1222.114], [8, 15.45, 16859.074]];
   function seasonJD(year, k) {
@@ -5740,7 +5819,7 @@ function rtShow(blob,secs,kind){
     return out;
   }
   const tzOpt = () => {
-    const z = ST.data && ST.data.tz;
+    const z = AL.mon && AL.mon.tz || !AL.mon && ST.data && ST.data.tz;
     try {
       if (z) {
         new Intl.DateTimeFormat("en", { timeZone: z });
@@ -5767,9 +5846,10 @@ function rtShow(blob,secs,kind){
   const degs = (a) => nf(a, 1) + "°";
   const GL = (
     /*GL*/
-    { "sol": ["<b>Solstice.</b> The two moments of the year when the Sun reaches its farthest north (about 21 June) or its farthest south (about 21 December). For a few days around them its rising and setting points seem to stop and turn back, hence the name, from the Latin <em>sol</em>, sun, and <em>sistere</em>, to stand still. North of the equator, the June solstice brings the longest day (midsummer) and the December solstice the shortest (midwinter); south of the equator it is the other way round.", "<b>Midwinter: the return of the light.</b> For farmers in the north, the shortest day was the hinge of survival, the moment the Sun stopped retreating and began to come back. Several of the great monuments are built for it. At Newgrange, in Ireland, the rising Sun shines down the 19-metre passage to the inner chamber for a few mornings around the winter solstice; at Maeshowe, on Orkney, the setting Sun does the same. Stonehenge’s main axis runs from the midsummer sunrise one way to the midwinter sunset the other, and many archaeologists now think midwinter was the greater occasion: the bones of pigs at nearby Durrington Walls show they were slaughtered for feasts in midwinter. In Anglesey, the passage of Bryn Celli Ddu catches the sunrise at midsummer."], "eq": ["<b>Equinox.</b> About 20 March and 22 September, halfway between the solstices: day and night are nearly equal everywhere, and the Sun rises almost due east and sets almost due west.", "<b>The equinoxes.</b> Day and night are equal, but the Sun’s rising point moves fastest at the equinoxes and the day is hard to fix by eye, so prehistoric monuments seem to mark it less often. They mattered greatly to later calendars: the date of Easter is reckoned from the spring equinox, the Persian new year, Nowruz, begins at it, and at Chichén Itzá in Mexico the setting Sun at the equinoxes casts a serpent of light down the pyramid’s stair."], "xq": ["<b>Cross-quarter days.</b> The four days halfway between a solstice and an equinox, in early February, early May, early August and early November. They split the year into eighths. In the old Celtic calendar of Ireland, Scotland, Wales and the Isle of Man they began the seasons: <b>Imbolc</b> (early February, the first stirring of spring; in Welsh Gŵyl Fair y Canhwyllau, in English Candlemas), <b>Beltane</b> (May Day, the start of summer; Calan Mai), <b>Lughnasadh</b> (early August, the start of the harvest; Gŵyl Awst, Lammas) and <b>Samhain</b> (the start of winter and the dark half of the year; Calan Gaeaf, now Hallowe’en and All Saints). They are now kept on fixed dates (1 February, 1 May, 1 August, 1 November); the page gives the astronomical days, when the Sun is exactly halfway, a few days later. Because the Sun stands at the same height in the sky on the May and the August days, they share one sunrise bearing, and the November and February days share another. Some ancient monuments are often said to face them: the passage of the Mound of the Hostages at Tara, in Ireland, is said to catch the sunrise at Samhain and Imbolc.", "<b>The cross-quarter days: the farming year.</b> They marked the turns of a herding life. At Beltane the cattle were driven out to the summer pastures between bonfires; at Lughnasadh the first harvest was gathered and people met at fairs and games; at Samhain the herds came in, animals that could not be fed through the winter were killed, and the dead were thought to come close; at Imbolc the ewes began to give milk and lamb. Most of this is known from medieval Irish writing and later folk custom, and how far back it reaches is debated, but the festivals were kept in Wales, Scotland and Ireland for many centuries (Calan Mai and Calan Gaeaf among them)."], "lun": ["<b>Lunar standstills.</b> The Moon’s path is tilted about 5° to the Sun’s, and the tilt turns right round every 18.6 years. At a <b>major standstill</b> (the last was in 2024–25, the next will be about 2043) the Moon rises and sets farther north and south than the Sun ever does, for a year or two; at a <b>minor standstill</b> (next about 2034) its range is at its narrowest, inside the Sun’s. Some stone circles, such as Callanish on Lewis and the recumbent stone circles of Aberdeenshire, are thought to mark them.", "<b>The Moon’s long cycle.</b> The Moon gave the months and the light to travel and work by at night. Its 18.6-year swing between standstills can only be seen over half a lifetime of watching, so a monument that marks it suggests generations of careful observation handed down. At Callanish on Lewis, at a major standstill, the Moon skims low along the southern hills and seems to set and then gleam again among the stones; the recumbent stone circles of Aberdeenshire frame the setting Moon in the south between two upright stones. How deliberate such alignments were is still argued over."], "brg": ["<b>Bearing.</b> A direction measured clockwise from true north: 90° is east, 180° south, 270° west. True north is the direction of the North Pole; a magnetic compass can differ from it by a few degrees."], "hz": ["<b>Horizon height.</b> How high the skyline stands above a level horizon in the direction you look, in degrees (a hill 100 m high a kilometre away stands about 6° up). A raised skyline makes the Sun appear later and farther along its path, so sunrise moves towards the south and sunset towards the north, or the other way round south of the equator."], "gleam": ["<b>First gleam.</b> The times and bearings are for the moment the top edge of the Sun first shows or last disappears, and they allow for the air bending the light, which lifts the Sun by about half a degree at the horizon. That is why sunrise comes a few minutes before the Sun’s centre is geometrically level with the horizon."], "sh": ["<b>Stonehenge’s Station Stones.</b> Four stones, numbered 91 to 94 (two survive), stood on the ring of the 56 Aubrey Holes and mark out a rectangle about 80 by 33 metres. Its short sides run parallel to the monument’s axis, towards the midsummer sunrise one way and the midwinter sunset the other. Its long sides point south-east to the southernmost moonrise and north-west to the northernmost moonset at a major lunar standstill, which comes every 18.6 years (the last in 2024–25). Only within about 50 km of Stonehenge’s latitude do those two directions cross at a right angle, so the rectangle can fit both; some take that as a sign the place was chosen for it, others think the match is chance. In the 1960s the astronomers Gerald Hawkins and Fred Hoyle argued that the 56 Aubrey Holes, with markers moved round them, could have predicted eclipses (56 is close to three cycles of 18.6 years), but most archaeologists doubt it: the holes held cremations and probably bluestones. On the map the stones are drawn in approximate positions from the published plan; compare their sides with the solstice and standstill lines drawn from the centre."], "why_h": "Why they mattered" }
+    { "sol": ["<b>Solstice.</b> The two moments of the year when the Sun reaches its farthest north (about 21 June) or its farthest south (about 21 December). For a few days around them its rising and setting points seem to stop and turn back, hence the name, from the Latin <em>sol</em>, sun, and <em>sistere</em>, to stand still. North of the equator, the June solstice brings the longest day (midsummer) and the December solstice the shortest (midwinter); south of the equator it is the other way round.", "<b>Midwinter: the return of the light.</b> For farmers in the north, the shortest day was the hinge of survival, the moment the Sun stopped retreating and began to come back. Several of the great monuments are built for it. At Newgrange, in Ireland, the rising Sun shines down the 19-metre passage to the inner chamber for a few mornings around the winter solstice; at Maeshowe, on Orkney, the setting Sun does the same. Stonehenge’s main axis runs from the midsummer sunrise one way to the midwinter sunset the other, and many archaeologists now think midwinter was the greater occasion: the bones of pigs at nearby Durrington Walls show they were slaughtered for feasts in midwinter. In Anglesey, the passage of Bryn Celli Ddu catches the sunrise at midsummer."], "eq": ["<b>Equinox.</b> About 20 March and 22 September, halfway between the solstices: day and night are nearly equal everywhere, and the Sun rises almost due east and sets almost due west.", "<b>The equinoxes.</b> Day and night are equal, but the Sun’s rising point moves fastest at the equinoxes and the day is hard to fix by eye, so prehistoric monuments seem to mark it less often. They mattered greatly to later calendars: the date of Easter is reckoned from the spring equinox, the Persian new year, Nowruz, begins at it, and at Chichén Itzá in Mexico the setting Sun at the equinoxes casts a serpent of light down the pyramid’s stair."], "xq": ["<b>Cross-quarter days.</b> The four days halfway between a solstice and an equinox, in early February, early May, early August and early November. They split the year into eighths. In the old Celtic calendar of Ireland, Scotland, Wales and the Isle of Man they began the seasons: <b>Imbolc</b> (early February, the first stirring of spring; in Welsh Gŵyl Fair y Canhwyllau, in English Candlemas), <b>Beltane</b> (May Day, the start of summer; Calan Mai), <b>Lughnasadh</b> (early August, the start of the harvest; Gŵyl Awst, Lammas) and <b>Samhain</b> (the start of winter and the dark half of the year; Calan Gaeaf, now Hallowe’en and All Saints). They are now kept on fixed dates (1 February, 1 May, 1 August, 1 November); the page gives the astronomical days, when the Sun is exactly halfway, a few days later. Because the Sun stands at the same height in the sky on the May and the August days, they share one sunrise bearing, and the November and February days share another. Some ancient monuments are often said to face them: the passage of the Mound of the Hostages at Tara, in Ireland, is said to catch the sunrise at Samhain and Imbolc.", "<b>The cross-quarter days: the farming year.</b> They marked the turns of a herding life. At Beltane the cattle were driven out to the summer pastures between bonfires; at Lughnasadh the first harvest was gathered and people met at fairs and games; at Samhain the herds came in, animals that could not be fed through the winter were killed, and the dead were thought to come close; at Imbolc the ewes began to give milk and lamb. Most of this is known from medieval Irish writing and later folk custom, and how far back it reaches is debated, but the festivals were kept in Wales, Scotland and Ireland for many centuries (Calan Mai and Calan Gaeaf among them)."], "lun": ["<b>Lunar standstills.</b> The Moon’s path is tilted about 5° to the Sun’s, and the tilt turns right round every 18.6 years. At a <b>major standstill</b> (the last was in 2024–25, the next will be about 2043) the Moon rises and sets farther north and south than the Sun ever does, for a year or two; at a <b>minor standstill</b> (next about 2034) its range is at its narrowest, inside the Sun’s. Some stone circles, such as Callanish on Lewis and the recumbent stone circles of Aberdeenshire, are thought to mark them.", "<b>The Moon’s long cycle.</b> The Moon gave the months and the light to travel and work by at night. Its 18.6-year swing between standstills can only be seen over half a lifetime of watching, so a monument that marks it suggests generations of careful observation handed down. At Callanish on Lewis, at a major standstill, the Moon skims low along the southern hills and seems to set and then gleam again among the stones; the recumbent stone circles of Aberdeenshire frame the setting Moon in the south between two upright stones. How deliberate such alignments were is still argued over."], "brg": ["<b>Bearing.</b> A direction measured clockwise from true north: 90° is east, 180° south, 270° west. True north is the direction of the North Pole; a magnetic compass can differ from it by a few degrees."], "hz": ["<b>Horizon height.</b> How high the skyline stands above a level horizon in the direction you look, in degrees (a hill 100 m high a kilometre away stands about 6° up). A raised skyline makes the Sun appear later and farther along its path, so sunrise moves towards the south and sunset towards the north, or the other way round south of the equator."], "gleam": ["<b>First gleam.</b> The times and bearings are for the moment the top edge of the Sun first shows or last disappears, and they allow for the air bending the light, which lifts the Sun by about half a degree at the horizon. That is why sunrise comes a few minutes before the Sun’s centre is geometrically level with the horizon."], "sh": ["<b>Stonehenge’s Station Stones.</b> Four stones, numbered 91 to 94 (two survive), stood on the ring of the 56 Aubrey Holes and mark out a rectangle about 80 by 33 metres. Its short sides run parallel to the monument’s axis, towards the midsummer sunrise one way and the midwinter sunset the other. Its long sides point south-east to the southernmost moonrise and north-west to the northernmost moonset at a major lunar standstill, which comes every 18.6 years (the last in 2024–25). Only within about 50 km of Stonehenge’s latitude do those two directions cross at a right angle, so the rectangle can fit both; some take that as a sign the place was chosen for it, others think the match is chance. In the 1960s the astronomers Gerald Hawkins and Fred Hoyle argued that the 56 Aubrey Holes, with markers moved round them, could have predicted eclipses (56 is close to three cycles of 18.6 years), but most archaeologists doubt it: the holes held cremations and probably bluestones. On the map the stones are drawn in approximate positions from the published plan; compare their sides with the solstice and standstill lines drawn from the centre."], "star": ["<b>Bright stars and the heliacal rising.</b> A star rises and sets at the same two points on the horizon every night, so its rising point can be marked like the Sun’s. For some weeks each year it is lost in the Sun’s glare; the first morning it shows again, low in the east just before dawn, is its heliacal rising, and many peoples kept time by it. Sirius’s told the Egyptians the Nile flood was near and began their year; the Pleiades and Orion’s Belt still time the farming seasons of Java’s pranata mangsa; the Babylonians listed dozens of such risings; Canopus, the second-brightest star, rises far in the south. The lines show where each star rises and sets, 1° above a level horizon; the dates are approximate, to a few days, because they depend on the clearness of the air and the watcher’s eyes."], "era": ["<b>Era.</b> The sky shifts slowly. The Earth’s tilt, which sets how far north and south the Sun and Moon swing, was about 24° when the pyramids and Stonehenge were built and is 23.4° today, so the solstice lines have moved by about a degree. The stars move far more: the Earth’s axis wobbles round once in about 26 000 years (precession), so each star’s rising point drifts, and Sirius, the Pleiades and Orion rose in quite different places five thousand years ago. Move the slider to a monument’s own century to see its sky as its builders saw it: the Sun’s and Moon’s lines, the stars and their heliacal risings all follow."], "why_h": "Why they mattered" }
   );
-  const GRP = { jun: "sol", dec: "sol", eq: "eq", xqn: "xq", xqs: "xq", lmajn: "lun", lmajs: "lun", lminn: "lun", lmins: "lun" };
+  const GRP = { jun: "sol", dec: "sol", eq: "eq", xqn: "xq", xqs: "xq", lmajn: "lun", lmajs: "lun", lminn: "lun", lmins: "lun", st_sirius: "star", st_canopus: "star", st_pleiades: "star", st_orion: "star" };
+  const eraTxt = (y) => y == null || y === yearNow() ? t("eraNow") : y < 0 ? t("eraBC", { y: String(-y) }) : t("eraAD", { y: String(y) });
   function gloss(g, btn) {
     const box = document.querySelector('#solCard .gloss[data-for="' + g + '"]');
     if (!box || !GL[g]) return;
@@ -5781,6 +5861,124 @@ function rtShow(blob,secs,kind){
       const r = box.getBoundingClientRect();
       if (r.bottom > innerHeight || r.top < 0) box.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
+  }
+  const MON = (
+    /*MON*/
+    [{ "id": "khufu", "tr": "egypt", "ll": [29.97916, 31.13421], "era": -2554, "sl": [[359.95, "measured", null], [89.95, "measured", null]], "mom": [["sunrise", "eq"]], "st": "well" }, { "id": "karnak", "tr": "egypt", "ll": [25.71592, 32.65784], "era": -1950, "sl": [[117.2, "measured", null], [297.2, "measured", null]], "mom": [["sunrise", "dec"], ["sunset", "jun"]], "st": "wide" }, { "id": "abusimbel", "tr": "egypt", "ll": [22.33712, 31.6258], "era": -1265, "sl": [[101.1, "computed", 0]], "mom": [["sunrise", "02-22"], ["sunrise", "10-22"]], "st": "well" }, { "id": "sirius_memphis", "tr": "egypt", "ll": [29.85377, 31.25381], "era": -2500, "sl": [], "mom": [["star", "sirius"]], "st": "well" }, { "id": "konark", "tr": "bharata", "ll": [19.88756, 86.09449], "era": 1255, "sl": [[90, "nominal", null]], "mom": [["sunrise", "eq"]], "st": "wide" }, { "id": "modhera", "tr": "bharata", "ll": [23.58342, 72.13308], "era": 1026, "sl": [[90, "nominal", null]], "mom": [["sunrise", "eq"]], "st": "debated" }, { "id": "angkorwat", "tr": "bharata", "ll": [13.41252, 103.86659], "era": 1130, "sl": [[270.5, "measured", null], [90.67, "measured", 5]], "mom": [["sunrise", "eq"]], "st": "wide" }, { "id": "borobudur", "tr": "java", "ll": [-7.60796, 110.20382], "era": 800, "sl": [[0, "nominal", null], [263, "measured", 1.8]], "mom": [["sunset", "10-11"]], "st": "debated" }, { "id": "prambanan", "tr": "java", "ll": [-7.752, 110.49118], "era": 850, "sl": [[90, "nominal", null]], "mom": [["sunrise", "eq"]], "st": "wide" }, { "id": "pranata_mangsa", "tr": "java", "ll": [-7.7956, 110.3695], "era": null, "sl": [], "mom": [["star", "orion"], ["star", "pleiades"]], "st": "wide" }, { "id": "uaxactun", "tr": "maya", "ll": [17.39127, -89.62947], "era": -200, "sl": [[65.1, "computed", 0], [90, "nominal", null], [114.9, "computed", 0]], "mom": [["sunrise", "jun"], ["sunrise", "eq"], ["sunrise", "dec"]], "st": "debated" }, { "id": "chichenitza", "tr": "maya", "ll": [20.68299, -88.56864], "era": 1e3, "sl": [[291.72, "measured", null], [111.72, "measured", null]], "mom": [["sunset", "05-20"]], "st": "debated" }, { "id": "etemenanki", "tr": "babylon", "ll": [32.5363, 44.42108], "era": -600, "sl": [[0, "nominal", null], [90, "nominal", null]], "mom": [["star", "sirius"]], "st": "wide" }, { "id": "gaocheng", "tr": "lu", "ll": [34.40262, 113.14067], "era": 1276, "sl": [[0, "nominal", null]], "mom": [], "st": "well" }, { "id": "templeofheaven", "tr": "lu", "ll": [39.87558, 116.40696], "era": 1420, "sl": [[0, "nominal", null]], "mom": [["sunrise", "dec"]], "st": "well" }, { "id": "kaaba", "tr": "ikhwan", "ll": [21.42251, 39.82619], "era": null, "sl": [[147.7, "computed", 0], [64.5, "computed", 0]], "mom": [["star", "canopus"], ["sunrise", "jun"]], "st": "wide" }, { "id": "bryncelliddu", "tr": "welsh", "ll": [53.20772, -4.23614], "era": -3e3, "sl": [[47.2, "computed", 0]], "mom": [["sunrise", "jun"]], "st": "well" }, { "id": "newgrange", "tr": "welsh", "ll": [53.6947, -6.47555], "era": -3150, "sl": [[133.9, "measured", 0.92]], "mom": [["sunrise", "dec"]], "st": "well" }, { "id": "maeshowe", "tr": "welsh", "ll": [58.99652, -3.18817], "era": -2800, "sl": [[221, "measured", null]], "mom": [["sunset", "dec"]], "st": "well" }, { "id": "stonehenge", "tr": "welsh", "ll": [51.17883, -1.82618], "era": -2500, "sl": [[49.9, "nominal", null], [229.9, "nominal", null]], "mom": [["sunrise", "jun"], ["sunset", "dec"]], "st": "well" }, { "id": "alesstenar", "tr": "norse", "ll": [55.38265, 14.05441], "era": 600, "sl": [[314.8, "computed", 0], [134.8, "computed", 0]], "mom": [["sunset", "jun"], ["sunrise", "dec"]], "st": "debated" }, { "id": "towerofwinds", "tr": "greek", "ll": [37.9742, 23.72703], "era": -50, "sl": [[0, "nominal", null], [45, "nominal", null], [90, "nominal", null], [135, "nominal", null], [180, "nominal", null], [225, "nominal", null], [270, "nominal", null], [315, "nominal", null]], "mom": [], "st": "well" }]
+  );
+  const TRORD = ["egypt", "bharata", "java", "maya", "babylon", "lu", "ikhwan", "welsh", "norse", "greek"];
+  function monInit() {
+    const sel = $("monSel");
+    if (!sel) return;
+    sel.innerHTML = '<option value="">' + esc(t("monPick")) + "</option>" + TRORD.map((tr) => '<optgroup label="' + esc(t("tr_" + tr)) + '">' + MON.filter((m) => m.tr === tr).map((m) => '<option value="' + m.id + '">' + esc(t("mn_" + m.id)) + "</option>").join("") + "</optgroup>").join("");
+    sel.onchange = () => monGo(sel.value);
+  }
+  function monDay(spec) {
+    const y = yearNow(), now = jdOf(Date.now());
+    if (spec === "eq") {
+      const c = [seasonJD(y, 0), seasonJD(y, 2), seasonJD(y + 1, 0)];
+      return c.find((j2) => j2 > now - 1);
+    }
+    if (spec === "jun" || spec === "dec") {
+      const k = spec === "jun" ? 1 : 3;
+      let j2 = seasonJD(y, k);
+      if (j2 < now - 1) j2 = seasonJD(y + 1, k);
+      return j2;
+    }
+    const [mm, dd] = spec.split("-").map(Number);
+    let j = jdOf(Date.UTC(y, mm - 1, dd, 12));
+    if (j < now - 1) j = jdOf(Date.UTC(y + 1, mm - 1, dd, 12));
+    return j;
+  }
+  function moLabel(mo) {
+    if (mo[0] === "star") return t("moStar", { s: t("st_" + mo[1]) });
+    const e = /^\d/.test(mo[1]) ? fmtD(monDay(mo[1])) : t("mo_" + mo[1]);
+    return t(mo[0] === "sunrise" ? "moSunrise" : "moSunset", { e });
+  }
+  function monPlay(mo) {
+    const [lat, lon] = placeLL();
+    let ev = null, kind = mo[0];
+    if (kind === "star") {
+      const st = ERA_ST.find((x) => x[0] === mo[1]);
+      ev = st && starMoment(st);
+    } else {
+      const rs = riseSet(monDay(mo[1]), lat, lon, AL.hz);
+      ev = kind === "sunrise" ? rs.rise : rs.set;
+    }
+    if (!ev) {
+      msg(t("noRise"), true);
+      return;
+    }
+    const cap = (AL.mon ? t("mn_" + AL.mon.id) + " · " : "") + moLabel(mo);
+    return playMoment({ kind, jd: ev.jd, az: ev.az, warm: mo[1] === "jun" || /^0[4-8]/.test(mo[1]), cap, msg: t("moNow", { m: cap, t: fmtDT(ev.jd, 1), a: degs(ev.az) }) });
+  }
+  function monInfo() {
+    const box = $("monInfo"), m = AL.mon;
+    if (!box) return;
+    if (!m) {
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    const axes = m.sl.map(([az, ty]) => degs(az) + " <small>(" + esc(t("az_" + ty)) + ")</small>").join(" · ");
+    box.innerHTML = "<h4>" + esc(t("mn_" + m.id)) + "</h4><p>" + esc(t("md_" + m.id)) + '</p><p class="note">' + (m.era != null ? esc(t("monEra", { y: eraTxt(m.era) })) : esc(t("monNoEra"))) + " · " + esc(t("monStatus")) + ": " + esc(t("stat_" + m.st)) + (axes ? "<br>" + esc(t("monAxis")) + ": " + axes : "") + "</p>" + (m.mom.length ? '<div class="tools">' + m.mom.map((mo, i) => '<button class="pb" type="button" data-mo="' + i + '">♪ ' + esc(t("monHear")) + ": " + esc(moLabel(mo)) + "</button>").join("") + "</div>" : "");
+    box.querySelectorAll("[data-mo]").forEach((b) => b.onclick = () => monPlay(m.mom[+b.dataset.mo]));
+  }
+  function monGo(id) {
+    const m = MON.find((x) => x.id === id) || null;
+    AL.mon = m;
+    const sel = $("monSel");
+    if (sel && sel.value !== (id || "")) sel.value = id || "";
+    if (!m) {
+      monInfo();
+      mapLines();
+      return;
+    }
+    AL.year = m.era == null ? null : m.era;
+    const yr = $("alYear");
+    if (yr) yr.value = String(AL.year == null ? yearNow() : AL.year);
+    if (AL.lM) {
+      AL.lM.remove();
+      AL.lM = null;
+      AL.lm = null;
+    }
+    AL.obs = { lat: m.ll[0], lon: m.ll[1] };
+    SKY = null;
+    AL.grp.sol = 1;
+    if (m.mom.some((x) => x[0] === "star")) AL.grp.star = 1;
+    if (m.mom.some((x) => x[1] === "eq")) AL.grp.eq = 1;
+    ["alSol", "alEq", "alXq", "alLun", "alStar"].forEach((id2, i) => {
+      const e = $(id2);
+      if (e) e.checked = !!AL.grp[["sol", "eq", "xq", "lun", "star"][i]];
+    });
+    monInfo();
+    openMap().then(() => {
+      if (AL.map) {
+        AL.map.setView(m.ll, m.sl.length ? 16 : 11);
+        solUI();
+      }
+    });
+    if (!m.tz) getJSON(FC + "?latitude=" + m.ll[0].toFixed(3) + "&longitude=" + m.ll[1].toFixed(3) + "&current=temperature_2m&timezone=auto&forecast_days=1").then((j) => {
+      if (j && j.timezone) {
+        m.tz = j.timezone;
+        if (AL.mon === m) {
+          solUI();
+          monInfo();
+        }
+      }
+    }).catch(() => {
+    });
+  }
+  function monLines(km) {
+    const m = AL.mon, Lf = window.L;
+    if (!m || !AL.obs || Math.abs(AL.obs.lat - m.ll[0]) > 1e-6 || Math.abs(AL.obs.lon - m.ll[1]) > 1e-6) return;
+    m.sl.forEach(([az]) => {
+      [[az, 1], [az + 180, 0.3]].forEach(([b, op]) => {
+        const pts = [[m.ll[0], m.ll[1]]];
+        for (let k = 1; k <= 12; k++) pts.push(geoDest(m.ll[0], m.ll[1], b, km * k / 12));
+        Lf.polyline(pts, { color: "#e0405a", weight: op === 1 ? 4.5 : 2, opacity: op === 1 ? 0.95 : 0.5, interactive: false }).addTo(AL.lay);
+      });
+    });
   }
   function solUI() {
     const card = $("solCard");
@@ -5801,6 +5999,22 @@ function rtShow(blob,secs,kind){
       return '<tr><td><i style="background:' + l.col + '"></i><button class="term" type="button" data-g="' + GRP[k] + '" aria-expanded="' + !document.querySelector('#solCard .gloss[data-for="' + GRP[k] + '"]').hidden + '">' + esc(evName(k, lat)) + '</button></td><td class="mono">' + (x.r ? degs(x.r.az) : "—") + '</td><td class="mono">' + (x.s ? degs(x.s.az) : "—") + "</td></tr>";
     }).join("");
     $("solWhere").textContent = t("solWhere", { p: AL.obs ? t("standPoint") : ST.place ? ST.place.name : t("athens"), c: nf(Math.abs(lat), 3) + "°" + (lat >= 0 ? t("cN") : t("cS")) + " " + nf(Math.abs(lon), 3) + "°" + (lon >= 0 ? t("cE") : t("cW")), h: degs(AL.hz) });
+    const hl = $("helList");
+    if (hl) {
+      hl.hidden = !AL.grp.star;
+      if (AL.grp.star) {
+        const y = eraYear(), js = seasonJD(yearNow(), 1);
+        hl.innerHTML = '<li class="hh">' + esc(t("helH")) + " · " + esc(eraTxt(AL.year)) + "</li>" + ERA_ST.map((st) => {
+          const nm = t("st_" + st[0]), dec = starEra(st, y)[1];
+          if (dec < -(90 - Math.abs(lat)) && lat > 0 || dec > 90 - Math.abs(lat) && lat < 0) return "<li>" + esc(t("helNever", { s: nm })) + "</li>";
+          const d = heliacal(st, lat, y);
+          if (d == null) return "<li>" + esc(t("helNone", { s: nm })) + "</li>";
+          return "<li>" + esc(t("helLine", { s: nm, d: nf(Math.abs(d)), ba: t(d < 0 ? "before" : "after") })) + (y === yearNow() ? esc(t("helToday", { d: fmtD(js + d) })) : "") + "</li>";
+        }).join("");
+      }
+    }
+    const yo = $("alYearOut");
+    if (yo) yo.textContent = eraTxt(AL.year);
     mapLines();
   }
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -5892,6 +6106,7 @@ function rtShow(blob,secs,kind){
     if (AL.lm) Lf.polyline([[lat, lon], [AL.lm.lat, AL.lm.lon]], { color: "#b07ad8", weight: 2.5, dashArray: "8 6", interactive: false }).addTo(AL.lay);
     if (AL.oM) AL.oM.setLatLng([lat, lon]);
     shOverlay(km);
+    monLines(km);
   }
   const SH = { lat: 51.178882, lon: -1.826215 };
   function shOverlay(km) {
@@ -6030,13 +6245,43 @@ function rtShow(blob,secs,kind){
       msg(t("noRise"), true);
       return;
     }
+    return playMoment({
+      kind: "sunrise",
+      jd: rs.rise.jd,
+      az: rs.rise.az,
+      warm: which === "jun",
+      cap: t("lineLab", { e: evName(which, lat), r: t("rs_sunrise") }),
+      msg: t("dawnNow", { e: evName(which, lat), t: fmtDT(rs.rise.jd, 1), a: degs(rs.rise.az) })
+    });
+  }
+  function sunMoment(dec, rise) {
+    const [lat, lon] = placeLL(), ds = sunDates(dec);
+    if (!ds.length) return null;
+    const rs = riseSet(ds[0], lat, lon, AL.hz);
+    const e = rise ? rs.rise : rs.set;
+    return e ? { jd: e.jd, az: e.az } : null;
+  }
+  function starMoment(st) {
+    const [lat, lon] = placeLL(), y = yearNow(), d = heliacal(st, lat, y);
+    if (d == null) return null;
+    const j0 = Math.floor(seasonJD(y, 1) + d + lon / 360 + 0.5) - 0.5 - lon / 360;
+    const [ra, dec] = starEra(st, y), alt = (j) => altAz(ra * D2R, dec * D2R, j, lat, lon);
+    let prev = alt(j0)[0];
+    for (let k = 1; k <= 720; k++) {
+      const j = j0 + k / 720, a = alt(j);
+      if (prev < 1 && a[0] >= 1 && a[1] < 180) return { jd: j, az: a[1] };
+      prev = a[0];
+    }
+    return null;
+  }
+  async function playMoment(o) {
     if (!ST.data) {
-      ST.data = { t: (/* @__PURE__ */ new Date()).toISOString(), wind: 6, gust: 10, dir: 225, temp: which === "jun" ? 14 : 2, hum: 70, cloud: 10, pres: 1015, rain: 0, snow: 0, code: 0, day: 0, cape: 0 };
+      ST.data = { t: (/* @__PURE__ */ new Date()).toISOString(), wind: 6, gust: 10, dir: 225, temp: o.warm ? 14 : 4, hum: 70, cloud: 10, pres: 1015, rain: 0, snow: 0, code: 0, day: 0, cape: 0 };
     }
     if (!ST.playing) await start();
     if (!AC) return;
-    const dur = 60, t0 = AC.currentTime + 0.2, rise = t0 + 40, az = rs.rise.az;
-    FX.dawn = { t0: performance.now() + 200, dur: dur * 1e3, jdA: rs.rise.jd - 40 / 1440, jdB: rs.rise.jd + 20 / 1440, az, which, jd: rs.rise.jd };
+    const dur = 60, t0 = AC.currentTime + 0.2, ev = t0 + (o.kind === "sunrise" ? 40 : o.kind === "sunset" ? 22 : 25), az = o.az;
+    FX.dawn = { t0: performance.now() + 200, dur: dur * 1e3, jdA: o.jd - (ev - t0) * 40 / 60 / 1440, jdB: o.jd + (t0 + dur - ev) * 40 / 60 / 1440, az, which: o.kind, jd: o.jd, cap: o.cap };
     SKY = null;
     const out = AC.createGain();
     out.gain.value = 1;
@@ -6044,7 +6289,10 @@ function rtShow(blob,secs,kind){
     out.connect(A.verb);
     tgt(A.duck.gain, 0.3, 2);
     setTimeout(() => {
-      if (A.duck) tgt(A.duck.gain, 1, 3);
+      if (A.duck) {
+        A.duck.gain.__v = void 0;
+        tgt(A.duck.gain, 1, 3);
+      }
       FX.dawn = null;
       SKY = null;
       try {
@@ -6053,64 +6301,89 @@ function rtShow(blob,secs,kind){
       }
       ui();
     }, dur * 1e3 + 600);
-    const pan = clamp(Math.sin((az - ST.facing) * D2R), -1, 1), root = A.root || 110, md = modeOf(which === "jun" ? 22 : 2);
-    md.forEach((s, i) => {
-      const o = AC.createOscillator(), g = AC.createGain(), p = mkPan(clamp(pan * 0.6 + (i / 6 - 0.5) * 0.5, -1, 1));
-      o.frequency.value = root * 4 * Math.pow(2, s / 12);
-      o.type = "sine";
-      const st = t0 + i * 4.5;
-      g.gain.setValueAtTime(0, st);
-      g.gain.linearRampToValueAtTime(0.035, st + 12);
-      g.gain.setValueAtTime(0.035, rise + 6);
-      g.gain.linearRampToValueAtTime(0, t0 + dur);
-      o.connect(g);
-      g.connect(p);
-      p.connect(out);
-      o.start(st);
-      o.stop(t0 + dur + 0.2);
+    const pan = clamp(Math.sin((az - ST.facing) * D2R), -1, 1), root = A.root || 110, md = modeOf(o.warm ? 22 : 4);
+    const bell = (at, f, amp, p) => [[1, 1], [2.76, 0.38], [5.4, 0.19], [8.93, 0.09]].forEach(([r, a]) => {
+      const x = AC.createOscillator(), g = AC.createGain(), pp = mkPan(p);
+      x.frequency.value = f * r;
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(amp * a, at + 0.01);
+      g.gain.setTargetAtTime(0, at + 0.01, 2.2 / r ** 0.3);
+      x.connect(g);
+      g.connect(pp);
+      pp.connect(out);
+      x.start(at);
+      x.stop(at + 12);
     });
-    [[1, 0.32], [2.76, 0.12], [5.4, 0.06], [8.93, 0.03]].forEach(([r, a]) => {
-      const o = AC.createOscillator(), g = AC.createGain(), p = mkPan(pan);
-      o.frequency.value = root * r;
-      g.gain.setValueAtTime(0, rise);
-      g.gain.linearRampToValueAtTime(a, rise + 0.01);
-      g.gain.setTargetAtTime(0, rise + 0.01, 2.2 / r ** 0.3);
-      o.connect(g);
-      g.connect(p);
-      p.connect(out);
-      o.start(rise);
-      o.stop(rise + 12);
-    });
-    [[0, 0], [7, 0], [12, 0], [12 + md[2], 0], [19, 0]].forEach(([s], i) => {
-      const o = AC.createOscillator();
-      o.type = "sawtooth";
-      o.frequency.value = root * Math.pow(2, s / 12);
-      o.detune.value = (i - 2) * 4;
-      const fs = VOW.a.map((F, k2) => {
+    const choir = (vow, steps, base, a0, a1, a2, a3, gain, p) => steps.forEach((s, i) => {
+      const x = AC.createOscillator();
+      x.type = "sawtooth";
+      x.frequency.value = base * Math.pow(2, s / 12);
+      x.detune.value = (i - 2) * 4;
+      const fs = VOW[vow].map((F, k) => {
         const f = AC.createBiquadFilter();
         f.type = "bandpass";
         f.frequency.value = F * (1 + i * 0.02);
-        f.Q.value = [8, 11, 13][k2];
-        o.connect(f);
+        f.Q.value = [8, 11, 13][k];
+        x.connect(f);
         return f;
       });
-      const g = AC.createGain(), p = mkPan(clamp(pan + (i - 2) * 0.08, -1, 1));
-      fs.forEach((f, k2) => {
+      const g = AC.createGain(), pp = mkPan(clamp(p + (i - 2) * 0.08, -1, 1));
+      fs.forEach((f, k) => {
         const fg = AC.createGain();
-        fg.gain.value = [1, 0.5, 0.28][k2];
+        fg.gain.value = [1, 0.5, 0.28][k];
         f.connect(fg);
         fg.connect(g);
       });
-      g.gain.setValueAtTime(0, rise - 1);
-      g.gain.linearRampToValueAtTime(0.09, rise + 6);
-      g.gain.setValueAtTime(0.09, rise + 12);
+      g.gain.setValueAtTime(0, a0);
+      g.gain.linearRampToValueAtTime(gain, a1);
+      g.gain.setValueAtTime(gain, a2);
+      g.gain.linearRampToValueAtTime(0, a3);
+      g.connect(pp);
+      pp.connect(out);
+      x.start(a0);
+      x.stop(a3 + 0.2);
+    });
+    const eos = (from, to) => md.forEach((s, i) => {
+      const x = AC.createOscillator(), g = AC.createGain(), p = mkPan(clamp(pan * 0.6 + (i / 6 - 0.5) * 0.5, -1, 1));
+      x.frequency.value = root * 4 * Math.pow(2, s / 12);
+      const st = from + i * (to - from) / 9;
+      g.gain.setValueAtTime(0, st);
+      g.gain.linearRampToValueAtTime(0.035, st + 10);
+      g.gain.setValueAtTime(0.035, Math.max(st + 10, t0 + dur - 12));
       g.gain.linearRampToValueAtTime(0, t0 + dur);
+      x.connect(g);
       g.connect(p);
       p.connect(out);
-      o.start(rise - 1);
-      o.stop(t0 + dur + 0.2);
+      x.start(st);
+      x.stop(t0 + dur + 0.2);
     });
-    msg(t("dawnNow", { e: evName(which, lat), t: fmtDT(rs.rise.jd, 1), a: degs(az) }));
+    const triad = [0, 7, 12, 12 + md[2], 19];
+    if (o.kind === "sunrise") {
+      eos(t0, ev);
+      bell(ev, root, 0.32, pan);
+      choir("a", triad, root, ev - 1, ev + 6, ev + 12, t0 + dur, 0.09, pan);
+    } else if (o.kind === "sunset") {
+      choir("a", triad, root, t0, t0 + 5, ev - 6, ev + 3, 0.09, pan);
+      bell(ev, root, 0.3, pan);
+      for (let k = 0; k < 26; k++) {
+        const at = ev + 4 + k * 1.3 + Math.random(), f = root * 16 * Math.pow(2, md[Math.random() * 7 | 0] / 12) * (Math.random() < 0.5 ? 1 : 2);
+        const x = AC.createOscillator(), g = AC.createGain(), p = mkPan(rnd(-0.9, 0.9));
+        x.frequency.value = f;
+        g.gain.setValueAtTime(0, at);
+        g.gain.linearRampToValueAtTime(0.02, at + 0.01);
+        g.gain.setTargetAtTime(0, at + 0.01, 0.4);
+        x.connect(g);
+        g.connect(p);
+        p.connect(out);
+        x.start(at);
+        x.stop(at + 3);
+      }
+    } else {
+      bell(ev, root * 4, 0.16, pan);
+      choir("i", [12, 19, 24], root, ev - 0.5, ev + 4, ev + 14, t0 + dur, 0.05, pan);
+      eos(ev + 8, t0 + dur - 6);
+    }
+    if (o.msg) msg(o.msg);
   }
   function relTime(W) {
     try {
@@ -6430,6 +6703,44 @@ function rtShow(blob,secs,kind){
         solUI();
       };
       $("shGo").onclick = () => shGo();
+      monInit();
+      {
+        const h = location.hash.match(/^#(sky|site)=([a-z_]+)/);
+        if (h) {
+          const m = h[1] === "site" ? MON.find((x) => x.id === h[2]) : MON.find((x) => x.tr === h[2]);
+          if (m) {
+            card.open = true;
+            setTimeout(() => {
+              monGo(m.id);
+              card.scrollIntoView({ block: "start" });
+            }, 300);
+          }
+        }
+      }
+      {
+        const st = $("alStar");
+        st.checked = !!AL.grp.star;
+        st.onchange = () => {
+          AL.grp.star = st.checked ? 1 : 0;
+          LS.set("mots.wx.grp", JSON.stringify(AL.grp));
+          solUI();
+        };
+        const yr = $("alYear");
+        yr.max = String(Math.ceil(yearNow() / 25) * 25);
+        yr.value = String(AL.year == null ? yearNow() : AL.year);
+        yr.oninput = () => {
+          const v = +yr.value;
+          AL.year = Math.abs(v - yearNow()) < 25 ? null : v;
+          solUI();
+          if (AL.lm) judgeLm();
+        };
+        $("alYearNow").onclick = () => {
+          AL.year = null;
+          yr.value = String(yearNow());
+          solUI();
+          if (AL.lm) judgeLm();
+        };
+      }
       {
         const e = $("shHere");
         e.checked = AL.shHere = LS.get("mots.wx.shHere") === "1";

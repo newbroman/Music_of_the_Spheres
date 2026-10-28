@@ -630,6 +630,11 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
 .gloss h4{margin:.6rem 0 .1rem;font-family:var(--f-display);font-weight:400;color:var(--bronze);font-size:1rem}
 .shTip{background:#13162a;color:#f3d9a4;border:1px solid #c9984f;font:600 11px/1 var(--f-mono);padding:2px 4px}.shTip::before{display:none}
 .shNote{background:rgba(19,22,42,.85);color:#e9e1cc;border:1px solid #c9984f;border-radius:6px;padding:3px 7px;font-size:12px}
+.eraRow{margin-top:.6rem}.eraCtl{display:flex;gap:.6rem;align-items:center}.eraCtl input{flex:1;accent-color:var(--bronze)}
+.monSel{width:100%;min-height:var(--tap);background:var(--sky-2);border:1px solid var(--line-2);border-radius:10px;padding:.3rem .6rem;margin-top:.4rem}
+.monInfo{margin-top:.6rem;padding:.7rem .9rem;border-left:3px solid #e0405a;background:rgba(224,64,90,.07);border-radius:0 10px 10px 0}
+.monInfo h4{margin:0;font-family:var(--f-display);font-weight:400;font-size:1.15rem;color:#f3d9a4}.monInfo p{margin:.35rem 0 0}.monInfo small{color:var(--vellum-dim)}
+.solList li.hh{color:var(--bronze);font-family:var(--f-display)}
 .tapHint{margin:.2rem 0 0;font-style:italic}
 .foot a{color:var(--vellum-dim)}
 .tools{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:.8rem}
@@ -697,6 +702,9 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
       <div class="dawnBtns"><button class="pb" id="dawnJun" type="button">☀ 夏至の日の出を聴く</button><button class="pb" id="dawnDec" type="button">☀ 冬至の日の出を聴く</button></div>
     </div>
     <ul class="solList" id="solList"></ul>
+    <h3 class="sub">古代遺跡</h3>
+    <select id="monSel" class="monSel" aria-label="古代遺跡"></select>
+    <div class="monInfo" id="monInfo" hidden></div>
     <h3 class="sub">方位の一致</h3>
     <p class="note"><span id="solWhere"></span> <button class="term" type="button" data-g="brg" aria-expanded="false">方位</button> · <button class="term" type="button" data-g="gleam" aria-expanded="false">最初のきらめき</button></p>
     <div class="gloss" data-for="brg" hidden></div><div class="gloss" data-for="gleam" hidden></div>
@@ -706,11 +714,16 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
       <div class="alRow"><input id="alEq" type="checkbox" aria-label="分点"><button class="term" type="button" data-g="eq" aria-expanded="false">分点</button></div>
       <div class="alRow"><input id="alXq" type="checkbox" aria-label="クロスクォーターデー"><button class="term" type="button" data-g="xq" aria-expanded="false">クロスクォーターデー</button></div>
       <div class="alRow"><input id="alLun" type="checkbox" aria-label="月の静止"><button class="term" type="button" data-g="lun" aria-expanded="false">月の静止</button></div>
+      <div class="alRow"><input id="alStar" type="checkbox" aria-label="明るい星"><button class="term" type="button" data-g="star" aria-expanded="false">明るい星</button></div>
       <label class="sw" for="alSky"><input id="alSky" type="checkbox"><span>空に表示</span></label>
       <div class="field"><label for="alHz"><button class="term" type="button" data-g="hz" aria-expanded="false">地平線の高さ</button> <output id="alHzOut"></output></label><input id="alHz" type="range" min="0" max="10" step=".1" value="0"></div>
     </div>
     <div class="gloss" data-for="sol" hidden></div><div class="gloss" data-for="eq" hidden></div><div class="gloss" data-for="xq" hidden></div><div class="gloss" data-for="lun" hidden></div><div class="gloss" data-for="hz" hidden></div>
+    <div class="field eraRow"><label for="alYear"><button class="term" type="button" data-g="era" aria-expanded="false">時代</button> <output id="alYearOut"></output></label>
+      <div class="eraCtl"><input id="alYear" type="range" min="-3500" max="2100" step="25" value="2025"><button class="pb" id="alYearNow" type="button">現在</button></div></div>
+    <div class="gloss" data-for="star" hidden></div><div class="gloss" data-for="era" hidden></div>
     <table class="solTab" id="solTab"></table>
+    <ul class="solList" id="helList" hidden></ul>
     <div class="solMap" id="solMap" role="application" aria-label="方位の一致の地図"></div>
     <div class="tools"><button class="pb" id="alStand" type="button">⌖ ここに立つ</button><button class="pb" id="alReset" type="button">場所に戻る</button><button class="pb" id="shGo" type="button">ストーンヘンジのステーション・ストーン</button><label class="sw" for="shHere"><input id="shHere" type="checkbox"><span>ここにステーション・ストーンを並べる</span></label><button class="term" type="button" data-g="sh" aria-expanded="false" aria-label="ストーンヘンジのステーション・ストーン"></button></div>
     <div class="gloss" data-for="sh" hidden></div>
@@ -4372,7 +4385,7 @@ function rtShow(blob,secs,kind){
   "use strict";
   const TX = (
     /*TX*/
-    { "title": "天気の歌", "desc": "あなたのいる場所の天気を、風、雲、雷、虹を司るギリシャの神々が歌います。", "lede": "あなたのいる場所の天気を、それを司った神々が奏でます。アテネの風の塔の八つの風、ネペレの雲、ゼウスの雷、イリスの虹。音は物理に従います。風はエオリアン・ハープを奏で、雨粒はそれぞれ、閉じ込めた気泡の音の高さで鳴ります。", "navApp": "アプリ", "navDial": "2D ダイヤル", "navHelp": "使い方", "placeHint": "町や場所を入力", "find": "検索", "here": "現在地を使う", "play": "天気を奏でる", "stop": "停止", "sky": "空", "wind": "風", "gusts": "突風", "temp": "気温", "cloud": "雲", "rain": "雨", "humidity": "湿度", "pressure": "気圧", "facing": "向いている方角", "units": "単位", "volume": "音量", "metric": "メートル法 (°C, km/h)", "imperial": "ヤード・ポンド法 (°F, mph)", "imagineH": "自分だけの天気をつくる", "imagineP": "スライダーを動かして、強風、猛暑、雷雨など好きな天気を奏でましょう。下のボタンで本当の天気に戻ります。", "dirL": "風向（度、0 = 北）", "thunder": "雷", "snowL": "雪", "night": "夜", "back": "本当の天気に戻る", "howH": "天気の音のしくみ", "how1": "風：向いている方角から風が吹いてくる向きの風の神が歌います。アテネの風の塔に刻まれた八つの風のひとつです。突風は声を上へ曲げ、風がうなるように響きます。", "how2": "エオリアン・ハープ：太さの異なる六本の弦を、そろえて調律します。弦に風が当たると、毎秒およそ 0.2 × 風速 ÷ 太さ 回の渦が生まれ、弦はそれにもっとも近い倍音で歌うので、風の強弱に合わせて和音が変わります。", "how3": "雨：気泡を閉じ込めた雨粒は、その気泡固有の高さで鳴ります（ミナールト周波数、直径 1 mm の気泡でおよそ 3.3 kHz）。強い雨は粒が大きく音が低く、霧雨は細かく高い音になります。", "how4": "空の神ウラノスが低い音を保ちます。標準の 1013 から気圧が 2.5 hPa 離れるごとに半音ずつ変わります。気温が旋法を選び、霜のときはフリギア、猛暑のときはリディアです。", "how5": "ネペレの雲は空の音をこもらせます（雲が厚くなるほどローパスフィルターが閉じます）。霧はさらにこもらせ、ヒオネの新雪は本物の雪のようにすべてを静めます。湿った空気はより長い余韻を運びます。", "how6": "ゼウス：雷雨では、まず稲妻が光り、距離に応じて音速で雷鳴が続きます。近ければ鋭い破裂音、遠ければ長いとどろきです。", "how7": "雨に日が差すと、イリスが虹の音階を響かせます。晴れた夜には、ニュクスの星がきらめきます。天気は 15 分ごとに取得し直します。", "tools": "録音とステージ", "record": "録音", "foot": "気象データ：", "privacy": "プライバシー", "pick": "上に場所を入力するか、現在地を使うと、その天気が聞こえます。", "searching": "検索中…", "fetching": "天気を取得中…", "none": "その名前の場所は見つかりませんでした。", "netErr": "天気を取得できませんでした。接続を確認してもう一度お試しください。", "noLoc": "この端末では位置を取得できませんでした。場所を入力してください。", "locDenied": "位置情報が許可されませんでした。場所を入力してください。", "locating": "現在地を調べています…", "hereName": "あなたの現在地（{c}）", "cN": "北", "cS": "南", "cE": "東", "cW": "西", "asOf": "現地時間 {t} の天気。", "offline": "オフライン：最後に取得した {t} の天気。", "imagined": "あなただけの天気", "calm": "無風", "from": "{d}から", "youFace": "▲", "d_n": "北", "d_ne": "北東", "d_e": "東", "d_se": "南東", "d_s": "南", "d_sw": "南西", "d_w": "西", "d_nw": "北西", "g_boreas": "ボレアス", "g_kaikias": "カイキアス", "g_apeliotes": "アペリオテス", "g_euros": "エウロス", "g_notos": "ノトス", "g_lips": "リプス", "g_zephyros": "ゼピュロス", "g_skiron": "スキロン", "gt_boreas": "冷たく強い北風。風の塔では、厚い外套をまとい、法螺貝を吹くひげの老人の姿です。アテネの王女オレイテュイアをさらい、ペルシア艦隊を壊滅させたことでアテネ人に感謝されました。いちばん低く歌います。", "gt_kaikias": "雹をもたらす北東風。塔では、雹をいっぱいに載せた盾を下の大地へ傾けています。暗い風で、低く歌います。", "gt_apeliotes": "穏やかで暖かい東風で、やわらかな雨を運びます。塔では、外套に果物、小麦、蜂の巣を抱えた若者の姿です。", "gt_euros": "不吉で荒れやすい南東風。塔では、悪天候に身を包んだ老人の姿です。ホメロスは彼を四大風のひとつに数えています。", "gt_notos": "暑く湿った南風で、晩夏から秋の嵐をもたらします。塔では水瓶を空けています。船乗りたちに恐れられました。", "gt_lips": "南西風。塔では船の船尾を支えています。船をアテネの港へ吹き戻したからです。", "gt_zephyros": "最もやさしい西風で、春を告げる使者。塔では、外套から花をまき散らす若者の姿です。花の女神クロリスの夫で、いちばん高く甘く歌います。", "gt_skiron": "冬は乾いて冷たく、夏は焼けつくような北西風。塔では、熱い灰と炭の入った青銅の壺を傾けています。", "m_phrygian": "フリギア", "m_aeolian": "エオリア", "m_dorian": "ドリア", "m_mixolydian": "ミクソリディア", "m_ionian": "イオニア", "m_lydian": "リディア", "wClear": "快晴", "wMainly": "おおむね晴れ", "wPartly": "一部曇り", "wOvercast": "曇り", "wFog": "霧", "wDrizzle": "霧雨", "wFDrizzle": "着氷性の霧雨", "wRain": "雨", "wFRain": "着氷性の雨", "wSnow": "雪", "wGrains": "霧雪", "wShowers": "にわか雨", "wSnowShowers": "にわか雪", "wThunder": "雷雨", "wHail": "雹を伴う雷雨", "sCalm": "風は止んでいる", "sWind": "{g}、{d}からの風が歌う", "sHarp": "風がエオリアン・ハープを奏でる", "sRain": "雨粒が気泡の高さで鳴る", "sSnow": "ヒオネの雪がすべてを静める", "sHail": "カイキアスの雹が音を立てる", "sThunder": "ゼウスの雷がとどろく", "sStir": "ゼウスが遠くで動き出す", "sFog": "霧が空を閉ざす", "sCloud": "ネペレの雲が空をこもらせる", "sClear": "空は晴れて開けている", "sIris": "イリスが虹を響かせる", "sStars": "ニュクスの星がきらめく", "sDrone": "空気の重さ（{p}）がウラノスの低音を決め、{tp}が{m}旋法を決める", "p_sun": "ヘリオス", "p_moon": "セレネ", "p_hermes": "ヘルメス", "p_aphrodite": "アフロディテ", "p_ares": "アレス", "p_zeus": "ゼウス", "p_kronos": "クロノス", "p_ouranos": "ウラノス", "p_poseidon": "ポセイドン", "solH": "至点と方位の一致", "termsL": "これらの言葉の意味", "shBtn": "ストーンヘンジのステーション・ストーン", "shAubrey": "オーブリー・ホール", "shApprox": "位置はおおよそ", "shHere": "ここにステーション・ストーンを並べる", "shAngle": "この緯度のステーション・ストーン：辺は {a}° で交わります（90° の長方形になるのはストーンヘンジ付近だけ）", "shPolar": "ここではその日に太陽か月が昇り沈みしないため、石を並べられません。", "mixH": "声部", "mixReset": "すべて 100 % に戻す", "mute": "ミュート", "mxVoices": "風の神々の声（アネモイ）", "mxWind": "風", "mxHarp": "エオリアン・ハープ", "mxRain": "雨・雪・雹", "mxDrone": "ウラノスの低音", "mxThunder": "ゼウスの雷", "mxSparkle": "イリスと星々", "tapWord": "ことばをタップすると意味が出ます。", "gBrg": "方位", "gGleam": "最初のきらめき", "solP": "次の至点と分点がいつか、そしてストーンヘンジやニューグレンジ、ブリン・ケリ・ドゥのような古代の遺跡が示すために造られた日に、この場所で太陽と月がどこから昇りどこへ沈むか。", "dawnJun": "夏至の日の出を聴く", "dawnDec": "冬至の日の出を聴く", "alH": "方位の一致", "alSol": "至点", "alEq": "分点", "alXq": "クロスクォーターデー", "alLun": "月の静止", "alSky": "空に表示", "alHz": "地平線の高さ", "mapL": "方位の一致の地図", "alStand": "ここに立つ", "alReset": "場所に戻る", "lmHint": "地図をタップして、目印（立石、丘の頂、稜線の切れ目など）の上にマーカーを置き、正確な位置までドラッグします。「ここに立つ」を押すと、方位線の中心がそのマーカーに移ります。マーカーがないときは地図の中央に移ります。金色のマーカーもドラッグできます。", "ev_jun": "夏至", "ev_dec": "冬至", "midsum": "真夏", "midwin": "真冬", "ev_eq": "分点", "mMar": "3月", "mSep": "9月", "ev_xqn": "5月上旬と8月上旬のクロスクォーターデー", "ev_xqs": "11月上旬と2月上旬のクロスクォーターデー", "ev_xqF": "クロスクォーターデー（インボルク）", "ev_xqM": "クロスクォーターデー（ベルテイン）", "ev_xqA": "クロスクォーターデー（ルーナサ）", "ev_xqN": "クロスクォーターデー（サウィン）", "ev_lmajn": "月の大静止、北", "ev_lmajs": "月の大静止、南", "ev_lminn": "月の小静止、北", "ev_lmins": "月の小静止、南", "rs_sunrise": "日の出", "rs_sunset": "日の入り", "rs_moonrise": "月の出", "rs_moonset": "月の入り", "lineLab": "{e}の{r}", "evH": "イベント", "riseH": "昇る方位", "setH": "沈む方位", "inDays": "あと{d}日{h}時間{m}分", "riseSetAt": "その日の{p}：日の出 {r}、日の入り {s}（時刻 · 方位）。", "standPoint": "あなたの立つ位置", "athens": "アテネ、風の塔", "solWhere": "{p}（{c}）からの方位。地平線の高さは {h}、真北から時計回りに測定。", "mapErr": "地図を読み込めませんでした。接続を確認してください。", "landmark": "目印", "lmMeasuring": "測定中…", "lmHead": "目印は方位 {b}、{d}先、あなたより {h}高い位置にあり、平らな地平線から {a}の高さにそびえています。", "lmMatch": "{l}と一致しています（誤差 {o}° 以内）。", "lmSunR": "太陽は{d}ごろ、その後ろから昇ります。", "lmSunS": "太陽は{d}ごろ、その後ろへ沈みます。", "and": "と", "lmMoonR": "そこでは太陽は決して昇らず、月だけが昇ります。月の大静止の前後の年のことです（18.6年ごと。前回は2024〜25年が最盛期で、次は2043年ごろ）。", "lmMoonS": "そこでは太陽は決して沈まず、月だけが沈みます。月の大静止の前後の年のことです（18.6年ごと。前回は2024〜25年が最盛期で、次は2043年ごろ）。", "lmNone": "そこでは太陽も月も昇らず、沈みません。", "noRise": "この場所では、その日は太陽が昇りません。", "dawnNow": "{e}の日の出：{t}、方位 {a}。四十分の夜明けがひとつに：まずエオスの光、そのあとあなたが向く真の方向からヘリオスが昇ります。" }
+    { "title": "天気の歌", "desc": "あなたのいる場所の天気を、風、雲、雷、虹を司るギリシャの神々が歌います。", "lede": "あなたのいる場所の天気を、それを司った神々が奏でます。アテネの風の塔の八つの風、ネペレの雲、ゼウスの雷、イリスの虹。音は物理に従います。風はエオリアン・ハープを奏で、雨粒はそれぞれ、閉じ込めた気泡の音の高さで鳴ります。", "navApp": "アプリ", "navDial": "2D ダイヤル", "navHelp": "使い方", "placeHint": "町や場所を入力", "find": "検索", "here": "現在地を使う", "play": "天気を奏でる", "stop": "停止", "sky": "空", "wind": "風", "gusts": "突風", "temp": "気温", "cloud": "雲", "rain": "雨", "humidity": "湿度", "pressure": "気圧", "facing": "向いている方角", "units": "単位", "volume": "音量", "metric": "メートル法 (°C, km/h)", "imperial": "ヤード・ポンド法 (°F, mph)", "imagineH": "自分だけの天気をつくる", "imagineP": "スライダーを動かして、強風、猛暑、雷雨など好きな天気を奏でましょう。下のボタンで本当の天気に戻ります。", "dirL": "風向（度、0 = 北）", "thunder": "雷", "snowL": "雪", "night": "夜", "back": "本当の天気に戻る", "howH": "天気の音のしくみ", "how1": "風：向いている方角から風が吹いてくる向きの風の神が歌います。アテネの風の塔に刻まれた八つの風のひとつです。突風は声を上へ曲げ、風がうなるように響きます。", "how2": "エオリアン・ハープ：太さの異なる六本の弦を、そろえて調律します。弦に風が当たると、毎秒およそ 0.2 × 風速 ÷ 太さ 回の渦が生まれ、弦はそれにもっとも近い倍音で歌うので、風の強弱に合わせて和音が変わります。", "how3": "雨：気泡を閉じ込めた雨粒は、その気泡固有の高さで鳴ります（ミナールト周波数、直径 1 mm の気泡でおよそ 3.3 kHz）。強い雨は粒が大きく音が低く、霧雨は細かく高い音になります。", "how4": "空の神ウラノスが低い音を保ちます。標準の 1013 から気圧が 2.5 hPa 離れるごとに半音ずつ変わります。気温が旋法を選び、霜のときはフリギア、猛暑のときはリディアです。", "how5": "ネペレの雲は空の音をこもらせます（雲が厚くなるほどローパスフィルターが閉じます）。霧はさらにこもらせ、ヒオネの新雪は本物の雪のようにすべてを静めます。湿った空気はより長い余韻を運びます。", "how6": "ゼウス：雷雨では、まず稲妻が光り、距離に応じて音速で雷鳴が続きます。近ければ鋭い破裂音、遠ければ長いとどろきです。", "how7": "雨に日が差すと、イリスが虹の音階を響かせます。晴れた夜には、ニュクスの星がきらめきます。天気は 15 分ごとに取得し直します。", "tools": "録音とステージ", "record": "録音", "foot": "気象データ：", "privacy": "プライバシー", "pick": "上に場所を入力するか、現在地を使うと、その天気が聞こえます。", "searching": "検索中…", "fetching": "天気を取得中…", "none": "その名前の場所は見つかりませんでした。", "netErr": "天気を取得できませんでした。接続を確認してもう一度お試しください。", "noLoc": "この端末では位置を取得できませんでした。場所を入力してください。", "locDenied": "位置情報が許可されませんでした。場所を入力してください。", "locating": "現在地を調べています…", "hereName": "あなたの現在地（{c}）", "cN": "北", "cS": "南", "cE": "東", "cW": "西", "asOf": "現地時間 {t} の天気。", "offline": "オフライン：最後に取得した {t} の天気。", "imagined": "あなただけの天気", "calm": "無風", "from": "{d}から", "youFace": "▲", "d_n": "北", "d_ne": "北東", "d_e": "東", "d_se": "南東", "d_s": "南", "d_sw": "南西", "d_w": "西", "d_nw": "北西", "g_boreas": "ボレアス", "g_kaikias": "カイキアス", "g_apeliotes": "アペリオテス", "g_euros": "エウロス", "g_notos": "ノトス", "g_lips": "リプス", "g_zephyros": "ゼピュロス", "g_skiron": "スキロン", "gt_boreas": "冷たく強い北風。風の塔では、厚い外套をまとい、法螺貝を吹くひげの老人の姿です。アテネの王女オレイテュイアをさらい、ペルシア艦隊を壊滅させたことでアテネ人に感謝されました。いちばん低く歌います。", "gt_kaikias": "雹をもたらす北東風。塔では、雹をいっぱいに載せた盾を下の大地へ傾けています。暗い風で、低く歌います。", "gt_apeliotes": "穏やかで暖かい東風で、やわらかな雨を運びます。塔では、外套に果物、小麦、蜂の巣を抱えた若者の姿です。", "gt_euros": "不吉で荒れやすい南東風。塔では、悪天候に身を包んだ老人の姿です。ホメロスは彼を四大風のひとつに数えています。", "gt_notos": "暑く湿った南風で、晩夏から秋の嵐をもたらします。塔では水瓶を空けています。船乗りたちに恐れられました。", "gt_lips": "南西風。塔では船の船尾を支えています。船をアテネの港へ吹き戻したからです。", "gt_zephyros": "最もやさしい西風で、春を告げる使者。塔では、外套から花をまき散らす若者の姿です。花の女神クロリスの夫で、いちばん高く甘く歌います。", "gt_skiron": "冬は乾いて冷たく、夏は焼けつくような北西風。塔では、熱い灰と炭の入った青銅の壺を傾けています。", "m_phrygian": "フリギア", "m_aeolian": "エオリア", "m_dorian": "ドリア", "m_mixolydian": "ミクソリディア", "m_ionian": "イオニア", "m_lydian": "リディア", "wClear": "快晴", "wMainly": "おおむね晴れ", "wPartly": "一部曇り", "wOvercast": "曇り", "wFog": "霧", "wDrizzle": "霧雨", "wFDrizzle": "着氷性の霧雨", "wRain": "雨", "wFRain": "着氷性の雨", "wSnow": "雪", "wGrains": "霧雪", "wShowers": "にわか雨", "wSnowShowers": "にわか雪", "wThunder": "雷雨", "wHail": "雹を伴う雷雨", "sCalm": "風は止んでいる", "sWind": "{g}、{d}からの風が歌う", "sHarp": "風がエオリアン・ハープを奏でる", "sRain": "雨粒が気泡の高さで鳴る", "sSnow": "ヒオネの雪がすべてを静める", "sHail": "カイキアスの雹が音を立てる", "sThunder": "ゼウスの雷がとどろく", "sStir": "ゼウスが遠くで動き出す", "sFog": "霧が空を閉ざす", "sCloud": "ネペレの雲が空をこもらせる", "sClear": "空は晴れて開けている", "sIris": "イリスが虹を響かせる", "sStars": "ニュクスの星がきらめく", "sDrone": "空気の重さ（{p}）がウラノスの低音を決め、{tp}が{m}旋法を決める", "p_sun": "ヘリオス", "p_moon": "セレネ", "p_hermes": "ヘルメス", "p_aphrodite": "アフロディテ", "p_ares": "アレス", "p_zeus": "ゼウス", "p_kronos": "クロノス", "p_ouranos": "ウラノス", "p_poseidon": "ポセイドン", "solH": "至点と方位の一致", "termsL": "これらの言葉の意味", "shBtn": "ストーンヘンジのステーション・ストーン", "shAubrey": "オーブリー・ホール", "shApprox": "位置はおおよそ", "moNow": "{m} — {t}、方位 {a}。40分間の空を1分で。あなたの向きに対する本当の方角から聞こえます。", "alStar": "明るい星", "alEra": "時代", "eraNow": "現在", "eraBC": "紀元前{y}年", "eraAD": "{y}年", "st_sirius": "シリウス", "st_canopus": "カノープス", "st_pleiades": "プレアデス星団（すばる）", "st_orion": "オリオン座の三つ星", "rs_starrise": "出", "rs_starset": "入", "helH": "夜明けに初めて見える（ヘリアカル・ライジング）", "helLine": "{s}：6月の至点の{d}日{ba}ごろ", "before": "前", "after": "後", "helToday": "、今年は{d}ごろ", "helNever": "{s}：ここでは昇りません", "helNone": "{s}：ここでは太陽に隠れることがないため、ヘリアカル・ライジングはありません", "shHere": "ここにステーション・ストーンを並べる", "shAngle": "この緯度のステーション・ストーン：辺は {a}° で交わります（90° の長方形になるのはストーンヘンジ付近だけ）", "shPolar": "ここではその日に太陽か月が昇り沈みしないため、石を並べられません。", "mixH": "声部", "mixReset": "すべて 100 % に戻す", "mute": "ミュート", "mxVoices": "風の神々の声（アネモイ）", "mxWind": "風", "mxHarp": "エオリアン・ハープ", "mxRain": "雨・雪・雹", "mxDrone": "ウラノスの低音", "mxThunder": "ゼウスの雷", "mxSparkle": "イリスと星々", "tapWord": "ことばをタップすると意味が出ます。", "gBrg": "方位", "gGleam": "最初のきらめき", "solP": "次の至点と分点がいつか、そしてストーンヘンジやニューグレンジ、ブリン・ケリ・ドゥのような古代の遺跡が示すために造られた日に、この場所で太陽と月がどこから昇りどこへ沈むか。", "dawnJun": "夏至の日の出を聴く", "dawnDec": "冬至の日の出を聴く", "alH": "方位の一致", "alSol": "至点", "alEq": "分点", "alXq": "クロスクォーターデー", "alLun": "月の静止", "alSky": "空に表示", "alHz": "地平線の高さ", "mapL": "方位の一致の地図", "alStand": "ここに立つ", "alReset": "場所に戻る", "lmHint": "地図をタップして、目印（立石、丘の頂、稜線の切れ目など）の上にマーカーを置き、正確な位置までドラッグします。「ここに立つ」を押すと、方位線の中心がそのマーカーに移ります。マーカーがないときは地図の中央に移ります。金色のマーカーもドラッグできます。", "ev_jun": "夏至", "ev_dec": "冬至", "midsum": "真夏", "midwin": "真冬", "ev_eq": "分点", "mMar": "3月", "mSep": "9月", "ev_xqn": "5月上旬と8月上旬のクロスクォーターデー", "ev_xqs": "11月上旬と2月上旬のクロスクォーターデー", "ev_xqF": "クロスクォーターデー（インボルク）", "ev_xqM": "クロスクォーターデー（ベルテイン）", "ev_xqA": "クロスクォーターデー（ルーナサ）", "ev_xqN": "クロスクォーターデー（サウィン）", "ev_lmajn": "月の大静止、北", "ev_lmajs": "月の大静止、南", "ev_lminn": "月の小静止、北", "ev_lmins": "月の小静止、南", "rs_sunrise": "日の出", "rs_sunset": "日の入り", "rs_moonrise": "月の出", "rs_moonset": "月の入り", "lineLab": "{e}の{r}", "evH": "イベント", "riseH": "昇る方位", "setH": "沈む方位", "inDays": "あと{d}日{h}時間{m}分", "riseSetAt": "その日の{p}：日の出 {r}、日の入り {s}（時刻 · 方位）。", "standPoint": "あなたの立つ位置", "athens": "アテネ、風の塔", "solWhere": "{p}（{c}）からの方位。地平線の高さは {h}、真北から時計回りに測定。", "mapErr": "地図を読み込めませんでした。接続を確認してください。", "landmark": "目印", "lmMeasuring": "測定中…", "lmHead": "目印は方位 {b}、{d}先、あなたより {h}高い位置にあり、平らな地平線から {a}の高さにそびえています。", "lmMatch": "{l}と一致しています（誤差 {o}° 以内）。", "lmSunR": "太陽は{d}ごろ、その後ろから昇ります。", "lmSunS": "太陽は{d}ごろ、その後ろへ沈みます。", "and": "と", "lmMoonR": "そこでは太陽は決して昇らず、月だけが昇ります。月の大静止の前後の年のことです（18.6年ごと。前回は2024〜25年が最盛期で、次は2043年ごろ）。", "lmMoonS": "そこでは太陽は決して沈まず、月だけが沈みます。月の大静止の前後の年のことです（18.6年ごと。前回は2024〜25年が最盛期で、次は2043年ごろ）。", "lmNone": "そこでは太陽も月も昇らず、沈みません。", "noRise": "この場所では、その日は太陽が昇りません。", "dawnNow": "{e}の日の出：{t}、方位 {a}。四十分の夜明けがひとつに：まずエオスの光、そのあとあなたが向く真の方向からヘリオスが昇ります。", "monH": "古代遺跡", "monPick": "遺跡を選ぶ…", "monHear": "聴く", "monEra": "{y}年ごろ建造", "monNoEra": "今日の空", "tr_egypt": "エジプト", "tr_bharata": "インドとアンコール", "tr_java": "ジャワ", "tr_maya": "マヤ", "tr_babylon": "バビロン", "tr_lu": "中国", "tr_ikhwan": "メッカ", "tr_welsh": "ブリテン島とアイルランド", "tr_norse": "スカンディナヴィア", "tr_greek": "ギリシャ", "stat_well": "確実", "stat_wide": "広く受け入れられている", "stat_debated": "議論あり", "az_measured": "実測", "az_computed": "この緯度で算出", "az_nominal": "建造時の設計、実測なし", "monAxis": "軸", "monStatus": "確度", "mo_eq": "分点", "mo_jun": "6月の至点", "mo_dec": "12月の至点", "mo_date": "{d}", "moSunrise": "日の出：{e}", "moSunset": "日の入り：{e}", "moStar": "{s}：夜明けに初めて見える", "skyLink": "地図上の天体との一致", "mn_khufu": "クフ王の大ピラミッド、ギザ", "md_khufu": "四つの辺は約3分角の精度で東西南北を向いており、おそらく極のまわりを回る星か、太陽の影を使って定められたものです。ここから見ると、分点の太陽はほぼ正確にその東面に沿って昇ります。", "mn_karnak": "カルナック、アメン・ラー神殿、ルクソール", "md_karnak": "神殿の主軸は、南東の冬至の日の出と北西の夏至の日没に向かっています。冬至の朝には、太陽がこの軸に沿って差し込みます。", "mn_abusimbel": "アブ・シンベル、ラムセス2世の大神殿", "md_abusimbel": "年に2回、2月22日と10月22日ごろ、昇る太陽が聖所の奥60メートルまで差し込み、4体の座像のうち3体を照らします。神殿は1960年代に移設され、日付は約1日ずれました。", "mn_sirius_memphis": "メンフィスでのシリウスの出", "md_sirius_memphis": "夜明けにシリウス（ソプデト）が初めて見えると、エジプト人はナイルの増水が近いことを知り、新年が始まりました。紀元前2500年ごろには、6月の至点から数日以内でした。", "mn_konark": "コナーラクの太陽神殿、オリッサ州", "md_konark": "太陽神スーリヤの戦車として建てられ、12対の車輪があります。東、日の出の方向を向いています。", "mn_modhera": "モデラの太陽神殿、グジャラート州", "md_modhera": "分点の日の出が、聖所のスーリヤ像に当たるといわれます。よく繰り返される主張ですが、実測されることはまれです。", "mn_angkorwat": "アンコール・ワット、カンボジア", "md_angkorwat": "ヴィシュヌに捧げられたヒンドゥー教寺院で、西を向いています。西の入口からは、分点の太陽が中央塔の上から昇ります。", "mn_borobudur": "ボロブドゥール、ジャワ", "md_borobudur": "この大仏塔は東西南北に合わせて築かれています。太陽が真上を通る日の日没に向かう視線があるとする研究が一つありますが、疑問視する研究者もいます。", "mn_prambanan": "プランバナン、ジャワ", "md_prambanan": "ヒンドゥー教の寺院群は東、日の出の方向を向き、東西南北に合わせて築かれています。", "mn_pranata_mangsa": "プラナタ・マンサ：農民の空、ジャワ", "md_pranata_mangsa": "ジャワの農事暦は星によって守られていました。夜明けと夕暮れに見えるオリオンの三つ星（ワルク、すき）とプレアデス星団（リンタン・カルティカ）が、畑の準備、種まき、収穫の時を知らせました。", "mn_uaxactun": "ウアシャクトゥン、E群、グアテマラ", "md_uaxactun": "西側のピラミッドから見ると、東の基壇にある三つの神殿が、6月の至点、分点、12月の至点の日の出を示すといわれます。視線がどれほど正確だったかは議論があります。", "mn_chichenitza": "チチェン・イッツァ、エル・カスティーヨ、メキシコ", "md_chichenitza": "分点には、午後の太陽が北の階段に光の蛇を投げかけます。その軸は、5月20日ごろと7月24日ごろの日没を指しており、この日は現地で太陽が真上を通ります。", "mn_etemenanki": "バビロン、ジッグラトのエテメナンキ", "md_etemenanki": "この大きな塔状の神殿は、東西南北にきちんと向けて建てられていました。バビロニア人の星暦MUL.APINは、シリウスなどの日の出直前の初出現によって一年を測りました。", "mn_gaocheng": "告成観星台、登封", "md_gaocheng": "南北にぴったり置かれた長い圭表（グノモン）をもつ石の塔で、郭守敬はここで至点の正午の影を測り、一年の長さを定めました（1276年）。", "mn_templeofheaven": "天壇、北京", "md_templeofheaven": "都の南北の中軸線上に築かれ、皇帝は冬至の夜明けにここで天への大祭を行いました。", "mn_kaaba": "カアバ、メッカ", "md_kaaba": "長い方の軸がカノープスの出に、短い方の軸が夏至の日の出に向いているとする研究が一つあります。ここに示す方位は、その緯度で算出したものです。", "mn_bryncelliddu": "ブリン・ケリ・ドゥー、アングルシー島（Ynys Môn）", "md_bryncelliddu": "アングルシー島にあるこの墓の通路は、夏至の日の出を捉えて奥の室を照らします。", "mn_newgrange": "ニューグレンジ、アイルランド", "md_newgrange": "冬至の前後の数日の朝、昇る太陽が屋根の開口部から差し込み、19メートルの通路を通って奥の室を照らします。", "mn_maeshowe": "メスハウ、オークニー", "md_maeshowe": "冬至の前後数週間、沈む太陽がホイ島の丘の向こうに沈むとき、光は通路を通って室の奥の壁を照らします。", "mn_stonehenge": "ストーンヘンジ", "md_stonehenge": "軸は一方では夏至の日の出、もう一方では冬至の日没に向かい、ステーション・ストーンは月の大停止を加えます。", "mn_alesstenar": "アーレ・ストーンズ、スウェーデン", "md_alesstenar": "スコーネ地方の海岸にある59個の石を船の形に並べたもので、長軸は夏至の日没と冬至の日の出を指すといわれます。", "mn_towerofwinds": "風の塔、アテネ", "md_towerofwinds": "八つの面にはこのページで歌う八つの風が刻まれ、それぞれ自分の方角を向いています。面には日時計があり、内部には水時計がありました。" }
   );
   const LOC = (
     /*LOC*/
@@ -5269,7 +5282,7 @@ function rtShow(blob,secs,kind){
   MOTS.nowPlaying = () => {
     if (FX.dawn) {
       const [lat] = placeLL();
-      return { k: "Ἠώς", h: t("lineLab", { e: evName(FX.dawn.which, lat), r: t("rs_sunrise") }), p: AL.obs ? t("standPoint") : ST.place ? ST.place.name : t("athens"), d: fmtDT(FX.dawn.jd, 1) + " · " + degs(FX.dawn.az) };
+      return { k: FX.dawn.which === "sunset" ? "Νύξ" : "Ἠώς", h: FX.dawn.cap || "", p: AL.obs ? t("standPoint") : ST.place ? ST.place.name : t("athens"), d: fmtDT(FX.dawn.jd, 1) + " · " + degs(FX.dawn.az) };
     }
     const W = ST.data;
     if (!W) return null;
@@ -5284,7 +5297,7 @@ function rtShow(blob,secs,kind){
   MOTS.weather = { start, stop, state: () => ST, set: (o) => {
     Object.assign(ST.data || (ST.data = {}), o);
     ui();
-  }, probe: (fn) => fn({ ST, A, AC, WINDS, modeOf, AL, X: { seasonJD, riseSet, skyAt, lines, events, sunEq, moonEq, lonJD, msOf, jdOf } }) };
+  }, probe: (fn) => fn({ ST, A, AC, WINDS, modeOf, AL, X: { seasonJD, riseSet, skyAt, lines, events, sunEq, moonEq, lonJD, msOf, jdOf, epsEra, starEra, heliacal, sunYear, ERA_ST } }) };
   const FX = { flash: 0, iris: -1e9, stars: [], parts: [] };
   function draw() {
     requestAnimationFrame(draw);
@@ -5661,9 +5674,68 @@ function rtShow(blob,secs,kind){
     c.arc(cx, cy, RD, 0, 7);
     c.stroke();
   }
+  const yearNow = () => (/* @__PURE__ */ new Date()).getUTCFullYear();
+  const eraYear = () => AL.year == null ? yearNow() : AL.year < 0 ? AL.year + 1 : AL.year;
+  function epsEra(y) {
+    const t2 = (y - 2e3) / 1e4, u = [-4680.93, -1.55, 1999.25, -51.38, -249.67, -39.05, 7.12, 27.87, 5.79, 2.45];
+    let e = 84381.448, tt = t2;
+    for (const c of u) {
+      e += c * tt;
+      tt *= t2;
+    }
+    return e / 3600;
+  }
+  const ERA_ST = [
+    // id, RA, Dec (J2000, degrees), proper motion in RA·cos Dec and in Dec (mas a year, Hipparcos), magnitude, arcus visionis (°), colour
+    ["sirius", 101.28716, -16.71612, -546.01, -1223.07, -1.46, 10, "#cfe3ff"],
+    ["canopus", 95.98796, -52.69566, 19.93, 23.24, -0.74, 10.5, "#fff1c4"],
+    ["pleiades", 56.87115, 24.10514, 19.34, -43.67, 1.6, 15, "#d9c2ff"],
+    ["orion", 84.05339, -1.20192, 1.44, -0.78, 1.7, 14, "#a9d0ff"]
+  ];
+  function starEra(st, y) {
+    const yrs = y - 2e3, d0 = st[2] + st[4] * yrs / 36e5, a0 = st[1] + st[3] * yrs / 36e5 / Math.cos(st[2] * D2R), T = yrs / 100, as = (x) => x / 3600 * D2R;
+    const ze = as(2306.2181 * T + 0.30188 * T * T + 0.017998 * T ** 3), z = as(2306.2181 * T + 1.09468 * T * T + 0.018203 * T ** 3), th = as(2004.3109 * T - 0.42665 * T * T - 0.041833 * T ** 3);
+    const a = a0 * D2R, d = d0 * D2R, A2 = Math.cos(d) * Math.sin(a + ze), B = Math.cos(th) * Math.cos(d) * Math.cos(a + ze) - Math.sin(th) * Math.sin(d), C = Math.sin(th) * Math.cos(d) * Math.cos(a + ze) + Math.cos(th) * Math.sin(d);
+    return [((Math.atan2(A2, B) + z) * R2D % 360 + 360) % 360, Math.asin(clamp(C, -1, 1)) * R2D];
+  }
+  function sunYear(y) {
+    const T = (y - 2e3) / 100, e = 0.016708634 - 42037e-9 * T - 1267e-10 * T * T, pg = (102.93735 + 1.71946 * T + 46e-5 * T * T + 180) % 360, eps = epsEra(y) * D2R;
+    const nuToM = (nu) => {
+      const E = 2 * Math.atan(Math.sqrt((1 - e) / (1 + e)) * Math.tan(nu / 2));
+      return E - e * Math.sin(E);
+    }, MToNu = (M) => {
+      let E = M;
+      for (let i = 0; i < 8; i++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+      return 2 * Math.atan(Math.sqrt((1 + e) / (1 - e)) * Math.tan(E / 2));
+    };
+    const Ms = nuToM(((90 - pg) % 360 + 360) % 360 * D2R), n = 2 * Math.PI / 365.2596;
+    return (d) => {
+      const lam = MToNu(Ms + n * d) + pg * D2R;
+      return { lam: (lam * R2D % 360 + 360) % 360, ra: Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam)) * R2D, dec: Math.asin(Math.sin(eps) * Math.sin(lam)) * R2D };
+    };
+  }
+  function heliacal(st, lat, y) {
+    const [ra, dec] = starEra(st, y), sun = sunYear(y), hmin = 1, av = st[6];
+    let seen = null, hidden = 0;
+    for (let d = -200; d <= 200; d++) {
+      const s = sun(d), cH = (sinD(-av) - sinD(lat) * sinD(s.dec)) / (cosD(lat) * cosD(s.dec));
+      if (Math.abs(cH) > 1) {
+        seen = null;
+        continue;
+      }
+      const H = -acosD(cH), lst = s.ra + H, Hs = ((lst - ra) % 360 + 540) % 360 - 180, alt = asinD(sinD(lat) * sinD(dec) + cosD(lat) * cosD(dec) * cosD(Hs));
+      const vis = alt >= hmin && Hs < 0;
+      if (!vis) hidden++;
+      else {
+        if (hidden >= 15 && d > -170) return d;
+        hidden = 0;
+      }
+    }
+    return null;
+  }
   const AL = { obs: null, lm: null, hz: +(LS.get("mots.wx.hz") || 0), grp: JSON.parse(LS.get("mots.wx.grp") || '{"sol":1,"eq":1,"xq":0,"lun":0}'), onSky: LS.get("mots.wx.onsky") !== "0", map: null, elev: {} };
-  function lines(lat, hz) {
-    const T = (jdOf(Date.now()) - 2451545) / 36525, e = oblD(T), xq = asinD(sinD(e) * sinD(45)), i = 5.145, out = [];
+  function lines(lat, hz, yr) {
+    const y = yr == null ? eraYear() : yr, e = epsEra(y), xq = asinD(sinD(e) * sinD(45)), i = 5.145, out = [];
     const add = (id, grp, dec, moon, col, dash) => {
       const h = hz + (moon ? 0.125 : -0.833), c = (sinD(dec) - sinD(lat) * sinD(h)) / (cosD(lat) * cosD(h));
       if (Math.abs(c) > 1) return;
@@ -5675,6 +5747,12 @@ function rtShow(blob,secs,kind){
     add("eq", "eq", 0, 0, "#f2efe6");
     add("xqn", "xq", xq, 0, "#9fdc8a", [6, 4]);
     add("xqs", "xq", -xq, 0, "#c9a46a", [6, 4]);
+    ERA_ST.forEach((st) => {
+      const dec = starEra(st, y)[1], h = hz + 1, c = (sinD(dec) - sinD(lat) * sinD(h)) / (cosD(lat) * cosD(h));
+      if (Math.abs(c) > 1) return;
+      const A2 = acosD(c);
+      out.push({ id: "st_" + st[0] + "R", ev: "st_" + st[0], grp: "star", dec, star: 1, rise: 1, az: A2, col: st[7], dash: [8, 3, 2, 3] }, { id: "st_" + st[0] + "S", ev: "st_" + st[0], grp: "star", dec, star: 1, rise: 0, az: 360 - A2, col: st[7], dash: [8, 3, 2, 3] });
+    });
     add("lmajn", "lun", e + i, 1, "#b9c8ff", [2, 4]);
     add("lmajs", "lun", -(e + i), 1, "#b9c8ff", [2, 4]);
     add("lminn", "lun", e - i, 1, "#8ea0d8", [2, 4]);
@@ -5682,12 +5760,13 @@ function rtShow(blob,secs,kind){
     return out;
   }
   function evName(ev, lat) {
+    if (ev.startsWith("st_")) return t(ev);
     const hem = lat >= 0;
     if (ev === "jun") return t("ev_jun") + " (" + t(hem ? "midsum" : "midwin") + ")";
     if (ev === "dec") return t("ev_dec") + " (" + t(hem ? "midwin" : "midsum") + ")";
     return t("ev_" + ev);
   }
-  const rsName = (l) => t(l.moon ? l.rise ? "rs_moonrise" : "rs_moonset" : l.rise ? "rs_sunrise" : "rs_sunset");
+  const rsName = (l) => t(l.star ? l.rise ? "rs_starrise" : "rs_starset" : l.moon ? l.rise ? "rs_moonrise" : "rs_moonset" : l.rise ? "rs_sunrise" : "rs_sunset");
   const lineLab = (l, lat) => t("lineLab", { e: evName(l.ev, lat), r: rsName(l) });
   const MEEUS = [[485, 324.96, 1934.136], [203, 337.23, 32964.467], [199, 342.08, 20.186], [182, 27.85, 445267.112], [156, 73.14, 45036.886], [136, 171.52, 22518.443], [77, 222.54, 65928.934], [74, 296.72, 3034.906], [70, 243.58, 9037.513], [58, 119.81, 33718.147], [52, 297.17, 150.678], [50, 21.02, 2281.226], [45, 247.54, 29929.562], [44, 325.15, 31555.956], [29, 60.93, 4443.417], [18, 155.12, 67555.328], [17, 288.79, 4562.452], [16, 198.04, 62894.029], [14, 199.76, 31436.921], [12, 95.39, 14577.848], [12, 287.11, 31931.756], [12, 320.81, 34777.259], [9, 227.73, 1222.114], [8, 15.45, 16859.074]];
   function seasonJD(year, k) {
@@ -5742,7 +5821,7 @@ function rtShow(blob,secs,kind){
     return out;
   }
   const tzOpt = () => {
-    const z = ST.data && ST.data.tz;
+    const z = AL.mon && AL.mon.tz || !AL.mon && ST.data && ST.data.tz;
     try {
       if (z) {
         new Intl.DateTimeFormat("en", { timeZone: z });
@@ -5769,9 +5848,10 @@ function rtShow(blob,secs,kind){
   const degs = (a) => nf(a, 1) + "°";
   const GL = (
     /*GL*/
-    { "sol": ["<b>至点。</b>太陽が最も北（6月21日ごろ）または最も南（12月21日ごろ）に達する、1年のうちの2つの瞬間。その前後の数日間は、日の出と日の入りの位置が止まって引き返すように見えます。英語の solstice はラテン語の <em>sol</em>（太陽）と <em>sistere</em>（じっと立つ）に由来します。日本語の「至」は「いたる」、つまり極みに達するという意味で、<em>夏至</em>は昼が最も長く、<em>冬至</em>は昼が最も短くなる日です。赤道より北では、6月の至点が一年で最も長い昼（真夏）、12月の至点が最も短い昼（真冬）をもたらし、赤道より南ではその逆になります。", "<b>真冬：光の帰還。</b>北の農民にとって、最も短い日は生き延びるための要であり、太陽が退くのをやめて戻り始める瞬間でした。大きな遺跡のいくつかはそのために造られています。アイルランドのニューグレンジでは、冬至のころの数日の朝、昇る太陽が長さ19メートルの通路を通って奥の室まで差し込みます。オークニー諸島のメイズハウ（Maeshowe）では、沈む太陽が同じことをします。ストーンヘンジの主軸は、一方は夏至の日の出、もう一方は冬至の日の入りに向かっていて、現在は多くの考古学者が、真冬のほうが大きな機会だったと考えています。近くのダーリントン・ウォールズ（Durrington Walls）で見つかった豚の骨は、豚が真冬の宴のために屠られたことを示しています。アングルシー島では、ブリン・ケリ・ドゥ（Bryn Celli Ddu）の通路が真夏の日の出をとらえます。"], "eq": ["<b>分点。</b>3月20日ごろと9月22日ごろ、2つの至点のちょうど中間：昼と夜はどこでもほぼ等しくなり、太陽はほぼ真東から昇り、ほぼ真西に沈みます。", "<b>分点。</b>昼と夜は等しくなりますが、太陽の昇る位置は分点のころに最も速く動くため、肉眼でその日を定めるのは難しく、先史時代の遺跡がこれを示すことは少ないようです。しかし後の暦にとっては非常に重要でした。復活祭の日付は春分から数えられ、ペルシャの新年ノウルーズは春分に始まり、メキシコのチチェン・イッツァでは、分点に沈む太陽がピラミッドの階段に光の蛇を落とします。"], "xq": ["<b>クロスクォーターデー（中間の日）。</b>至点と分点のちょうど中間にある4つの日で、2月上旬、5月上旬、8月上旬、11月上旬にあたり、1年を8等分します。アイルランド、スコットランド、ウェールズ、マン島の古いケルト暦では、これらが季節の始まりでした。<b>インボルク</b>（2月上旬、春の最初の兆し。ウェールズ語では Gŵyl Fair y Canhwyllau、英語ではキャンドルマス、聖燭祭）、<b>ベルテイン</b>（5月1日、夏の始まり。Calan Mai）、<b>ルーナサ</b>（8月上旬、収穫の始まり。Gŵyl Awst、英語ではラマス）、<b>サウィン</b>（冬と一年の暗い半分の始まり。Calan Gaeaf、現在のハロウィンと万聖節）。今日では決まった日付（2月1日、5月1日、8月1日、11月1日）で祝われますが、このページが示すのは太陽がちょうど中間にある天文学上の日で、数日遅れます。5月と8月の日は空での太陽の高さが同じなので日の出の方位を共有し、11月と2月の日も別の1つの方位を共有します。古代の遺跡のいくつかはこれらの日に向いているとよく言われ、アイルランドのタラにある人質の塚の通路は、サウィンとインボルクの日の出を捉えるといわれます。", "<b>クロスクォーターデー：農耕の1年。</b>これらは牧畜の暮らしの節目を示していました。ベルテインには、牛が焚き火のあいだを通って夏の牧草地へ追われ、ルーナサには最初の収穫が集められ、人々は市や競技で集まり、サウィンには家畜が戻り、冬を越して養えない動物は殺され、死者が近づいてくると考えられ、インボルクには雌羊が乳を出し始め、子を産みました。これらの多くは中世アイルランドの文献や後世の民間の習慣から知られていて、どこまで遡るかは議論がありますが、これらの祭りはウェールズ、スコットランド、アイルランドで何世紀にもわたって守られました（Calan Mai や Calan Gaeaf もその中に入ります）。"], "lun": ["<b>月の大停止・小停止。</b>月の軌道は太陽の通り道に対して約5°傾いていて、この傾きは18.6年ごとに一回りします。<b>大停止</b>（前回は2024〜25年、次回は2043年ごろ）では、月が1〜2年のあいだ、太陽がどの季節でも届かないほど北寄りと南寄りで昇り沈みします。<b>小停止</b>（次回は2034年ごろ）では、その幅が最も狭くなり、太陽の幅の内側に収まります。ルイス島のカラニッシュやアバディーンシャーの横臥石を持つストーンサークルなどは、これを示すものと考えられています。", "<b>月の長い周期。</b>月は月々を与え、夜に旅をしたり働いたりするための光をもたらしました。停止と停止のあいだの18.6年の振れ幅は、半生にわたって見続けて初めてわかるため、それを示す遺跡は、受け継がれた世代にわたる注意深い観察を思わせます。ルイス島のカラニッシュでは、大停止のとき、月が南の丘に沿って低くかすめ、沈んだように見えてから、石のあいだで再び輝きます。アバディーンシャーの横臥石を持つストーンサークルは、南に沈む月を2つの立石のあいだに縁取ります。こうした配列がどこまで意図的だったかは、今も議論されています。"], "brg": ["<b>方位。</b>真北から時計回りに測った方向：90°が東、180°が南、270°が西です。真北は北極の方向で、磁気コンパスは数度ずれることがあります。"], "hz": ["<b>地平線の高さ。</b>見ている方向で、稜線が平らな地平線よりどれだけ高く見えるかを度で表したもの（1km先にある高さ100mの丘は、約6°の高さに見えます）。稜線が高いと、太陽は経路の遅い位置で現れるので、日の出は南へ、日の入りは北へずれます。赤道より南ではその逆です。"], "gleam": ["<b>最初のきらめき。</b>時刻と方位は、太陽の上端が最初に現れる、または最後に消える瞬間のものです。空気による光の屈折も考慮しており、これにより太陽は地平線付近で約0.5°持ち上がって見えます。そのため、日の出は太陽の中心が幾何学的に地平線の高さになる数分前に起こります。"], "sh": ["<b>ストーンヘンジのステーション・ストーン。</b>91番から94番まで番号が付けられた4つの石（現存するのは2つ）は、56個のオーブリー・ホールが作る環の上に立っていて、約80メートル×33メートルの長方形を描いています。短い辺は遺跡の主軸と平行で、一方は真夏の日の出、もう一方は真冬の日の入りのほうを向いています。長い辺は、南東では最も南寄りの月の出、北西では最も北寄りの月の入りを指しています。これは月の大停止のときのもので、大停止は18.6年ごとに起こります（前回は2024〜25年）。ストーンヘンジの緯度から約50km以内でしか、この2つの方向は直角に交わらないので、長方形は両方に合うことができます。これを、その場所がそのために選ばれた印だと考える人もいれば、偶然の一致だと考える人もいます。1960年代、天文学者のジェラルド・ホーキンス（Gerald Hawkins）とフレッド・ホイル（Fred Hoyle）は、56個のオーブリー・ホールに、その周りで動かす目印を組み合わせれば、日食や月食を予測できたかもしれないと主張しました（56は18.6年周期のほぼ3回分です）。しかしほとんどの考古学者は疑っています。穴には火葬骨が納められ、おそらくブルーストーンも立てられていたからです。地図では、石は公表された平面図をもとにおおよその位置に描かれています。その辺を、中心から引いた至点と月の停止の線と見比べてみてください。"], "why_h": "なぜ重要だったのか" }
+    { "sol": ["<b>至点。</b>太陽が最も北（6月21日ごろ）または最も南（12月21日ごろ）に達する、1年のうちの2つの瞬間。その前後の数日間は、日の出と日の入りの位置が止まって引き返すように見えます。英語の solstice はラテン語の <em>sol</em>（太陽）と <em>sistere</em>（じっと立つ）に由来します。日本語の「至」は「いたる」、つまり極みに達するという意味で、<em>夏至</em>は昼が最も長く、<em>冬至</em>は昼が最も短くなる日です。赤道より北では、6月の至点が一年で最も長い昼（真夏）、12月の至点が最も短い昼（真冬）をもたらし、赤道より南ではその逆になります。", "<b>真冬：光の帰還。</b>北の農民にとって、最も短い日は生き延びるための要であり、太陽が退くのをやめて戻り始める瞬間でした。大きな遺跡のいくつかはそのために造られています。アイルランドのニューグレンジでは、冬至のころの数日の朝、昇る太陽が長さ19メートルの通路を通って奥の室まで差し込みます。オークニー諸島のメイズハウ（Maeshowe）では、沈む太陽が同じことをします。ストーンヘンジの主軸は、一方は夏至の日の出、もう一方は冬至の日の入りに向かっていて、現在は多くの考古学者が、真冬のほうが大きな機会だったと考えています。近くのダーリントン・ウォールズ（Durrington Walls）で見つかった豚の骨は、豚が真冬の宴のために屠られたことを示しています。アングルシー島では、ブリン・ケリ・ドゥ（Bryn Celli Ddu）の通路が真夏の日の出をとらえます。"], "eq": ["<b>分点。</b>3月20日ごろと9月22日ごろ、2つの至点のちょうど中間：昼と夜はどこでもほぼ等しくなり、太陽はほぼ真東から昇り、ほぼ真西に沈みます。", "<b>分点。</b>昼と夜は等しくなりますが、太陽の昇る位置は分点のころに最も速く動くため、肉眼でその日を定めるのは難しく、先史時代の遺跡がこれを示すことは少ないようです。しかし後の暦にとっては非常に重要でした。復活祭の日付は春分から数えられ、ペルシャの新年ノウルーズは春分に始まり、メキシコのチチェン・イッツァでは、分点に沈む太陽がピラミッドの階段に光の蛇を落とします。"], "xq": ["<b>クロスクォーターデー（中間の日）。</b>至点と分点のちょうど中間にある4つの日で、2月上旬、5月上旬、8月上旬、11月上旬にあたり、1年を8等分します。アイルランド、スコットランド、ウェールズ、マン島の古いケルト暦では、これらが季節の始まりでした。<b>インボルク</b>（2月上旬、春の最初の兆し。ウェールズ語では Gŵyl Fair y Canhwyllau、英語ではキャンドルマス、聖燭祭）、<b>ベルテイン</b>（5月1日、夏の始まり。Calan Mai）、<b>ルーナサ</b>（8月上旬、収穫の始まり。Gŵyl Awst、英語ではラマス）、<b>サウィン</b>（冬と一年の暗い半分の始まり。Calan Gaeaf、現在のハロウィンと万聖節）。今日では決まった日付（2月1日、5月1日、8月1日、11月1日）で祝われますが、このページが示すのは太陽がちょうど中間にある天文学上の日で、数日遅れます。5月と8月の日は空での太陽の高さが同じなので日の出の方位を共有し、11月と2月の日も別の1つの方位を共有します。古代の遺跡のいくつかはこれらの日に向いているとよく言われ、アイルランドのタラにある人質の塚の通路は、サウィンとインボルクの日の出を捉えるといわれます。", "<b>クロスクォーターデー：農耕の1年。</b>これらは牧畜の暮らしの節目を示していました。ベルテインには、牛が焚き火のあいだを通って夏の牧草地へ追われ、ルーナサには最初の収穫が集められ、人々は市や競技で集まり、サウィンには家畜が戻り、冬を越して養えない動物は殺され、死者が近づいてくると考えられ、インボルクには雌羊が乳を出し始め、子を産みました。これらの多くは中世アイルランドの文献や後世の民間の習慣から知られていて、どこまで遡るかは議論がありますが、これらの祭りはウェールズ、スコットランド、アイルランドで何世紀にもわたって守られました（Calan Mai や Calan Gaeaf もその中に入ります）。"], "lun": ["<b>月の大停止・小停止。</b>月の軌道は太陽の通り道に対して約5°傾いていて、この傾きは18.6年ごとに一回りします。<b>大停止</b>（前回は2024〜25年、次回は2043年ごろ）では、月が1〜2年のあいだ、太陽がどの季節でも届かないほど北寄りと南寄りで昇り沈みします。<b>小停止</b>（次回は2034年ごろ）では、その幅が最も狭くなり、太陽の幅の内側に収まります。ルイス島のカラニッシュやアバディーンシャーの横臥石を持つストーンサークルなどは、これを示すものと考えられています。", "<b>月の長い周期。</b>月は月々を与え、夜に旅をしたり働いたりするための光をもたらしました。停止と停止のあいだの18.6年の振れ幅は、半生にわたって見続けて初めてわかるため、それを示す遺跡は、受け継がれた世代にわたる注意深い観察を思わせます。ルイス島のカラニッシュでは、大停止のとき、月が南の丘に沿って低くかすめ、沈んだように見えてから、石のあいだで再び輝きます。アバディーンシャーの横臥石を持つストーンサークルは、南に沈む月を2つの立石のあいだに縁取ります。こうした配列がどこまで意図的だったかは、今も議論されています。"], "brg": ["<b>方位。</b>真北から時計回りに測った方向：90°が東、180°が南、270°が西です。真北は北極の方向で、磁気コンパスは数度ずれることがあります。"], "hz": ["<b>地平線の高さ。</b>見ている方向で、稜線が平らな地平線よりどれだけ高く見えるかを度で表したもの（1km先にある高さ100mの丘は、約6°の高さに見えます）。稜線が高いと、太陽は経路の遅い位置で現れるので、日の出は南へ、日の入りは北へずれます。赤道より南ではその逆です。"], "gleam": ["<b>最初のきらめき。</b>時刻と方位は、太陽の上端が最初に現れる、または最後に消える瞬間のものです。空気による光の屈折も考慮しており、これにより太陽は地平線付近で約0.5°持ち上がって見えます。そのため、日の出は太陽の中心が幾何学的に地平線の高さになる数分前に起こります。"], "sh": ["<b>ストーンヘンジのステーション・ストーン。</b>91番から94番まで番号が付けられた4つの石（現存するのは2つ）は、56個のオーブリー・ホールが作る環の上に立っていて、約80メートル×33メートルの長方形を描いています。短い辺は遺跡の主軸と平行で、一方は真夏の日の出、もう一方は真冬の日の入りのほうを向いています。長い辺は、南東では最も南寄りの月の出、北西では最も北寄りの月の入りを指しています。これは月の大停止のときのもので、大停止は18.6年ごとに起こります（前回は2024〜25年）。ストーンヘンジの緯度から約50km以内でしか、この2つの方向は直角に交わらないので、長方形は両方に合うことができます。これを、その場所がそのために選ばれた印だと考える人もいれば、偶然の一致だと考える人もいます。1960年代、天文学者のジェラルド・ホーキンス（Gerald Hawkins）とフレッド・ホイル（Fred Hoyle）は、56個のオーブリー・ホールに、その周りで動かす目印を組み合わせれば、日食や月食を予測できたかもしれないと主張しました（56は18.6年周期のほぼ3回分です）。しかしほとんどの考古学者は疑っています。穴には火葬骨が納められ、おそらくブルーストーンも立てられていたからです。地図では、石は公表された平面図をもとにおおよその位置に描かれています。その辺を、中心から引いた至点と月の停止の線と見比べてみてください。"], "star": ["<b>明るい星とヘリアカル・ライジング。</b>星は毎晩、地平線上の同じ2つの点から昇り、沈みます。そのため、昇る位置は太陽と同じように印をつけられます。毎年数週間は太陽のまぶしさに紛れて見えなくなり、再び姿を現す最初の朝、夜明け直前の東の低い空に見えるのが、その星のヘリアカル・ライジング（日の出直前の出現）で、多くの民族がこれで時を測っていました。シリウスのそれは、エジプト人にナイル川の増水が近いことを告げ、彼らの1年の始まりとなりました。プレアデス星団とオリオン座の三つ星は、今もジャワのプラタ・マングサの農事暦で季節を示しています。バビロニア人はこうした出現を何十も記録しました。2番目に明るい星カノープスは、はるか南から昇ります。線は、平らな地平線の1°上で各星が昇る位置と沈む位置を示しています。日付は数日程度の誤差を含む概算で、空気の澄み具合や観察者の目に左右されるためです。"], "era": ["<b>時代。</b>空はゆっくりと動いています。太陽と月が南北にどこまで振れるかを決める地球の傾きは、ピラミッドやストーンヘンジが造られたころは約24°で、今は23.4°なので、至点の線は約1°動きました。星の動きはずっと大きく、地球の軸は約26,000年で1周するように首を振る（歳差）ため、各星の昇る位置がずれていきます。5000年前、シリウス、プレアデス星団、オリオン座はまったく違う場所から昇っていました。スライダーを遺跡自身の世紀に合わせると、建造者が見た空を再現できます。太陽と月の線、星、そのヘリアカル・ライジングがすべて連動して変わります。"], "why_h": "なぜ重要だったのか" }
   );
-  const GRP = { jun: "sol", dec: "sol", eq: "eq", xqn: "xq", xqs: "xq", lmajn: "lun", lmajs: "lun", lminn: "lun", lmins: "lun" };
+  const GRP = { jun: "sol", dec: "sol", eq: "eq", xqn: "xq", xqs: "xq", lmajn: "lun", lmajs: "lun", lminn: "lun", lmins: "lun", st_sirius: "star", st_canopus: "star", st_pleiades: "star", st_orion: "star" };
+  const eraTxt = (y) => y == null || y === yearNow() ? t("eraNow") : y < 0 ? t("eraBC", { y: String(-y) }) : t("eraAD", { y: String(y) });
   function gloss(g, btn) {
     const box = document.querySelector('#solCard .gloss[data-for="' + g + '"]');
     if (!box || !GL[g]) return;
@@ -5783,6 +5863,124 @@ function rtShow(blob,secs,kind){
       const r = box.getBoundingClientRect();
       if (r.bottom > innerHeight || r.top < 0) box.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
+  }
+  const MON = (
+    /*MON*/
+    [{ "id": "khufu", "tr": "egypt", "ll": [29.97916, 31.13421], "era": -2554, "sl": [[359.95, "measured", null], [89.95, "measured", null]], "mom": [["sunrise", "eq"]], "st": "well" }, { "id": "karnak", "tr": "egypt", "ll": [25.71592, 32.65784], "era": -1950, "sl": [[117.2, "measured", null], [297.2, "measured", null]], "mom": [["sunrise", "dec"], ["sunset", "jun"]], "st": "wide" }, { "id": "abusimbel", "tr": "egypt", "ll": [22.33712, 31.6258], "era": -1265, "sl": [[101.1, "computed", 0]], "mom": [["sunrise", "02-22"], ["sunrise", "10-22"]], "st": "well" }, { "id": "sirius_memphis", "tr": "egypt", "ll": [29.85377, 31.25381], "era": -2500, "sl": [], "mom": [["star", "sirius"]], "st": "well" }, { "id": "konark", "tr": "bharata", "ll": [19.88756, 86.09449], "era": 1255, "sl": [[90, "nominal", null]], "mom": [["sunrise", "eq"]], "st": "wide" }, { "id": "modhera", "tr": "bharata", "ll": [23.58342, 72.13308], "era": 1026, "sl": [[90, "nominal", null]], "mom": [["sunrise", "eq"]], "st": "debated" }, { "id": "angkorwat", "tr": "bharata", "ll": [13.41252, 103.86659], "era": 1130, "sl": [[270.5, "measured", null], [90.67, "measured", 5]], "mom": [["sunrise", "eq"]], "st": "wide" }, { "id": "borobudur", "tr": "java", "ll": [-7.60796, 110.20382], "era": 800, "sl": [[0, "nominal", null], [263, "measured", 1.8]], "mom": [["sunset", "10-11"]], "st": "debated" }, { "id": "prambanan", "tr": "java", "ll": [-7.752, 110.49118], "era": 850, "sl": [[90, "nominal", null]], "mom": [["sunrise", "eq"]], "st": "wide" }, { "id": "pranata_mangsa", "tr": "java", "ll": [-7.7956, 110.3695], "era": null, "sl": [], "mom": [["star", "orion"], ["star", "pleiades"]], "st": "wide" }, { "id": "uaxactun", "tr": "maya", "ll": [17.39127, -89.62947], "era": -200, "sl": [[65.1, "computed", 0], [90, "nominal", null], [114.9, "computed", 0]], "mom": [["sunrise", "jun"], ["sunrise", "eq"], ["sunrise", "dec"]], "st": "debated" }, { "id": "chichenitza", "tr": "maya", "ll": [20.68299, -88.56864], "era": 1e3, "sl": [[291.72, "measured", null], [111.72, "measured", null]], "mom": [["sunset", "05-20"]], "st": "debated" }, { "id": "etemenanki", "tr": "babylon", "ll": [32.5363, 44.42108], "era": -600, "sl": [[0, "nominal", null], [90, "nominal", null]], "mom": [["star", "sirius"]], "st": "wide" }, { "id": "gaocheng", "tr": "lu", "ll": [34.40262, 113.14067], "era": 1276, "sl": [[0, "nominal", null]], "mom": [], "st": "well" }, { "id": "templeofheaven", "tr": "lu", "ll": [39.87558, 116.40696], "era": 1420, "sl": [[0, "nominal", null]], "mom": [["sunrise", "dec"]], "st": "well" }, { "id": "kaaba", "tr": "ikhwan", "ll": [21.42251, 39.82619], "era": null, "sl": [[147.7, "computed", 0], [64.5, "computed", 0]], "mom": [["star", "canopus"], ["sunrise", "jun"]], "st": "wide" }, { "id": "bryncelliddu", "tr": "welsh", "ll": [53.20772, -4.23614], "era": -3e3, "sl": [[47.2, "computed", 0]], "mom": [["sunrise", "jun"]], "st": "well" }, { "id": "newgrange", "tr": "welsh", "ll": [53.6947, -6.47555], "era": -3150, "sl": [[133.9, "measured", 0.92]], "mom": [["sunrise", "dec"]], "st": "well" }, { "id": "maeshowe", "tr": "welsh", "ll": [58.99652, -3.18817], "era": -2800, "sl": [[221, "measured", null]], "mom": [["sunset", "dec"]], "st": "well" }, { "id": "stonehenge", "tr": "welsh", "ll": [51.17883, -1.82618], "era": -2500, "sl": [[49.9, "nominal", null], [229.9, "nominal", null]], "mom": [["sunrise", "jun"], ["sunset", "dec"]], "st": "well" }, { "id": "alesstenar", "tr": "norse", "ll": [55.38265, 14.05441], "era": 600, "sl": [[314.8, "computed", 0], [134.8, "computed", 0]], "mom": [["sunset", "jun"], ["sunrise", "dec"]], "st": "debated" }, { "id": "towerofwinds", "tr": "greek", "ll": [37.9742, 23.72703], "era": -50, "sl": [[0, "nominal", null], [45, "nominal", null], [90, "nominal", null], [135, "nominal", null], [180, "nominal", null], [225, "nominal", null], [270, "nominal", null], [315, "nominal", null]], "mom": [], "st": "well" }]
+  );
+  const TRORD = ["egypt", "bharata", "java", "maya", "babylon", "lu", "ikhwan", "welsh", "norse", "greek"];
+  function monInit() {
+    const sel = $("monSel");
+    if (!sel) return;
+    sel.innerHTML = '<option value="">' + esc(t("monPick")) + "</option>" + TRORD.map((tr) => '<optgroup label="' + esc(t("tr_" + tr)) + '">' + MON.filter((m) => m.tr === tr).map((m) => '<option value="' + m.id + '">' + esc(t("mn_" + m.id)) + "</option>").join("") + "</optgroup>").join("");
+    sel.onchange = () => monGo(sel.value);
+  }
+  function monDay(spec) {
+    const y = yearNow(), now = jdOf(Date.now());
+    if (spec === "eq") {
+      const c = [seasonJD(y, 0), seasonJD(y, 2), seasonJD(y + 1, 0)];
+      return c.find((j2) => j2 > now - 1);
+    }
+    if (spec === "jun" || spec === "dec") {
+      const k = spec === "jun" ? 1 : 3;
+      let j2 = seasonJD(y, k);
+      if (j2 < now - 1) j2 = seasonJD(y + 1, k);
+      return j2;
+    }
+    const [mm, dd] = spec.split("-").map(Number);
+    let j = jdOf(Date.UTC(y, mm - 1, dd, 12));
+    if (j < now - 1) j = jdOf(Date.UTC(y + 1, mm - 1, dd, 12));
+    return j;
+  }
+  function moLabel(mo) {
+    if (mo[0] === "star") return t("moStar", { s: t("st_" + mo[1]) });
+    const e = /^\d/.test(mo[1]) ? fmtD(monDay(mo[1])) : t("mo_" + mo[1]);
+    return t(mo[0] === "sunrise" ? "moSunrise" : "moSunset", { e });
+  }
+  function monPlay(mo) {
+    const [lat, lon] = placeLL();
+    let ev = null, kind = mo[0];
+    if (kind === "star") {
+      const st = ERA_ST.find((x) => x[0] === mo[1]);
+      ev = st && starMoment(st);
+    } else {
+      const rs = riseSet(monDay(mo[1]), lat, lon, AL.hz);
+      ev = kind === "sunrise" ? rs.rise : rs.set;
+    }
+    if (!ev) {
+      msg(t("noRise"), true);
+      return;
+    }
+    const cap = (AL.mon ? t("mn_" + AL.mon.id) + " · " : "") + moLabel(mo);
+    return playMoment({ kind, jd: ev.jd, az: ev.az, warm: mo[1] === "jun" || /^0[4-8]/.test(mo[1]), cap, msg: t("moNow", { m: cap, t: fmtDT(ev.jd, 1), a: degs(ev.az) }) });
+  }
+  function monInfo() {
+    const box = $("monInfo"), m = AL.mon;
+    if (!box) return;
+    if (!m) {
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    const axes = m.sl.map(([az, ty]) => degs(az) + " <small>(" + esc(t("az_" + ty)) + ")</small>").join(" · ");
+    box.innerHTML = "<h4>" + esc(t("mn_" + m.id)) + "</h4><p>" + esc(t("md_" + m.id)) + '</p><p class="note">' + (m.era != null ? esc(t("monEra", { y: eraTxt(m.era) })) : esc(t("monNoEra"))) + " · " + esc(t("monStatus")) + ": " + esc(t("stat_" + m.st)) + (axes ? "<br>" + esc(t("monAxis")) + ": " + axes : "") + "</p>" + (m.mom.length ? '<div class="tools">' + m.mom.map((mo, i) => '<button class="pb" type="button" data-mo="' + i + '">♪ ' + esc(t("monHear")) + ": " + esc(moLabel(mo)) + "</button>").join("") + "</div>" : "");
+    box.querySelectorAll("[data-mo]").forEach((b) => b.onclick = () => monPlay(m.mom[+b.dataset.mo]));
+  }
+  function monGo(id) {
+    const m = MON.find((x) => x.id === id) || null;
+    AL.mon = m;
+    const sel = $("monSel");
+    if (sel && sel.value !== (id || "")) sel.value = id || "";
+    if (!m) {
+      monInfo();
+      mapLines();
+      return;
+    }
+    AL.year = m.era == null ? null : m.era;
+    const yr = $("alYear");
+    if (yr) yr.value = String(AL.year == null ? yearNow() : AL.year);
+    if (AL.lM) {
+      AL.lM.remove();
+      AL.lM = null;
+      AL.lm = null;
+    }
+    AL.obs = { lat: m.ll[0], lon: m.ll[1] };
+    SKY = null;
+    AL.grp.sol = 1;
+    if (m.mom.some((x) => x[0] === "star")) AL.grp.star = 1;
+    if (m.mom.some((x) => x[1] === "eq")) AL.grp.eq = 1;
+    ["alSol", "alEq", "alXq", "alLun", "alStar"].forEach((id2, i) => {
+      const e = $(id2);
+      if (e) e.checked = !!AL.grp[["sol", "eq", "xq", "lun", "star"][i]];
+    });
+    monInfo();
+    openMap().then(() => {
+      if (AL.map) {
+        AL.map.setView(m.ll, m.sl.length ? 16 : 11);
+        solUI();
+      }
+    });
+    if (!m.tz) getJSON(FC + "?latitude=" + m.ll[0].toFixed(3) + "&longitude=" + m.ll[1].toFixed(3) + "&current=temperature_2m&timezone=auto&forecast_days=1").then((j) => {
+      if (j && j.timezone) {
+        m.tz = j.timezone;
+        if (AL.mon === m) {
+          solUI();
+          monInfo();
+        }
+      }
+    }).catch(() => {
+    });
+  }
+  function monLines(km) {
+    const m = AL.mon, Lf = window.L;
+    if (!m || !AL.obs || Math.abs(AL.obs.lat - m.ll[0]) > 1e-6 || Math.abs(AL.obs.lon - m.ll[1]) > 1e-6) return;
+    m.sl.forEach(([az]) => {
+      [[az, 1], [az + 180, 0.3]].forEach(([b, op]) => {
+        const pts = [[m.ll[0], m.ll[1]]];
+        for (let k = 1; k <= 12; k++) pts.push(geoDest(m.ll[0], m.ll[1], b, km * k / 12));
+        Lf.polyline(pts, { color: "#e0405a", weight: op === 1 ? 4.5 : 2, opacity: op === 1 ? 0.95 : 0.5, interactive: false }).addTo(AL.lay);
+      });
+    });
   }
   function solUI() {
     const card = $("solCard");
@@ -5803,6 +6001,22 @@ function rtShow(blob,secs,kind){
       return '<tr><td><i style="background:' + l.col + '"></i><button class="term" type="button" data-g="' + GRP[k] + '" aria-expanded="' + !document.querySelector('#solCard .gloss[data-for="' + GRP[k] + '"]').hidden + '">' + esc(evName(k, lat)) + '</button></td><td class="mono">' + (x.r ? degs(x.r.az) : "—") + '</td><td class="mono">' + (x.s ? degs(x.s.az) : "—") + "</td></tr>";
     }).join("");
     $("solWhere").textContent = t("solWhere", { p: AL.obs ? t("standPoint") : ST.place ? ST.place.name : t("athens"), c: nf(Math.abs(lat), 3) + "°" + (lat >= 0 ? t("cN") : t("cS")) + " " + nf(Math.abs(lon), 3) + "°" + (lon >= 0 ? t("cE") : t("cW")), h: degs(AL.hz) });
+    const hl = $("helList");
+    if (hl) {
+      hl.hidden = !AL.grp.star;
+      if (AL.grp.star) {
+        const y = eraYear(), js = seasonJD(yearNow(), 1);
+        hl.innerHTML = '<li class="hh">' + esc(t("helH")) + " · " + esc(eraTxt(AL.year)) + "</li>" + ERA_ST.map((st) => {
+          const nm = t("st_" + st[0]), dec = starEra(st, y)[1];
+          if (dec < -(90 - Math.abs(lat)) && lat > 0 || dec > 90 - Math.abs(lat) && lat < 0) return "<li>" + esc(t("helNever", { s: nm })) + "</li>";
+          const d = heliacal(st, lat, y);
+          if (d == null) return "<li>" + esc(t("helNone", { s: nm })) + "</li>";
+          return "<li>" + esc(t("helLine", { s: nm, d: nf(Math.abs(d)), ba: t(d < 0 ? "before" : "after") })) + (y === yearNow() ? esc(t("helToday", { d: fmtD(js + d) })) : "") + "</li>";
+        }).join("");
+      }
+    }
+    const yo = $("alYearOut");
+    if (yo) yo.textContent = eraTxt(AL.year);
     mapLines();
   }
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -5894,6 +6108,7 @@ function rtShow(blob,secs,kind){
     if (AL.lm) Lf.polyline([[lat, lon], [AL.lm.lat, AL.lm.lon]], { color: "#b07ad8", weight: 2.5, dashArray: "8 6", interactive: false }).addTo(AL.lay);
     if (AL.oM) AL.oM.setLatLng([lat, lon]);
     shOverlay(km);
+    monLines(km);
   }
   const SH = { lat: 51.178882, lon: -1.826215 };
   function shOverlay(km) {
@@ -6032,13 +6247,43 @@ function rtShow(blob,secs,kind){
       msg(t("noRise"), true);
       return;
     }
+    return playMoment({
+      kind: "sunrise",
+      jd: rs.rise.jd,
+      az: rs.rise.az,
+      warm: which === "jun",
+      cap: t("lineLab", { e: evName(which, lat), r: t("rs_sunrise") }),
+      msg: t("dawnNow", { e: evName(which, lat), t: fmtDT(rs.rise.jd, 1), a: degs(rs.rise.az) })
+    });
+  }
+  function sunMoment(dec, rise) {
+    const [lat, lon] = placeLL(), ds = sunDates(dec);
+    if (!ds.length) return null;
+    const rs = riseSet(ds[0], lat, lon, AL.hz);
+    const e = rise ? rs.rise : rs.set;
+    return e ? { jd: e.jd, az: e.az } : null;
+  }
+  function starMoment(st) {
+    const [lat, lon] = placeLL(), y = yearNow(), d = heliacal(st, lat, y);
+    if (d == null) return null;
+    const j0 = Math.floor(seasonJD(y, 1) + d + lon / 360 + 0.5) - 0.5 - lon / 360;
+    const [ra, dec] = starEra(st, y), alt = (j) => altAz(ra * D2R, dec * D2R, j, lat, lon);
+    let prev = alt(j0)[0];
+    for (let k = 1; k <= 720; k++) {
+      const j = j0 + k / 720, a = alt(j);
+      if (prev < 1 && a[0] >= 1 && a[1] < 180) return { jd: j, az: a[1] };
+      prev = a[0];
+    }
+    return null;
+  }
+  async function playMoment(o) {
     if (!ST.data) {
-      ST.data = { t: (/* @__PURE__ */ new Date()).toISOString(), wind: 6, gust: 10, dir: 225, temp: which === "jun" ? 14 : 2, hum: 70, cloud: 10, pres: 1015, rain: 0, snow: 0, code: 0, day: 0, cape: 0 };
+      ST.data = { t: (/* @__PURE__ */ new Date()).toISOString(), wind: 6, gust: 10, dir: 225, temp: o.warm ? 14 : 4, hum: 70, cloud: 10, pres: 1015, rain: 0, snow: 0, code: 0, day: 0, cape: 0 };
     }
     if (!ST.playing) await start();
     if (!AC) return;
-    const dur = 60, t0 = AC.currentTime + 0.2, rise = t0 + 40, az = rs.rise.az;
-    FX.dawn = { t0: performance.now() + 200, dur: dur * 1e3, jdA: rs.rise.jd - 40 / 1440, jdB: rs.rise.jd + 20 / 1440, az, which, jd: rs.rise.jd };
+    const dur = 60, t0 = AC.currentTime + 0.2, ev = t0 + (o.kind === "sunrise" ? 40 : o.kind === "sunset" ? 22 : 25), az = o.az;
+    FX.dawn = { t0: performance.now() + 200, dur: dur * 1e3, jdA: o.jd - (ev - t0) * 40 / 60 / 1440, jdB: o.jd + (t0 + dur - ev) * 40 / 60 / 1440, az, which: o.kind, jd: o.jd, cap: o.cap };
     SKY = null;
     const out = AC.createGain();
     out.gain.value = 1;
@@ -6046,7 +6291,10 @@ function rtShow(blob,secs,kind){
     out.connect(A.verb);
     tgt(A.duck.gain, 0.3, 2);
     setTimeout(() => {
-      if (A.duck) tgt(A.duck.gain, 1, 3);
+      if (A.duck) {
+        A.duck.gain.__v = void 0;
+        tgt(A.duck.gain, 1, 3);
+      }
       FX.dawn = null;
       SKY = null;
       try {
@@ -6055,64 +6303,89 @@ function rtShow(blob,secs,kind){
       }
       ui();
     }, dur * 1e3 + 600);
-    const pan = clamp(Math.sin((az - ST.facing) * D2R), -1, 1), root = A.root || 110, md = modeOf(which === "jun" ? 22 : 2);
-    md.forEach((s, i) => {
-      const o = AC.createOscillator(), g = AC.createGain(), p = mkPan(clamp(pan * 0.6 + (i / 6 - 0.5) * 0.5, -1, 1));
-      o.frequency.value = root * 4 * Math.pow(2, s / 12);
-      o.type = "sine";
-      const st = t0 + i * 4.5;
-      g.gain.setValueAtTime(0, st);
-      g.gain.linearRampToValueAtTime(0.035, st + 12);
-      g.gain.setValueAtTime(0.035, rise + 6);
-      g.gain.linearRampToValueAtTime(0, t0 + dur);
-      o.connect(g);
-      g.connect(p);
-      p.connect(out);
-      o.start(st);
-      o.stop(t0 + dur + 0.2);
+    const pan = clamp(Math.sin((az - ST.facing) * D2R), -1, 1), root = A.root || 110, md = modeOf(o.warm ? 22 : 4);
+    const bell = (at, f, amp, p) => [[1, 1], [2.76, 0.38], [5.4, 0.19], [8.93, 0.09]].forEach(([r, a]) => {
+      const x = AC.createOscillator(), g = AC.createGain(), pp = mkPan(p);
+      x.frequency.value = f * r;
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(amp * a, at + 0.01);
+      g.gain.setTargetAtTime(0, at + 0.01, 2.2 / r ** 0.3);
+      x.connect(g);
+      g.connect(pp);
+      pp.connect(out);
+      x.start(at);
+      x.stop(at + 12);
     });
-    [[1, 0.32], [2.76, 0.12], [5.4, 0.06], [8.93, 0.03]].forEach(([r, a]) => {
-      const o = AC.createOscillator(), g = AC.createGain(), p = mkPan(pan);
-      o.frequency.value = root * r;
-      g.gain.setValueAtTime(0, rise);
-      g.gain.linearRampToValueAtTime(a, rise + 0.01);
-      g.gain.setTargetAtTime(0, rise + 0.01, 2.2 / r ** 0.3);
-      o.connect(g);
-      g.connect(p);
-      p.connect(out);
-      o.start(rise);
-      o.stop(rise + 12);
-    });
-    [[0, 0], [7, 0], [12, 0], [12 + md[2], 0], [19, 0]].forEach(([s], i) => {
-      const o = AC.createOscillator();
-      o.type = "sawtooth";
-      o.frequency.value = root * Math.pow(2, s / 12);
-      o.detune.value = (i - 2) * 4;
-      const fs = VOW.a.map((F, k2) => {
+    const choir = (vow, steps, base, a0, a1, a2, a3, gain, p) => steps.forEach((s, i) => {
+      const x = AC.createOscillator();
+      x.type = "sawtooth";
+      x.frequency.value = base * Math.pow(2, s / 12);
+      x.detune.value = (i - 2) * 4;
+      const fs = VOW[vow].map((F, k) => {
         const f = AC.createBiquadFilter();
         f.type = "bandpass";
         f.frequency.value = F * (1 + i * 0.02);
-        f.Q.value = [8, 11, 13][k2];
-        o.connect(f);
+        f.Q.value = [8, 11, 13][k];
+        x.connect(f);
         return f;
       });
-      const g = AC.createGain(), p = mkPan(clamp(pan + (i - 2) * 0.08, -1, 1));
-      fs.forEach((f, k2) => {
+      const g = AC.createGain(), pp = mkPan(clamp(p + (i - 2) * 0.08, -1, 1));
+      fs.forEach((f, k) => {
         const fg = AC.createGain();
-        fg.gain.value = [1, 0.5, 0.28][k2];
+        fg.gain.value = [1, 0.5, 0.28][k];
         f.connect(fg);
         fg.connect(g);
       });
-      g.gain.setValueAtTime(0, rise - 1);
-      g.gain.linearRampToValueAtTime(0.09, rise + 6);
-      g.gain.setValueAtTime(0.09, rise + 12);
+      g.gain.setValueAtTime(0, a0);
+      g.gain.linearRampToValueAtTime(gain, a1);
+      g.gain.setValueAtTime(gain, a2);
+      g.gain.linearRampToValueAtTime(0, a3);
+      g.connect(pp);
+      pp.connect(out);
+      x.start(a0);
+      x.stop(a3 + 0.2);
+    });
+    const eos = (from, to) => md.forEach((s, i) => {
+      const x = AC.createOscillator(), g = AC.createGain(), p = mkPan(clamp(pan * 0.6 + (i / 6 - 0.5) * 0.5, -1, 1));
+      x.frequency.value = root * 4 * Math.pow(2, s / 12);
+      const st = from + i * (to - from) / 9;
+      g.gain.setValueAtTime(0, st);
+      g.gain.linearRampToValueAtTime(0.035, st + 10);
+      g.gain.setValueAtTime(0.035, Math.max(st + 10, t0 + dur - 12));
       g.gain.linearRampToValueAtTime(0, t0 + dur);
+      x.connect(g);
       g.connect(p);
       p.connect(out);
-      o.start(rise - 1);
-      o.stop(t0 + dur + 0.2);
+      x.start(st);
+      x.stop(t0 + dur + 0.2);
     });
-    msg(t("dawnNow", { e: evName(which, lat), t: fmtDT(rs.rise.jd, 1), a: degs(az) }));
+    const triad = [0, 7, 12, 12 + md[2], 19];
+    if (o.kind === "sunrise") {
+      eos(t0, ev);
+      bell(ev, root, 0.32, pan);
+      choir("a", triad, root, ev - 1, ev + 6, ev + 12, t0 + dur, 0.09, pan);
+    } else if (o.kind === "sunset") {
+      choir("a", triad, root, t0, t0 + 5, ev - 6, ev + 3, 0.09, pan);
+      bell(ev, root, 0.3, pan);
+      for (let k = 0; k < 26; k++) {
+        const at = ev + 4 + k * 1.3 + Math.random(), f = root * 16 * Math.pow(2, md[Math.random() * 7 | 0] / 12) * (Math.random() < 0.5 ? 1 : 2);
+        const x = AC.createOscillator(), g = AC.createGain(), p = mkPan(rnd(-0.9, 0.9));
+        x.frequency.value = f;
+        g.gain.setValueAtTime(0, at);
+        g.gain.linearRampToValueAtTime(0.02, at + 0.01);
+        g.gain.setTargetAtTime(0, at + 0.01, 0.4);
+        x.connect(g);
+        g.connect(p);
+        p.connect(out);
+        x.start(at);
+        x.stop(at + 3);
+      }
+    } else {
+      bell(ev, root * 4, 0.16, pan);
+      choir("i", [12, 19, 24], root, ev - 0.5, ev + 4, ev + 14, t0 + dur, 0.05, pan);
+      eos(ev + 8, t0 + dur - 6);
+    }
+    if (o.msg) msg(o.msg);
   }
   function relTime(W) {
     try {
@@ -6432,6 +6705,44 @@ function rtShow(blob,secs,kind){
         solUI();
       };
       $("shGo").onclick = () => shGo();
+      monInit();
+      {
+        const h = location.hash.match(/^#(sky|site)=([a-z_]+)/);
+        if (h) {
+          const m = h[1] === "site" ? MON.find((x) => x.id === h[2]) : MON.find((x) => x.tr === h[2]);
+          if (m) {
+            card.open = true;
+            setTimeout(() => {
+              monGo(m.id);
+              card.scrollIntoView({ block: "start" });
+            }, 300);
+          }
+        }
+      }
+      {
+        const st = $("alStar");
+        st.checked = !!AL.grp.star;
+        st.onchange = () => {
+          AL.grp.star = st.checked ? 1 : 0;
+          LS.set("mots.wx.grp", JSON.stringify(AL.grp));
+          solUI();
+        };
+        const yr = $("alYear");
+        yr.max = String(Math.ceil(yearNow() / 25) * 25);
+        yr.value = String(AL.year == null ? yearNow() : AL.year);
+        yr.oninput = () => {
+          const v = +yr.value;
+          AL.year = Math.abs(v - yearNow()) < 25 ? null : v;
+          solUI();
+          if (AL.lm) judgeLm();
+        };
+        $("alYearNow").onclick = () => {
+          AL.year = null;
+          yr.value = String(yearNow());
+          solUI();
+          if (AL.lm) judgeLm();
+        };
+      }
       {
         const e = $("shHere");
         e.checked = AL.shHere = LS.get("mots.wx.shHere") === "1";
