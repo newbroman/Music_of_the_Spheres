@@ -563,7 +563,7 @@ h1,h2,h3{font-family:var(--f-display);font-weight:400;margin:0;text-wrap:balance
 @media (max-width:760px){.stagebox{grid-template-columns:1fr}}
 .skybox{position:relative;min-width:0;width:100%;align-self:start;border:1px solid var(--line);border-radius:14px;overflow:hidden;min-height:18rem;aspect-ratio:4/3}
 @media (max-width:760px){.skybox{aspect-ratio:1/1;min-height:0}}
-#wxSky{position:absolute;inset:0;display:block;width:100%;height:100%}
+#scene{position:absolute;inset:0;display:block;width:100%;height:100%}
 .place{position:absolute;left:.8rem;top:.6rem;right:.8rem;font-family:var(--f-display);font-size:1.15rem;color:var(--vellum);text-shadow:0 1px 6px rgba(0,0,0,.7);pointer-events:none}
 .side{min-width:0;display:flex;flex-direction:column;gap:.8rem}
 .play{min-height:3.2rem;font-family:var(--f-display);font-size:1.25rem;background:linear-gradient(#2a2416,#1a160e);border:1px solid var(--bronze);color:#f3d9a4;border-radius:999px;padding:.6rem 1.6rem;cursor:pointer}
@@ -577,6 +577,7 @@ h1,h2,h3{font-family:var(--f-display);font-weight:400;margin:0;text-wrap:balance
 .card{border:1px solid var(--line);border-radius:14px;background:rgba(16,18,31,.6);padding:.9rem 1rem}
 .card h2{font-size:1.35rem;color:var(--bronze)}
 .card p{margin:.35rem 0 0;color:var(--vellum-dim)}
+.card a{color:var(--bronze)}
 details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2rem;color:var(--bronze);min-height:var(--tap);display:flex;align-items:center}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(13rem,1fr));gap:.7rem 1.2rem;margin-top:.6rem}
 .field{display:flex;flex-direction:column;gap:.25rem}
@@ -616,9 +617,9 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
   <p class="msg" id="wxMsg" role="status" aria-live="polite"></p>
 
   <main class="stagebox" aria-label="天気の歌">
-    <div class="skybox"><canvas id="wxSky" aria-hidden="true"></canvas><div class="place" id="wxPlace"></div></div>
+    <div class="skybox"><canvas id="scene" aria-hidden="true"></canvas><div class="place" id="wxPlace"></div></div>
     <div class="side">
-      <button class="play" id="wxPlay" type="button" aria-pressed="false" disabled>天気を奏でる</button>
+      <button class="play" id="play" type="button" aria-pressed="false" disabled>天気を奏でる</button>
       <p class="who" id="wxWho" aria-live="polite"></p>
       <dl class="read" id="wxRead" hidden>
         <dt>空</dt><dd id="rSky"></dd>
@@ -665,7 +666,8 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
     <ul class="how">
       <li>風：向いている方角から風が吹いてくる向きの風の神が歌います。アテネの風の塔に刻まれた八つの風のひとつです。突風は声を上へ曲げ、風がうなるように響きます。</li><li>エオリアン・ハープ：太さの異なる六本の弦を、そろえて調律します。弦に風が当たると、毎秒およそ 0.2 × 風速 ÷ 太さ 回の渦が生まれ、弦はそれにもっとも近い倍音で歌うので、風の強弱に合わせて和音が変わります。</li><li>雨：気泡を閉じ込めた雨粒は、その気泡固有の高さで鳴ります（ミナールト周波数、直径 1 mm の気泡でおよそ 3.3 kHz）。強い雨は粒が大きく音が低く、霧雨は細かく高い音になります。</li><li>空の神ウラノスが低い音を保ちます。標準の 1013 から気圧が 2.5 hPa 離れるごとに半音ずつ変わります。気温が旋法を選び、霜のときはフリギア、猛暑のときはリディアです。</li><li>ネペレの雲は空の音をこもらせます（雲が厚くなるほどローパスフィルターが閉じます）。霧はさらにこもらせ、ヒオネの新雪は本物の雪のようにすべてを静めます。湿った空気はより長い余韻を運びます。</li><li>ゼウス：雷雨では、まず稲妻が光り、距離に応じて音速で雷鳴が続きます。近ければ鋭い破裂音、遠ければ長いとどろきです。</li><li>雨に日が差すと、イリスが虹の音階を響かせます。晴れた夜には、ニュクスの星がきらめきます。天気は 15 分ごとに取得し直します。</li>
     </ul>
-    <div class="tools"><span class="lab">録音とステージ</span><button class="recb rec" id="recBtn" data-start="#wxPlay" data-name="the-weathers-song" aria-pressed="false">録音</button></div>
+    <p><a href="https://newbroman.github.io/Music_of_the_Spheres/ja/help.html#weather">使い方 →</a></p>
+    <div class="tools"><span class="lab">録音とステージ</span><button class="recb rec" id="recBtn" data-start="#play" data-name="the-weathers-song" aria-pressed="false">録音</button></div>
   </details>
   <p class="foot">気象データ： <a href="https://open-meteo.com/" rel="noopener">Open-Meteo.com</a> (CC BY 4.0). <a href="https://newbroman.github.io/Music_of_the_Spheres/privacy.html">プライバシー</a></p>
 </div>
@@ -4519,16 +4521,20 @@ async function start(){
   if(!ST.data)return;
   if(!AC)build();
   if(AC.state!=='running')try{await AC.resume()}catch(e){}
-  ST.playing=true;tgt(A.vol.gain,ST.vol*1.2,.6);lastTick=0;if(!tickT)tickT=setInterval(tick,100);tick();ui();
+  ST.playing=true;MOTS.transportOn=true;tgt(A.vol.gain,ST.vol*1.2,.6);lastTick=0;if(!tickT)tickT=setInterval(tick,100);tick();ui();
 }
-function stop(){ST.playing=false;if(AC){tgt(A.vol.gain,0,.3);A.voices.forEach(v=>{v.on=false;tgt(v.env.gain,0,.2)});setTimeout(()=>{if(!ST.playing&&AC&&AC.state==='running')AC.suspend().catch(()=>{})},1500)}ui()}
+function stop(){ST.playing=false;MOTS.transportOn=false;if(AC){tgt(A.vol.gain,0,.3);A.voices.forEach(v=>{v.on=false;tgt(v.env.gain,0,.2)});setTimeout(()=>{if(!ST.playing&&AC&&AC.state==='running')AC.suspend().catch(()=>{})},1500)}ui()}
+MOTS.audioCtx=()=>AC;
+MOTS.nowPlaying=()=>{const W=ST.data;if(!W)return null;const gi=godOf(W.dir);
+  return {k:'Ἄνεμοι',h:(ST.imagined?t('imagined'):ST.place?ST.place.name:t('title')),p:describe(W),
+    d:[t(codeKey(W.code)||'wClear'),W.wind/3.6<.8?t('calm'):U.wind(W.wind)+' '+t('from',{d:t('d_'+DIRS[gi])}),U.temp(W.temp),U.pres(W.pres)].join(' · ')}};
 MOTS.weather={start,stop,state:()=>ST,set:o=>{Object.assign(ST.data||(ST.data={}),o);ui()},probe:fn=>fn({ST,A,AC,WINDS,modeOf})};
 
 /* ---------- the picture: the Tower of the Winds seen from above, turned so the way the listener faces is up ---------- */
 const FX={flash:0,iris:0,stars:[],parts:[]};
 function draw(){
-  requestAnimationFrame(draw);const cv=$('wxSky');if(!cv||cv.offsetParent===null)return;
-  const dpr=Math.min(2,devicePixelRatio||1),w=cv.clientWidth,h=cv.clientHeight;if(cv.width!==Math.round(w*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr)}
+  requestAnimationFrame(draw);const cv=$('scene');if(!cv||!cv.clientWidth)return;
+  const dpr=Math.min(2,devicePixelRatio||1),w=cv.clientWidth,h=cv.clientHeight;if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr)}
   const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);const W=ST.data,now=performance.now();
   const day=W?W.day:1,cl=W?W.cloud/100:0;
   const top=day?`rgb(${lerp(46,80,cl)|0},${lerp(86,90,cl)|0},${lerp(150,104,cl)|0})`:`rgb(${lerp(8,30,cl)|0},${lerp(10,32,cl)|0},${lerp(28,42,cl)|0})`;
@@ -4542,7 +4548,7 @@ function draw(){
   // the clouds
   if(cl>.05){c.fillStyle=day?`rgba(220,226,236,${.05+.17*cl})`:`rgba(90,96,120,${.08+.2*cl})`;const n=Math.round(3+9*cl);for(let i=0;i<n;i++){const x=((i*173+now/1000*(2+W.wind/6)*(Math.sin(W.dir*Math.PI/180)>0?-1:1))%(w+200)+w+200)%(w+200)-100,y=h*(.08+.25*((i*37)%10)/10);c.beginPath();c.ellipse(x,y,70+40*((i*13)%3),18+8*((i*7)%3),0,0,7);c.fill()}}
   // the tower: eight faces with the winds' names, the way you face at the top
-  const cx=w/2,cy=h*.54,R=Math.min(w,h*1.1)*.3;const rot=-ST.facing*Math.PI/180;
+  const pj=document.documentElement.classList.contains('mots-proj'),cx=w/2,cy=h*(pj?.5:.54),R=Math.min(w,h*1.1)*(pj?.34:.3);const rot=-ST.facing*Math.PI/180;
   c.save();c.translate(cx,cy);
   c.strokeStyle='rgba(201,152,79,.55)';c.lineWidth=1.2;c.beginPath();for(let i=0;i<=8;i++){const a=rot+(i-.5)*Math.PI/4-Math.PI/2;c[i?'lineTo':'moveTo'](Math.cos(a)*R,Math.sin(a)*R)}c.stroke();
   const gi=godOf(W.dir),wv=clamp((W.wind/3.6-.8)/7,0,1);
@@ -4585,7 +4591,7 @@ function describe(W){
 }
 function ui(){
   const W=ST.data;
-  $('wxPlay').textContent=ST.playing?t('stop'):t('play');$('wxPlay').setAttribute('aria-pressed',ST.playing?'true':'false');$('wxPlay').disabled=!W;
+  $('play').textContent=ST.playing?t('stop'):t('play');$('play').setAttribute('aria-pressed',ST.playing?'true':'false');$('play').disabled=!W;
   $('wxPlace').textContent=ST.imagined?t('imagined'):ST.place?ST.place.name:'';
   if(!W){$('wxRead').hidden=true;$('wxWho').textContent=ST.place?'':t('pick');return}
   $('wxRead').hidden=false;
@@ -4634,7 +4640,7 @@ function imagine(){
 function init(){
   $('wxGo').onclick=doSearch;$('wxQ').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();doSearch()}});
   $('wxHere').onclick=here;
-  $('wxPlay').onclick=()=>ST.playing?stop():start();
+  $('play').onclick=()=>ST.playing?stop():start();
   const fs=$('wxFacing');DIRS.forEach((d,i)=>{const o=document.createElement('option');o.value=i*45;o.textContent=t('d_'+d);fs.appendChild(o)});fs.value=String(Math.round(ST.facing/45)*45%360);
   fs.onchange=()=>{ST.facing=+fs.value;LS.set('mots.wx.facing',fs.value);ui()};
   const un=$('wxUnits');[['met',t('metric')],['imp',t('imperial')]].forEach(([v,l])=>{const o=document.createElement('option');o.value=v;o.textContent=l;un.appendChild(o)});un.value=ST.units;un.onchange=()=>{ST.units=un.value;LS.set('mots.wx.units',un.value);ui()};
