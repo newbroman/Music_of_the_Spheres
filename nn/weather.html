@@ -4519,10 +4519,16 @@ function rtShow(blob,secs,kind){
   }
   const tgt = (p, v, tc) => {
     try {
+      const o = p.__v;
+      if (o !== void 0 && Math.abs(v - o) <= Math.abs(o) * 4e-3 + 1e-6) return;
+      p.__v = v;
       p.setTargetAtTime(v, AC.currentTime, tc);
     } catch (e) {
     }
   };
+  const fresh = (...ps) => ps.forEach((p) => {
+    p.__v = void 0;
+  });
   function mkPan(v) {
     if (AC.createStereoPanner) {
       const p = AC.createStereoPanner();
@@ -4862,6 +4868,7 @@ function rtShow(blob,secs,kind){
       const want = vh > 0.25 && fs / f0 >= 1.6 ? Math.exp(-fit * fit / 0.02) * clamp((vh - 0.25) / 0.8, 0, 1) * (1 / (1 + n / 10)) : 0;
       if (n !== s.n) {
         if (s.lvl > 2e-3) {
+          fresh(s.g.gain);
           tgt(s.g.gain, 0, 0.08);
           s.pend = n;
           s.pendT = now + 0.25;
@@ -4923,6 +4930,7 @@ function rtShow(blob,secs,kind){
       v.on = true;
       v.end = now + rnd(3, 7) / (1 + ms / 15);
       v.f = note;
+      fresh(v.o.frequency, v.env.gain);
       v.o.frequency.cancelScheduledValues(now);
       v.o.frequency.setValueAtTime(note * Math.pow(2, -1 / 12), now);
       v.o.frequency.setTargetAtTime(note, now, 0.25);
@@ -4941,11 +4949,78 @@ function rtShow(blob,secs,kind){
       }
     }
   }
+  function composeRain(rate, driz, big, hail) {
+    const sr = AC.sampleRate, n = Math.floor(sr * 9), b = AC.createBuffer(2, n, sr), L = b.getChannelData(0), Rr = b.getChannelData(1);
+    const put = (src, at, amp, pan, rt) => {
+      const d = src.getChannelData(0), gl = amp * Math.cos((pan + 1) * Math.PI / 4), gr = amp * Math.sin((pan + 1) * Math.PI / 4), m = Math.min(Math.floor(d.length / rt), n - at - 1);
+      for (let k = 0; k < m; k++) {
+        const x = d[k * rt | 0];
+        L[at + k] += x * gl;
+        Rr[at + k] += x * gr;
+      }
+    };
+    let t2 = 0;
+    const end = 9 - 0.06;
+    while (true) {
+      t2 += -Math.log(1 - Math.random()) / rate;
+      if (t2 >= end) break;
+      const at = Math.floor(t2 * sr), pan = rnd(-0.85, 0.85);
+      if (Math.random() < 0.22 + (driz ? -0.1 : 0.15)) {
+        const i = clamp(Math.floor((driz ? Math.random() * 0.4 : Math.pow(Math.random(), 1 - big * 0.7)) * A.drops.length), 0, A.drops.length - 1);
+        put(A.drops[A.drops.length - 1 - i].b, at, rnd(0.03, 0.12) * (driz ? 0.6 : 1), pan, rnd(0.9, 1.12));
+      } else put(A.ticks[Math.random() * A.ticks.length | 0], at, (driz ? 0.08 : 0.18) * rnd(0.3, 1), pan, rnd(0.6, 1.6));
+      if (hail && Math.random() < 0.15) put(A.ticks[Math.random() * A.ticks.length | 0], at, 0.5 * rnd(0.3, 1), rnd(-0.85, 0.85), rnd(0.6, 1.6));
+    }
+    return b;
+  }
+  function rainBed(key, rate, driz, big, hail) {
+    if (A.bedKey === key) return;
+    A.bedKey = key;
+    const now = AC.currentTime;
+    if (A.bed) {
+      const o = A.bed;
+      tgt(o.g.gain, 0, 0.4);
+      setTimeout(() => {
+        try {
+          o.s.stop();
+        } catch (e) {
+        }
+        try {
+          o.g.disconnect();
+        } catch (e) {
+        }
+      }, 2500);
+    }
+    A.bed = null;
+    if (!rate) return;
+    const s = AC.createBufferSource();
+    s.buffer = composeRain(rate, driz, big, hail);
+    s.loop = true;
+    const g = AC.createGain();
+    g.gain.value = 0;
+    s.connect(g);
+    g.connect(OUT);
+    s.start(now);
+    tgt(g.gain, 1, 0.4);
+    A.bed = { s, g };
+  }
   function rain(W, now) {
-    var _a;
+    var _a, _b;
     const R = W.rain, driz = isDrizzle(W.code), hail = isHail(W.code), sn = W.snow > 0 || isSnowC(W.code);
     const wet = R > 0 || driz || W.code >= 61 && W.code <= 67 || W.code >= 80 && W.code <= 82;
     const rate = wet ? clamp(8 * Math.pow(Math.max(R, driz ? 0.3 : 0.6), 0.8), 2, QN.rain[(_a = A.lv) != null ? _a : 2]) * (driz ? 1.6 : 1) : 0;
+    if (((_b = A.lv) != null ? _b : 2) <= 1) {
+      const big2 = clamp(Math.log10(1 + R) / 1.7, 0, 1), q = (x) => Math.round(Math.log(1 + x) * 6);
+      rainBed(rate || hail ? [q(rate), driz ? 1 : 0, Math.round(big2 * 4), hail ? 1 : 0].join() : "", rate || (hail ? 6 : 0), driz, big2, hail);
+      tgt(A.hissG.gain, wet ? clamp(0.012 * Math.sqrt(Math.max(R, 0.2)), 0, 0.09) : sn ? 0.012 : 0, 1);
+      tgt(A.hissF.frequency, sn ? 5200 : 1800 + 800 * Math.min(1, R / 10), 1);
+      if (sn && now >= A.nextDrop) {
+        A.nextDrop = now + rnd(0.3, 1.4);
+        if (Math.random() < 0.5) glint(now, rnd(3e3, 6e3), 0.012);
+      }
+      return;
+    }
+    if (A.bed) rainBed("", 0);
     tgt(A.hissG.gain, wet ? clamp(0.012 * Math.sqrt(Math.max(R, 0.2)), 0, 0.09) : sn ? 0.012 : 0, 1);
     tgt(A.hissF.frequency, sn ? 5200 : 1800 + 800 * Math.min(1, R / 10), 1);
     if (sn && now >= A.nextDrop) {
@@ -5097,7 +5172,7 @@ function rtShow(blob,secs,kind){
   let tickT = 0, lastT = 0;
   function tickMaybe() {
     const n = performance.now();
-    if (n - lastT < 90) return;
+    if (n - lastT < (document.hidden ? 200 : 90)) return;
     lastT = n;
     tick();
   }
