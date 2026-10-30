@@ -5383,10 +5383,10 @@ function act(c){const el=c.el;
 /* ---- the transport, the volume, the speed, next and previous ---- */
 const startBtn=()=>$('begin')||$('play');
 const ctx=()=>{try{return MOTS.audioCtx&&MOTS.audioCtx()}catch(e){return null}};
-function play(){if(MOTS.projPaused){resume();return true}const b=startBtn();if(!b)return false;if(!MOTS.transportOn)b.click();return true}
+function play(){if(MOTS.projPaused&&!HU.on||HU.keep){resume();return true}if(HU.on){HU.keep=false;return true}const b=startBtn();if(!b)return false;if(!MOTS.transportOn)b.click();return true}
 function stop(){const b=startBtn();if(MOTS.projPaused){MOTS.projPaused=false;const c=ctx();if(c)c.resume()}if(b&&MOTS.transportOn)b.click();return !!b}
-function pause(){const c=ctx();if(!c||!MOTS.transportOn)return false;MOTS.projPaused=true;c.suspend();return true}
-function resume(){const c=ctx();if(!c)return false;MOTS.projPaused=false;c.resume();return true}
+function pause(){const c=ctx();if(!c||!MOTS.transportOn)return false;MOTS.projPaused=true;HU.keep=true;c.suspend();return true}
+function resume(){const c=ctx();if(!c)return false;HU.keep=false;MOTS.projPaused=false;c.resume();return true}
 function nudge(ids,dir){for(const id of ids){const r=$(id);if(r&&r.type==='range'){const lo=+r.min||0,hi=+(r.max||100),st=(hi-lo)/10;r.value=String(Math.max(lo,Math.min(hi,+r.value+dir*st)));r.dispatchEvent(new Event('input',{bubbles:true}));r.dispatchEvent(new Event('change',{bubbles:true}));return true}}return false}
 function step(dir){for(const sel of ['.tl-chip','#style button','#dest button']){const all=[...document.querySelectorAll(sel)];const i=all.findIndex(x=>x.classList.contains('on')||x.getAttribute('aria-pressed')==='true'||x.getAttribute('aria-current'));
     if(all.length&&i>=0){const n=all[(i+dir+all.length)%all.length];n.click();return label(n)}}
@@ -5454,9 +5454,10 @@ const WK=()=>{const w=(V.wake||['Spheres'])[0];return w.charAt(0).toUpperCase()+
 function strip(u){const n=norm(u);for(const w of wake()){if(n===w)return '';if(n.startsWith(w+' '))return n.slice(w.length+1);if(CJK&&n.startsWith(w))return n.slice(w.length)}return null}
 function hear(text,final){
   if(mode==='keep'){const s=strip(text);
-    if(s===null){if(armed&&performance.now()-armed<6000&&final){armed=0;say(text,run(text))}return}
+    if(s===null){if(armed&&performance.now()-armed<7000&&final){armed=0;say(text,run(text));unhushSoon()}return}
+    hush(true,7000);
     if(s===''){if(final){armed=performance.now();status(tx('wakeHeard'))}return}
-    if(final){armed=0;say(s,run(s))}else status('“'+text+'”');return}
+    if(final){armed=0;say(s,run(s));unhushSoon()}else status('“'+text+'”');return}
   if(final)say(text,run(text));else status('“'+text+'”')}
 function say(text,res){status(res?tx('heard',{t:text})+' '+res:tx('notUnderstood',{t:text}),!res);if(res&&navigator.vibrate)try{navigator.vibrate(20)}catch(e){}}
 function start(m){if(!SR){status(tx('unsupported'),true);return}stopRec();mode=m;
@@ -5465,12 +5466,22 @@ function start(m){if(!SR){status(tx('unsupported'),true);return}stopRec();mode=m
       // the likeliest of the alternatives that reads as a command, else the likeliest
       if(r.isFinal){let pick=r[0].transcript;if(mode!=='keep')for(let j=0;j<r.length;j++){const t=r[j].transcript;if(matchVerb(norm(t))||matchArg(norm(t))){pick=t;break}}hear(pick,true)}else hear(r[0].transcript,false)}};
   rec.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){keep(false);status(tx('noMic'),true)}else if(e.error==='no-speech'&&mode==='tap')status(tx('nothing'))};
-  rec.onend=()=>{const was=mode;rec=null;light();duck(false);if(was==='keep'&&keepOn&&!document.hidden){clearTimeout(restartT);restartT=setTimeout(()=>{if(keepOn&&!rec)start('keep')},400)}else mode=null};
-  try{rec.start();light(true);if(m==='tap'){duck(true);status(tx('listening'))}else status(tx('keepOn',{w:WK()}))}catch(e){rec=null;status(tx('unsupported'),true)}}
-function stopRec(){if(rec){const r=rec;rec=null;mode=null;try{r.onend=null;r.abort()}catch(e){}light();duck(false)}}
+  rec.onend=()=>{const was=mode;rec=null;light();unhushSoon();if(was==='keep'&&keepOn&&!document.hidden){clearTimeout(restartT);restartT=setTimeout(()=>{if(keepOn&&!rec)start('keep')},400)}else mode=null};
+  try{rec.start();light(true);if(m==='tap'){hush(true);status(tx('listening'))}else status(tx('keepOn',{w:WK()}))}catch(e){rec=null;status(tx('unsupported'),true)}}
+function stopRec(){if(rec){const r=rec;rec=null;mode=null;try{r.onend=null;r.abort()}catch(e){}light();hush(false)}}
 function keep(on){keepOn=on;SS.set('mots.voice.keep',on?'1':'0');const k=$('vcKeep');if(k)k.checked=on;if(on)start('keep');else stopRec()}
-// the music steps back while a single command is heard
+// (HUSH) the music stops while a command is listened for, so the recognition hears only the voice: a short fade, then the sound is paused
+// (the audio clock stands still, so the music carries on from where it was); afterwards it goes on, unless the command paused or stopped it
 function duck(on){try{if(MOTS.sheetDuck)MOTS.sheetDuck(on)}catch(e){}}
+const HU={on:false,t:0,c:null,limit:0};
+function hush(on,ms){
+  if(on){clearTimeout(HU.limit);if(ms)HU.limit=setTimeout(()=>hush(false),ms);if(HU.on)return;const c=ctx();
+    // (the projector's pause flag: the pages keep a sound paused under it rather than waking it again)
+    if(c&&c.state==='running'&&!MOTS.projPaused&&MOTS.transportOn!==false){HU.on=true;HU.c=c;HU.keep=false;duck(true);clearTimeout(HU.t);HU.t=setTimeout(()=>{if(HU.on){MOTS.projPaused=true;try{c.suspend()}catch(e){}}},200)}return}
+  clearTimeout(HU.limit);if(!HU.on)return;HU.on=false;clearTimeout(HU.t);const c=HU.c;HU.c=null;
+  if(HU.keep){duck(false);return}   // "pause" was the command: it stays paused
+  MOTS.projPaused=false;if(c&&c.state==='suspended')c.resume().catch(()=>{});duck(false)}
+const unhushSoon=()=>setTimeout(()=>{if(!(rec&&mode==='tap'))hush(false)},300);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopRec();else if(keepOn)start('keep')});
 
 /* ---- the microphone in the menu, and its panel ---- */
