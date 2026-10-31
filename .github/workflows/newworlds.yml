@@ -1,0 +1,21 @@
+# New worlds: once a week (and on demand) ask JPL for large bodies beyond Neptune designated since 2024 and publish newworlds.json,
+# which the app reads to add them to its sky. Only newworlds.json is ever changed.
+name: New worlds
+on:
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/newworlds.py
+      - name: Publish if changed
+        run: |
+          git config user.name "new-worlds bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add newworlds.json
+          git diff --cached --quiet && echo "nothing new" || { git commit -m "New worlds: $(date -u +%F)"; git push; }
