@@ -173,8 +173,14 @@ if(APm&&APm.setValueCurveAtTime){var svc=APm.setValueCurveAtTime;
    on the phone (localStorage mots.alog, shown in the Sound check) so the owner can read later what happened. ?afix=0 resets it. ---------- */
 var LSg=function(k){try{return localStorage.getItem(k)}catch(e){return null}},LSs=function(k,v){try{if(v==null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){}};
 var SSg=function(k){try{return sessionStorage.getItem(k)}catch(e){return null}},SSs=function(k,v){try{if(v==null)sessionStorage.removeItem(k);else sessionStorage.setItem(k,v)}catch(e){}};
-if(/[?&]afix=0\b/.test(location.search)){LSs('mots.afix');LSs('mots.afix.lite');LSs('mots.alog');SSs('mots.afix.n');SSs('mots.afix.try')}
+if(/[?&]afix=0\b/.test(location.search)){LSs('mots.nowl');LSs('mots.afix');LSs('mots.afix.lite');LSs('mots.alog');SSs('mots.afix.n');SSs('mots.afix.try')}
 var FIX=C.fix={level:Math.min(2,+(LSg('mots.afix')||0)||0),lite:LSg('mots.afix.lite')==='1',log:[]};
+/* (NOWL) the sound processors (AudioWorklets: the sung voices, struck instruments, Meditate's reverb, the recording tap) can load and then
+   fail, or run silent, on some phones (a Samsung Galaxy A13 tester heard only the test beep, 2 Nov 2026). Every module already falls back
+   to plain Web Audio nodes when window.AudioWorkletNode is missing, so the repair is to hide it: mots.nowl=1 (kept on that phone).
+   ?nowl turns it on and keeps it, ?nowl=0 (or ?afix=0) clears it. */
+if(/[?&]nowl=0\b/.test(location.search))LSs('mots.nowl');else if(/[?&]nowl\b/.test(location.search))LSs('mots.nowl','1');
+FIX.nowl=LSg('mots.nowl')==='1';
 try{FIX.log=JSON.parse(LSg('mots.alog')||'[]')||[]}catch(e){FIX.log=[]}
 function flog(s){var line=new Date().toISOString().slice(0,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s;
   FIX.log.push(line);if(FIX.log.length>30)FIX.log=FIX.log.slice(-30);LSs('mots.alog',JSON.stringify(FIX.log));C.notes.push(now()+' repair: '+s)}
@@ -207,6 +213,17 @@ if(AC0){
     if(p&&p.then)p.then(function(){m.err=null},function(e){m.err=e});if(inGesture())watch(c);return p};
   if(sus0)AC0.prototype.suspend=function(){if(!isOffline(this)){track(this);this.__mt.appSus=true;this.__mt.want=false}return sus0.apply(this,arguments)};
 }
+// (NOWL) worklets off on this phone: hide them so every module builds its plain-node voices. Otherwise count each sound-making worklet as a
+// started source (so silence from worklet-only music is noticed) and turn a processor that throws into a repair.
+var AWN0=W.AudioWorkletNode;
+if(AWN0&&FIX.nowl){try{W.AudioWorkletNode=undefined}catch(e){}C.notes.push(now()+' sound processors (worklets) off on this phone')}
+else if(AWN0){var Wk=function AudioWorkletNode(c,name,o){var n=new AWN0(c,name,o);
+    try{var m=c&&c.__mt;if(m){m.wl=(m.wl||0)+1;if(o&&o.numberOfInputs===0)m.starts=(m.starts||0)+1}
+      // the onprocessorerror attribute, not addEventListener: headless Chromium 2026 delivered the event only to the attribute (no page sets it)
+      n.onprocessorerror=function(){var mm=c.__mt;log('sound processor '+name+' failed');
+        if(mm&&!mm.wlErr){mm.wlErr=1;repair('wlerr','a sound processor ('+name+') failed on this phone',c)}}}catch(e){}
+    return n};
+  Wk.prototype=AWN0.prototype;try{Object.setPrototypeOf(Wk,AWN0)}catch(e){}try{W.AudioWorkletNode=Wk}catch(e){}}
 function onGesture(e){if(e&&e.isTrusted===false)return;lastG=Date.now();anyG=true;
   // a context the page made before any tap, or one it asked to start and the browser held back: resume it inside this tap
   for(var i=0;i<C.ctxs.length;i++){var c=C.ctxs[i],m=c.__mt;if(c.state!=='suspended'&&c.state!=='interrupted')continue;if(m.appSus)continue;
@@ -248,6 +265,8 @@ function repair(kind,why,c){var m=c&&c.__mt;if(m){if(m.repaired===kind)return;m.
         if(good){flog('started by the Tap for sound button');FIX.pending=true;cs.forEach(function(x){if(x.state==='running')watch(x)})}
         else{FIX.taps=(FIX.taps||0)+1;if(FIX.taps>=2)escalate(why);else showTap(retry)}},1500)});return}
   if(kind==='clock'){escalate(why);return}
+  // a processor failed, or the music used worklets and came out silent or as NaN: next time without them (before any other repair)
+  if(kind==='wlerr'||((kind==='silent'||kind==='nan')&&m&&m.wl&&!FIX.nowl)){FIX.nowl=true;LSs('mots.nowl','1');flog('sound processors (worklets) turned off on this phone');reloadFix(why);return}
   // the sound starts but nothing (or NaN) reaches the speakers: next time without the output shaper; NaN never clears, so start afresh now
   if(!FIX.lite){FIX.lite=true;LSs('mots.afix.lite','1');flog('output stage made lighter');reloadFix(why);return}
   if(kind==='nan'){escalate(why);return}
@@ -357,7 +376,7 @@ function report(){var L=[];
   {var pc=null;C.ctxs.forEach(function(c){if(c.state!=='closed'&&c!==toneCtx)pc=c});if(pc&&pc.__clk&&pc.__clk.length>2){var A=pc.__clk[0],B=pc.__clk[pc.__clk.length-1],dw=(B[0]-A[0])/1000;if(dw>1)L.push('sound clock: '+Math.round(100*(B[1]-A[1])/dw)+'% of real time over the last '+Math.round(dw)+' s'+(D.hidden?' (hidden)':''))}}
   {var rc=null;C.ctxs.forEach(function(c){if(c.state!=='closed'&&c.__rc&&c.__rc.avg!=null)rc=c.__rc});if(rc)L.push('audio thread: busy '+Math.round(100*rc.avg)+'% (peak '+Math.round(100*rc.peak)+'%) · deadlines missed '+Math.round(100*rc.under)+'%');}
   if(C.etest)L.push('engine test (sound clock): '+C.etest.join(' · '));
-  L.push('self-repair: level '+FIX.level+(LSg('mots.route')==='media'?' · through the media player':'')+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
+  L.push('self-repair: level '+FIX.level+(FIX.nowl?' · worklets off':'')+(LSg('mots.route')==='media'?' · through the media player':'')+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
   {var bl=[];try{bl=JSON.parse(LSg('mots.bglog')||'[]')}catch(e){}L.push('screen off / other app ('+bl.length+'):'+(bl.length?'\n  '+bl.join('\n  '):' nothing recorded yet'))}
   try{var DL=W.MOTS&&MOTS.diagLines;if(DL&&DL.length){L.push('live:');DL.forEach(function(f){try{var x=f();if(x)L.push('  '+x)}catch(e){L.push('  ('+e.message+')')}})}}catch(e){}
   L.push('errors ('+C.errs.length+'):'+(C.errs.length?'\n  '+C.errs.slice(-12).join('\n  '):' none'));
