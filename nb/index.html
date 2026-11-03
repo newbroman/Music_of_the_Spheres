@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#090b18">
 <link rel="icon" type="image/png" href="../icons/favicon-48.png">
 <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
-<script>if('serviceWorker' in navigator){const h=location.hostname,b=h==='newbroman.github.io'?'/Music_of_the_Spheres/':(h==='localhost'||h==='127.0.0.1')?'/':null;if(b)navigator.serviceWorker.register(b+'sw.js',{scope:b}).then(()=>navigator.serviceWorker.ready).then(r=>r.active&&r.active.postMessage('warm')).catch(()=>{})}</script>
+<script>if('serviceWorker' in navigator){const h=location.hostname,b=h==='newbroman.github.io'?'/Music_of_the_Spheres/':(h==='localhost'||h==='127.0.0.1')?'/':null;if(b)navigator.serviceWorker.register(b+'sw.js',{scope:b}).then(()=>navigator.serviceWorker.ready).then(r=>{const w=()=>{if(r.active)r.active.postMessage('warm')};let t=setTimeout(w,45000);addEventListener('pointerdown',()=>{clearTimeout(t);t=setTimeout(w,20000)},{once:true})}).catch(()=>{})}</script>
 <meta name="description" content="Lytt til sfærenes musikk slik hver tenker forestilte seg den, fra Pytagoras, Platon og Ptolemaios til Kepler, tegnet etter den virkelige himmelen akkurat nå, og hele dagens solsystem sunget av de greske gudene.">
 <link rel="alternate" hreflang="en" href="https://newbroman.github.io/Music_of_the_Spheres/">
 <link rel="alternate" hreflang="pl" href="https://newbroman.github.io/Music_of_the_Spheres/pl/">
@@ -450,7 +450,8 @@ const LOWP=matchMedia('(hover:none)').matches||/Android|iPhone|iPad/i.test(navig
 const QRANK={min:0,eco:1,std:2,high:3};
 const qcap=()=>{const c=LS.get('mots.qcap');return QRANK[c]!=null?c:null};
 const capped=q=>{const c=qcap();return !!c&&QRANK[q]>QRANK[c]};
-const qDefault=()=>LOWP||(navigator.hardwareConcurrency||4)<4?'std':'high';
+// phones start on Eco (the review measured multi-second long tasks at Standard on a slowed Android 10); anyone can raise it in Stage → Advanced
+const qDefault=()=>LOWP?'eco':(navigator.hardwareConcurrency||4)<4?'std':'high';
 let quality=LS.get('mots.quality');if(!['min','eco','std','high'].includes(quality))quality=qDefault();if(capped(quality))quality=qcap();
 const qFns=[];
 MOTS.quality=()=>quality;
@@ -993,14 +994,20 @@ const isSupporter=()=>LS.get('mots.supporter')==='1';
 MOTS.stageLocked=()=>inPlayApp()&&!isSupporter();
 async function billing(){if(SUP.svc)return SUP.svc;if(!('getDigitalGoodsService' in window))return null;try{SUP.svc=await window.getDigitalGoodsService(SUP.bill)}catch(e){SUP.svc=null}return SUP.svc}
 // purchases are consumed at once: Google counts that as acknowledgement (no server needed), and the device remembers the supporter
-async function settle(svc){try{const ps=await svc.listPurchases();let any=false;for(const p of ps){if(SUP.skus.some(s=>s[0]===p.itemId)){try{await svc.consume(p.purchaseToken)}catch(e){}any=true}}if(any)LS.set('mots.supporter','1');return any}catch(e){return false}}
-async function sellable(){const svc=await billing();if(!svc){SUP.why='billing';return false}if(await settle(svc))return false;try{const d=await svc.getDetails(SUP.skus.map(x=>x[0]));if(d&&d.length)return true;SUP.why='products';return false}catch(e){SUP.why='error';return false}}
+// (a purchase whose consume failed stays in listPurchases, so this finishes it: it runs on every start of the Play app, well inside Google's three days)
+async function settle(svc){try{const ps=await svc.listPurchases();let any=false;for(const p of ps){if(SUP.skus.some(s=>s[0]===p.itemId)){try{await svc.consume(p.purchaseToken);LS.set('mots.sup.pending','')}catch(e){LS.set('mots.sup.pending','1')}any=true}}if(any)LS.set('mots.supporter','1');return any}catch(e){return false}}
+// a supporter whose site data was cleared, or who reinstalled: a consumed purchase is no longer listed, but Play's purchase history still names it
+async function restore(svc){try{if(!svc.listPurchaseHistory)return false;const h=await svc.listPurchaseHistory();if(h&&h.some(p=>SUP.skus.some(s=>s[0]===p.itemId))){LS.set('mots.supporter','1');return true}}catch(e){}return false}
+if(inPlayApp()){const go=()=>billing().then(async svc=>{if(!svc)return;if(!(await settle(svc))&&!isSupporter())await restore(svc)}).catch(()=>{});
+  if('requestIdleCallback' in window)requestIdleCallback(go,{timeout:8000});else setTimeout(go,3000)}
+async function sellable(){const svc=await billing();if(!svc){SUP.why='billing';return false}if(await settle(svc)||await restore(svc))return false;try{const d=await svc.getDetails(SUP.skus.map(x=>x[0]));if(d&&d.length)return true;SUP.why='products';return false}catch(e){SUP.why='error';return false}}
 async function buy(sku,msg){
   const svc=await billing();if(!svc){msg(ts().na);return false}
   try{const rq=new PaymentRequest([{supportedMethods:SUP.bill,data:{sku}}],{total:{label:'Total',amount:{currency:'GBP',value:'0'}}});
     const r=await rq.show();const tok=r.details&&r.details.purchaseToken;
-    try{if(tok)await svc.consume(tok)}catch(e){}
-    LS.set('mots.supporter','1');await r.complete('success');return true}
+    // consuming is the acknowledgement (there is no server); if it fails, settle() finishes it on the next start
+    try{if(tok)await svc.consume(tok);LS.set('mots.sup.pending','')}catch(e){LS.set('mots.sup.pending','1')}
+    LS.set('mots.supporter','1');try{await r.complete('success')}catch(e){}return true}
   catch(e){msg(ts().fail);return false}
 }
 // while the app is in closed testing, say plainly that testers pay with Google's test card; set SUP.testing to false for production
@@ -1013,9 +1020,10 @@ function supportPanel(){
   const msg=t=>{const m=p.querySelector('#stSupMsg');m.textContent=t;m.hidden=false};
   p.querySelector('#stClose').onclick=()=>p.remove();
   p.querySelectorAll('#stTiers button').forEach(b=>b.onclick=async()=>{p.querySelectorAll('#stTiers button').forEach(x=>x.disabled=true);
-    if(await buy(b.dataset.sku,msg)){msg(S.ok);setTimeout(()=>{p.remove();openPanel()},1400)}else p.querySelectorAll('#stTiers button').forEach(x=>x.disabled=false)});
+    if(await buy(b.dataset.sku,msg)){msg(S.ok);setTimeout(()=>{if(p.isConnected){p.className='guide';guide({step:1})}else openPanel()},1400)}else p.querySelectorAll('#stTiers button').forEach(x=>x.disabled=false)});
   // the store's own prices (in the buyer's currency), and any purchase left unfinished last time
-  billing().then(async svc=>{if(!svc)return;if(await settle(svc)){p.remove();openPanel();return}
+  // (the panel becomes the guide in place: a new panel would be closed by this one's history entry going back)
+  billing().then(async svc=>{if(!svc)return;if(await settle(svc)||await restore(svc)){if(p.isConnected){p.className='guide';guide({step:1})}else openPanel();return}
     try{const d=await svc.getDetails(SUP.skus.map(s=>s[0]));for(const it of d){const b=p.querySelector(`[data-sku="${it.itemId}"] span`);if(b&&it.price)b.textContent=new Intl.NumberFormat(document.documentElement.lang||'en',{style:'currency',currency:it.price.currency}).format(it.price.value)}}catch(e){}});
 }
 function openAdvanced(reuse){
@@ -7357,7 +7365,9 @@ function nwBody(w){return {id:'nw_'+w.id,name:w.name,god:NWT('god'),greek:'ξέ�
   addEventListener('load',()=>setTimeout(()=>{const u=(/\/(pl|cy|de|es|fr|it|zh|ja|vi|bg|pt|nb|nn)\//.test(location.pathname)?'../':'')+'newworlds.json';
     fetch(u,{cache:'no-cache'}).then(r=>r.ok?r.json():null).then(d=>{if(!d||!Array.isArray(d.w))return;
       const was=JSON.stringify(W.map(x=>[x.id,x.a,x.e,x.i,x.om,x.w,x.tp])),now=JSON.stringify(d.w.map(x=>[x.id,x.a,x.e,x.i,x.om,x.w,x.tp]));
-      if(was===now)return;try{localStorage.setItem(NWK,JSON.stringify({w:d.w,t:d.fetched}))}catch(e){return}
+      // a first visit, the welcome tour or a show on screen: the new list is kept quietly for next time (no toast over the first minute)
+      if(was===now)return;let first=true;try{first=!localStorage.getItem(NWK);localStorage.setItem(NWK,JSON.stringify({w:d.w,t:d.fetched}))}catch(e){return}
+      if(first||document.getElementById('tour')||document.documentElement.classList.contains('mots-show')||document.documentElement.classList.contains('mots-proj'))return;
       const fresh=d.w.filter(x=>!W.some(y=>y.id===x.id)&&!names.has(x.name));if(!fresh.length)return;
       const t=document.createElement('div');t.setAttribute('role','status');
       t.style.cssText='position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9999;background:#141a30;color:#e8dcc0;border:1px solid #c9984f;border-radius:10px;padding:10px 14px;font:14px/1.35 var(--f-body,system-ui,sans-serif);box-shadow:0 6px 24px #0008;display:flex;gap:12px;align-items:center;max-width:92vw';
