@@ -8749,7 +8749,7 @@ const SC=[
  {pg:'dial',d:12,c:'ch1',card:1,ch:1,go:a=>{a.thinker('today');a.listenFrom('earth');a.speed(20)}},
  {pg:'dial',d:42,c:'pitch',go:a=>a.speed(60)},
  {pg:'dial',d:40,c:'sun',go:a=>a.listenFrom('sun')},
- {pg:'dial',d:40,c:'zeus',go:a=>a.audition('jupiter')},
+ {pg:'dial',d:40,c:'zeus',say:'jupiter',go:a=>a.audition('jupiter',narrOn)},
  {pg:'dial',d:35,c:'moons'},
  {pg:'dial',d:38,c:'saturn',go:a=>{a.unaudition();a.listenFrom('saturn')}},
  {pg:'dial',d:40,c:'aspects',go:a=>{a.listenFrom('earth');a.speed(30)}},
@@ -8782,7 +8782,7 @@ const SC=[
  {pg:'dial',d:40,c:'realtime',go:a=>{a.thinker('plato');a.interp('athens');a.speed(1/86400)}},
  {pg:'dial',d:12,c:'ch3',card:1,ch:1,go:a=>a.speed(1/48)},
  {pg:'flight',d:30,c:'gaia'},
- {pg:'flight',d:65,c:'tosat',go:a=>a.travel('saturn')},
+ {pg:'flight',d:65,c:'tosat',say:'saturn',go:a=>a.travel('saturn',narrOn)},
  {pg:'flight',d:42,c:'fmoons',go:(a,w)=>flyMoons(a,w)},
  {pg:'flight',d:50,c:'cruise',go:a=>a.cruise()},
  {pg:'flight',d:55,c:'above',go:a=>{a.uncruise();a.above()}},
@@ -8987,7 +8987,7 @@ function spoken(sc){const c=capFor(sc),k=keyOf(sc),p=c.p||'';let a;
   return a.filter(x=>x&&x.trim()).map(s=>s.replace(/\s*[（(][^()（）]*\d[^()（）]*[)）]/g,'').replace(/ \/ /g,CJ?'，':', ').trim()).map(s=>/[.!?…”»"。！？」]$/.test(s)?s:s+(CJ?'。':'.')).join(' ')}
 // how long she takes: the recorded length, or for the device's speech an estimate from the text
 const nDur=sc=>clipOK(sc)?NX[keyOf(sc)][0]:spoken(sc).length/(CJ?6:14.5)+1;
-const durOf=k=>{const sc=SC[k];return narrOn&&NX?Math.max(sc.d,Math.ceil(NDELAY+nDur(sc)+BREATH)):sc.d};
+const durOf=k=>{const sc=SC[k];return narrOn&&NX?Math.max(sc.d,Math.ceil(NDELAY+nDur(sc)+BREATH+(sc.say?SAYD:0))):sc.d};
 const elapsedTo=k=>{let s=0;for(let j=0;j<k;j++)s+=durOf(j);return s};
 const total=()=>elapsedTo(SC.length);
 // the music of whatever page is playing steps back gently (the dial's and the flight's spectrum-sheet duck, the dance page's talkDuck)
@@ -8996,8 +8996,12 @@ function nStop(){nGen++;nBusy=false;nEndT=0;nPend=null;nWait=false;clearTimeout(
   if(nTTS){try{speechSynthesis.cancel()}catch(e){}nTTS=false}nDuck(false)}
 // the scene's own time is up but she is still speaking: the next scene waits for her, then a breath
 function nHold(){if(narrOn&&(nBusy||nPend)){nWait=true;return true}return false}
+// a scene whose god introduces himself (say:): he speaks a moment after she has finished, never over her, and the next scene waits for him too
+const SAYD=9.6;
 function nEnd(g){if(g!==nGen)return;nBusy=false;nEndT=Date.now();clearTimeout(nWatch);setTimeout(()=>{if(g===nGen&&!nBusy)nDuck(false)},400);
-  if(nWait){nWait=false;timer=setTimeout(()=>{if(g===nGen&&!paused)advance()},BREATH*1000)}}
+  const sc=SC[i];let more=0;if(sc&&sc.say&&nKey===keyOf(sc)&&!paused){let a=null;try{a=sc.pg==='dial'?A():frame&&frame.contentWindow.MOTS&&frame.contentWindow.MOTS.app}catch(e){}
+    if(a&&a.speak){setTimeout(()=>{if(g===nGen&&!paused)a.speak(sc.say)},600);more=SAYD}}
+  if(nWait){nWait=false;timer=setTimeout(()=>{if(g===nGen&&!paused)advance()},(BREATH+more)*1000)}}
 function narrate(sc){nStop();if(!narrOn||!el)return;const g=nGen;nPend=sc;nKey=keyOf(sc);
   setTimeout(async()=>{await loadIndex();if(g!==nGen||!el||paused||nPend!==sc)return;nPlay(sc,g)},NDELAY*1000)}
 function blobOf(key){if(nBlob.has(key))return nBlob.get(key);const p=fetch(nBase()+key+'.mp3').then(r=>{if(!r.ok)throw 0;return r.blob()}).then(b=>URL.createObjectURL(b));nBlob.set(key,p);p.catch(()=>nBlob.delete(key));return p}
@@ -14542,11 +14546,11 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
     } else if (S.audition === id) endAudition();
     else audition(id);
   });
-  async function audition(id) {
+  async function audition(id, quiet) {
     S.sel = id;
     S.audition = id;
     S.audMoon = null;
-    speakGod(byId[id]);
+    if (!quiet) speakGod(byId[id]);
     if (!audioOn) await startAudio();
     renderRoster();
     renderInfo();
@@ -20640,7 +20644,10 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
       if (audioOn) stopAudio();
     },
     playing: () => audioOn,
-    audition: (id) => audition(id),
+    audition: (id, quiet) => audition(id, quiet),
+    speak: (id) => {
+      if (byId[id]) speakGod(byId[id]);
+    },
     unaudition: () => {
       if (S.audition) endAudition();
     },

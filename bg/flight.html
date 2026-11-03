@@ -12956,12 +12956,13 @@ function nearestSurface(){
     o.moons.forEach((mm,k)=>{if(mm.sm&&!o.smOn)return;const d2=ship.pos.distanceTo(mm.wp)-mm.r;if(d2<best){best=d2;who=b.id+':'+k}})});
   return {d:Math.max(best,1e-7),who};
 }
-function travelTo(id){
+function travelTo(id,quiet){
   const cn=window.CRAFT3&&CRAFT3.name(id);   // fly_craft.js: a spacecraft
   const b=id.includes(':')||id==='sun'||cn?null:byId[id];
   const name=cn?cn:id==='sun'?'Хелиос, Слънцето':id.includes(':')?moonName(id):(b.kind==='comet'?b.name:b.god);
   ship.ap={id,name};ship.gap=null;ship.cruise=false;ship.vel.set(0,0,0);
-  if(b&&S.speak&&audioOn)speakGod(b);
+  // quiet: the Talk's narrator is speaking, so the god speaks after her (show.js, say:)
+  if(b&&S.speak&&audioOn&&!quiet)speakGod(b);
   toast(`Курс към ${name}`);
   closeNav();
 }
@@ -13403,7 +13404,7 @@ requestAnimationFrame(frame3);
 // hooks for the self-running show
 window.MOTS=window.MOTS||{};
 MOTS.app={start:()=>audioOn?Promise.resolve():startAudio3D(),stop:()=>{if(audioOn)stopAudio3D()},
-  travel:id=>{resumeAudio();travelTo(id)},cruise:()=>{resumeAudio();if(!ship.cruise)toggleCruise()},uncruise:()=>{if(ship.cruise)toggleCruise()},above:()=>{resumeAudio();riseAbove()},
+  travel:(id,quiet)=>{resumeAudio();travelTo(id,quiet)},speak:id=>{const b=byId[id];if(b&&S.speak&&audioOn)speakGod(b)},cruise:()=>{resumeAudio();if(!ship.cruise)toggleCruise()},uncruise:()=>{if(ship.cruise)toggleCruise()},above:()=>{resumeAudio();riseAbove()},
   // a window for tests: run a function over the flight's inner state
   _probe:fn=>fn({S,P,SYS,ship,OBJ,nearestSurface,moonWorld,byId,V,audioOn:()=>audioOn,ac:()=>AC,pickBody,openBodyPop,camera,renderer})};
 // the caption of the projector view: where the ship is, the date and the sky, in the page's own words
