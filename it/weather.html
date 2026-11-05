@@ -6244,6 +6244,7 @@ function rtShow(blob,secs,kind){
     tick();
   }
   async function start() {
+    if (window.MOTS_WXSKY && MOTS_WXSKY.onPlay) MOTS_WXSKY.onPlay();
     if (!ST.data) return;
     if (!AC) build();
     if (AC.state !== "running") try {
@@ -7887,7 +7888,21 @@ function rtShow(blob,secs,kind){
           if (FO.on) follow(false);
         });
       }
-      window.MOTS_WXSKY = { follow, onOri, headingOf, state: () => FO, hit: () => WXHIT };
+      const onPlay = function() {
+        if (!FO.on || FO.got || FO.asked || typeof DeviceOrientationEvent === "undefined" || !DeviceOrientationEvent.requestPermission) return;
+        FO.asked = true;
+        DeviceOrientationEvent.requestPermission().then((r) => {
+          if (r === "granted" && FO.on && !FO.got) {
+            listen(false);
+            listen(true);
+            FO.t0 = performance.now();
+            FO.off = null;
+            FO.rel = false;
+          }
+        }).catch(() => {
+        });
+      };
+      window.MOTS_WXSKY = { follow, onOri, onPlay, headingOf, state: () => FO, hit: () => WXHIT };
       let pop = null;
       const close = () => {
         if (pop) {
