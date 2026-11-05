@@ -7686,11 +7686,37 @@ function rtShow(blob,secs,kind){
         let h = null;
         if (ev.webkitCompassHeading != null && !isNaN(ev.webkitCompassHeading)) {
           FO.iOS = true;
+          FO.n.i++;
+          FO.abs = performance.now();
           h = ev.webkitCompassHeading + (screen.orientation && screen.orientation.angle || window.orientation || 0);
         } else if (ev.absolute || ev.type === "deviceorientationabsolute") {
-          if (ev.alpha == null) return;
+          if (ev.alpha == null) {
+            FO.n.z++;
+            return;
+          }
+          FO.n.a++;
+          FO.abs = performance.now();
+          if (FO.rel) {
+            FO.rel = false;
+            FO.off = null;
+          }
           h = headingOf(ev.alpha, ev.beta || 0, ev.gamma || 0);
-        } else return;
+        } else {
+          if (ev.alpha == null) {
+            FO.n.z++;
+            return;
+          }
+          FO.n.r++;
+          const t = performance.now();
+          if (t - FO.abs < 1500 || t - FO.t0 < 1000) return;
+          const hr = headingOf(ev.alpha, ev.beta || 0, ev.gamma || 0);
+          if (hr == null) return;
+          if (FO.off == null) {
+            FO.off = (FO.h != null ? FO.h : ST.facing) - hr;
+            FO.rel = true;
+          }
+          h = hr + FO.off;
+        }
         if (h == null || !isFinite(h) || !FO.on) return;
         h = (h % 360 + 360) % 360;
         if (!FO.got) {
@@ -7730,8 +7756,12 @@ function rtShow(blob,secs,kind){
           return;
         }
         const go = () => {
+          listen(false);
           listen(true);
           FO.got = false;
+          FO.t0 = performance.now();
+          FO.off = null;
+          FO.rel = false;
           if (!quiet) setTimeout(() => {
             if (FO.on && !FO.got) {
               follow(false, quiet, true);
@@ -7836,7 +7866,7 @@ function rtShow(blob,secs,kind){
       cb.setAttribute("aria-label", T2.follow);
       cb.innerHTML = '<span aria-hidden="true">🧭︎</span>';
       if (OK && touch) tools.appendChild(cb);
-      const FO = { on: false, h: null, got: false, iOS: false, ev: null, last: 0 };
+      const FO = { on: false, h: null, got: false, iOS: false, ev: null, last: 0, t0: 0, abs: -1e9, off: null, rel: false, n: { a: 0, r: 0, i: 0, z: 0 } };
       const DEG2 = Math.PI / 180;
       const note = (txt) => {
         const d = document.createElement("div");
@@ -7849,7 +7879,7 @@ function rtShow(blob,secs,kind){
       };
       cb.onclick = (e) => {
         e.stopPropagation();
-        follow(!FO.on);
+        follow(!(FO.on && FO.got));
       };
       if (OK && touch && LS.get("mots.wx.follow") !== "0") follow(true, true, true);
       else cb.setAttribute("aria-pressed", "false");
