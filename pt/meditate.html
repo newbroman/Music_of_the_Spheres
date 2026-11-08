@@ -8979,11 +8979,14 @@ function smRelease(m,now){const sv=m.sv;if(!sv||sv.part)return;if(sv.dead==null)
 // one panner for a small moon in focus (auditioned on the dial), straight ahead
 const FOC={p:null,g:null,on:false,want:false};
 function smFocus(ang){if(!FOC.g){FOC.p=mkPanner(false);FOC.g=mkGain(0,FOC.p)}setPos(FOC.p,Math.cos(ang),.1,-Math.sin(ang),.12);FOC.want=true;return FOC.g}
+// (PARK) parkVoices lives with the thinkers' code, which the flight page does not carry
+const PARK=(a,b)=>{if(typeof parkVoices==='function')parkVoices(a,b)};
 function updateAudio(){
   if(window.MOTS&&MOTS.midi.on)midiHolds();
   if(window.MOTS_CRAFT)MOTS_CRAFT.audio(listenerPos(),!SYS.id&&S.thinker==='today');   // craft.js
-  if(SYS.id){tgt(bus.gain,1,.35);updateSystemAudio();return}
-  if(S.thinker!=='today'&&!isBodyModel()){thinkerAudio();return}
+  if(SYS.id){PARK(true,true);tgt(bus.gain,1,.35);updateSystemAudio();return}
+  if(S.thinker!=='today'&&!isBodyModel()){PARK(true,false);thinkerAudio();return}
+  PARK('auto',true);
   tgt(bus.gain,S.thinker==='today'?1:hvGain(),.35);
   const L=listenerPos(), ang=facingAngle(), now=AC.currentTime;setListener(ang);
   const fwd={x:Math.cos(ang),y:0,z:-Math.sin(ang)};
@@ -9011,6 +9014,7 @@ function updateAudio(){
     const want=aud||(on&&!asWobble&&allowed.has(b.id)&&g>(v.part?.025:.035));
     if(want&&!v.part&&builds<3){buildPart(b,v);builds++}
     else if(!want&&v.part&&now-(v.born||0)>6){killPart(v.part);v.part=null;v.mode=null}
+    if(v.part&&v.parked&&typeof parkV==='function')parkV(v,false);   // (PARK) plugged back in as soon as it has something to sing
     v.culled=!v.part;
     const I=v.mode==='instrument'?v.part:null, Hp=v.mode==='human'?v.part:null, W=WOB[b.id]||{c:0,a:0};
     const duck=aud&&S.speaking?.3:1;
@@ -9749,8 +9753,18 @@ function strPluck(dest,f,lvl,dec,harm){lvl*=MED.plk;
   const g=mkGain(0);g.gain.setValueAtTime(0,t);g.gain.setValueAtTime(lvl*.063,t+.001);g.gain.exponentialRampToValueAtTime(lvl,t+MED.plkA);g.gain.setTargetAtTime(0,t+MED.plkA,dec*MED.plkD);
   o.connect(lp);o2.connect(mkGain(.25,lp));lp.connect(g);g.connect(dest);o.start(t);o2.start(t);o.stop(t+MED.plkA+dec*MED.plkD*7);o2.stop(t+MED.plkA+dec*MED.plkD*7);
 }
+/* (PARK) a voice that is silent and not in use is unplugged from the mix: the audio thread then stops visiting its nodes every
+   128 samples. On a heaven, Today's 25 body voices and their moons (about 180 nodes) sat idle but plugged in, and the thinkers'
+   sirens did the same on Today; on a phone with the screen off that idle work was enough to starve the sound (V31GT, 8 Nov).
+   A voice is unplugged only once its levels have fallen to silence, and plugged back in before it next sings. */
+function parkV(v,on){if(!v||!v.pan||!bus||!!v.parked===on)return;
+  if(on){if(v.part||(v.vol&&v.vol.gain.value>1e-4)||(v.moonVol&&v.moonVol.gain.value>1e-4))return;try{v.pan.disconnect(bus)}catch(e){return}v.parked=true}
+  else{try{v.pan.connect(bus)}catch(e){}v.parked=false}}
+// bodies: park Today's voices (on a heaven or a star system); sirens: park the thinkers' voices (on Today, a body-model heaven or a system)
+// bodies 'auto' (Today, body-model heavens): a body with nothing to sing (no part: out of the voice budget, too faint, muted) is parked too
+function parkVoices(bodies,sirens){BODIES.forEach(b=>{const v=V[b.id];if(v)parkV(v,bodies==='auto'?!v.part:bodies)});Object.values(SIR.v).forEach(v=>parkV(v,sirens))}
 function sirenVoice(who){
-  let v=SIR.v[who];if(v)return v;
+  let v=SIR.v[who];if(v){if(v.parked)parkV(v,false);return v}
   v=SIR.v[who]={pan:mkPanner(!LOWPOWER),part:null,mode:null,ph:Math.random()};v.vol=mkGain(0,v.pan);v.pl=mkGain(1,v.pan);return v;
 }
 function killSirens(){bhaKill();cyKill();slKill();TRAI.sunUp=null;TRAI.nextBell=0;TRAI.nextBeat=0;Object.values(SIR.v).forEach(v=>{if(v.part){killPart(v.part);v.part=null}tgt(v.vol.gain,0,.1);v.lon=undefined});if(SIR.roar){const r=SIR.roar;tgt(r.g.gain,0,.3);setTimeout(()=>{try{r.src.stop()}catch(e){}},900);SIR.roar=null}}

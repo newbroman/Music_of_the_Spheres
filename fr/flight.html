@@ -12266,11 +12266,14 @@ function smRelease(m,now){const sv=m.sv;if(!sv||sv.part)return;if(sv.dead==null)
 // one panner for a small moon in focus (auditioned on the dial), straight ahead
 const FOC={p:null,g:null,on:false,want:false};
 function smFocus(ang){if(!FOC.g){FOC.p=mkPanner(false);FOC.g=mkGain(0,FOC.p)}setPos(FOC.p,Math.cos(ang),.1,-Math.sin(ang),.12);FOC.want=true;return FOC.g}
+// (PARK) parkVoices lives with the thinkers' code, which the flight page does not carry
+const PARK=(a,b)=>{if(typeof parkVoices==='function')parkVoices(a,b)};
 function updateAudio(){
   if(window.MOTS&&MOTS.midi.on)midiHolds();
   if(window.MOTS_CRAFT)MOTS_CRAFT.audio(listenerPos(),!SYS.id&&S.thinker==='today');   // craft.js
-  if(SYS.id){tgt(bus.gain,1,.35);updateSystemAudio();return}
-  if(S.thinker!=='today'&&!isBodyModel()){thinkerAudio();return}
+  if(SYS.id){PARK(true,true);tgt(bus.gain,1,.35);updateSystemAudio();return}
+  if(S.thinker!=='today'&&!isBodyModel()){PARK(true,false);thinkerAudio();return}
+  PARK('auto',true);
   tgt(bus.gain,S.thinker==='today'?1:hvGain(),.35);
   const L=listenerPos(), ang=facingAngle(), now=AC.currentTime;setListener(ang);
   const fwd={x:Math.cos(ang),y:0,z:-Math.sin(ang)};
@@ -12298,6 +12301,7 @@ function updateAudio(){
     const want=aud||(on&&!asWobble&&allowed.has(b.id)&&g>(v.part?.025:.035));
     if(want&&!v.part&&builds<3){buildPart(b,v);builds++}
     else if(!want&&v.part&&now-(v.born||0)>6){killPart(v.part);v.part=null;v.mode=null}
+    if(v.part&&v.parked&&typeof parkV==='function')parkV(v,false);   // (PARK) plugged back in as soon as it has something to sing
     v.culled=!v.part;
     const I=v.mode==='instrument'?v.part:null, Hp=v.mode==='human'?v.part:null, W=WOB[b.id]||{c:0,a:0};
     const duck=aud&&S.speaking?.3:1;

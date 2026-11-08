@@ -12567,18 +12567,24 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
     FOC.want = true;
     return FOC.g;
   }
+  const PARK = (a, b) => {
+    if (typeof parkVoices === "function") parkVoices(a, b);
+  };
   function updateAudio() {
     if (window.MOTS && MOTS.midi.on) midiHolds();
     if (window.MOTS_CRAFT) MOTS_CRAFT.audio(listenerPos(), !SYS.id && S.thinker === "today");
     if (SYS.id) {
+      PARK(true, true);
       tgt(bus.gain, 1, 0.35);
       updateSystemAudio();
       return;
     }
     if (S.thinker !== "today" && !isBodyModel()) {
+      PARK(true, false);
       thinkerAudio();
       return;
     }
+    PARK("auto", true);
     tgt(bus.gain, S.thinker === "today" ? 1 : hvGain(), 0.35);
     const L = listenerPos(), ang = facingAngle(), now = AC.currentTime;
     setListener(ang);
@@ -12620,6 +12626,7 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
         v.part = null;
         v.mode = null;
       }
+      if (v.part && v.parked && typeof parkV === "function") parkV(v, false);
       v.culled = !v.part;
       const I = v.mode === "instrument" ? v.part : null, Hp = v.mode === "human" ? v.part : null, W2 = WOB[b.id] || { c: 0, a: 0 };
       const duck = aud && S.speaking ? 0.3 : 1;
@@ -15650,9 +15657,37 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
     o.stop(t + dec * 6);
     o2.stop(t + dec * 6);
   }
+  function parkV(v, on) {
+    if (!v || !v.pan || !bus || !!v.parked === on) return;
+    if (on) {
+      if (v.part || v.vol && v.vol.gain.value > 1e-4 || v.moonVol && v.moonVol.gain.value > 1e-4) return;
+      try {
+        v.pan.disconnect(bus);
+      } catch (e) {
+        return;
+      }
+      v.parked = true;
+    } else {
+      try {
+        v.pan.connect(bus);
+      } catch (e) {
+      }
+      v.parked = false;
+    }
+  }
+  function parkVoices(bodies, sirens) {
+    BODIES.forEach((b) => {
+      const v = V[b.id];
+      if (v) parkV(v, bodies === "auto" ? !v.part : bodies);
+    });
+    Object.values(SIR.v).forEach((v) => parkV(v, sirens));
+  }
   function sirenVoice(who) {
     let v = SIR.v[who];
-    if (v) return v;
+    if (v) {
+      if (v.parked) parkV(v, false);
+      return v;
+    }
     v = SIR.v[who] = { pan: mkPanner(!LOWPOWER), part: null, mode: null, ph: Math.random() };
     v.vol = mkGain(0, v.pan);
     v.pl = mkGain(1, v.pan);
