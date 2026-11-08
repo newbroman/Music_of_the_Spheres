@@ -181,11 +181,17 @@ var FIX=C.fix={level:Math.min(2,+(LSg('mots.afix')||0)||0),lite:LSg('mots.afix.l
    ?nowl turns it on and keeps it, ?nowl=0 (or ?afix=0) clears it. */
 if(/[?&]nowl=0\b/.test(location.search))LSs('mots.nowl');else if(/[?&]nowl\b/.test(location.search))LSs('mots.nowl','1');
 FIX.nowl=LSg('mots.nowl')==='1';
+/* (BG-BUFFER) the screen-off buffer: a phone whose sound clock fell behind while the screen was off (stage.js measures each hidden spell)
+   gets the largest output buffer the browser allows from the next start of the sound: mots.bgbuf (seconds; Chrome caps it at 8192 frames,
+   about 0.17 s). Its cost is that much delay between a tap and its sound, on that phone only. ?bgbuf=0.2 sets it, ?bgbuf=0 or ?afix=0 clears it. */
+{var bq=(location.search.match(/[?&]bgbuf=([0-9.]+)/)||[])[1];if(bq!==undefined){if(+bq>0)LSs('mots.bgbuf',String(Math.min(.5,+bq)));else LSs('mots.bgbuf')}
+  if(/[?&]afix=0\b/.test(location.search)){LSs('mots.bgbuf');LSs('mots.bgbuf.said')}}
+FIX.bgbuf=+(LSg('mots.bgbuf')||0)||0;
 try{FIX.log=JSON.parse(LSg('mots.alog')||'[]')||[]}catch(e){FIX.log=[]}
 function flog(s){var line=new Date().toISOString().slice(0,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s;
   FIX.log.push(line);if(FIX.log.length>30)FIX.log=FIX.log.slice(-30);LSs('mots.alog',JSON.stringify(FIX.log));C.notes.push(now()+' repair: '+s)}
 C.flog=flog;
-function fixOpts(o){var r={},k;if(o)for(k in o)r[k]=o[k];if(FIX.level>=1)r.latencyHint='playback';
+function fixOpts(o){var r={},k;if(o)for(k in o)r[k]=o[k];if(FIX.level>=1)r.latencyHint='playback';if(FIX.bgbuf)r.latencyHint=FIX.bgbuf;
   if(FIX.level>=2){var sr=+(LSg('mots.afix.sr')||0);r.sampleRate=sr===44100?48000:44100}return r}
 /* ---------- 3. the start-up guard ---------- */
 var lastG=0,anyG=false,res0=AC0&&AC0.prototype.resume,sus0=AC0&&AC0.prototype.suspend;
@@ -201,7 +207,8 @@ function watch(c){var m=c.__mt;if(!m||m.watching)return;m.watching=true;
       if(c.currentTime===t1)repair('clock',S('clock'),c);else listen(c)},1200)},3000)}
 if(AC0){
   var Wr=function AudioContext(o){var c=null;try{C.pageOpts=o===undefined?null:JSON.parse(JSON.stringify(o))}catch(e){}
-    if(FIX.level){var fo=fixOpts(o);try{c=new AC0(fo)}catch(e){log('AudioContext('+JSON.stringify(fo)+') failed: '+e.message);if(FIX.level>=2){try{c=new AC0({latencyHint:'playback'})}catch(e2){}}}}
+    if(FIX.level||FIX.bgbuf){var fo=fixOpts(o);try{c=new AC0(fo)}catch(e){log('AudioContext('+JSON.stringify(fo)+') failed: '+e.message);if(FIX.level>=2||FIX.bgbuf){try{c=new AC0({latencyHint:'playback'})}catch(e2){}}}}
+    if(c&&FIX.bgbuf&&LSg('mots.bgbuf.said')!==String(FIX.bgbuf)){LSs('mots.bgbuf.said',String(FIX.bgbuf));flog('screen-off buffer: asked '+Math.round(FIX.bgbuf*1000)+' ms, got '+Math.round((c.baseLatency||0)*1000)+' ms')}
     if(!c&&o!==undefined){try{c=new AC0(o)}catch(e){log('AudioContext('+JSON.stringify(o)+') failed, plain constructor instead: '+e.message)}}
     if(!c){try{c=new AC0()}catch(e){fail((e.name?e.name+': ':'')+e.message);throw e}}
     if(!FIX.level&&c.sampleRate)LSs('mots.afix.sr',String(c.sampleRate));
@@ -376,7 +383,7 @@ function report(){var L=[];
   {var pc=null;C.ctxs.forEach(function(c){if(c.state!=='closed'&&c!==toneCtx)pc=c});if(pc&&pc.__clk&&pc.__clk.length>2){var A=pc.__clk[0],B=pc.__clk[pc.__clk.length-1],dw=(B[0]-A[0])/1000;if(dw>1)L.push('sound clock: '+Math.round(100*(B[1]-A[1])/dw)+'% of real time over the last '+Math.round(dw)+' s'+(D.hidden?' (hidden)':''))}}
   {var rc=null;C.ctxs.forEach(function(c){if(c.state!=='closed'&&c.__rc&&c.__rc.avg!=null)rc=c.__rc});if(rc)L.push('audio thread: busy '+Math.round(100*rc.avg)+'% (peak '+Math.round(100*rc.peak)+'%) · deadlines missed '+Math.round(100*rc.under)+'%');}
   if(C.etest)L.push('engine test (sound clock): '+C.etest.join(' · '));
-  L.push('self-repair: level '+FIX.level+(FIX.nowl?' · worklets off':'')+(LSg('mots.route')==='media'?' · through the media player':'')+(FIX.lite?' · lite output':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
+  L.push('self-repair: level '+FIX.level+(FIX.nowl?' · worklets off':'')+(LSg('mots.route')==='media'?' · through the media player':'')+(FIX.lite?' · lite output':'')+(FIX.bgbuf?' · screen-off buffer '+Math.round(FIX.bgbuf*1000)+' ms':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
   {var bl=[];try{bl=JSON.parse(LSg('mots.bglog')||'[]')}catch(e){}L.push('screen off / other app ('+bl.length+'):'+(bl.length?'\n  '+bl.join('\n  '):' nothing recorded yet'))}
   try{var DL=W.MOTS&&MOTS.diagLines;if(DL&&DL.length){L.push('live:');DL.forEach(function(f){try{var x=f();if(x)L.push('  '+x)}catch(e){L.push('  ('+e.message+')')}})}}catch(e){}
   L.push('errors ('+C.errs.length+'):'+(C.errs.length?'\n  '+C.errs.slice(-12).join('\n  '):' none'));
@@ -1591,7 +1598,15 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
           BG.mode = "stream";
           s.fell = true;
         }
-        if (s.hid > 15) bgNote("hidden " + s.hid.toFixed(0) + " s · sound clock " + s.aud.toFixed(0) + " s (" + Math.round(100 * s.aud / Math.max(0.1, s.hid)) + "%) · " + s.mode + (s.fell ? " → stream next time" : "") + " · late ticks " + s.gaps + (s.wd ? " · watchdog " + s.wd : ""));
+        s.buf = 0;
+        s.maxed = false;
+        if (s.hid > 15 && !s.state && !MOTS.projPaused && s.aud < s.hid * 0.95) {
+          if (!LS.get("mots.bgbuf")) {
+            LS.set("mots.bgbuf", "0.2");
+            s.buf = 0.2;
+          } else s.maxed = true;
+        }
+        if (s.hid > 15) bgNote("hidden " + s.hid.toFixed(0) + " s · sound clock " + s.aud.toFixed(0) + " s (" + Math.round(100 * s.aud / Math.max(0.1, s.hid)) + "%) · " + s.mode + (s.fell ? " → stream next time" : "") + (s.buf ? " → largest buffer from the next start" : s.maxed ? " (largest buffer already on)" : "") + " · late ticks " + s.gaps + (s.wd ? " · watchdog " + s.wd : ""));
         if (/[?&]bgdiag\b/.test(location.search)) bgDiag(s);
       }
     } catch (e) {
