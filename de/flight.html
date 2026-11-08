@@ -184,13 +184,17 @@ FIX.nowl=LSg('mots.nowl')==='1';
 /* (BG-BUFFER) the screen-off buffer: a phone whose sound clock fell behind while the screen was off (stage.js measures each hidden spell)
    gets the largest output buffer the browser allows from the next start of the sound: mots.bgbuf (seconds; Chrome caps it at 8192 frames,
    about 0.17 s). Its cost is that much delay between a tap and its sound, on that phone only. ?bgbuf=0.2 sets it, ?bgbuf=0 or ?afix=0 clears it. */
-{var bq=(location.search.match(/[?&]bgbuf=([0-9.]+)/)||[])[1];if(bq!==undefined){if(+bq>0)LSs('mots.bgbuf',String(Math.min(.5,+bq)));else LSs('mots.bgbuf')}
-  if(/[?&]afix=0\b/.test(location.search)){LSs('mots.bgbuf');LSs('mots.bgbuf.said')}}
+{var bq=(location.search.match(/[?&]bgbuf=([0-9.]+)/)||[])[1];if(bq!==undefined){if(+bq>0){LSs('mots.bgbuf',String(Math.min(.5,+bq)));LSs('mots.bgbuf.man','1')}else{LSs('mots.bgbuf');LSs('mots.bgbuf.man')}}
+  if(/[?&]afix=0\b/.test(location.search)){LSs('mots.bgbuf');LSs('mots.bgbuf.said');LSs('mots.bgbuf.man')}
+  /* (BG-TIP, 8 Nov) the automatic screen-off buffer is withdrawn: on the V31GT it didn't help, and on Eco its long bursts made the
+     sound break up; the battery setting was the cure (stage.js now shows a tip). A buffer set automatically is cleared; ?bgbuf= still sets one by hand. */
+  if(LSg('mots.bgbuf')&&LSg('mots.bgbuf.man')!=='1'){LSs('mots.bgbuf');LSs('mots.bgbuf.said');C.bgbufCleared=true}}
 FIX.bgbuf=+(LSg('mots.bgbuf')||0)||0;
 try{FIX.log=JSON.parse(LSg('mots.alog')||'[]')||[]}catch(e){FIX.log=[]}
 function flog(s){var line=new Date().toISOString().slice(0,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s;
   FIX.log.push(line);if(FIX.log.length>30)FIX.log=FIX.log.slice(-30);LSs('mots.alog',JSON.stringify(FIX.log));C.notes.push(now()+' repair: '+s)}
 C.flog=flog;
+if(C.bgbufCleared)flog('screen-off buffer back to normal (it did not help; see the battery tip)');
 function fixOpts(o){var r={},k;if(o)for(k in o)r[k]=o[k];if(FIX.level>=1)r.latencyHint='playback';if(FIX.bgbuf)r.latencyHint=FIX.bgbuf;
   if(FIX.level>=2){var sr=+(LSg('mots.afix.sr')||0);r.sampleRate=sr===44100?48000:44100}return r}
 /* ---------- 3. the start-up guard ---------- */
@@ -1375,6 +1379,23 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
             agcTick();
           } catch (e) {
           }
+          if (BG.on && BG_PHONE && ctx && ctx.state === "running" && !MOTS.projPaused) {
+            const w = s.lw;
+            if (!w || now - w.t > 8e3) {
+              s.lw = { t: now, a: ctx.currentTime };
+            } else if (now - w.t >= 4e3) {
+              const r = (ctx.currentTime - w.a) / ((now - w.t) / 1e3);
+              s.lw = { t: now, a: ctx.currentTime };
+              if (r < 0.93 && quality !== "min") {
+                if (BG.q0 == null) BG.q0 = quality;
+                s.lite = true;
+                try {
+                  MOTS.setQuality("min", true);
+                } catch (e) {
+                }
+              }
+            }
+          }
           if (BG.on && ctx && ctx.state !== "running" && ctx.state !== "closed" && !MOTS.projPaused && !(ctx.__ownSus > s.w0) && now - BG.rt > 2e3) {
             BG.rt = now;
             s.wd = (s.wd || 0) + 1;
@@ -1549,6 +1570,8 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
         BG.sky = MOTS.skyHidden;
         MOTS.skyHidden = () => true;
         BG.q0 = null;
+        s.lw = null;
+        s.lite = false;
         try {
           if (quality !== "eco" && quality !== "min" && LS.get("mots.quality.manual") !== "1") {
             BG.q0 = quality;
@@ -1596,17 +1619,49 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
           BG.mode = "stream";
           s.fell = true;
         }
-        s.buf = 0;
-        s.maxed = false;
-        if (s.hid > 15 && !s.state && !MOTS.projPaused && s.aud < s.hid * 0.95) {
-          if (!LS.get("mots.bgbuf")) {
-            LS.set("mots.bgbuf", "0.2");
-            s.buf = 0.2;
-          } else s.maxed = true;
+        s.tip = false;
+        if (s.hid > 15 && !s.state && !MOTS.projPaused && s.aud < s.hid * 0.93) {
+          const lt = +(LS.get("mots.bgtip") || 0);
+          if (Date.now() - lt > 3 * 864e5) {
+            LS.set("mots.bgtip", String(Date.now()));
+            s.tip = true;
+            bgTip();
+          }
         }
-        if (s.hid > 15) bgNote("hidden " + s.hid.toFixed(0) + " s · sound clock " + s.aud.toFixed(0) + " s (" + Math.round(100 * s.aud / Math.max(0.1, s.hid)) + "%) · " + s.mode + (s.fell ? " → stream next time" : "") + (s.buf ? " → largest buffer from the next start" : s.maxed ? " (largest buffer already on)" : "") + " · late ticks " + s.gaps + (s.wd ? " · watchdog " + s.wd : ""));
+        if (s.hid > 15) bgNote("hidden " + s.hid.toFixed(0) + " s · sound clock " + s.aud.toFixed(0) + " s (" + Math.round(100 * s.aud / Math.max(0.1, s.hid)) + "%) · " + s.mode + (s.fell ? " → stream next time" : "") + (s.tip ? " → battery tip shown" : "") + (s.lite ? " · went Lightest while hidden" : "") + " · late ticks " + s.gaps + (s.wd ? " · watchdog " + s.wd : ""));
         if (/[?&]bgdiag\b/.test(location.search)) bgDiag(s);
       }
+    } catch (e) {
+    }
+  }
+  const BGT = {
+    en: "Your phone held back the sound while the screen was off. To let it play smoothly: Settings → Apps → Chrome → Battery → Unrestricted, and the same for Music of the Spheres.",
+    pl: "Telefon wstrzymywał dźwięk przy wyłączonym ekranie. Aby grało płynnie: Ustawienia → Aplikacje → Chrome → Bateria → Bez ograniczeń, i to samo dla Music of the Spheres.",
+    cy: "Fe wnaeth eich ffôn ddal y sain yn ôl tra oedd y sgrin i ffwrdd. I’w gadael i chwarae’n llyfn: Gosodiadau → Apiau → Chrome → Batri → Dim cyfyngiad, a’r un peth ar gyfer Music of the Spheres.",
+    de: "Ihr Telefon hat den Ton bei ausgeschaltetem Bildschirm gebremst. Damit er flüssig spielt: Einstellungen → Apps → Chrome → Akku → Nicht eingeschränkt, und dasselbe für Music of the Spheres.",
+    es: "Tu teléfono frenó el sonido con la pantalla apagada. Para que suene fluido: Ajustes → Aplicaciones → Chrome → Batería → Sin restricciones, y lo mismo para Music of the Spheres.",
+    fr: "Votre téléphone a freiné le son écran éteint. Pour une lecture fluide : Paramètres → Applications → Chrome → Batterie → Non restreinte, et de même pour Music of the Spheres.",
+    it: "Il telefono ha frenato l’audio a schermo spento. Perché suoni fluido: Impostazioni → App → Chrome → Batteria → Senza restrizioni, e lo stesso per Music of the Spheres.",
+    zh: "屏幕关闭时，手机限制了声音。要让它流畅播放：设置 → 应用 → Chrome → 电池 → 无限制；Music of the Spheres 也同样设置。",
+    ja: "画面オフの間、スマートフォンが音を抑えていました。なめらかに再生するには：設定 → アプリ → Chrome → バッテリー → 制限なし。Music of the Spheres も同じように設定してください。",
+    vi: "Điện thoại đã kìm âm thanh khi tắt màn hình. Để phát mượt: Cài đặt → Ứng dụng → Chrome → Pin → Không hạn chế, và làm tương tự cho Music of the Spheres.",
+    bg: "Телефонът задържаше звука при изключен екран. За да свири плавно: Настройки → Приложения → Chrome → Батерия → Без ограничения, и същото за Music of the Spheres.",
+    pt: "Seu celular segurou o som com a tela desligada. Para tocar sem falhas: Configurações → Apps → Chrome → Bateria → Sem restrições, e o mesmo para o Music of the Spheres.",
+    nb: "Telefonen holdt igjen lyden mens skjermen var av. For at den skal spille jevnt: Innstillinger → Apper → Chrome → Batteri → Ubegrenset, og det samme for Music of the Spheres.",
+    nn: "Telefonen heldt att lyden medan skjermen var av. For at han skal spele jamt: Innstillingar → Appar → Chrome → Batteri → Ubegrensa, og det same for Music of the Spheres."
+  };
+  function bgTip() {
+    try {
+      const t = document.createElement("div");
+      t.setAttribute("role", "status");
+      t.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9500;max-width:min(92vw,560px);background:#13162a;color:#e9e1cc;border:1px solid #c9984f;border-radius:12px;padding:10px 14px;font:15px/1.4 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.5);transition:opacity .6s;cursor:pointer';
+      t.textContent = BGT[LANG] || BGT.en;
+      t.onclick = () => t.remove();
+      document.body.appendChild(t);
+      setTimeout(() => {
+        t.style.opacity = "0";
+        setTimeout(() => t.remove(), 700);
+      }, 2e4);
     } catch (e) {
     }
   }

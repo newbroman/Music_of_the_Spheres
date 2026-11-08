@@ -184,13 +184,17 @@ FIX.nowl=LSg('mots.nowl')==='1';
 /* (BG-BUFFER) the screen-off buffer: a phone whose sound clock fell behind while the screen was off (stage.js measures each hidden spell)
    gets the largest output buffer the browser allows from the next start of the sound: mots.bgbuf (seconds; Chrome caps it at 8192 frames,
    about 0.17 s). Its cost is that much delay between a tap and its sound, on that phone only. ?bgbuf=0.2 sets it, ?bgbuf=0 or ?afix=0 clears it. */
-{var bq=(location.search.match(/[?&]bgbuf=([0-9.]+)/)||[])[1];if(bq!==undefined){if(+bq>0)LSs('mots.bgbuf',String(Math.min(.5,+bq)));else LSs('mots.bgbuf')}
-  if(/[?&]afix=0\b/.test(location.search)){LSs('mots.bgbuf');LSs('mots.bgbuf.said')}}
+{var bq=(location.search.match(/[?&]bgbuf=([0-9.]+)/)||[])[1];if(bq!==undefined){if(+bq>0){LSs('mots.bgbuf',String(Math.min(.5,+bq)));LSs('mots.bgbuf.man','1')}else{LSs('mots.bgbuf');LSs('mots.bgbuf.man')}}
+  if(/[?&]afix=0\b/.test(location.search)){LSs('mots.bgbuf');LSs('mots.bgbuf.said');LSs('mots.bgbuf.man')}
+  /* (BG-TIP, 8 Nov) the automatic screen-off buffer is withdrawn: on the V31GT it didn't help, and on Eco its long bursts made the
+     sound break up; the battery setting was the cure (stage.js now shows a tip). A buffer set automatically is cleared; ?bgbuf= still sets one by hand. */
+  if(LSg('mots.bgbuf')&&LSg('mots.bgbuf.man')!=='1'){LSs('mots.bgbuf');LSs('mots.bgbuf.said');C.bgbufCleared=true}}
 FIX.bgbuf=+(LSg('mots.bgbuf')||0)||0;
 try{FIX.log=JSON.parse(LSg('mots.alog')||'[]')||[]}catch(e){FIX.log=[]}
 function flog(s){var line=new Date().toISOString().slice(0,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s;
   FIX.log.push(line);if(FIX.log.length>30)FIX.log=FIX.log.slice(-30);LSs('mots.alog',JSON.stringify(FIX.log));C.notes.push(now()+' repair: '+s)}
 C.flog=flog;
+if(C.bgbufCleared)flog('screen-off buffer back to normal (it did not help; see the battery tip)');
 function fixOpts(o){var r={},k;if(o)for(k in o)r[k]=o[k];if(FIX.level>=1)r.latencyHint='playback';if(FIX.bgbuf)r.latencyHint=FIX.bgbuf;
   if(FIX.level>=2){var sr=+(LSg('mots.afix.sr')||0);r.sampleRate=sr===44100?48000:44100}return r}
 /* ---------- 3. the start-up guard ---------- */
