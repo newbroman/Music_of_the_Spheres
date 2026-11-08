@@ -270,6 +270,10 @@ function ok(c,max){var m=c.__mt;if(m.okSaid)return;m.okSaid=true;SSs('mots.afix.
 function pageCtxs(){return C.ctxs.filter(function(c){return c.state!=='closed'&&c!==toneCtx})}
 function repair(kind,why,c){var m=c&&c.__mt;if(m){if(m.repaired===kind)return;m.repaired=kind}
   flog(kind+': '+why+' (level '+FIX.level+(FIX.lite?', lite':'')+(c?', '+c.sampleRate+' Hz':'')+')');
+  // (LEAN-ENGINE) the dial's lean sound engine is on and its host failed to load or threw, or the sound came out silent or NaN:
+  // first of all, back to the old engine on this phone (mots.engine=old; ?engine=lean is taken out of the address so it is not set again)
+  if(kind==='lean'||((kind==='wlerr'||kind==='silent'||kind==='nan')&&leanOn())){LSs('mots.engine','old');flog('lean engine off');
+    try{history.replaceState(history.state,'',location.href.replace(/([?&])engine=lean(&|(?=#)|$)/,'$1').replace(/[?&](?=#|$)/,''))}catch(e){}reloadFix(why);return}
   if(kind==='stuck'){ // a context held back: one big button; a tap is what lets the phone start it
     showTap(function retry(){var cs=pageCtxs();cs.forEach(function(x){var mm=x.__mt;if(mm)mm.repaired=null;try{var p=res0.call(x);if(p&&p.then)p.then(null,function(){})}catch(e){}});
       setTimeout(function(){var good=cs.some(function(x){return x.state==='running'});
@@ -282,6 +286,8 @@ function repair(kind,why,c){var m=c&&c.__mt;if(m){if(m.repaired===kind)return;m.
   if(!FIX.lite){FIX.lite=true;LSs('mots.afix.lite','1');flog('output stage made lighter');reloadFix(why);return}
   if(kind==='nan'){escalate(why);return}
   flog('no repair left for this; tell Martin')}
+function leanOn(){try{if(W.MOTS&&MOTS.engine)return MOTS.engine()==='lean'}catch(e){}return false}
+C.leanOff=function(why,c){repair('lean',why,c||null)};
 function escalate(why){if(FIX.level>=2){flog('all repairs tried');fail(why);return}
   FIX.level++;LSs('mots.afix',String(FIX.level));flog('next time: sound settings '+FIX.level);reloadFix(why)}
 // reload with the new settings, at most three times a visit; the reloaded page shows the big button, whose tap starts the page's music
@@ -387,6 +393,7 @@ function report(){var L=[];
   {var pc=null;C.ctxs.forEach(function(c){if(c.state!=='closed'&&c!==toneCtx)pc=c});if(pc&&pc.__clk&&pc.__clk.length>2){var A=pc.__clk[0],B=pc.__clk[pc.__clk.length-1],dw=(B[0]-A[0])/1000;if(dw>1)L.push('sound clock: '+Math.round(100*(B[1]-A[1])/dw)+'% of real time over the last '+Math.round(dw)+' s'+(D.hidden?' (hidden)':''))}}
   {var rc=null;C.ctxs.forEach(function(c){if(c.state!=='closed'&&c.__rc&&c.__rc.avg!=null)rc=c.__rc});if(rc)L.push('audio thread: busy '+Math.round(100*rc.avg)+'% (peak '+Math.round(100*rc.peak)+'%) · deadlines missed '+Math.round(100*rc.under)+'%');}
   if(C.etest)L.push('engine test (sound clock): '+C.etest.join(' · '));
+  {var eng='old';try{if(W.MOTS&&MOTS.engine)eng=MOTS.engine()}catch(e){}L.push('engine: '+eng+(LSg('mots.engine')==='lean'&&eng!=='lean'?' (lean asked for, not available here)':''))}
   L.push('self-repair: level '+FIX.level+(FIX.nowl?' · worklets off':'')+(LSg('mots.route')==='media'?' · through the media player':'')+(FIX.lite?' · lite output':'')+(FIX.bgbuf?' · screen-off buffer '+Math.round(FIX.bgbuf*1000)+' ms':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
   {var bl=[];try{bl=JSON.parse(LSg('mots.bglog')||'[]')}catch(e){}L.push('screen off / other app ('+bl.length+'):'+(bl.length?'\n  '+bl.join('\n  '):' nothing recorded yet'))}
   try{var DL=W.MOTS&&MOTS.diagLines;if(DL&&DL.length){L.push('live:');DL.forEach(function(f){try{var x=f();if(x)L.push('  '+x)}catch(e){L.push('  ('+e.message+')')}})}}catch(e){}
@@ -8611,11 +8618,127 @@ function glottal(tilt){
 function parseWords(s){return s.trim().split(/\s+/).map(tok=>{const hold=tok.endsWith(':');tok=tok.replace(':','');return {t:tok,hold}})}
 const NF=4; // formants per singer: four is enough for vowel identity and keeps the phone's audio thread light (two on Lightest: F1 and F2 still tell the vowels apart)
 let noiseBus=null, jitBus=null, inhaleBus=null, RETRO=null;
-const mkGain=(v,to)=>{const g=AC.createGain();g.gain.value=v;if(to)g.connect(to);return g};
+
+/* ---------- (LEAN-ENGINE) one host worklet for the dial's voices (see lean_engine.py) ----------
+   mots.engine in localStorage: 'old' (the default) or 'lean'; ?engine=lean or ?engine=old in the address sets it. With lean (and AudioWorklet)
+   the dial's sung voices, sirens and gods' instruments (Today's bodies and their moons, the thinkers' sirens) are played by one worklet node,
+   'mots-sky' (see VOICE_CODE), instead of a node, gains, filters and a 3D panner each. The rest of the code is unchanged: their gains (v.vol,
+   I.g, m.out …) and panners (v.pan) are stand-ins with the nodes' methods, backed by the host, which keeps each voice's chain of levels and
+   its place (an equal-power pan from its direction, worked out as MOTS.lite's is on Eco). Anything that still plugs real nodes into a stand-in
+   (plucks, bells, the spectral lines, a comet's breath, the light module's heat and radio) gets a real path made on first use, a gain per
+   stand-in and a stereo panner per place, freed when idle. The Sun, the aspects, the belt, the spacecraft and the moon-system view keep their
+   own nodes; the light colour filter and the distance lowpass (v.air) are left out with lean, and 5.1 surround places only the old nodes.
+   Not on Meditate or the flight. If the host fails to load, throws, or the dial goes silent or NaN, compat.js turns lean off on this phone and
+   reloads (its first repair step). */
+{const m=location.search.match(/[?&]engine=(lean|old)\b/);if(m)try{localStorage.setItem('mots.engine',m[1])}catch(e){}}
+const LEAN={on:false,failed:false,ac:null,node:null,q:[],pend:[],kick:false,id:0,f:[0,0,-1],u:[0,1,0],dirty:new Set(),pans:new Set(),all:false,twins:new Set(),sweep:null,c0:null,d0:null};
+function leanPref(){try{return localStorage.getItem('mots.engine')==='lean'}catch(e){return false}}
+// the dial only (the flight has no host code; Meditate keeps its own voices), with AudioWorklet, and not with the worklets turned off
+function leanCan(){return typeof VOICE_CODE!=='undefined'&&!window.MEDITATE&&!!window.AudioWorkletNode&&!(typeof VWL!=='undefined'&&VWL.off)}
+if(window.MOTS)MOTS.engine=()=>(AC?LEAN.on&&!LEAN.failed:leanPref()&&leanCan())?'lean':'old';
+const leanTo=d=>!!(d&&d.__lean&&LEAN.on);
+// at initAudio: the choice for this audio context
+function leanInit(){LEAN.on=leanPref()&&leanCan()&&!!AC.audioWorklet;LEAN.ac=AC;
+  try{if(window.MOTS_COMPAT&&MOTS_COMPAT.notes)MOTS_COMPAT.notes.push('engine: '+(LEAN.on?'lean':'old'))}catch(e){}
+  if(!LEAN.on)return;leanPatch();
+  // the host has a few seconds of running sound to load in, or the dial goes back to the old engine
+  let ran=0;const chk=()=>{if(!LEAN.on||LEAN.node||LEAN.failed)return;if(AC.state==='running')ran++;if(ran>=4){leanFail('the sound host did not start');return}setTimeout(chk,2000)};setTimeout(chk,2000)}
+function leanStart(ac){if(!LEAN.on||LEAN.ac!==ac||LEAN.node||LEAN.failed)return;let n;
+  try{n=new AudioWorkletNode(ac,'mots-sky',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]})}catch(e){leanFail('the sound host would not start ('+e.message+')');return}
+  n.onprocessorerror=()=>leanFail('the sound host failed');
+  n.port.onmessage=e=>{const d=e.data||{};if(d.nan)leanFail('a voice in the sound host turned into invalid numbers');else if(d.err)leanFail('the sound host refused a message ('+d.err+')')};
+  n.connect(bus);LEAN.node=n;if(LEAN.pend.length){const p=LEAN.pend;LEAN.pend=[];try{n.port.postMessage(p)}catch(e){leanFail('the sound host could not be reached')}}}
+// something went wrong: compat.js's repair turns lean off on this phone and reloads (without compat, the page does it)
+function leanFail(why){if(!LEAN.on||LEAN.failed)return;LEAN.failed=true;try{console.warn('lean engine: '+why)}catch(e){}
+  const C=window.MOTS_COMPAT;if(C&&C.leanOff){try{C.leanOff(why,AC);return}catch(e){}}
+  try{localStorage.setItem('mots.engine','old')}catch(e){}setTimeout(()=>location.reload(),150)}
+// one message a frame: everything said to the host in this task goes in one batch, at the end of it
+function leanKick(){if(!LEAN.kick){LEAN.kick=true;Promise.resolve().then(leanFlush)}}
+function leanFlush(){LEAN.kick=false;
+  if(LEAN.all){LEAN.pans.forEach(leanPanSend);LEAN.all=false;LEAN.dirty.clear()}else if(LEAN.dirty.size){LEAN.dirty.forEach(leanPanSend);LEAN.dirty.clear()}
+  const q=LEAN.q;if(!q.length)return;LEAN.q=[];
+  if(LEAN.node){try{LEAN.node.port.postMessage(q)}catch(e){leanFail('the sound host could not be reached')}}else for(let i=0;i<q.length;i++)LEAN.pend.push(q[i])}
+// where the listener faces (setListener): every place's pan is worked out again
+function leanListen(f){const o=LEAN.f;if(Math.abs(o[0]-f[0])+Math.abs(o[1]-f[1])+Math.abs(o[2]-f[2])<1e-4)return;LEAN.f=f;LEAN.all=true;leanKick()}
+// a place's pan from its direction, as MOTS.lite's panOf (stage.js): the share of the direction along the listener's right
+function leanPanOf(p){const f=LEAN.f,u=LEAN.u,d=Math.hypot(p.x,p.y,p.z);if(d<1e-9)return 0;
+  const rx=f[1]*u[2]-f[2]*u[1],ry=f[2]*u[0]-f[0]*u[2],rz=f[0]*u[1]-f[1]*u[0],rl=Math.hypot(rx,ry,rz)||1;
+  return Math.max(-1,Math.min(1,(p.x*rx+p.y*ry+p.z*rz)/(d*rl)))}
+function leanPanSend(p){const v=leanPanOf(p);if(p.sent!==null&&Math.abs(v-p.sent)<.004)return;p.sent=v;LEAN.q.push(10,p.id,v);
+  if(p.twin)try{p.twin.pan.setTargetAtTime(v,AC.currentTime,.03)}catch(e){}}
+// a place (stands in for a panner): setPos gives it a direction by setPosition; (PARK) unplugging it unplugs only its real path,
+// since the host leaves silent voices out by itself
+function leanPan(){const id=++LEAN.id,p={__lean:1,kind:'p',id,x:0,y:0,z:-1,sent:null,twin:null,rin:0,kin:0,idleT:0,parked:false};
+  p.setPosition=(x,y,z)=>{p.x=x;p.y=y;p.z=z;LEAN.dirty.add(p);leanKick()};p.setOrientation=()=>{};
+  p.connect=d=>{if(p.parked){p.parked=false;if(p.twin)try{LEAN.c0.call(p.twin,bus)}catch(e){}}return d};
+  p.disconnect=()=>{if(!p.parked){p.parked=true;if(p.twin)try{LEAN.d0.call(p.twin)}catch(e){}}};
+  LEAN.pans.add(p);LEAN.q.push(9,id);LEAN.dirty.add(p);leanKick();return p}
+// the panners of the hosted voices; others (the Sun, aspects, belt, craft, the moon systems) keep theirs
+function mkPanL(hrtfOK){return LEAN.on?leanPan():mkPanner(hrtfOK)}
+// a level's value as the page last set it, for the code that reads .value (MIDI, the Sound check, a held articulation)
+function leanEst(g){const e=g.e,t=AC?AC.currentTime:0;
+  if(e.rt>=0)return t>=e.rt?e.r1:e.v+(e.r1-e.v)*Math.max(0,t-e.t0)/Math.max(1e-6,e.rt-e.t0);
+  if(e.g!==null&&t>e.t0)return e.g+(e.v-e.g)*Math.exp(-(t-e.t0)/Math.max(1e-4,e.tc));return e.v}
+function leanEv(g,ty,t,v,tc){const e=g.e,cur=leanEst(g),now=AC.currentTime;if(g.dead)leanRevive(g);
+  if(ty===0){e.v=cur;e.t0=Math.max(t,now);e.g=v;e.tc=tc;e.rt=-1}else if(ty===1){e.v=v===v?v:cur;e.t0=now;e.g=null;e.rt=-1}
+  else if(ty===2){e.v=cur;e.t0=now;e.r1=v;e.rt=t;e.g=null}else{e.v=cur;e.t0=now;e.g=null;e.rt=-1}
+  LEAN.q.push(2,g.id,ty,t,v,tc||0);leanKick();
+  if(g.twin){const a=g.twin.gain;try{if(ty===0)a.setTargetAtTime(v,t,tc);else if(ty===1)a.setValueAtTime(v===v?v:a.value,t);else if(ty===2)a.linearRampToValueAtTime(v,t);else a.cancelScheduledValues(t)}catch(x){}}}
+function leanParam(g){const p={__leanParam:1,owner:g,get value(){return leanEst(g)},set value(x){leanEv(g,1,AC.currentTime,+x,0)},
+  setTargetAtTime(v,t,tc){leanEv(g,0,t,v,tc);return p},setValueAtTime(v,t){leanEv(g,1,t,v,0);return p},
+  linearRampToValueAtTime(v,t){leanEv(g,2,t,v,0);return p},exponentialRampToValueAtTime(v,t){leanEv(g,2,t,v,0);return p},
+  cancelScheduledValues(t){leanEv(g,3,t,0,0);return p},cancelAndHoldAtTime(t){leanEv(g,3,t,0,0);leanEv(g,1,t,NaN,0);return p},
+  real:()=>leanTwin(g).gain};return p}
+// a level (stands in for a GainNode): mkGain makes one when its destination is a stand-in
+function leanGain(v0,to){const id=++LEAN.id,g={__lean:1,kind:'g',id,to:null,ins:0,rin:0,kin:0,idleT:0,twin:null,dead:false,e:{v:v0,t0:0,g:null,tc:.1,r1:0,rt:-1}};
+  g.gain=leanParam(g);g.connect=d=>{leanRoute(g,d);return d};g.disconnect=d=>{if(d===undefined||typeof d==='number'||d===g.to)leanRoute(g,null)};
+  LEAN.q.push(6,id,v0);leanKick();if(to)leanRoute(g,to);return g}
+function leanRevive(g){g.dead=false;LEAN.q.push(6,g.id,leanEst(g));if(g.to)LEAN.q.push(7,g.id,g.to.kind==='g'?1:2,g.to.id);leanKick()}
+function leanRoute(g,d){if(g.dead)leanRevive(g);const o=g.to,nd=d&&d.__lean?d:null;if(o===nd&&nd)return;
+  if(o){if(o.kind==='g'){o.ins--;leanIdle(o)}if(g.twin){try{LEAN.d0.call(g.twin)}catch(e){}o.kin--}}
+  g.to=nd;
+  if(nd){if(nd.dead)leanRevive(nd);if(nd.kind==='g')nd.ins++;if(g.twin){LEAN.c0.call(g.twin,leanReal(nd));nd.kin++}}
+  // a real node after a stand-in (not met in the dial): only the stand-in's real path reaches it
+  else if(d){try{LEAN.c0.call(leanTwin(g),d)}catch(e){}}
+  LEAN.q.push(7,g.id,nd?(nd.kind==='g'?1:2):0,nd?nd.id:0);leanKick();if(!nd)leanIdle(g)}
+// a level with nothing in it and going nowhere is freed in the host a little later (a killed part's I.g, a silent moon's level)
+function leanIdle(g){if(g.kind!=='g'||g.dead||g.to||g.ins>0||g.idleQ)return;g.idleQ=true;
+  setTimeout(()=>{g.idleQ=false;if(g.to||g.ins>0||g.dead||LEAN.ac!==AC)return;g.dead=true;LEAN.q.push(8,g.id);leanKick();leanDrop(g)},2500)}
+// the real path: a GainNode per level (its automation mirrored) and a StereoPannerNode per place, made when a real node first plugs in
+function leanReal(x){return x.kind==='g'?leanTwin(x):leanPanTwin(x)}
+function leanTwin(g){if(g.twin)return g.twin;const t=AC.createGain(),e=g.e,now=AC.currentTime,a=t.gain;a.value=leanEst(g);g.twin=t;g.idleT=0;LEAN.twins.add(g);
+  // a glide or ramp under way (a part fading in as its real nodes plug in) carries on in the real gain
+  try{if(e.rt>=0&&e.rt>now){a.setValueAtTime(a.value,now);a.linearRampToValueAtTime(e.r1,e.rt)}else if(e.g!==null){a.setValueAtTime(a.value,now);a.setTargetAtTime(e.g,Math.max(now,e.t0),e.tc)}}catch(x){}
+  if(g.to){LEAN.c0.call(t,leanReal(g.to));g.to.kin++}leanSweep();return t}
+function leanPanTwin(p){if(p.twin)return p.twin;const t=AC.createStereoPanner();p.sent=leanPanOf(p);t.pan.value=p.sent;p.twin=t;p.idleT=0;LEAN.twins.add(p);
+  if(!p.parked)LEAN.c0.call(t,bus);leanSweep();return t}
+function leanDrop(x){if(!x.twin)return;try{LEAN.d0.call(x.twin)}catch(e){}x.twin=null;LEAN.twins.delete(x);if(x.kind==='g'&&x.to)x.to.kin--}
+// every 2 s: a real path with nothing plugged into it for 4 s is taken down
+function leanSweep(){if(LEAN.sweep)return;LEAN.sweep=setInterval(()=>{const now=performance.now();
+  LEAN.twins.forEach(x=>{if(x.rin<=0&&x.kin<=0){if(!x.idleT)x.idleT=now;else if(now-x.idleT>4000)leanDrop(x)}else x.idleT=0});
+  if(!LEAN.twins.size){clearInterval(LEAN.sweep);LEAN.sweep=null}},2000)}
+// a real node plugged into a stand-in goes into its real path (AudioNode.connect and disconnect, only while lean is on)
+function leanPatch(){if(LEAN.c0)return;const A=AudioNode.prototype,c0=A.connect,d0=A.disconnect;LEAN.c0=c0;LEAN.d0=d0;
+  const reg=(src,x)=>{const s=src.__lto||(src.__lto=new Set());if(!s.has(x)){s.add(x);x.rin++;x.idleT=0}};
+  A.connect=function(d){if(d&&d.__lean){const t=leanReal(d);reg(this,d);c0.apply(this,[t].concat([].slice.call(arguments,1)));return d}
+    if(d&&d.__leanParam){const t=d.real();reg(this,d.owner);c0.apply(this,[t].concat([].slice.call(arguments,1)));return}
+    return c0.apply(this,arguments)};
+  A.disconnect=function(d){if(d&&(d.__lean||d.__leanParam)){const x=d.__lean?d:d.owner,s=this.__lto;if(s&&s.has(x)){s.delete(x);x.rin--}
+      const t=x.twin&&(d.__lean?x.twin:x.twin.gain);if(t)try{d0.call(this,t)}catch(e){}return}
+    if(this.__lto&&(d===undefined||typeof d==='number')){this.__lto.forEach(x=>x.rin--);this.__lto.clear()}
+    return d0.apply(this,arguments)}}
+// a host voice, with the fields of a worklet node that wlParam, wlStop and the WL builders use
+function leanVoice(kind,opts,dest){const id=++LEAN.id,o=Object.assign({kind},opts),n=o.init.length;
+  const w={__lean:1,id,dest,stopped:false,qs:true,q:{push(i,ty,t,v,tc){LEAN.q.push(1,id,i,ty,t,v,tc);leanKick()}},flush(){},connect(){},disconnect(){},
+    port:{postMessage(m){if(m&&m.end)leanEnd(w)}}};
+  const det=wlParam(w,n);det.wob=(r,dp)=>{LEAN.q.push(11,id,r,dp);leanKick()};w.parameters={get:k=>k==='detune'?det:undefined};
+  if(dest.dead)leanRevive(dest);dest.ins++;LEAN.q.push(3,id,o,dest.id);leanKick();return w}
+function leanEnd(w){if(w.ended)return;w.ended=true;LEAN.q.push(5,w.id);leanKick();setTimeout(()=>{w.dest.ins--;leanIdle(w.dest)},500)}
+const mkGain=(v,to)=>{if(to&&to.__lean)return leanGain(v,to);const g=AC.createGain();g.gain.value=v;if(to)g.connect(to);return g};
 
 /* ---------- human singer ---------- */
 function makeHuman(spec,dest,whisper){
-  if((typeof voiceWL==='function'&&voiceWL())){const hw=makeHumanWL(spec,dest,whisper);if(hw)return hw}
+  if((typeof voiceWL==='function'&&(voiceWL()||leanTo(dest)))){const hw=makeHumanWL(spec,dest,whisper);if(hw)return hw}
   const h={spec,whisper,next:0,shift:0,words:parseWords(spec.words),srcs:[],taps:[]};
   const tap=(bus,node)=>{bus.connect(node);h.taps.push([bus,node])};
   h.form=FT[spec.type];
@@ -8722,7 +8845,7 @@ const GODTONE={
   neptune:{w1:'triangle',w2:'sawtooth',w3:'triangle',o3:1,o3k:.5,det:8,det3:0,br:1600,vib:3.4,vdk:.8,lvl:1.4} // Poseidon: deep, with a voice an octave below
 };
 function buildInst(b,v,fadeIn){
-  if(b.kind!=='comet'&&(typeof voiceWL==='function'&&voiceWL())){const iw=buildInstWL(b,v,fadeIn);if(iw)return iw}
+  if(b.kind!=='comet'&&(typeof voiceWL==='function'&&(voiceWL()||leanTo(v.vol)))){const iw=buildInstWL(b,v,fadeIn);if(iw)return iw}
   const I={srcs:[],taps:[]}, f0=P[b.id].f;
   I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,fadeIn?.15:.001);
   if(b.kind==='comet'){
@@ -8779,6 +8902,8 @@ function buildHumanPart(b,v){
 // axial tilt: a tilted spinner wobbles in pitch once per day-pulse; Uranus, on its side, wobbles most
 function addTiltWobble(b,v,part,oscs){
   const depth=b.tiltWob||0;if(depth<.5)return;
+  // (LEAN-ENGINE) a host voice wobbles in the host
+  if(oscs.length&&oscs[0].detune&&oscs[0].detune.wob){oscs.forEach(x=>x.detune.wob(v.rate*.5,depth));return}
   const o=AC.createOscillator();o.frequency.value=v.rate*.5;const g=mkGain(depth);o.connect(g);oscs.forEach(x=>g.connect(x.detune));
   part.srcs.push(o);
 }
@@ -8792,13 +8917,13 @@ function mkPanner(hrtfOK){
 }
 function makeVoice(b){
   // only the planets get true 3D (HRTF) panning; everything else uses cheap stereo panning
-  const v={pan:mkPanner(b.kind==='planet')};
-  // distance colours the sound as well as its loudness: far planets lose a little of their brightness (not on low-power devices)
-  if(b.kind==='planet'&&!LOWPOWER){v.air=AC.createBiquadFilter();v.air.type='lowpass';v.air.frequency.value=16000;v.air.Q.value=.5;v.air.connect(v.pan)}
+  const v={pan:mkPanL(b.kind==='planet')};
+  // distance colours the sound as well as its loudness: far planets lose a little of their brightness (not on low-power devices, nor with LEAN-ENGINE)
+  if(b.kind==='planet'&&!LOWPOWER&&!LEAN.on){v.air=AC.createBiquadFilter();v.air.type='lowpass';v.air.frequency.value=16000;v.air.Q.value=.5;v.air.connect(v.pan)}
   // the light module (light.js) colours the voice with the body's reflectance spectrum, between its volume and the panner
-  const dest0=v.air||v.pan;v.vol=mkGain(0,window.MOTS&&MOTS.light&&!MIN()?MOTS.light.voice(b,v,dest0):dest0);
+  const dest0=v.air||v.pan;v.vol=mkGain(0,window.MOTS&&MOTS.light&&!MIN()&&!LEAN.on?MOTS.light.voice(b,v,dest0):dest0);
   v.rate=Math.min(7,6*Math.pow(3.9/Math.abs(b.rot),.45));
-  v.moonBus=mkGain(1);v.moonVol=mkGain(0,v.pan);v.moonBus.connect(v.moonVol);
+  v.moonBus=LEAN.on?leanGain(1):mkGain(1);v.moonVol=mkGain(0,v.pan);v.moonBus.connect(v.moonVol);
   (b.moons||[]).forEach(m=>{
     if(!m.sm)m.out=mkGain(1,v.moonBus);m.sv=null;
   });
@@ -8806,10 +8931,14 @@ function makeVoice(b){
   return v;
 }
 function makeSun(){
-  const v={pan:mkPanner(true)};v.vol=mkGain(0,v.pan);v.mode=null;return v;
+  const v={pan:mkPanL(true)};v.vol=mkGain(0,v.pan);v.mode=null;return v;
 }
 function buildSunInst(v,fadeIn){
   const I={srcs:[]};I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,fadeIn?.15:.001);
+  // (LEAN-ENGINE) the host's instrument as the drone: two triangles and a sine (.55, .8) through the 900 Hz lowpass, its tremolo the
+  // breath (.75 + .25 of a 0.07 Hz sine: the output level is .75/.7 and the swell .25/.75 of the instrument's .7 + td)
+  if(leanTo(I.g)){const [a,b2,c]=droneFreqs(),w=leanVoice('inst',{w1:'triangle',w2:'triangle',w3:'sine',l2:.55,l3:.8,a:1,form:[],dir:1,lpq:1,td:MIN()?0:.25*.7/.75,retro:false,rate:.07,vib:5,
+      init:[a,b2,c,900,0,0,0,.75/.7]},I.g),p=i=>wlParam(w,i);I.d1={frequency:p(0)};I.d2={frequency:p(1)};I.d3={frequency:p(2)};I.wl=w;I.srcs.push({stop(){wlStop(w)},start(){}});return I}
   // Lightest: the drone holds still (no slow breathing LFO)
   const breath=mkGain(.75),bl=MIN()?null:AC.createOscillator();if(bl){bl.frequency.value=.07;const bd=mkGain(.25);bl.connect(bd);bd.connect(breath.gain)}
   const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=900;breath.connect(lp);lp.connect(I.g);
@@ -8925,8 +9054,9 @@ function initAudio(){
   const ib=AC.createBiquadFilter();ib.type='bandpass';ib.frequency.value=1600;ib.Q.value=.6;noiseBus.connect(ib);inhaleBus=mkGain(.16);ib.connect(inhaleBus);
   const re=new Float32Array(5),im=new Float32Array(5);for(let n=1;n<5;n++)im[n]=-1/n;RETRO=AC.createPeriodicWave(re,im);
   if(window.MOTS&&MOTS.light)MOTS.light.attach({ctx:AC,noise:()=>noiseBus,jd:()=>S.jd,pos:id=>P[id],listener:listenerPos,byId,bodies:BODIES});
-  for(let k=0;k<(MIN()?3:8);k++){const p=mkPanner(false);POOL.push({p,g:mkGain(0,p)})}
-  for(let k=0;k<3;k++)BELTP.push(mkPanner(false));
+  leanInit();   // (LEAN-ENGINE) before the first voice
+  for(let k=0;k<(MIN()?3:8);k++){const p=mkPanL(false);POOL.push({p,g:mkGain(0,p)})}
+  for(let k=0;k<3;k++)BELTP.push(mkPanL(false));
   makeAspectVoices();
   computePositions();
   BODIES.forEach(b=>V[b.id]=makeVoice(b));
@@ -8947,6 +9077,7 @@ function setVerb(){if(!AC)return;
 
 function setListener(ang){
   const l=AC.listener, fx=Math.cos(ang), fz=-Math.sin(ang);
+  if(LEAN.on)leanListen([fx,0,fz]);   // (LEAN-ENGINE) the host's places
   // Lightest: the stereo panners are told where you face; the listener is set outright, not glided (a moving listener makes every 3D panner left from before work sample by sample)
   if(PAN2D()&&MOTS.lite){MOTS.lite.listen(AC,{f:[fx,0,fz],u:[0,1,0]});if(l.forwardX){l.forwardX.value=fx;l.forwardY.value=0;l.forwardZ.value=fz}return}
   if(l.forwardX){const t=AC.currentTime;l.forwardX.setTargetAtTime(fx,t,.08);l.forwardY.setTargetAtTime(0,t,.08);l.forwardZ.setTargetAtTime(fz,t,.08);}
@@ -9035,7 +9166,7 @@ function smRelease(m,now){const sv=m.sv;if(!sv||sv.part)return;if(sv.dead==null)
   if(now-sv.dead>8){try{sv.vol.disconnect()}catch(e){}delete P[sv.body.id];m.sv=null}}
 // one panner for a small moon in focus (auditioned on the dial), straight ahead
 const FOC={p:null,g:null,on:false,want:false};
-function smFocus(ang){if(!FOC.g){FOC.p=mkPanner(false);FOC.g=mkGain(0,FOC.p)}setPos(FOC.p,Math.cos(ang),.1,-Math.sin(ang),.12);FOC.want=true;return FOC.g}
+function smFocus(ang){if(!FOC.g){FOC.p=mkPanL(false);FOC.g=mkGain(0,FOC.p)}setPos(FOC.p,Math.cos(ang),.1,-Math.sin(ang),.12);FOC.want=true;return FOC.g}
 // (PARK) parkVoices lives with the thinkers' code, which the flight page does not carry
 const PARK=(a,b)=>{if(typeof parkVoices==='function')parkVoices(a,b)};
 function updateAudio(){
@@ -9159,6 +9290,9 @@ function computeAspects(){
 const ASP=[];
 function makeAspectVoices(){
   for(let k=0;k<(MIN()?1:LOWPOWER?2:3);k++){
+    // (LEAN-ENGINE) a dyad in the host: two sines (the second at .8), level 1 (.7 of the instrument's tremolo base, made up by its gain)
+    if(LEAN.on){const pan=leanPan(),g=leanGain(0,pan),w=leanVoice('inst',{w1:'sine',w2:'sine',w3:null,l2:.8,a:1,form:[],dir:1,lpq:-3,td:0,retro:false,rate:0,vib:5,init:[300,300,300,18000,0,0,0,1/.7]},g),p=i=>wlParam(w,i);
+      ASP.push({pan,g,o1:{frequency:p(0)},o2:{frequency:p(1)}});continue}
     const pan=mkPanner(false), g=mkGain(0,pan);
     const o1=AC.createOscillator();o1.type='sine';const o2=AC.createOscillator();o2.type='sine';
     o1.connect(g);o2.connect(mkGain(.8,g));o1.start();o2.start();ASP.push({pan,g,o1,o2});
@@ -9761,7 +9895,7 @@ function motion(v,w,dtR){
 }
 let SIRVIB=null;
 function buildSiren(v,f,vowel){
-  if((typeof voiceWL==='function'&&voiceWL())){const iw=buildSirenWL(v,f,vowel);if(iw)return iw}
+  if((typeof voiceWL==='function'&&(voiceWL()||leanTo(v.vol)))){const iw=buildSirenWL(v,f,vowel);if(iw)return iw}
   const I={srcs:[]};I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,.3);
   // Lightest: a heaven has up to nine sirens at once, so each is one sawtooth and its vibrato through one lowpass (o2 is a silent stand-in the articulation can still move)
   const lite=MIN();
@@ -9822,7 +9956,7 @@ function parkV(v,on){if(!v||!v.pan||!bus||!!v.parked===on)return;
 function parkVoices(bodies,sirens){BODIES.forEach(b=>{const v=V[b.id];if(v)parkV(v,bodies==='auto'?!v.part:bodies)});Object.values(SIR.v).forEach(v=>parkV(v,sirens))}
 function sirenVoice(who){
   let v=SIR.v[who];if(v){if(v.parked)parkV(v,false);return v}
-  v=SIR.v[who]={pan:mkPanner(!LOWPOWER),part:null,mode:null,ph:Math.random()};v.vol=mkGain(0,v.pan);v.pl=mkGain(1,v.pan);return v;
+  v=SIR.v[who]={pan:mkPanL(!LOWPOWER),part:null,mode:null,ph:Math.random()};v.vol=mkGain(0,v.pan);v.pl=mkGain(1,v.pan);return v;
 }
 function killSirens(){bhaKill();cyKill();slKill();TRAI.sunUp=null;TRAI.nextBell=0;TRAI.nextBeat=0;Object.values(SIR.v).forEach(v=>{if(v.part){killPart(v.part);v.part=null}tgt(v.vol.gain,0,.1);v.lon=undefined});if(SIR.roar){const r=SIR.roar;tgt(r.g.gain,0,.3);setTimeout(()=>{try{r.src.stop()}catch(e){}},900);SIR.roar=null}}
 function hushWorld(){
@@ -10003,9 +10137,9 @@ function rd(d,ph){const x=ph*2048,i=x|0,fr=x-i;return d[i]+fr*(d[i+1]-d[i])}
 function bpC(c,f,Q){f=Math.min(Math.max(f,1),.49*sampleRate);const w=2*Math.PI*f/sampleRate,al=Math.sin(w)/(2*Math.max(1e-4,Q)),a0=1+al;c[0]=al/a0;c[1]=0;c[2]=-al/a0;c[3]=-2*Math.cos(w)/a0;c[4]=(1-al)/a0}
 function lpC(c,f,QdB){f=Math.min(Math.max(f,1),.49*sampleRate);const w=2*Math.PI*f/sampleRate,cs=Math.cos(w),al=Math.sin(w)/(2*Math.pow(10,QdB/20)),a0=1+al;c[0]=(1-cs)/2/a0;c[1]=(1-cs)/a0;c[2]=c[0];c[3]=-2*cs/a0;c[4]=(1-al)/a0}
 const R9=1.0052119;
-class MotsVoice extends AudioWorkletProcessor{
-static get parameterDescriptors(){return [{name:'detune',defaultValue:0,automationRate:'k-rate'}]}
-constructor(o){super();const p=o.processorOptions;this.o=p;this.P=p.init.map(v=>({v,g:null,tc:.1,k:0,ktc:-1,e:[],lt:0,lv:v}));this.end=0;
+// (LEAN-ENGINE) one voice's synthesis as a plain class: the 'mots-voice' node plays one of them, the 'mots-sky' host plays many
+class VoiceCore{
+constructor(p){this.o=p;this.P=p.init.map(v=>({v,g:null,tc:.1,k:0,ktc:-1,e:[],lt:0,lv:v}));this.end=0;
  const sr=sampleRate;this.ph1=Math.random();this.ph2=Math.random();this.ni=(Math.random()*NM)|0;this.jy=0;this.ja=1-Math.exp(-2*Math.PI*7/sr);
  const vw=2*Math.PI*p.vib/sr;this.vc=Math.cos(vw);this.vs=Math.sin(vw);this.vx=1;this.vy=0;this.d1=null;this.d2=null;
  if(p.kind==='human'){this.g1=tab('g'+p.tilt.toFixed(2),AMP.glot(p.tilt),63,true);this.nf=p.nf;this.gk=new Float64Array(p.nf);
@@ -10019,7 +10153,9 @@ constructor(o){super();const p=o.processorOptions;this.o=p;this.P=p.init.map(v=>
  else{this.saw=tab('saw',AMP.saw,1023,false);this.tri=tab('tri',AMP.tri,1023,false);
   this.fc=[];this.fz=[];this.fg=new Float64Array(p.form.length);p.form.forEach(([F,g,Q],k)=>{const c=new Float64Array(5);bpC(c,F,Q);this.fc.push(c);this.fz.push(new Float64Array(4));this.fg[k]=g});
   this.lc=new Float64Array(5);this.lz=new Float64Array(4);this.lk=-1}
- this.port.onmessage=e=>{const a=e.data;if(a.end){this.end=currentTime+.2;const P=this.P[this.o.kind==='human'?3:this.o.kind==='inst'?7:4];P.e.length=0;P.g=0;P.tc=.03;return}for(let i=0;i<a.length;i+=5)this.ev(a[i],a[i+1],a[i+2],a[i+3],a[i+4])}}
+ }
+// told to stop: the voice's own level falls away in a few tens of milliseconds, and it is done 0.2 s later
+stop(){this.end=currentTime+.2;const P=this.P[this.o.kind==='human'?3:this.o.kind==='inst'?7:4];P.e.length=0;P.g=0;P.tc=.03}
 // the params' automation, played back on the audio clock: 0 setTarget, 1 setValue (NaN holds the present value), 2 linear ramp, 3 cancel
 ev(i,ty,t,v,tc){const P=this.P[i];if(!P)return;if(!(t>=0))t=currentTime;if(ty===3){P.e=P.e.filter(x=>x[0]<t);return}if(ty!==1&&v!==v)return;
  const e=P.e;let j=e.length;while(j>0&&e[j-1][0]>t)j--;e.splice(j,0,[t,ty,v,tc])}
@@ -10028,13 +10164,14 @@ step(P,T,dt){const e=P.e;
   if(x[1]===2){if(T>=x[0]){P.v=x[2];P.lt=x[0];P.lv=x[2];P.g=null;e.shift();continue}if(T>=P.lt){P.v=P.lv+(x[2]-P.lv)*(T-P.lt)/Math.max(1e-6,x[0]-P.lt);P.g=null}return}
   if(x[0]>T)break;e.shift();if(x[1]===1){if(x[2]===x[2])P.v=x[2];P.g=null}else{P.g=x[2];P.tc=x[3]}P.lt=x[0];P.lv=P.v}
  const g=P.g;if(g!==null){if(P.tc!==P.ktc){P.ktc=P.tc;P.k=1-Math.exp(-dt/Math.max(1e-4,P.tc))}const v=P.v+(g-P.v)*P.k;if(Math.abs(v-g)<=1e-6*Math.max(1,Math.abs(g))){P.v=g;P.g=null}else P.v=v}}
-process(_,outs,par){const out=outs[0][0];if(this.end&&currentTime>this.end){if(!this.said){this.said=1;this.port.postMessage({done:1})}return false}if(!out)return true;
- const n=out.length,sr=sampleRate,B=16,dt=B/sr,P=this.P,o=this.o,dm=Math.pow(2,par.detune[0]/1200);
+// one render quantum into out (written, not added to); dm: the detune as a frequency ratio
+render(out,dm){const n=out.length,sr=sampleRate,B=16,dt=B/sr,P=this.P,o=this.o;
  for(let b=0;b<n;b+=B){const T=currentTime+b/sr;for(let i=0;i<P.length;i++)this.step(P[i],T,dt);const e=Math.min(n,b+B);
   if(b===0)this.coefs(dm);
   const m=1/Math.sqrt(this.vx*this.vx+this.vy*this.vy);this.vx*=m;this.vy*=m;
-  if(o.kind==='human')this.human(out,b,e,dm);else if(o.kind==='inst')this.inst(out,b,e,dm);else this.siren(out,b,e,dm)}
- return true}
+  if(o.kind==='human')this.human(out,b,e,dm);else if(o.kind==='inst')this.inst(out,b,e,dm);else this.siren(out,b,e,dm)}}
+// (LEAN-ENGINE) a silent voice in the host: its automation moves on, nothing is made
+idle(n){const sr=sampleRate,B=16,dt=B/sr,P=this.P;for(let b=0;b<n;b+=B){const T=currentTime+b/sr;for(let i=0;i<P.length;i++)this.step(P[i],T,dt)}}
 // the filters and the wavetable levels, once a render quantum
 coefs(dm){const P=this.P,o=this.o;
  if(o.kind==='human'){for(let k=0;k<this.nf;k++){const f=P[9+3*k].v,q=P[10+3*k].v,K=this.fk[k];if(Math.abs(f-K[0])>f*1e-3||Math.abs(q-K[1])>q*1e-3){bpC(this.fc[k],f,q);K[0]=f;K[1]=q}}
@@ -10054,12 +10191,12 @@ human(out,b,e,dm){const P=this.P,o=this.o,F=P[0].v,VG=P[1].v,BG=P[2].v,OUT=P[3].
   if(FG>1e-5){const c=this.rc,z=this.rz,w=c[0]*nz+c[2]*z[1]-c[3]*z[2]-c[4]*z[3];z[1]=z[0];z[0]=nz;z[3]=z[2];z[2]=w;y+=FG*w}
   let s=OUT*y;if(IG>1e-6){const c=this.ic,z=this.iz,w=c[0]*nz+c[2]*z[1]-c[3]*z[2]-c[4]*z[3];z[1]=z[0];z[0]=nz;z[3]=z[2];z[2]=w;s+=IG*w}
   out[i]=s}}
-inst(out,b,e,dm){const P=this.P,o=this.o,sr=sampleRate,F1=P[0].v,F2=P[1].v,F3=P[2].v,VD=P[4].v,D2=Math.pow(2,P[5].v/1200),D3=Math.pow(2,P[6].v/1200),G=P[7].v;
+inst(out,b,e,dm){const P=this.P,o=this.o,sr=sampleRate,F1=P[0].v,F2=P[1].v,F3=P[2].v,VD=P[4].v,D2=Math.pow(2,P[5].v/1200),D3=Math.pow(2,P[6].v/1200),G=P[7].v,l3=o.l3===undefined?1:o.l3;
  const t1=this.d1,t2=this.d2,t3=this.d3,a=o.a,l2=o.l2,fc=this.fc,fz=this.fz,nf=fc.length,fg=this.fg,dir=o.dir,lc=this.lc,lz=this.lz,td=o.td,LT=this.LT,lr=o.rate/sr;
  for(let i=b;i<e;i++){const x=this.vx*this.vc-this.vy*this.vs;this.vy=this.vx*this.vs+this.vy*this.vc;this.vx=x;const vb=VD*this.vy;
   this.ph1+=(F1+vb)*dm/sr;if(this.ph1>=1||this.ph1<0)this.ph1-=Math.floor(this.ph1);let src=rd(t1,this.ph1);
   this.ph2+=(F2+vb)*dm*D2/sr;if(this.ph2>=1||this.ph2<0)this.ph2-=Math.floor(this.ph2);src+=l2*rd(t2,this.ph2);
-  if(t3){this.ph3+=(F3+vb)*dm*D3/sr;if(this.ph3>=1||this.ph3<0)this.ph3-=Math.floor(this.ph3);src+=rd(t3,this.ph3)}
+  if(t3){this.ph3+=(F3+vb)*dm*D3/sr;if(this.ph3>=1||this.ph3<0)this.ph3-=Math.floor(this.ph3);src+=l3*rd(t3,this.ph3)}
   src*=a;let y=dir*src;for(let k=0;k<nf;k++){const c=fc[k],z=fz[k],w=c[0]*src+c[2]*z[1]-c[3]*z[2]-c[4]*z[3];z[1]=z[0];z[0]=src;z[3]=z[2];z[2]=w;y+=fg[k]*w}
   const w=lc[0]*y+lc[1]*lz[0]+lc[2]*lz[1]-lc[3]*lz[2]-lc[4]*lz[3];lz[1]=lz[0];lz[0]=y;lz[3]=lz[2];lz[2]=w;
   this.lph+=lr;if(this.lph>=1)this.lph-=Math.floor(this.lph);out[i]=G*w*(.7+td*LT[(this.lph*256)|0])}}
@@ -10070,7 +10207,58 @@ siren(out,b,e,dm){const P=this.P,o=this.o,F=P[0].v,F2=P[1].v,D2=Math.pow(2,P[2].
   if(!lite){this.ph2+=(F2+vb)*dm*D2/sr;if(this.ph2>=1||this.ph2<0)this.ph2-=Math.floor(this.ph2);src+=a2*rd(d2,this.ph2)}
   let y=dir*src;for(let k=0;k<nf;k++){const c=fc[k],z=fz[k],w=c[0]*src+c[2]*z[1]-c[3]*z[2]-c[4]*z[3];z[1]=z[0];z[0]=src;z[3]=z[2];z[2]=w;y+=fg[k]*w}
   const w=lc[0]*y+lc[1]*lz[0]+lc[2]*lz[1]-lc[3]*lz[2]-lc[4]*lz[3];lz[1]=lz[0];lz[0]=y;lz[3]=lz[2];lz[2]=w;out[i]=ART*w}}}
-registerProcessor('mots-voice',MotsVoice)`;
+class MotsVoice extends AudioWorkletProcessor{
+static get parameterDescriptors(){return [{name:'detune',defaultValue:0,automationRate:'k-rate'}]}
+constructor(o){super();const c=this.c=new VoiceCore(o.processorOptions);
+ this.port.onmessage=e=>{const a=e.data;if(a.end){c.stop();return}for(let i=0;i<a.length;i+=5)c.ev(a[i],a[i+1],a[i+2],a[i+3],a[i+4])}}
+process(_,outs,par){const c=this.c,out=outs[0][0];if(c.end&&currentTime>c.end){if(!this.said){this.said=1;this.port.postMessage({done:1})}return false}if(!out)return true;
+ c.render(out,Math.pow(2,par.detune[0]/1200));return true}}
+/* (LEAN-ENGINE) the host: one node plays every voice of the dial. The page sends one batch a frame, a flat list of op codes and numbers:
+   1 voice param event (voice, param, type, time, value, tc) · 2 level event (level, type, time, value, tc) · 3 new voice (voice, options, level)
+   4 voice to level · 5 voice ends · 6 new level (level, value) · 7 level to (level, 0 nowhere | 1 a level | 2 a place, its id) · 8 level freed
+   9 new place · 10 place's pan (place, -1…1) · 11 axial-tilt wobble (voice, rate, depth in cents).
+   A voice sounds through its chain of levels (I.g, v.vol …) to a place: each level is stepped once a quantum and glides across it, and a
+   place is an equal-power pan, as a StereoPannerNode's (its pan worked out on the page as MOTS.lite's is). A voice whose chain is silent
+   is left out: its automation moves on, nothing is made. */
+const pstep=VoiceCore.prototype.step;
+function pnew(v){return {v,g:null,tc:.1,k:0,ktc:-1,e:[],lt:0,lv:v}}
+function pev(P,ty,t,v,tc){if(!(t>=0))t=currentTime;if(ty===3){P.e=P.e.filter(x=>x[0]<t);return}if(ty!==1&&v!==v)return;
+ const e=P.e;let j=e.length;while(j>0&&e[j-1][0]>t)j--;e.splice(j,0,[t,ty,v,tc])}
+class MotsSky extends AudioWorkletProcessor{
+constructor(){super();this.V=new Map();this.G=new Map();this.N=new Map();this.VL=[];this.GL=[];this.NL=[];this.buf=new Float32Array(128);this.said=0;
+ this.kp=1-Math.exp(-128/sampleRate/.03);
+ this.port.onmessage=e=>{try{this.msg(e.data)}catch(x){this.port.postMessage({err:String(x&&x.message||x)})}}}
+msg(m){const V=this.V,G=this.G,N=this.N;
+ for(let i=0;i<m.length;){const op=m[i];
+  if(op===1){const v=V.get(m[i+1]);if(v)v.c.ev(m[i+2],m[i+3],m[i+4],m[i+5],m[i+6]);i+=7}
+  else if(op===2){const g=G.get(m[i+1]);if(g)pev(g.P,m[i+2],m[i+3],m[i+4],m[i+5]);i+=6}
+  else if(op===3){const c=new VoiceCore(m[i+2]);c.P.push(pnew(0));const v={id:m[i+1],c,to:m[i+3],di:c.P.length-1,wr:0,wd:0,dead:false};V.set(v.id,v);this.VL.push(v);i+=4}
+  else if(op===4){const v=V.get(m[i+1]);if(v)v.to=m[i+2];i+=3}
+  else if(op===5){const v=V.get(m[i+1]);if(v)v.c.stop();i+=2}
+  else if(op===6){const g={id:m[i+1],P:pnew(m[i+2]),a:m[i+2],b:m[i+2],tk:0,to:0,dead:false};const o=G.get(g.id);if(o)o.dead=true;G.set(g.id,g);this.GL.push(g);i+=3}
+  else if(op===7){const g=G.get(m[i+1]);if(g){g.tk=m[i+2];g.to=m[i+3]}i+=4}
+  else if(op===8){const g=G.get(m[i+1]);if(g){g.dead=true;G.delete(g.id)}i+=2}
+  else if(op===9){const p={id:m[i+1],t:0,c:0,la:Math.SQRT1_2,ra:Math.SQRT1_2,lb:Math.SQRT1_2,rb:Math.SQRT1_2,fresh:true};N.set(p.id,p);this.NL.push(p);i+=2}
+  else if(op===10){const p=N.get(m[i+1]);if(p){p.t=m[i+2];if(p.fresh){p.fresh=false;p.c=p.t;const x=(p.c+1)*Math.PI/4;p.lb=Math.cos(x);p.rb=Math.sin(x)}}i+=3}
+  else if(op===11){const v=V.get(m[i+1]);if(v){v.wr=m[i+2];v.wd=m[i+3]}i+=4}
+  else break}}
+process(_,outs){const o=outs[0],L=o[0],R=o[1];if(!L||!R)return true;const n=L.length,sr=sampleRate,T0=currentTime,dq=n/sr;
+ const GL=this.GL,NL=this.NL,VL=this.VL,G=this.G,N=this.N;
+ let k=0;for(let i=0;i<GL.length;i++){const g=GL[i];if(g.dead)continue;GL[k++]=g;g.a=g.P.v;pstep(g.P,T0+dq,dq);g.b=g.P.v}GL.length=k;
+ const kp=n===128?this.kp:1-Math.exp(-dq/.03);
+ for(let i=0;i<NL.length;i++){const p=NL[i];p.la=p.lb;p.ra=p.rb;if(p.c!==p.t){p.c+=(p.t-p.c)*kp;if(Math.abs(p.t-p.c)<1e-4)p.c=p.t;const x=(p.c+1)*Math.PI/4;p.lb=Math.cos(x);p.rb=Math.sin(x)}}
+ let buf=this.buf;if(buf.length!==n)buf=this.buf=new Float32Array(n);
+ k=0;for(let i=0;i<VL.length;i++){const v=VL[i],c=v.c;
+  if(c.end&&T0>c.end){this.V.delete(v.id);continue}VL[k++]=v;
+  let ga=1,gb=1,to=v.to,p=null;for(let j=0;j<8&&to;j++){const g=G.get(to);if(!g)break;ga*=g.a;gb*=g.b;if(g.tk===2){p=N.get(g.to)||null;break}if(g.tk!==1)break;to=g.to}
+  if(!p||(ga<1e-7&&gb<1e-7)){c.idle(n);continue}
+  let det=c.P[v.di].v;if(v.wd)det+=v.wd*Math.sin(2*Math.PI*v.wr*T0);
+  c.render(buf,Math.pow(2,det/1200));
+  if(buf[n-1]!==buf[n-1]||buf[0]!==buf[0]){this.V.delete(v.id);k--;if(!this.said){this.said=1;this.port.postMessage({nan:1})}continue}
+  const aL=ga*p.la,aR=ga*p.ra,dL=(gb*p.lb-aL)/n,dR=(gb*p.rb-aR)/n;
+  for(let s=0;s<n;s++){const x=buf[s];L[s]+=x*(aL+dL*s);R[s]+=x*(aR+dR*s)}}
+ VL.length=k;return true}}
+registerProcessor('mots-voice',MotsVoice);registerProcessor('mots-sky',MotsSky)`;
 const VWL={ac:null,ready:false,off:/[?&]nowl\b/.test(location.search)};
 // the tables, built a few at a time on the page's thread once the module is in, then handed over in one go
 function voiceTables(){const L=[['saw',()=>mkTab(VAMP_SAW,1023,false)],['tri',()=>mkTab(VAMP_TRI,1023,false)],['sq',()=>mkTab(VAMP_SQ,1023,false)],['sin',()=>mkTab(VAMP_SIN,1,false)]].concat(VTILTS.map(t=>['g'+t.toFixed(2),()=>mkTab(VAMP_GLOT(t),63,true)]));
@@ -10078,13 +10266,13 @@ function voiceTables(){const L=[['saw',()=>mkTab(VAMP_SAW,1023,false)],['tri',()
 function voiceWL(){if(VWL.off||!AC)return false;if(VWL.ac!==AC){const ac=AC;VWL.ac=ac;VWL.ready=false;
     try{if(!ac.audioWorklet||!window.AudioWorkletNode){VWL.off=true;return false}
       ac.audioWorklet.addModule(URL.createObjectURL(new Blob([VOICE_CODE],{type:'text/javascript'}))).then(voiceTables).then(T=>{if(VWL.ac!==ac)return;
-        try{new AudioWorkletNode(ac,'mots-tables',{numberOfInputs:0,numberOfOutputs:1,processorOptions:{tables:T}})}catch(e){}VWL.ready=true},()=>{VWL.off=true})}catch(e){VWL.off=true}}
+        try{new AudioWorkletNode(ac,'mots-tables',{numberOfInputs:0,numberOfOutputs:1,processorOptions:{tables:T}})}catch(e){}VWL.ready=true;leanStart(ac)},()=>{VWL.off=true;leanFail('the sound host did not load')})}catch(e){VWL.off=true;leanFail('the sound host did not load')}}
   return VWL.ready}
 // the stand-in params: AudioParam's methods, their events batched (one message per voice per task) to the worklet
-function wlNode(kind,opts,dest){let w;try{w=new AudioWorkletNode(AC,'mots-voice',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[1],processorOptions:Object.assign({kind},opts)})}catch(e){VWL.off=true;return null}
+function wlNode(kind,opts,dest){if(leanTo(dest))return leanVoice(kind,opts,dest);let w;try{w=new AudioWorkletNode(AC,'mots-voice',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[1],processorOptions:Object.assign({kind},opts)})}catch(e){VWL.off=true;return null}
   w.connect(dest);w.port.onmessage=e=>{if(e.data&&e.data.done){try{w.disconnect()}catch(x){}}};w.q=[];w.flush=()=>{w.qs=false;if(w.q.length){try{w.port.postMessage(w.q)}catch(e){}w.q=[]}};return w}
 // a voice told to stop keeps running into a silent sink until its processor says it is done, then is disconnected (see wlNode)
-function wlStop(w){if(!w||w.stopped)return;w.stopped=true;try{w.port.postMessage({end:1})}catch(e){}
+function wlStop(w){if(!w||w.stopped)return;w.stopped=true;if(w.__lean){leanEnd(w);return}try{w.port.postMessage({end:1})}catch(e){}
   try{if(!VWL.sink||VWL.sink.context!==AC){VWL.sink=AC.createGain();VWL.sink.gain.value=0;VWL.sink.connect(AC.destination)}w.disconnect();w.connect(VWL.sink)}catch(e){}
   setTimeout(()=>{try{w.disconnect()}catch(e){}},3000)}
 function wlParam(w,i){const push=(ty,t,v,tc)=>{w.q.push(i,ty,t,v,tc||0);if(!w.qs){w.qs=true;Promise.resolve().then(w.flush)}};
