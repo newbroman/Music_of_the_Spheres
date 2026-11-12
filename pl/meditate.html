@@ -3629,6 +3629,7 @@ html.mots-proj .hearth{width:min(70vmin,40rem)}
 }
 </script>
 <script>
+window.MOTS_FEATURES={"today":false,"thinkers":true,"world":true,"flight":false,"galaxy":false,"localgroup":false,"dance":true,"stage":"dance","meditate":false,"weather":false,"synth":false,"talk":false,"_worlds":["babylon","egypt","lu","bharata","ikhwan","slavic","welsh","maya","norse","sarngadeva","nguyentrai","java","dogon"]};
 /* ---------- ?debug: a small on-screen report for testing on a phone (browser, audio state, any errors) ---------- */
 (()=>{if(!/[?&]debug\b/.test(location.search))return;const errs=[];
   addEventListener('error',e=>errs.push((e.message||'error')+' @'+(e.filename||'').split('/').pop()+':'+(e.lineno||'')));
@@ -3654,7 +3655,7 @@ const href=c=>B+(c==='en'?'':c+'/')+page()+location.hash;
 const GLOBE='<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 12h18M12 3c2.6 2.6 3.9 5.6 3.9 9s-1.3 6.4-3.9 9c-2.6-2.6-3.9-5.6-3.9-9S9.4 5.6 12 3z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
 const DOTS='<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="5" cy="12" r="2.2" fill="currentColor"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><circle cx="19" cy="12" r="2.2" fill="currentColor"/></svg>';
 // the installed app always starts on the English page: a visitor who has chosen another language goes straight to it
-{const want=LS.get('mots.lang');if(cur==='en'&&want&&want!=='en'&&AVAIL.includes(want)&&!/[?&]lang=en\b/.test(location.search)){try{location.replace(href(want))}catch(e){}}}
+{const want=LS.get('mots.lang');if(!window.MOTS_LEAVING&&cur==='en'&&want&&want!=='en'&&AVAIL.includes(want)&&!/[?&]lang=en\b/.test(location.search)){try{location.replace(href(want))}catch(e){}}}
 // for the tour's language picker
 window.MOTS=window.MOTS||{};
 MOTS.lang={list:LANGS,cur,href,choose:(c,tour)=>{LS.set('mots.lang',c);if(c!==cur)location.href=tour?B+(c==='en'?'':c+'/')+page()+'?tour':href(c)},
@@ -3724,14 +3725,15 @@ function popover(d,s,m){
 }
 /* ---- the site navigation ---- */
 function siteNav(btnClass){
-  const nav=document.createElement('nav');nav.className='site';nav.setAttribute('aria-label',T.nav);
+  const nav=document.createElement('nav');nav.className='site row4';nav.setAttribute('aria-label',T.nav);
+  // (HOME-REDESIGN, Martin 6 Nov) the worlds, the language, the tour and the talk are on the home page now: the row in every world is
+  // Home · Voice control · Bookmark · Help. home_link.js adds Home and the star, voice.js the microphone (into .strip, as before);
+  // the strip is laid out with display:contents, so its items take their places in the row by CSS order
   const strip=document.createElement('div');strip.className='strip';
-  PAGES.forEach(([k,f])=>{const a=document.createElement('a');a.href=pref+f;a.textContent=T[k];if(f===HERE){a.setAttribute('aria-current','page')}strip.appendChild(a)});
-  // the tour and the talk: the last two items of the strip, after a divider, marked as actions by their icons
-  strip.append(guideItem('tour',true),guideItem('talk',true));
-  // the strip and the globe stay together on one line, whatever wraps around them
-  const main=document.createElement('div');main.className='main';main.append(strip,langMenu(btnClass));nav.appendChild(main);
-  fade(strip);navFit(nav,strip);
+  const help=document.createElement('a');help.className='mots-help';help.href=pref+'help.html';help.title=T.help;help.setAttribute('aria-label',T.help);
+  help.innerHTML='<span class="i" aria-hidden="true">?</span><span class="l">'+T.help+'</span>';if(HERE==='help.html')help.setAttribute('aria-current','page');
+  strip.appendChild(help);
+  const main=document.createElement('div');main.className='main';main.append(strip);nav.appendChild(main);
   return nav;
 }
 // on a desktop the whole strip shows: when it would clip, its items close up (tight), then the header stacks so the navigation
@@ -3774,7 +3776,9 @@ function fade(el){
 }
 /* ---- the guide: "Take the tour" and "The talk". On the dial they open in place; elsewhere they are links to the dial
    (index.html#tour opens the welcome tour, index.html#talk offers the tap that starts the talk) ---- */
-const GUIDE={tour:'index.html#tour',talk:'index.html#talk'};
+const GUIDE={tour:'home.html#tour',talk:'index.html#talk'};
+// the feature list (features.json, put first in lang_built.js by mklang.py): the talk can be switched off
+const TALK=!(window.MOTS_FEATURES&&MOTS_FEATURES.talk===false);
 function guideGo(k){
   if(!isDial)return false;
   try{if(k==='tour'&&window.MOTS&&MOTS.tour){MOTS.tour();return true}
@@ -3794,7 +3798,8 @@ function moreMenu(btnClass){
   const d=document.createElement('details');d.id='moreMenu';d.className='mots-more';
   const s=document.createElement('summary');s.className=btnClass;s.innerHTML=DOTS;s.setAttribute('aria-label',T.more);s.title=T.more;
   const m=document.createElement('div');m.className='mmenu';m.setAttribute('role','menu');
-  m.append(guideItem('tour'),guideItem('talk'));
+  // the talk only when the feature list offers it (features.json "talk")
+  m.append(guideItem('tour'));if(TALK)m.append(guideItem('talk'));
   d.append(s,m);popover(d,s,m);return d;
 }
 // put children in this order, touching the DOM only when the order differs (a move would wake the observer again)
@@ -3811,8 +3816,7 @@ function headerShell(){
   const nav=siteNav(btnClass);
   if(old)old.replaceWith(nav);else top.appendChild(nav);
   if(!ctl){
-    // no action buttons here: the "⋯" menu (the tour and the talk) sits at the end of the navigation row on a phone
-    nav.appendChild(moreMenu(btnClass));
+    // no action buttons here: the "⋯" menu (the tour and the talk) used to end the navigation row; both are on the home page now
     return;
   }
   ctl.classList.add('ctl');top.classList.add('has-ctl');
@@ -3832,7 +3836,7 @@ function headerShell(){
   let busy=false;
   const layout=()=>{if(busy)return;busy=true;try{
     // show.js adds its own "The talk" pill when it finds no guide: the strip's Talk item is that now
-    const sb=document.getElementById('showBtn');if(sb&&nav.querySelector('.g-talk'))sb.remove();
+    const sb=document.getElementById('showBtn');if(sb&&(nav.querySelector('.g-talk')||!TALK))sb.remove();
     if(mqC.matches){
       ids.forEach(id=>{const b=document.getElementById(id);if(b&&b.parentElement!==mm)mm.appendChild(b)});
       // any Extras entry that is a page link comes along (the Tour, Show and Listen entries there are already in the strip or "⋯"); the Extras button itself hides
@@ -3877,6 +3881,18 @@ const css=document.createElement('style');css.id='shellCss';
 css.textContent=`
 /* site navigation: one strip of the pages, then the tour and the talk as its last two items, then the globe. On a desktop it never
    scrolls: when it would clip, its items close up (tight), then the tour and the talk keep only their icons (icons, navFit below) */
+nav.site.row4 .strip{display:contents}
+#homeLang{display:inline-flex;gap:.5rem;align-items:center}#homeLang .mots-more.home-more{display:inline-block}
+#homeLang .mots-more summary{min-height:var(--tap,2.75rem);min-width:var(--tap,2.75rem);border-radius:999px;border:1px solid var(--line-2,#3a4068);background:var(--panel,transparent);color:var(--vellum,#e9e1cc)}
+nav.site.row4 > .main{gap:.5rem;flex-wrap:nowrap}
+nav.site.row4 .mots-home{order:0}nav.site.row4 .vcBtn{order:1}nav.site.row4 .mots-star{order:2}nav.site.row4 .mots-help{order:3}
+nav.site.row4 .vcBtn,nav.site.row4 .mots-help{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:.35em;min-width:var(--tap,2.75rem);height:var(--tap,2.75rem);padding:0 .8rem;border-radius:999px;border:1px solid var(--line-2,#3a4068);background:transparent;color:var(--bronze,#c9984f);text-decoration:none;font-size:.85rem;box-sizing:border-box}
+nav.site.row4 .vcBtn:hover,nav.site.row4 .mots-help:hover{border-color:var(--bronze,#c9984f);background:rgba(201,152,79,.12)}
+nav.site.row4 .vcBtn.on{border-color:#ff8f7a}
+nav.site.row4 .mots-help .i{font:600 1.05rem/1 var(--f-display,Georgia,serif)}
+nav.site.row4 .mots-help[aria-current="page"]{color:#f3d9a4;border-color:var(--bronze,#c9984f);background:rgba(201,152,79,.18)}
+@media (max-width:560px), (max-height:520px) and (orientation:landscape), (pointer:coarse) and (max-width:760px){nav.site.row4 .vcBtn .l,nav.site.row4 .mots-help .l{display:none}nav.site.row4 .vcBtn,nav.site.row4 .mots-help{padding:0;width:var(--tap,2.75rem)}}
+.hud.tl nav.site.row4 .vcBtn,.hud.tl nav.site.row4 .mots-help{background:var(--glass,rgba(10,12,24,.78));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 nav.site{display:flex;flex-wrap:nowrap;justify-content:flex-end;align-items:center;gap:.5rem;min-width:0;max-width:100%}
 nav.site > .main{display:flex;align-items:center;gap:.5rem;flex:0 1 auto;min-width:0;max-width:100%}
 nav.site.tight .strip a{padding:0 .55rem;font-size:.8rem;letter-spacing:.01em}
@@ -4019,7 +4035,17 @@ function footer(){
 }
 // any language links left in a page's own markup (the pages were built with a row of them) go: the globe menu replaces them
 function oldLinks(){document.querySelectorAll('body a[hreflang]').forEach(a=>{if(!a.closest('#langMenu,#langHint'))a.remove()});const s=document.getElementById('synthLink');if(s)s.remove()}
-const go=()=>{if(isFlight)hudShell();else headerShell();oldLinks();hint();footer()};
+// the home page and the shortcuts page: the globe in their own top row (#homeLang); the tour offers the language there, so no hint
+// (Martin 6 Nov) the language and the "⋯" menu live here, not in the worlds' rows: "⋯" has the tour, the talk, the shortcuts and How it works
+const homeLang=()=>{const h=document.getElementById('homeLang');if(!h)return false;
+  if(!h.querySelector('#langMenu'))h.appendChild(langMenu('hl'));
+  if(!h.querySelector('#moreMenu')){const more=moreMenu('hl');more.classList.add('home-more');const mm=more.querySelector('.mmenu');
+    // their words: the home page's own links (already in its language)
+    const w=u=>{const x=document.querySelector('main a[href="'+u+'"]');return x&&x.textContent.trim()};
+    [['shortcuts.html',w('shortcuts.html')||'Shortcuts'],['help.html',w('help.html')||T.help]].forEach(([u,l])=>{const a=document.createElement('a');a.href=u;a.textContent=l;a.setAttribute('role','menuitem');mm.appendChild(a)});
+    h.appendChild(more)}
+  return true};
+const go=()=>{if(isFlight)hudShell();else headerShell();oldLinks();if(!homeLang())hint();footer()};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();
 })();
 
@@ -4653,6 +4679,14 @@ const UI={
  pt:{app:'A Música das Esferas',wn:'Novidades',since:'Novidades desde a sua última visita',all:'As últimas novidades do app',show:'Mostrar',got:'Entendi',more:'Mostrar mais {n}',close:'Fechar',nw:'Novo'},nn:{app:'Musikken til sfærane',wn:'Kva er nytt',since:'Nytt sidan sist du var her',all:'Det siste som er lagt til i appen',show:'Vis meg',got:'Greitt',more:'Vis {n} til',close:'Lukk',nw:'Ny'},nb:{app:'Sfærenes musikk',wn:'Hva er nytt',since:'Nytt siden sist du var her',all:'Det siste som er lagt til i appen',show:'Vis meg',got:'Greit',more:'Vis {n} til',close:'Lukk',nw:'Ny'}
 };
 const KEY='mots.whatsnew.seen',CAP=8;
+// the feature list (features.json, window.MOTS_FEATURES): news whose "Show me" leads to a part that is not offered is left out
+{const FE=window.MOTS_FEATURES||{},off=k=>FE[k]===false;
+ const PG={'flight.html':'flight','synth.html':'synth','meditate.html':'meditate','weather.html':'weather'};
+ const hidden=g=>{if(!g)return false;if(PG[g.p]&&off(PG[g.p]))return true;
+   if(g.p==='index.html'&&g.h==='talk'&&off('talk'))return true;
+   if(/^craft:/.test(g.a||'')&&off('today'))return true;
+   return false};
+ for(let i=WN.length-1;i>=0;i--)if(hidden(WN[i].go))WN.splice(i,1)}
 const VERSION=WN.reduce((m,e)=>e.d>m?e.d:m,'');
 const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 const cur=(document.documentElement.lang||'en').slice(0,2);
@@ -4774,6 +4808,8 @@ const ACT={
   // a thinker on the dial's timeline (thinker:bharata): its chip chosen and shown
   thinker:v=>when(()=>document.querySelector(`.tl-chip[data-t="${v}"]`),c=>{if(!c.classList.contains('on'))c.click();setTimeout(()=>pulse(document.querySelector(`.tl-chip[data-t="${v}"]`)),300)})
 };
+// the deep links of the home page use the same actions (home_link.js)
+window.MOTS=window.MOTS||{};MOTS.wnAct=ACT;
 // after the page has loaded and settled (the dial sizes its sky as it loads, which moves everything below it)
 function run(a){const [k,v]=String(a).split(':');const f=ACT[k];if(!f)return;const go=()=>setTimeout(()=>{try{f(v)}catch(e){}},400);
   if(document.readyState==='complete')go();else addEventListener('load',go,{once:true})}
@@ -5126,6 +5162,307 @@ function mount(){if(!SR)return;let done=true;
   return done}
 let tries=0;(function wait(){if(!mount()&&++tries<40)setTimeout(wait,250)})();
 if(keepOn&&SR)setTimeout(()=>{if(keepOn&&!rec)start('keep')},1500);
+})();
+
+/* ---------- the way home: the Home button and the star in every music world, deep links that open a world with one big "Tap to play",
+   and the last world kept for the home page's "Carry on" and for the next launch (home_open.js). Built into every page with the shell
+   (mklang.py appends this file to lang_built.js, with its words from home_i18n.json in place of HSTR).
+
+   THE DEEP-LINK SCHEME: <page>#<the page's own hash>&<key>=<value>…  The page's own hashes and queries stay as they were
+   (the dial's #<thinker> and #today, flight's #ds=<id>, weather's #sky= #site= #sol #mix, the synth's ?p= ?g= and #galaxy, meditate's #st=);
+   the shared keys below are read here, taken off the address before the page's own scripts look at it, and applied when the page is ready:
+     dial      vp=<viewpoint id, e.g. earth, sun, sc_voyager1>  sys=<planet: one planet and its moons>  hear=athens|text  open=stage|guide
+     flight    to=<helio oort acen sirius vela gc above gyear mag m31 m33 lg lgyear, or a planet>
+     dance     style=<style key>
+     meditate  preset=<preset key>  len=<minutes, 0 = open>
+     any page  play  (a plain start: weather.html#play, flight.html#play, synth.html#play)
+   e.g. index.html#today&vp=sc_voyager1 · index.html#kepler&hear=text · flight.html#to=lgyear · dance.html#style=waltz · meditate.html#preset=sun&len=20
+   Any of these (and the pages' own deep hashes) opens with the "Tap to play" cover; the sound starts with that tap.
+
+   Kept in localStorage: mots.last {u,s,l,t} (the last world: link, section, label, time) and mots.fav {section:{u,l,t}} (the star). ---------- */
+(()=>{
+"use strict";
+let inFrame=false;try{inFrame=window.top!==window.self}catch(e){inFrame=true}
+const HS=/*HSTR*/{"en":{"home":"Home","homeTip":"Home: all the worlds","star":"Make this my shortcut","starOn":"Your shortcut here (tap to remove)","saved":"Saved as your {s} shortcut","removed":"Shortcut removed","seeAll":"Your shortcuts","tap":"Tap to play","tapNote":"The sound starts with your tap.","sec_today":"Today’s solar system","sec_thinkers":"The thinkers","sec_world":"Around the world","sec_flight":"Flight","sec_galaxy":"The Galaxy","sec_localgroup":"The Local Group","sec_dance":"Dance","sec_meditate":"Meditate","sec_weather":"Weather","sec_synth":"Intergalactic synth","sec_stage":"Stage","wx_here":"Where you are","ga_synth":"The Galaxy on the synth","sy_planets":"The planets","fl_jupiter":"To Jupiter and its moons","to_oort":"Out to the Oort cloud","to_gc":"The galactic centre","to_above":"Above the Milky Way","to_gyear":"The Galactic year","to_m31":"Andromeda","to_lg":"Above the Local Group","to_lgyear":"The Local Group year","st_open":"Open Stage","st_guide":"The Stage guide"},"pl":{"home":"Start","homeTip":"Strona startowa: wszystkie światy","star":"Ustaw jako mój skrót","starOn":"Twój skrót tutaj (dotknij, by usunąć)","saved":"Zapisano jako Twój skrót: {s}","removed":"Skrót usunięty","seeAll":"Twoje skróty","tap":"Dotknij, by zagrać","tapNote":"Dźwięk włącza się po dotknięciu.","sec_today":"Dzisiejszy Układ Słoneczny","sec_thinkers":"Myśliciele","sec_world":"Dookoła świata","sec_flight":"Lot","sec_galaxy":"Galaktyka","sec_localgroup":"Grupa Lokalna","sec_dance":"Taniec","sec_meditate":"Medytacja","sec_weather":"Pogoda","sec_synth":"Syntezator międzygalaktyczny","sec_stage":"Scena","wx_here":"Tam, gdzie jesteś","ga_synth":"Galaktyka na syntezatorze","sy_planets":"Planety","fl_jupiter":"Do Jowisza i jego księżyców","to_oort":"Do obłoku Oorta","to_gc":"Centrum Galaktyki","to_above":"Ponad Drogą Mleczną","to_gyear":"Rok galaktyczny","to_m31":"Andromeda","to_lg":"Ponad Grupą Lokalną","to_lgyear":"Rok Grupy Lokalnej","st_open":"Otwórz Scenę","st_guide":"Przewodnik po Scenie"},"cy":{"home":"Cartref","homeTip":"Cartref: yr holl fydoedd","star":"Gwneud hwn yn llwybr byr i mi","starOn":"Eich llwybr byr yma (tapiwch i’w dynnu)","saved":"Wedi’i gadw fel eich llwybr byr {s}","removed":"Llwybr byr wedi’i dynnu","seeAll":"Eich llwybrau byr","tap":"Tapiwch i chwarae","tapNote":"Mae’r sain yn dechrau gyda’ch tap.","sec_today":"Cysawd yr haul heddiw","sec_thinkers":"Y meddylwyr","sec_world":"O gwmpas y byd","sec_flight":"Hedfan","sec_galaxy":"Yr Alaeth","sec_localgroup":"Y Grŵp Lleol","sec_dance":"Dawns","sec_meditate":"Myfyrio","sec_weather":"Tywydd","sec_synth":"Synth rhynggalaethol","sec_stage":"Llwyfan","wx_here":"Lle rydych chi","ga_synth":"Yr Alaeth ar y synth","sy_planets":"Y planedau","fl_jupiter":"I Iau a’i lleuadau","to_oort":"Allan i gwmwl Oort","to_gc":"Canol yr Alaeth","to_above":"Uwchben y Llwybr Llaethog","to_gyear":"Y Flwyddyn Alaethol","to_m31":"Andromeda","to_lg":"Uwchben y Grŵp Lleol","to_lgyear":"Blwyddyn y Grŵp Lleol","st_open":"Agor y Llwyfan","st_guide":"Canllaw’r Llwyfan"},"de":{"home":"Start","homeTip":"Startseite: alle Welten","star":"Als meine Verknüpfung speichern","starOn":"Deine Verknüpfung hier (tippen zum Entfernen)","saved":"Als deine Verknüpfung für {s} gespeichert","removed":"Verknüpfung entfernt","seeAll":"Deine Verknüpfungen","tap":"Zum Abspielen tippen","tapNote":"Der Ton startet mit deinem Tippen.","sec_today":"Das Sonnensystem heute","sec_thinkers":"Die Denker","sec_world":"Rund um die Welt","sec_flight":"Flug","sec_galaxy":"Die Galaxis","sec_localgroup":"Die Lokale Gruppe","sec_dance":"Tanz","sec_meditate":"Meditation","sec_weather":"Wetter","sec_synth":"Intergalaktischer Synthesizer","sec_stage":"Bühne","wx_here":"Wo du bist","ga_synth":"Die Galaxis auf dem Synthesizer","sy_planets":"Die Planeten","fl_jupiter":"Zu Jupiter und seinen Monden","to_oort":"Hinaus zur Oortschen Wolke","to_gc":"Das galaktische Zentrum","to_above":"Über der Milchstraße","to_gyear":"Das galaktische Jahr","to_m31":"Andromeda","to_lg":"Über der Lokalen Gruppe","to_lgyear":"Das Jahr der Lokalen Gruppe","st_open":"Bühne öffnen","st_guide":"Der Bühnen-Assistent"},"es":{"home":"Inicio","homeTip":"Inicio: todos los mundos","star":"Convertir en mi acceso directo","starOn":"Tu acceso directo aquí (toca para quitarlo)","saved":"Guardado como tu acceso directo de {s}","removed":"Acceso directo eliminado","seeAll":"Tus accesos directos","tap":"Toca para reproducir","tapNote":"El sonido empieza con tu toque.","sec_today":"El sistema solar hoy","sec_thinkers":"Los pensadores","sec_world":"Alrededor del mundo","sec_flight":"Vuelo","sec_galaxy":"La Galaxia","sec_localgroup":"El Grupo Local","sec_dance":"Danza","sec_meditate":"Meditar","sec_weather":"Tiempo","sec_synth":"Sintetizador intergaláctico","sec_stage":"Escenario","wx_here":"Donde estás","ga_synth":"La Galaxia en el sintetizador","sy_planets":"Los planetas","fl_jupiter":"A Júpiter y sus lunas","to_oort":"Hasta la nube de Oort","to_gc":"El centro galáctico","to_above":"Sobre la Vía Láctea","to_gyear":"El año galáctico","to_m31":"Andrómeda","to_lg":"Sobre el Grupo Local","to_lgyear":"El año del Grupo Local","st_open":"Abrir el Escenario","st_guide":"La guía del Escenario"},"fr":{"home":"Accueil","homeTip":"Accueil : tous les mondes","star":"En faire mon raccourci","starOn":"Votre raccourci ici (touchez pour le retirer)","saved":"Enregistré comme votre raccourci {s}","removed":"Raccourci retiré","seeAll":"Vos raccourcis","tap":"Touchez pour jouer","tapNote":"Le son démarre quand vous touchez.","sec_today":"Le système solaire aujourd’hui","sec_thinkers":"Les penseurs","sec_world":"Autour du monde","sec_flight":"Vol","sec_galaxy":"La Galaxie","sec_localgroup":"Le Groupe local","sec_dance":"Danse","sec_meditate":"Méditer","sec_weather":"Météo","sec_synth":"Synthé intergalactique","sec_stage":"Scène","wx_here":"Là où vous êtes","ga_synth":"La Galaxie au synthé","sy_planets":"Les planètes","fl_jupiter":"Vers Jupiter et ses lunes","to_oort":"Jusqu’au nuage d’Oort","to_gc":"Le centre galactique","to_above":"Au-dessus de la Voie lactée","to_gyear":"L’année galactique","to_m31":"Andromède","to_lg":"Au-dessus du Groupe local","to_lgyear":"L’année du Groupe local","st_open":"Ouvrir la Scène","st_guide":"Le guide de la Scène"},"it":{"home":"Home","homeTip":"Home: tutti i mondi","star":"Rendilo la mia scorciatoia","starOn":"La tua scorciatoia qui (tocca per toglierla)","saved":"Salvato come tua scorciatoia per {s}","removed":"Scorciatoia rimossa","seeAll":"Le tue scorciatoie","tap":"Tocca per suonare","tapNote":"Il suono parte con il tuo tocco.","sec_today":"Il sistema solare oggi","sec_thinkers":"I pensatori","sec_world":"Intorno al mondo","sec_flight":"Volo","sec_galaxy":"La Galassia","sec_localgroup":"Il Gruppo Locale","sec_dance":"Danza","sec_meditate":"Medita","sec_weather":"Meteo","sec_synth":"Synth intergalattico","sec_stage":"Palco","wx_here":"Dove ti trovi","ga_synth":"La Galassia sul synth","sy_planets":"I pianeti","fl_jupiter":"Verso Giove e le sue lune","to_oort":"Fino alla nube di Oort","to_gc":"Il centro galattico","to_above":"Sopra la Via Lattea","to_gyear":"L’anno galattico","to_m31":"Andromeda","to_lg":"Sopra il Gruppo Locale","to_lgyear":"L’anno del Gruppo Locale","st_open":"Apri il Palco","st_guide":"La guida del Palco"},"zh":{"home":"首页","homeTip":"首页：所有世界","star":"设为我的快捷方式","starOn":"这里是你的快捷方式（点按可移除）","saved":"已保存为你的「{s}」快捷方式","removed":"快捷方式已移除","seeAll":"你的快捷方式","tap":"点按播放","tapNote":"点按后开始播放声音。","sec_today":"今天的太阳系","sec_thinkers":"思想家","sec_world":"环游世界","sec_flight":"飞行","sec_galaxy":"银河系","sec_localgroup":"本星系群","sec_dance":"舞蹈","sec_meditate":"冥想","sec_weather":"天气","sec_synth":"星系际合成器","sec_stage":"舞台","wx_here":"你所在的地方","ga_synth":"合成器上的银河系","sy_planets":"行星","fl_jupiter":"前往木星和它的卫星","to_oort":"飞到奥尔特云","to_gc":"银河系中心","to_above":"银河系上方","to_gyear":"银河年","to_m31":"仙女座星系","to_lg":"本星系群上方","to_lgyear":"本星系群年","st_open":"打开舞台","st_guide":"舞台向导"},"ja":{"home":"ホーム","homeTip":"ホーム：すべての世界","star":"これをショートカットにする","starOn":"ここがあなたのショートカット（タップで解除）","saved":"「{s}」のショートカットとして保存しました","removed":"ショートカットを解除しました","seeAll":"あなたのショートカット","tap":"タップして再生","tapNote":"音はタップで始まります。","sec_today":"今日の太陽系","sec_thinkers":"思想家たち","sec_world":"世界をめぐる","sec_flight":"飛行","sec_galaxy":"銀河系","sec_localgroup":"局所銀河群","sec_dance":"舞","sec_meditate":"瞑想","sec_weather":"天気","sec_synth":"銀河間シンセ","sec_stage":"ステージ","wx_here":"いまいる場所","ga_synth":"シンセで奏でる銀河系","sy_planets":"惑星","fl_jupiter":"木星とその衛星へ","to_oort":"オールトの雲まで","to_gc":"銀河系の中心","to_above":"天の川の上へ","to_gyear":"銀河年","to_m31":"アンドロメダ","to_lg":"局所銀河群の上へ","to_lgyear":"局所銀河群の年","st_open":"ステージを開く","st_guide":"ステージガイド"},"vi":{"home":"Trang chủ","homeTip":"Trang chủ: mọi thế giới","star":"Đặt làm lối tắt của tôi","starOn":"Lối tắt của bạn ở đây (chạm để bỏ)","saved":"Đã lưu làm lối tắt {s} của bạn","removed":"Đã bỏ lối tắt","seeAll":"Lối tắt của bạn","tap":"Chạm để phát","tapNote":"Âm thanh bắt đầu khi bạn chạm.","sec_today":"Hệ Mặt Trời hôm nay","sec_thinkers":"Các nhà tư tưởng","sec_world":"Vòng quanh thế giới","sec_flight":"Bay","sec_galaxy":"Ngân Hà","sec_localgroup":"Nhóm Địa phương","sec_dance":"Vũ điệu","sec_meditate":"Thiền","sec_weather":"Thời tiết","sec_synth":"Synth liên thiên hà","sec_stage":"Sân khấu","wx_here":"Nơi bạn đang ở","ga_synth":"Ngân Hà trên synth","sy_planets":"Các hành tinh","fl_jupiter":"Đến Sao Mộc và các mặt trăng","to_oort":"Ra đến đám mây Oort","to_gc":"Tâm Ngân Hà","to_above":"Bên trên Ngân Hà","to_gyear":"Năm thiên hà","to_m31":"Tiên Nữ","to_lg":"Bên trên Nhóm Địa phương","to_lgyear":"Năm của Nhóm Địa phương","st_open":"Mở Sân khấu","st_guide":"Hướng dẫn Sân khấu"},"bg":{"home":"Начало","homeTip":"Начало: всички светове","star":"Направи това мой пряк път","starOn":"Твоят пряк път тук (докосни, за да го махнеш)","saved":"Запазено като твой пряк път за „{s}“","removed":"Прекият път е премахнат","seeAll":"Твоите преки пътища","tap":"Докосни, за да свири","tapNote":"Звукът започва с твоето докосване.","sec_today":"Слънчевата система днес","sec_thinkers":"Мислителите","sec_world":"Около света","sec_flight":"Полет","sec_galaxy":"Галактиката","sec_localgroup":"Местната група","sec_dance":"Танц","sec_meditate":"Медитация","sec_weather":"Времето","sec_synth":"Междугалактически синтезатор","sec_stage":"Сцена","wx_here":"Където си","ga_synth":"Галактиката на синтезатора","sy_planets":"Планетите","fl_jupiter":"До Юпитер и спътниците му","to_oort":"До облака на Оорт","to_gc":"Центърът на Галактиката","to_above":"Над Млечния път","to_gyear":"Галактичната година","to_m31":"Андромеда","to_lg":"Над Местната група","to_lgyear":"Годината на Местната група","st_open":"Отвори Сцената","st_guide":"Пътеводител за Сцената"},"pt":{"home":"Início","homeTip":"Início: todos os mundos","star":"Tornar este meu atalho","starOn":"Seu atalho aqui (toque para remover)","saved":"Salvo como seu atalho de {s}","removed":"Atalho removido","seeAll":"Seus atalhos","tap":"Toque para tocar","tapNote":"O som começa com o seu toque.","sec_today":"O sistema solar hoje","sec_thinkers":"Os pensadores","sec_world":"Ao redor do mundo","sec_flight":"Voo","sec_galaxy":"A Galáxia","sec_localgroup":"O Grupo Local","sec_dance":"Dança","sec_meditate":"Meditar","sec_weather":"Tempo","sec_synth":"Sintetizador intergaláctico","sec_stage":"Palco","wx_here":"Onde você está","ga_synth":"A Galáxia no sintetizador","sy_planets":"Os planetas","fl_jupiter":"Até Júpiter e suas luas","to_oort":"Até a nuvem de Oort","to_gc":"O centro galáctico","to_above":"Acima da Via Láctea","to_gyear":"O ano galáctico","to_m31":"Andrômeda","to_lg":"Acima do Grupo Local","to_lgyear":"O ano do Grupo Local","st_open":"Abrir o Palco","st_guide":"O guia do Palco"},"nb":{"home":"Hjem","homeTip":"Hjem: alle verdenene","star":"Gjør dette til min snarvei","starOn":"Snarveien din her (trykk for å fjerne)","saved":"Lagret som snarveien din for {s}","removed":"Snarveien er fjernet","seeAll":"Snarveiene dine","tap":"Trykk for å spille","tapNote":"Lyden starter når du trykker.","sec_today":"Solsystemet i dag","sec_thinkers":"Tenkerne","sec_world":"Jorden rundt","sec_flight":"Flyging","sec_galaxy":"Galaksen","sec_localgroup":"Den lokale gruppen","sec_dance":"Dans","sec_meditate":"Meditasjon","sec_weather":"Vær","sec_synth":"Intergalaktisk synth","sec_stage":"Scene","wx_here":"Der du er","ga_synth":"Galaksen på synthen","sy_planets":"Planetene","fl_jupiter":"Til Jupiter og månene","to_oort":"Ut til Oortskyen","to_gc":"Det galaktiske sentrum","to_above":"Over Melkeveien","to_gyear":"Det galaktiske året","to_m31":"Andromeda","to_lg":"Over den lokale gruppen","to_lgyear":"Året i den lokale gruppen","st_open":"Åpne Scene","st_guide":"Sceneveiviseren"},"nn":{"home":"Heim","homeTip":"Heim: alle verdene","star":"Gjer dette til snarvegen min","starOn":"Snarvegen din her (trykk for å fjerne)","saved":"Lagra som snarvegen din for {s}","removed":"Snarvegen er fjerna","seeAll":"Snarvegane dine","tap":"Trykk for å spele","tapNote":"Lyden startar når du trykkjer.","sec_today":"Solsystemet i dag","sec_thinkers":"Tenkjarane","sec_world":"Jorda rundt","sec_flight":"Flyging","sec_galaxy":"Galaksen","sec_localgroup":"Den lokale gruppa","sec_dance":"Dans","sec_meditate":"Meditasjon","sec_weather":"Vêr","sec_synth":"Intergalaktisk synth","sec_stage":"Scene","wx_here":"Der du er","ga_synth":"Galaksen på synthen","sy_planets":"Planetane","fl_jupiter":"Til Jupiter og månane","to_oort":"Ut til Oortskya","to_gc":"Det galaktiske sentrumet","to_above":"Over Mjølkevegen","to_gyear":"Det galaktiske året","to_m31":"Andromeda","to_lg":"Over den lokale gruppa","to_lgyear":"Året i den lokale gruppa","st_open":"Opne Scene","st_guide":"Scenerettleiaren"}}/*HSTR-END*/;
+const cur=(document.documentElement.lang||'en').slice(0,2);
+const T=Object.assign({},HS.en,HS[cur]||{});
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},
+  json:(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v==null?d:v}catch(e){return d}},put:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const file=(location.pathname.match(/([a-z]+\.html)$/)||[])[1]||'index.html';
+const PAGE=file==='index.html'?'dial':file.slice(0,-5);
+const WORLD=['dial','flight','dance','synth','meditate','weather'].includes(PAGE);
+const SHOW=/[?&]show(=1)?\b/.test(location.search)||/[?&]homebg\b/.test(location.search);
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// wait for something the page builds (up to ms)
+function when(test,fn,ms){const t0=Date.now();const tick=()=>{let v=null;try{v=test()}catch(e){}if(v){try{fn(v)}catch(e){console.warn('home',e)}return}if(Date.now()-t0<(ms||20000))setTimeout(tick,150)};tick()}
+window.MOTS=window.MOTS||{};
+const SEC=['today','thinkers','world','flight','galaxy','localgroup','dance','meditate','weather','synth','stage'];
+// the feature list (features.json, window.MOTS_FEATURES from mklang.py): with "Around the world" offered, the world row's heavens are a section of their own
+const FE=window.MOTS_FEATURES||{},WL=FE.world!==false&&FE._worlds||[];
+const secOfThinker=k=>WL.includes(k)?'world':'thinkers';
+const secName=s=>T['sec_'+s]||s;
+MOTS.homeLink={T,secName,SEC};
+// any page opened marks the visit as started, so a later plain visit to the dial in this visit stays on the dial (home_open.js)
+if(!inFrame)try{sessionStorage.setItem('mots.launched','1')}catch(e){}
+if(!WORLD&&PAGE!=='help')return;
+
+/* ---- the deep link: the shared keys come off the address before the page's own scripts read it ---- */
+const MY=['vp','sys','hear','open','to','style','preset','len'];
+const DL={};
+if(WORLD&&location.hash.length>1){
+  const keep=[];location.hash.slice(1).split('&').forEach(p=>{const i=p.indexOf('='),k=i>0?p.slice(0,i):p;if(k==='play'&&i<0){DL.play='1';return}if(MY.includes(k)&&i>0){try{DL[k]=decodeURIComponent(p.slice(i+1))}catch(e){DL[k]=p.slice(i+1)}}else if(p)keep.push(p)});
+  if(Object.keys(DL).length)try{history.replaceState(history.state,'',location.pathname+location.search+(keep.length?'#'+keep.join('&'):''))}catch(e){}
+}
+const H=location.hash,Q=location.search;
+const nativeDeep=PAGE==='dial'?/^#[a-z0-9_]+$/.test(H)&&!/^#(tour|talk|show|whatsnew)$/i.test(H):
+  PAGE==='flight'?/^#ds=/.test(H):PAGE==='weather'?/^#(sky=|site=|sol$|mix$)/.test(H):PAGE==='synth'?H==='#galaxy'||/[?&][pg]=/.test(Q):PAGE==='meditate'?/^#st=/.test(H):false;
+const DEEP=WORLD&&!inFrame&&!SHOW&&(Object.keys(DL).length>0||nativeDeep);
+
+/* ---- where we are: the section and the link that would bring us back to this setup ---- */
+let flyDest=DL.to||null;
+if(PAGE==='flight')document.addEventListener('click',e=>{const c=e.target.closest&&e.target.closest('.chip[data-g]');if(!c)return;const g=c.dataset.g;if(g==='bh')return;flyDest=g==='home'?null:g},true);
+const GAL=['acen','sirius','vela','gc','above','gyear','bh'],LGP=['mag','m31','m33','lg','lgyear'];
+function here(){
+  try{
+    if(PAGE==='dial'){const a=MOTS.app;if(!a||!a.setup)return null;const s=a.setup();
+      if(s.thinker==='today'){const vp=s.vp?'&vp='+s.vp:'',sy=s.sys?'&sys='+s.sys:'';
+        return {s:'today',u:'index.html#today'+vp+sy,l:s.sys?s.sysName:String(s.vpName||'').replace(/\s*\(.*$/,'')}}
+      return {s:secOfThinker(s.thinker),u:'index.html#'+s.thinker+'&hear='+(s.written?'text':'athens'),l:s.name}}
+    if(PAGE==='flight'){const d=flyDest,ds=/^#ds=/.test(location.hash)?location.hash:'';
+      const c=d&&document.querySelector('.chip[data-g="'+d+'"]');const lab=c?c.textContent.replace(/^[♪\s]+|[\s▸]+$/g,''):(d&&(T['to_'+d]||T['fl_'+d]))||'';
+      if(d)return {s:GAL.includes(d)?'galaxy':LGP.includes(d)?'localgroup':'flight',u:'flight.html#to='+d,l:lab};
+      if(ds)return {s:'galaxy',u:'flight.html'+ds,l:''};
+      return {s:'flight',u:'flight.html#play',l:''}}
+    if(PAGE==='dance'){const D=MOTS.dance&&MOTS.dance.D;if(!D)return null;const b=document.querySelector('#style button[data-v="'+D.style+'"]');
+      return {s:'dance',u:'dance.html#style='+D.style,l:b?b.textContent.trim():D.style}}
+    if(PAGE==='meditate'){const p=$('preset'),n=$('lenSel');if(!p||!n)return null;const pv=p.value,lv=n.value,po=p.selectedOptions[0],lo=n.selectedOptions[0];
+      return {s:'meditate',u:'meditate.html#'+(pv&&!/^track:/.test(pv)?'preset='+encodeURIComponent(pv)+'&':'')+'len='+lv,l:(po?po.textContent:'')+(lo?' · '+lo.textContent:'')}}
+    if(PAGE==='weather'){const m=$('monSel'),sc=$('solCard');let h=/^#(sky|site)=/.test(location.hash)?location.hash:'';
+      if(!h&&m&&m.value&&sc&&sc.open&&m.dataset.picked)h='#site='+m.value;
+      const o=h&&m&&m.selectedOptions[0];return {s:'weather',u:'weather.html'+(h||'#play'),l:h?(o?o.textContent:''):T.wx_here}}
+    if(PAGE==='synth'){const g=!!(window.GSYNTH&&GSYNTH.GS&&GSYNTH.GS.active);const q=location.search.replace(/([?&])(notour|show(=1)?)(?=&|$)/g,'$1').replace(/[?&]+$/,'').replace(/^&/,'?');
+      return {s:g?'galaxy':'synth',u:'synth.html'+(g?(/[?&]g=/.test(q)?q:'')+'#galaxy':(/[?&]p=/.test(q)?q.replace(/[?&]g=[^&]*/,''):'#play')),l:g?T.ga_synth:T.sy_planets}}
+  }catch(e){}
+  return null;
+}
+MOTS.homeLink.here=here;
+if(PAGE==='weather')document.addEventListener('change',e=>{if(e.target&&e.target.id==='monSel')e.target.dataset.picked='1'},true);
+
+/* ---- the last world, for "Carry on" and the next launch ---- */
+let tapPending=false;
+function keep(){if(inFrame||SHOW||!WORLD)return;const h=here();if(!h||!h.u)return;LS.put('mots.last',{u:h.u,s:h.s,l:h.l||'',t:Date.now()})}
+if(WORLD&&!inFrame&&!SHOW){
+  // a deep link is the last world at once, even before its tap
+  if(DEEP){const u=location.pathname.match(/[a-z]+\.html$/)?file:'index.html';const s0=PAGE==='dial'?(location.hash==='#today'?'today':secOfThinker(location.hash.slice(1).split('&')[0])):PAGE==='flight'?(DL.to&&GAL.includes(DL.to)||/^#ds=/.test(H)?'galaxy':DL.to&&LGP.includes(DL.to)?'localgroup':'flight'):PAGE==='synth'&&H==='#galaxy'?'galaxy':PAGE;
+    const parts=[];for(const k in DL)parts.push(k==='play'?'play':k+'='+encodeURIComponent(DL[k]));
+    const hh=H.slice(1);LS.put('mots.last',{u:u+Q.replace(/[?&](notour|show(=1)?)(?=&|$)/g,'')+(hh||parts.length?'#'+[hh].concat(parts).filter(Boolean).join('&'):''),s:s0,l:'',t:Date.now()})}
+  setInterval(()=>{if(!document.hidden&&!tapPending)keep()},3000);
+  addEventListener('pagehide',()=>{if(!tapPending)keep()});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden&&!tapPending)keep()});
+}
+
+/* ---- favourites: the star ---- */
+const favs=()=>LS.json('mots.fav',{});
+function favNow(){const h=here();if(!h)return null;const f=favs()[h.s];return {h,on:!!(f&&f.u===h.u)}}
+function toast(html){let t=$('motsHomeToast');if(!t){t=document.createElement('div');t.id='motsHomeToast';t.setAttribute('role','status');t.setAttribute('aria-live','polite');document.body.appendChild(t)}
+  t.innerHTML=html;t.classList.add('on');clearTimeout(toast.k);toast.k=setTimeout(()=>t.classList.remove('on'),4200)}
+function starClick(){const n=favNow();if(!n)return;const F=favs();
+  if(n.on){delete F[n.h.s];LS.put('mots.fav',F);toast(esc(T.removed))}
+  else{F[n.h.s]={u:n.h.u,l:n.h.l||'',t:Date.now()};LS.put('mots.fav',F);toast(esc(String(T.saved).replace('{s}',secName(n.h.s)))+' · <a href="shortcuts.html">'+esc(T.seeAll)+' →</a>')}
+  syncStar()}
+let star=null;
+function syncStar(){if(!star)return;const n=favNow();const on=!!(n&&n.on);star.setAttribute('aria-pressed',String(on));const t=on?T.starOn:T.star;star.title=t;star.setAttribute('aria-label',t);star.hidden=!n}
+const HOUSE='<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>';
+const STAR='<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" fill="var(--st-fill,none)" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+function buttons(){
+  if(inFrame||SHOW)return;
+  when(()=>document.querySelector('nav.site > .main'),main=>{
+    if(main.querySelector('.mots-home'))return;
+    const a=document.createElement('a');a.className='mots-home';a.href='home.html';a.innerHTML=HOUSE+'<span class="l">'+esc(T.home)+'</span>';a.title=T.homeTip;a.setAttribute('aria-label',T.homeTip);
+    a.addEventListener('click',()=>keep());
+    main.insertBefore(a,main.firstChild);
+    if(WORLD){star=document.createElement('button');star.type='button';star.className='mots-star';star.innerHTML=STAR;star.onclick=starClick;
+      const lm=main.querySelector('#langMenu');if(lm)main.insertBefore(star,lm);else main.appendChild(star);syncStar();setInterval(syncStar,1500)}
+  },15000);
+}
+const css=document.createElement('style');css.id='homeLinkCss';
+css.textContent=`
+nav.site .mots-home,nav.site .mots-star{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:.35em;min-width:var(--tap,2.75rem);min-height:var(--tap,2.75rem);padding:0 .7rem;border-radius:999px;border:1px solid var(--bronze,#c9984f);background:rgba(201,152,79,.1);color:#f3d9a4;text-decoration:none;font:600 .85rem/1 var(--f-body,"Alegreya Sans"),system-ui,sans-serif;cursor:pointer;box-sizing:border-box}
+nav.site .mots-home:hover,nav.site .mots-star:hover{background:rgba(201,152,79,.22)}
+nav.site .mots-star{padding:0;width:var(--tap,2.75rem);border-color:var(--line-2,#3a4068);background:transparent;color:var(--bronze,#c9984f)}
+nav.site .mots-star[aria-pressed="true"]{--st-fill:currentColor;color:#e9d093;border-color:#e9d093;background:rgba(233,208,147,.12)}
+nav.site .mots-star[hidden]{display:none}
+@media (max-width:560px), (max-height:520px) and (orientation:landscape), (pointer:coarse) and (max-width:760px){nav.site .mots-home{padding:0;width:var(--tap,2.75rem)}nav.site .mots-home .l{display:none}}
+nav.site.icons .mots-home .l{display:none}nav.site.icons .mots-home{padding:0;width:var(--tap,2.75rem)}
+.hud.tl nav.site .mots-home,.hud.tl nav.site .mots-star{background:var(--glass,rgba(10,12,24,.78));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.hud.tl nav.site .mots-home{border-color:var(--bronze,#c9984f)}
+#motsHomeToast{position:fixed;left:50%;bottom:18px;transform:translate(-50%,20px);z-index:95;max-width:calc(100vw - 32px);padding:10px 16px;border-radius:999px;background:#13162a;border:1px solid #c9984f;color:#e9e1cc;font:15px/1.35 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;text-align:center}
+#motsHomeToast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}#motsHomeToast a{color:#e9d093;font-weight:600;text-decoration:none;white-space:nowrap}
+#motsTap{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:16px;background:radial-gradient(ellipse at 50% 45%,rgba(9,11,24,.55),rgba(5,6,12,.88));-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);cursor:pointer}
+#motsTap .tp-b{appearance:none;border:0;background:none;color:#e9e1cc;display:flex;flex-direction:column;align-items:center;gap:14px;cursor:pointer;font:inherit;max-width:min(30rem,100%);text-align:center}
+#motsTap .tp-i{width:112px;height:112px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(180deg,#e9c47e,#c9984f);color:#1a1408;font-size:44px;line-height:1;padding-left:8px;box-sizing:border-box;box-shadow:0 0 0 0 rgba(233,208,147,.55),0 10px 40px rgba(201,152,79,.35);animation:motsTapPulse 2.2s ease-out infinite}
+#motsTap .tp-t{font:600 26px/1.15 var(--f-display,"GFS Didot"),Georgia,serif;color:#f1e3bf}
+#motsTap .tp-s{font:16px/1.4 "Alegreya Sans",system-ui,sans-serif;color:#cfc6ae}
+#motsTap .tp-n{font:14px/1.4 "Alegreya Sans",system-ui,sans-serif;color:#a39c89}
+#motsTap .tp-b:focus-visible{outline:3px solid #c9984f;outline-offset:8px;border-radius:12px}
+@keyframes motsTapPulse{0%{box-shadow:0 0 0 0 rgba(233,208,147,.55),0 10px 40px rgba(201,152,79,.35)}70%{box-shadow:0 0 0 22px rgba(233,208,147,0),0 10px 40px rgba(201,152,79,.35)}100%{box-shadow:0 0 0 0 rgba(233,208,147,0),0 10px 40px rgba(201,152,79,.35)}}
+@media (prefers-reduced-motion:reduce){#motsTap .tp-i{animation:none}}
+`;
+(document.head||document.documentElement).appendChild(css);
+
+/* ---- applying a deep link: what can be set before the tap is set at once; what starts sound (or a journey) waits for the tap ---- */
+const ACT=()=>MOTS.wnAct||{};
+function setSel(id,v){when(()=>{const s=$(id);return s&&s.querySelector('option[value="'+CSS.escape(v)+'"]')?s:null},s=>{if(s.value!==v){s.value=v;s.dispatchEvent(new Event('change',{bubbles:true}))}},20000)}
+function before(){
+  if(PAGE==='dial'&&DL.vp)when(()=>{const s=$('vp');return MOTS.app&&s&&s.querySelector('option[value="'+CSS.escape(DL.vp)+'"]')?s:null},s=>{if(s.value!==DL.vp){s.value=DL.vp;s.dispatchEvent(new Event('change',{bubbles:true}))}},20000);
+  if(PAGE==='dance'&&DL.style)when(()=>ACT().style,f=>f(DL.style),20000);
+  if(PAGE==='meditate'){if(DL.preset)setSel('preset',DL.preset);if(DL.len!=null)setTimeout(()=>setSel('lenSel',String(DL.len)),DL.preset?400:0)}
+}
+function after(){
+  if(PAGE==='dial'){
+    if(DL.hear)when(()=>MOTS.app&&MOTS.app.playing&&MOTS.app.playing(),()=>MOTS.app.interp(DL.hear==='text'?'text':'athens'),15000);
+    if(DL.sys)when(()=>MOTS.app&&MOTS.app.system,()=>MOTS.app.system(DL.sys),15000);
+  }
+  // the Stage (and its guide) over the dial or the dance page
+  if(PAGE==='dial'||PAGE==='dance'){
+    if(DL.open==='stage')when(()=>$('stageBtn'),b=>setTimeout(()=>b.click(),600),15000);
+    if(DL.open==='guide')when(()=>MOTS.stageGuide,f=>setTimeout(f,600),15000);
+  }
+  if(PAGE==='flight'&&DL.to){const v=DL.to,A=ACT(),PL=['mercury','venus','earth','mars','jupiter','saturn','uranus','neptune','sun','moon'];
+    if(PL.includes(v)&&A.go)A.go(v);else if(v==='gyear'&&A.gyear)A.gyear();else if(v==='lgyear'&&A.lgyear)A.lgyear();else if(A.fly)A.fly(v)}
+}
+function startBtn(){return $(PAGE==='dial'||PAGE==='flight'?'begin':'play')}
+function play(){
+  tapPending=false;const c=$('motsTap');if(c)c.remove();
+  const go=b=>{if(b.getAttribute('aria-pressed')!=='true')b.click();after()};
+  const b=startBtn();if(b&&!b.disabled)go(b);
+  else{
+    // the weather with no place yet: the tap asks for "Use my location" (the browser asks the visitor), then plays when the weather is in
+    if(PAGE==='weather'){const w=$('wxHere');if(w)w.click()}
+    when(()=>{const x=startBtn();return x&&!x.disabled?x:null},go,PAGE==='weather'?60000:30000)}
+}
+function cover(){
+  if(!DEEP)return;
+  // the welcome tour, the talk and What's new keep their own openings
+  if(/^#(tour|talk|show|whatsnew)$/i.test(location.hash)||/[?&](tour|show|wn)=?/.test(location.search))return;
+  tapPending=true;
+  const h=here();
+  const el=document.createElement('div');el.id='motsTap';el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');el.setAttribute('aria-label',T.tap);
+  const st=DL.open==='stage'||DL.open==='guide';const sub=st?T['st_'+(DL.open==='stage'?'open':'guide')]:(h&&h.l)||'';const sec=st?secName('stage'):h?secName(h.s):'';
+  el.innerHTML='<button type="button" class="tp-b"><span class="tp-i" aria-hidden="true">▶</span><span class="tp-t">'+esc(T.tap)+'</span>'+(sec||sub?'<span class="tp-s">'+esc(sec)+(sub&&sub!==sec?' · '+esc(sub):'')+'</span>':'')+'<span class="tp-n">'+esc(T.tapNote)+'</span></button>';
+  el.addEventListener('click',play);
+  document.addEventListener('keydown',function k(e){if(!$('motsTap')){document.removeEventListener('keydown',k);return}if(e.key==='Escape'){tapPending=false;el.remove()}});
+  document.body.appendChild(el);
+  // the words under the button, once the page knows what it shows
+  setTimeout(()=>{const x=$('motsTap'),h2=here();if(!x||!h2||DL.open)return;const s=x.querySelector('.tp-s'),txt=secName(h2.s)+(h2.l&&h2.l!==secName(h2.s)?' · '+h2.l:'');if(s)s.textContent=txt;else x.querySelector('.tp-t').insertAdjacentHTML('afterend','<span class="tp-s">'+esc(txt)+'</span>')},1500);
+  try{el.querySelector('.tp-b').focus({preventScroll:true})}catch(e){}
+}
+const ready=()=>{buttons();if(DEEP){before();cover()}};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready);else ready();
+})();
+
+/* ---------- Send feedback: an email to the maker, with a few details about the device that help put things right ----------
+   Built into every page: mklang.py appends this file to lang_built.js (after the shell, What's new and voice commands).
+   Where it shows: the site navigation's strip (after Tour and Talk, "✉ Feedback"), the "⋯" menu (phones),
+   the help page (a line under its title and an entry in its contents) and every page's footer; on the home page, its links row.
+   The message: subject "Music of the Spheres feedback"; a prompt line in the visitor's language, a blank line, then the details:
+   the page, the app's version (What's new version and the offline copy's name), the language, whether it runs as the Play app,
+   the Sound check's repairs (mots.afix, mots.afix.lite, mots.nowl) and the browser's user agent. Nothing else about the visitor.
+   ---------- */
+(()=>{
+"use strict";
+const TO='martin.hollingham+spheres@gmail.com',SUBJ='Music of the Spheres feedback';
+// b: the button, s: its short word in the strip, tip: its tooltip, p: the first line of the email, h: the line on the help page
+const FB={
+ en:{b:'Send feedback',s:'Feedback',tip:'Email the maker of the app: ideas, problems, anything',p:'Your feedback (what you liked, what went wrong, ideas):',h:'Found a problem, or have an idea? Email me: the message includes a few details about your device that help me put things right.'},
+ pl:{b:'Wyślij opinię',s:'Opinia',tip:'Napisz do twórcy aplikacji: pomysły, problemy, cokolwiek',p:'Twoja opinia (co się podobało, co nie działało, pomysły):',h:'Masz problem albo pomysł? Napisz do mnie: wiadomość zawiera kilka informacji o urządzeniu, które pomagają mi coś naprawić.'},
+ cy:{b:'Anfon adborth',s:'Adborth',tip:'E-bostiwch wneuthurwr yr ap: syniadau, problemau, unrhyw beth',p:'Eich adborth (beth oeddech chi’n ei hoffi, beth aeth o’i le, syniadau):',h:'Wedi cael problem, neu â syniad? Anfonwch e-bost ataf: mae’r neges yn cynnwys ychydig o fanylion am eich dyfais sy’n fy helpu i drwsio pethau.'},
+ de:{b:'Feedback senden',s:'Feedback',tip:'Schreib dem Macher der App: Ideen, Probleme, alles',p:'Dein Feedback (was dir gefiel, was schiefging, Ideen):',h:'Ein Problem gefunden oder eine Idee? Schreib mir: Die Nachricht enthält ein paar Angaben zu deinem Gerät, die mir beim Beheben helfen.'},
+ es:{b:'Enviar comentarios',s:'Comentarios',tip:'Escribe al creador de la app: ideas, problemas, lo que sea',p:'Tus comentarios (qué te gustó, qué falló, ideas):',h:'¿Has encontrado un problema o tienes una idea? Escríbeme: el mensaje incluye unos datos de tu dispositivo que me ayudan a arreglarlo.'},
+ fr:{b:'Envoyer un avis',s:'Avis',tip:'Écrire au créateur de l’appli : idées, problèmes, tout',p:'Votre avis (ce qui vous a plu, ce qui n’a pas marché, vos idées) :',h:'Un problème, une idée ? Écrivez-moi : le message contient quelques détails sur votre appareil qui m’aident à corriger.'},
+ it:{b:'Invia un parere',s:'Parere',tip:'Scrivi all’autore dell’app: idee, problemi, qualsiasi cosa',p:'Il tuo parere (cosa ti è piaciuto, cosa non ha funzionato, idee):',h:'Hai trovato un problema o hai un’idea? Scrivimi: il messaggio contiene alcuni dati sul tuo dispositivo che mi aiutano a sistemare le cose.'},
+ zh:{b:'发送反馈',s:'反馈',tip:'给应用作者发邮件：想法、问题，什么都行',p:'你的反馈（喜欢什么、哪里出了问题、有什么想法）：',h:'发现问题或有想法？请给我发邮件：邮件附有几条关于你设备的信息，帮助我修复问题。'},
+ ja:{b:'フィードバックを送る',s:'フィードバック',tip:'アプリの作者にメール：アイデア、不具合、なんでも',p:'ご意見（気に入った点、うまくいかなかった点、アイデア）：',h:'不具合やアイデアはメールでお知らせください。メールには修正に役立つ端末の情報が少し含まれます。'},
+ vi:{b:'Gửi góp ý',s:'Góp ý',tip:'Gửi email cho tác giả ứng dụng: ý tưởng, lỗi, bất cứ điều gì',p:'Góp ý của bạn (điều bạn thích, điều gì bị lỗi, ý tưởng):',h:'Bạn gặp lỗi hay có ý tưởng? Hãy gửi email cho tôi: thư có kèm vài thông tin về thiết bị của bạn để giúp tôi sửa lỗi.'},
+ bg:{b:'Изпрати отзив',s:'Отзив',tip:'Пиши на автора на приложението: идеи, проблеми, каквото и да е',p:'Твоят отзив (какво ти хареса, какво не работи, идеи):',h:'Откри проблем или имаш идея? Пиши ми: писмото съдържа няколко данни за устройството ти, които ми помагат да оправя нещата.'},
+ pt:{b:'Enviar comentários',s:'Comentários',tip:'Escreva para o criador do app: ideias, problemas, qualquer coisa',p:'Seu comentário (do que você gostou, o que deu errado, ideias):',h:'Encontrou um problema ou tem uma ideia? Escreva para mim: a mensagem inclui alguns dados do seu aparelho que me ajudam a corrigir.'},
+ nb:{b:'Send tilbakemelding',s:'Tilbakemelding',tip:'Send e-post til den som lagde appen: ideer, problemer, hva som helst',p:'Din tilbakemelding (hva du likte, hva som gikk galt, ideer):',h:'Fant du et problem, eller har du en idé? Send meg en e-post: meldingen har med noen opplysninger om enheten din som hjelper meg å rette feil.'},
+ nn:{b:'Send tilbakemelding',s:'Tilbakemelding',tip:'Send e-post til den som laga appen: idear, problem, kva som helst',p:'Tilbakemeldinga di (kva du likte, kva som gjekk gale, idear):',h:'Fann du eit problem, eller har du ein idé? Send meg ein e-post: meldinga har med nokre opplysningar om eininga di som hjelper meg å retta feil.'}
+};
+const cur=(document.documentElement.lang||'en').slice(0,2);
+const F=Object.assign({},FB.en,FB[cur]||{});
+const ICON='✉︎';
+const LSg=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
+const SSg=k=>{try{return sessionStorage.getItem(k)}catch(e){return null}};
+// the page within the app, whichever language folder it is in
+const PAGE=(()=>{const m=location.pathname.match(/([a-z]+)\.html$/),p=m?m[1]:'index';return p==='index'?'dial':p})();
+let ver='';
+const version=()=>{const w=(window.MOTS&&MOTS.whatsnew&&MOTS.whatsnew.version)||'?';return w+(ver?' · '+ver:'')};
+// the offline copy's name (mots-<fingerprint>, from sw.js): the build the visitor actually has
+function readVer(){try{if(window.caches&&caches.keys)caches.keys().then(ks=>{const v=ks.filter(k=>/^mots-/.test(k)&&k!=='mots-ext').sort().pop();if(v&&v!==ver){ver=v;refresh()}}).catch(()=>{})}catch(e){}}
+function body(){
+  const play=SSg('mots.play')==='1'||LSg('mots.play')==='1'||/[?&]playapp=1/.test(location.search)||/^android-app:/.test(document.referrer||'');
+  let inst=false;try{inst=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){}
+  const ck='afix '+(LSg('mots.afix')||'0')+', lite '+(LSg('mots.afix.lite')||'0')+', nowl '+(LSg('mots.nowl')||'0')+(LSg('mots.route')?', route '+LSg('mots.route'):'');
+  return F.p+'\n\n-- \n'+[
+    'Page: '+PAGE,
+    'Version: '+version(),
+    'Language: '+cur,
+    'Play app: '+(play?'yes':'no')+(inst?' (installed)':''),
+    'Sound check: '+ck,
+    'Browser: '+navigator.userAgent].join('\n');
+}
+const href=()=>'mailto:'+TO+'?subject='+encodeURIComponent(SUBJ)+'&body='+encodeURIComponent(body());
+function refresh(){document.querySelectorAll('a.mots-fb').forEach(a=>{a.href=href()})}
+// one link, in a menu (the full words) or in the strip (the short word, the full words in its title)
+function link(cls,short){const a=document.createElement('a');a.className='mots-fb '+cls;a.href=href();a.title=F.tip;a.dataset.guide='fb';
+  if(short)a.setAttribute('aria-label',F.b);
+  a.innerHTML='<span class="i" aria-hidden="true">'+ICON+'</span><span class="l">'+(short?F.s:F.b)+'</span>';
+  // the details may have changed since the page opened (a repair in the Sound check): fresh ones on every tap
+  const upd=()=>{a.href=href()};a.addEventListener('pointerdown',upd);a.addEventListener('focus',upd);
+  a.addEventListener('click',()=>{upd();const d=a.closest('details');if(d)setTimeout(()=>{d.open=false},0)});
+  return a}
+function wire(){
+  // the strip of the site navigation: after the tour and the talk (or, in the home redesign's row, after Help)
+  document.querySelectorAll('nav.site .strip').forEach(s=>{if(!s.querySelector('.mots-fb')){const row=!!s.closest('nav.site.row4');s.appendChild(link(row?'fb-pill':'g-fb act',true))}});
+  // the "⋯" menus (on a desktop the strip has it, so there it hides: CSS below)
+  document.querySelectorAll('.mots-more .mmenu').forEach(m=>{if(!m.querySelector('.mots-fb')){const a=link('g-fb');a.setAttribute('role','menuitem');m.appendChild(a)}});
+  // the help page: a line under its title, and its contents
+  if(PAGE==='help'){
+    const lede=document.querySelector('header.top .lede');
+    if(lede&&!document.getElementById('fbHelp')){const p=document.createElement('p');p.id='fbHelp';p.className='fb-help';const t=document.createElement('span');t.textContent=F.h+' ';p.append(t,link('fb-btn'));lede.insertAdjacentElement('afterend',p)}
+    const ol=document.querySelector('nav.toc ol');if(ol&&!ol.querySelector('.fb-toc')){const li=document.createElement('li');li.className='fb-toc';const a=link('');a.removeAttribute('data-guide');a.textContent=F.b;li.appendChild(a);ol.appendChild(li)}
+  }
+  // the home page's links row
+  const hl=document.querySelector('main.hm nav.links');if(hl&&!hl.querySelector('.mots-fb')){const a=link('');a.removeAttribute('data-guide');a.textContent=F.b;a.id='hFeedback';hl.appendChild(a)}
+  // the footer: under What's new
+  const f=document.getElementById('motsCopy');if(f&&!f.querySelector('.mots-fb')){const a=link('fb-foot');a.removeAttribute('data-guide');const br=document.createElement('br');
+    const wn=f.querySelector('.wn-foot');if(wn&&wn.nextSibling)f.insertBefore(a,wn.nextSibling.nextSibling);else f.prepend(a);a.insertAdjacentElement('afterend',br)}
+}
+const css=document.createElement('style');css.id='fbCss';
+css.textContent=`
+nav.site .strip a.g-fb .i,.mots-more .mmenu > a.g-fb .i{color:var(--bronze,#c9984f);width:1.1em;text-align:center;font-family:system-ui,sans-serif}
+nav.site .strip a.g-fb{border-left:1px solid var(--line-2,var(--line,#3a4068))}
+@media not ((max-width:560px) or ((max-height:520px) and (orientation:landscape))){header.top.shell nav.site > .mots-more .mmenu > [data-guide="fb"]{display:none!important}}
+@media not ((pointer:coarse) or (max-width:760px)){.hud.tr .mots-more .mmenu > [data-guide="fb"]{display:none!important}}
+#motsCopy .fb-foot{display:inline-flex;align-items:center;gap:.4em;min-height:44px;padding:0 10px;color:var(--bronze,#c9984f);text-decoration:none;font-size:.95rem}
+#motsCopy .fb-foot:hover{text-decoration:underline}
+.fb-help{margin:.8rem 0 0;font-size:.95rem;line-height:1.5;color:var(--vellum-dim,#aea791)}
+.fb-help .fb-btn{display:flex;width:-webkit-max-content;width:max-content;max-width:100%;align-items:center;gap:.45em;margin:.5rem 0 0;padding:.45rem 1rem;min-height:2.75rem;box-sizing:border-box;border:1px solid var(--bronze,#c9984f);border-radius:999px;color:#f3d9a4;text-decoration:none;background:rgba(201,152,79,.12);white-space:nowrap}
+.fb-help .fb-btn:hover{background:rgba(201,152,79,.24)}
+.toc li.fb-toc a::before,#tocSheet li.fb-toc a::before{content:"✉\\FE0E";font-family:system-ui,sans-serif}
+nav.site.row4 .fb-pill{order:4;flex:none;display:inline-flex;align-items:center;justify-content:center;gap:.35em;min-width:var(--tap,2.75rem);height:var(--tap,2.75rem);padding:0 .8rem;border-radius:999px;border:1px solid var(--line-2,#3a4068);background:transparent;color:var(--bronze,#c9984f);text-decoration:none;font-size:.85rem;box-sizing:border-box}
+nav.site.row4 .fb-pill:hover{border-color:var(--bronze,#c9984f);background:rgba(201,152,79,.12)}
+.hud.tl nav.site.row4 .fb-pill{background:var(--glass,rgba(10,12,24,.78))}
+@media (max-width:560px), (max-height:520px) and (orientation:landscape), (pointer:coarse) and (max-width:760px){nav.site.row4 .fb-pill .l{display:none}nav.site.row4 .fb-pill{padding:0;width:var(--tap,2.75rem)}}
+`;
+document.head.appendChild(css);
+function start(){wire();readVer();
+  // the shell rebuilds its menus as the layout changes: keep the entry in them
+  setTimeout(wire,150);setTimeout(wire,800);setTimeout(()=>{wire();readVer()},2500)}
+window.MOTS=window.MOTS||{};MOTS.feedback={href,body,to:TO,subject:SUBJ};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
 </script>
 <script>
@@ -5569,6 +5906,11 @@ function synthPage(){
   const keep=strips.closest('.card'),top=topStrip(head);
   const css=`
 html.drw-on.drw-clear .rack{grid-template-columns:minmax(0,1fr)!important}
+section.card.drw-fc > h2.drw-fold{cursor:pointer;user-select:none;-webkit-user-select:none;display:flex;align-items:baseline;gap:.5rem;min-height:44px;margin-bottom:0}
+section.card.drw-fc > h2.drw-fold::after{content:"";flex:none;margin-left:.5rem;width:.55em;height:.55em;border-right:2px solid var(--bronze,#c9984f);border-bottom:2px solid var(--bronze,#c9984f);transform:translateY(-.15em) rotate(45deg);transition:transform .25s;order:99}
+section.card.drw-fc.drw-sf > h2.drw-fold::after{transform:translateY(.05em) rotate(-45deg)}
+section.card.drw-fc.drw-sf > :not(h2){display:none!important}
+section.card.drw-fc > h2.drw-fold:focus-visible{outline:2px solid var(--bronze,#c9984f);outline-offset:3px;border-radius:4px}
 `;
   const api=doc({id:'synth',css,
     drawers:[{k:'top',label:L.menu,go:'up',els:()=>[head],host:()=>top.el}],
@@ -5576,6 +5918,22 @@ html.drw-on.drw-clear .rack{grid-template-columns:minmax(0,1fr)!important}
     clearEls:()=>{const out=[q('.deck'),q('.wrap > .foot'),$('how')];document.querySelectorAll('.rack > *,.wrap > section.card').forEach(e=>{if(e!==keep&&!e.contains(keep))out.push(e)});return out},
     layout:a=>top.place(a.st().top&&!a.clear()&&!a.gated())});
   MOTS.synthDrawers=api;
+  // (Martin 6 Nov) the cards fold by their headings, as the Dial's Controls do: on a phone the sky, the planets' strips and Beats start open, on a wide screen
+  // all of them; each choice is remembered (mots.synth.secs)
+  const FS=store('mots.synth.secs'),FO=FS.load();
+  document.querySelectorAll('section.card').forEach(sec=>{const h=sec.querySelector(':scope > h2');if(!h)return;
+    const key=sec.id||sec.getAttribute('aria-label')||h.textContent.trim().slice(0,24);
+    const defOpen=m=>m==='wide'||sec===keep||sec.id==='beatCard'||sec.classList.contains('sky');
+    sec.classList.add('drw-fc');h.classList.add('drw-fold');h.tabIndex=0;h.setAttribute('role','button');
+    const set=(open,save)=>{sec.classList.toggle('drw-sf',!open);h.setAttribute('aria-expanded',String(open));if(save){const m=modeOf();FO[m]=FO[m]||{};FO[m][key]=open?1:0;FS.save(FO)}};
+    const cur=()=>{const m=modeOf(),o=(FO[m]||{})[key];return o===undefined?defOpen(m):o===1};
+    set(cur(),false);
+    const flip=e=>{if(e.target.closest&&e.target.closest('a,button,input,select,label'))return;set(sec.classList.contains('drw-sf'),true)};
+    h.addEventListener('click',flip);h.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();flip(e)}});
+    addEventListener('resize',()=>set(cur(),false));
+    sec.addEventListener('focusin',e=>{if(e.target===h)return;if(sec.classList.contains('drw-sf'))set(true,false)})});
+  // a link to a card (synth.html#beats) opens it
+  if(/^#beats\b/.test(location.hash)){const b=$('beatCard');if(b&&b.classList.contains('drw-sf')){b.classList.remove('drw-sf')}}
 }
 
 /* ---- Meditate: the controls (soundscape, length, settings, and the header) tuck themselves away after about a minute of a session; a tap
@@ -5606,11 +5964,49 @@ html.drw-on .drw-mstrip{width:min(26rem,100%);margin:.2rem auto .3rem;align-self
   W.MEDITATE_DRAWERS=api;
 }
 
+
+/* ---- (HOME-REDESIGN brief item 9, Martin 5 Nov) fold-out headings on Dance and in the Flight's Navigation panel, as the Synth's cards
+   fold: a heading opens and closes the part below it; on a phone the first part starts open and the rest folded, on a wide screen all
+   start open; each choice is kept per screen mode (localStorage <key>). items: [{head, body:()=>[elements], key}] ---- */
+const FOLD_CSS=`.drw-fh-h{cursor:pointer;user-select:none;-webkit-user-select:none;display:flex;align-items:baseline;gap:.5rem;min-height:44px}
+.drw-fh-h::after{content:"";flex:none;margin-left:.5rem;width:.55em;height:.55em;border-right:2px solid var(--bronze,#c9984f);border-bottom:2px solid var(--bronze,#c9984f);transform:translateY(-.15em) rotate(45deg);transition:transform .25s;order:99}
+.drw-fh-h.drw-fh-shut::after{transform:translateY(.05em) rotate(-45deg)}
+.drw-fh-x{display:none!important}
+.drw-fh-h:focus-visible{outline:2px solid var(--bronze,#c9984f);outline-offset:3px;border-radius:4px}`;
+function foldHeads(items,key,firstOpen){
+  if(!document.getElementById('drwFold')){const st=document.createElement('style');st.id='drwFold';st.textContent=FOLD_CSS;document.head.appendChild(st)}
+  const FS=store(key),FO=FS.load();
+  items.forEach((it,i)=>{const h=it.head;if(!h||h.dataset.fold)return;h.dataset.fold='1';
+    const defOpen=m=>m==='wide'||(firstOpen?i===0:false);
+    h.classList.add('drw-fh-h');h.tabIndex=0;h.setAttribute('role','button');
+    const cur=()=>{const m=modeOf(),o=(FO[m]||{})[it.key];return o===undefined?defOpen(m):o===1};
+    const set=(open,save)=>{h.classList.toggle('drw-fh-shut',!open);h.setAttribute('aria-expanded',String(open));
+      it.body().forEach(e=>e.classList.toggle('drw-fh-x',!open));
+      if(save){const m=modeOf();FO[m]=FO[m]||{};FO[m][it.key]=open?1:0;FS.save(FO)}};
+    set(cur(),false);
+    const flip=e=>{if(e.target.closest&&e.target!==h&&e.target.closest('a,button,input,select,label'))return;set(h.classList.contains('drw-fh-shut'),true)};
+    h.addEventListener('click',flip);h.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();flip(e)}});
+    addEventListener('resize',()=>set(cur(),false))})}
+// Dance: its cards (Now playing, The progression, The band) fold by their headings
+function danceFolds(){const items=[];document.querySelectorAll('.wrap section.card').forEach(sec=>{const h=sec.querySelector(':scope > h2');if(!h)return;
+  items.push({head:h,key:sec.id||h.firstChild&&String(h.firstChild.textContent||'').trim().slice(0,24)||'c'+items.length,body:()=>[...sec.children].filter(e=>e!==h)})});
+  foldHeads(items,'mots.dance.secs',true)}
+// Flight: each group of the Navigation panel (Travel to, Interstellar, Stars, Doppler, Voices, Light, The zodiac…) folds by its first heading:
+// the rest of its own box and the tick-boxes straight after it; the sliders (time, volume, echo) stay in view. The galaxy's groups are added
+// to the panel later, so new ones are folded as they arrive.
+function flightFolds(){const pn=$('panel');if(!pn)return;
+  const scan=()=>{const items=[];[...pn.children].forEach(box=>{if(box.tagName!=='DIV')return;const h=box.querySelector(':scope > h3');if(!h||h!==box.firstElementChild)return;
+      const body=()=>{const out=[...box.children].filter(e=>e!==h);let n=box.nextElementSibling;while(n&&n.tagName==='LABEL'&&n.classList.contains('check')){out.push(n);n=n.nextElementSibling}return out};
+      items.push({head:h,key:box.id||String(h.textContent||'').trim().slice(0,24),body})});
+    foldHeads(items,'mots.flight.secs',true)};
+  scan();let t=0;new MutationObserver(()=>{clearTimeout(t);t=setTimeout(scan,150)}).observe(pn,{childList:true})}
+
 const start=()=>{try{
   if($('orrery')&&$('timeline'))dialPage();
-  else if(q('.deck')&&$('style')&&$('mix'))dancePage();
+  else if(q('.deck')&&$('style')&&$('mix')){dancePage();try{danceFolds()}catch(e){console.warn('folds',e)}}
   else if($('strips')&&$('seqCard'))synthPage();
   else if($('hearth')&&$('clock'))meditatePage();
+  else if($('panel')&&$('dest'))flightFolds();
 }catch(e){console.warn('drawers',e)}};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else setTimeout(start,0);
 })();
