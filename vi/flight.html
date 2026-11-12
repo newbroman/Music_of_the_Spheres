@@ -12379,13 +12379,13 @@ const leanTo=d=>!!(d&&d.__lean&&LEAN.on);
 // at initAudio: the choice for this audio context
 function leanInit(){LEAN.on=leanPref()&&leanCan()&&!!AC.audioWorklet;LEAN.ac=AC;
   try{if(window.MOTS_COMPAT&&MOTS_COMPAT.notes)MOTS_COMPAT.notes.push('engine: '+(LEAN.on?'lean':'old'))}catch(e){}
-  if(!LEAN.on)return;leanPatch();
+  if(!LEAN.on)return;leanPatch();LEAN.ck='';leanCull();
   // the host has a few seconds of running sound to load in, or the dial goes back to the old engine
   let ran=0;const chk=()=>{if(!LEAN.on||LEAN.node||LEAN.failed)return;if(AC.state==='running')ran++;if(ran>=4){leanFail('the sound host did not start');return}setTimeout(chk,2000)};setTimeout(chk,2000)}
 function leanStart(ac){if(!LEAN.on||LEAN.ac!==ac||LEAN.node||LEAN.failed)return;let n;
   try{n=new AudioWorkletNode(ac,'mots-sky',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]})}catch(e){leanFail('the sound host would not start ('+e.message+')');return}
   n.onprocessorerror=()=>leanFail('the sound host failed');
-  n.port.onmessage=e=>{const d=e.data||{};if(d.nan)leanFail('a voice in the sound host turned into invalid numbers');else if(d.err)leanFail('the sound host refused a message ('+d.err+')')};
+  n.port.onmessage=e=>{const d=e.data||{};if(d.nan)leanFail('a voice in the sound host turned into invalid numbers');else if(d.err)leanFail('the sound host refused a message ('+d.err+')');else if(d.st){LEAN.st=d.st;const f=LEAN.stw;LEAN.stw=null;if(f)f(d.st)}};
   n.connect(bus);LEAN.node=n;if(LEAN.pend.length){const p=LEAN.pend;LEAN.pend=[];try{n.port.postMessage(p)}catch(e){leanFail('the sound host could not be reached')}}}
 // something went wrong: compat.js's repair turns lean off on this phone and reloads (without compat, the page does it)
 function leanFail(why){if(!LEAN.on||LEAN.failed)return;LEAN.failed=true;try{console.warn('lean engine: '+why)}catch(e){}
@@ -12397,6 +12397,26 @@ function leanFlush(){LEAN.kick=false;
   if(LEAN.all){LEAN.pans.forEach(leanPanSend);LEAN.all=false;LEAN.dirty.clear()}else if(LEAN.dirty.size){LEAN.dirty.forEach(leanPanSend);LEAN.dirty.clear()}
   const q=LEAN.q;if(!q.length)return;LEAN.q=[];
   if(LEAN.node){try{LEAN.node.port.postMessage(q)}catch(e){leanFail('the sound host could not be reached')}}else for(let i=0;i<q.length;i++)LEAN.pend.push(q[i])}
+/* (CULL) Martin, 12 Nov: "only carry voices above a certain volume threshold". The host makes only the voices that can be heard (see
+   MotsSky): at most LEANCAP[quality] at once, the loudest, and none more than 42 dB under the mix. With the screen off on a phone
+   (nobody is looking, and the phone has least to spare) at most 6, none more than 30 dB under the mix, and the places glide over
+   0.15 s, as the frames that move them come further apart. The drone and the body you audition are always kept. */
+const LEANCAP={min:8,eco:14,std:24,high:32};
+function leanCull(){if(!LEAN.on)return;const q=(window.MOTS&&MOTS.quality&&MOTS.quality())||'std',hid=!!document.hidden&&LOWPOWER;
+  const cap=Math.min(LEANCAP[q]||24,hid?6:99),thr=hid?-30:-42,ptc=document.hidden?.15:.03,key=cap+'|'+thr+'|'+ptc;
+  if(key===LEAN.ck)return;LEAN.ck=key;LEAN.q.push(12,cap,thr,ptc);leanKick()}
+document.addEventListener('visibilitychange',()=>{try{leanCull()}catch(e){}});
+if(window.MOTS&&MOTS.onQuality)MOTS.onQuality(()=>{try{leanCull()}catch(e){}});
+// a voice the host always keeps (w: a host voice, from wlNode)
+function leanPin(w,on){if(!w||!w.__lean||!LEAN.on||!!w.pin===!!on)return;w.pin=!!on;LEAN.q.push(13,w.id,on?1:0);leanKick()}
+// what the host is making (for tests and the Sound check): {held, made} voices per quantum since the last ask, the cap and threshold
+if(window.MOTS)MOTS.leanStats=()=>new Promise(res=>{if(!LEAN.on||!LEAN.node){res(null);return}LEAN.stw=res;LEAN.q.push(14);leanKick();setTimeout(()=>{if(LEAN.stw===res){LEAN.stw=null;res(null)}},1500)});
+// (BG-STUTTER, as stage.js does for real params) hidden, a level re-targeted "now" again and again gets a time constant of about 0.6 of
+// its recent longest gap (at most 0.4 s), so its glide is still moving when the next late frame arrives; fades to or from silence and
+// big jumps keep theirs
+function leanTc(g,v,t,tc){if(!document.hidden||!AC||t-AC.currentTime>=.03)return tc;const w=performance.now(),h=g.bg;
+  if(h&&w-h.w<1500){const d=(w-h.w)/1000;h.pk=Math.max(d,h.pk*.97);if(v!==0&&h.v!==0&&Math.abs(v-h.v)<=Math.abs(h.v)*.5)tc=Math.max(tc,Math.min(.4,.6*h.pk));h.w=w;h.v=v}
+  else g.bg={w,v,pk:0};return tc}
 // where the listener faces (setListener): every place's pan is worked out again
 function leanListen(f){const o=LEAN.f;if(Math.abs(o[0]-f[0])+Math.abs(o[1]-f[1])+Math.abs(o[2]-f[2])<1e-4)return;LEAN.f=f;LEAN.all=true;leanKick()}
 // a place's pan from its direction, as MOTS.lite's panOf (stage.js): the share of the direction along the listener's right
@@ -12418,7 +12438,7 @@ function mkPanL(hrtfOK){return LEAN.on?leanPan():mkPanner(hrtfOK)}
 function leanEst(g){const e=g.e,t=AC?AC.currentTime:0;
   if(e.rt>=0)return t>=e.rt?e.r1:e.v+(e.r1-e.v)*Math.max(0,t-e.t0)/Math.max(1e-6,e.rt-e.t0);
   if(e.g!==null&&t>e.t0)return e.g+(e.v-e.g)*Math.exp(-(t-e.t0)/Math.max(1e-4,e.tc));return e.v}
-function leanEv(g,ty,t,v,tc){const e=g.e,cur=leanEst(g),now=AC.currentTime;if(g.dead)leanRevive(g);
+function leanEv(g,ty,t,v,tc){const e=g.e,cur=leanEst(g),now=AC.currentTime;if(g.dead)leanRevive(g);if(ty===0)tc=leanTc(g,v,t,tc);
   if(ty===0){e.v=cur;e.t0=Math.max(t,now);e.g=v;e.tc=tc;e.rt=-1}else if(ty===1){e.v=v===v?v:cur;e.t0=now;e.g=null;e.rt=-1}
   else if(ty===2){e.v=cur;e.t0=now;e.r1=v;e.rt=t;e.g=null}else{e.v=cur;e.t0=now;e.g=null;e.rt=-1}
   LEAN.q.push(2,g.id,ty,t,v,tc||0);leanKick();
@@ -12468,7 +12488,7 @@ function leanPatch(){if(LEAN.c0)return;const A=AudioNode.prototype,c0=A.connect,
     return d0.apply(this,arguments)}}
 // a host voice, with the fields of a worklet node that wlParam, wlStop and the WL builders use
 function leanVoice(kind,opts,dest){const id=++LEAN.id,o=Object.assign({kind},opts),n=o.init.length;
-  const w={__lean:1,id,dest,stopped:false,qs:true,q:{push(i,ty,t,v,tc){LEAN.q.push(1,id,i,ty,t,v,tc);leanKick()}},flush(){},connect(){},disconnect(){},
+  const w={__lean:1,id,dest,stopped:false,qs:true,pin:!!o.pin,q:{push(i,ty,t,v,tc){LEAN.q.push(1,id,i,ty,t,v,tc);leanKick()}},flush(){},connect(){},disconnect(){},
     port:{postMessage(m){if(m&&m.end)leanEnd(w)}}};
   const det=wlParam(w,n);det.wob=(r,dp)=>{LEAN.q.push(11,id,r,dp);leanKick()};w.parameters={get:k=>k==='detune'?det:undefined};
   if(dest.dead)leanRevive(dest);dest.ins++;LEAN.q.push(3,id,o,dest.id);leanKick();return w}
@@ -12551,9 +12571,17 @@ function schedulePhrase(h,t0,f,level){
   h.ig.gain.setTargetAtTime(.25*level,t+rest-.55,.12);h.ig.gain.setTargetAtTime(0,t+rest-.1,.07);
   h.next=t+.5+rest;
 }
+/* (SOUND-FIX) with the screen off the frames that move the music come from the stage's worker clock, and on a slow phone they can come
+   0.1 to 1.5 s apart (Ulefone, 12 Nov: "a drone"). So, hidden: a phrase or a breath is scheduled when it is due before the next frame is
+   likely to come (AHEAD: 1.2 × the recent longest gap between the dial's sound updates, 0.12 s to 1.5 s), at its own time, not when the
+   late frame arrives; and the dial's clocks (the sky's date, the sirens' articulations) follow real time up to 1.5 s a frame instead of
+   0.1 s and 0.25 s, so the planets keep moving and singing at their pace. In view nothing changes (0.12 s ahead, the old caps). */
+const FRG={pk:0,w:0};
+function frameGap(){const w=performance.now();if(FRG.w){const g=Math.min(1.5,(w-FRG.w)/1000);FRG.pk=Math.max(g,FRG.pk*.97)}FRG.w=w}
+const AHEAD=()=>document.hidden?Math.min(1.5,Math.max(.12,1.2*FRG.pk)):.12;
 function humanTick(h,f,level,now){
   if(!h.whisper){const ff=f*Math.pow(2,h.shift);tgt(h.o1.frequency,ff,.07);if(h.o2)tgt(h.o2.frequency,ff,.07)}
-  if(now+.12>=h.next)schedulePhrase(h,Math.max(now+.05,h.next),f,level);
+  if(now+AHEAD()>=h.next)schedulePhrase(h,Math.max(now+.05,h.next),f,level);
 }
 // a moon child sings the vowels of its name once, when it completes an orbit
 function singMoon(m,dest,f){
@@ -12676,7 +12704,7 @@ function buildSunInst(v,fadeIn){
   const I={srcs:[]};I.g=mkGain(0,v.vol);I.g.gain.setTargetAtTime(1,AC.currentTime,fadeIn?.15:.001);
   // (LEAN-ENGINE) the host's instrument as the drone: two triangles and a sine (.55, .8) through the 900 Hz lowpass, its tremolo the
   // breath (.75 + .25 of a 0.07 Hz sine: the output level is .75/.7 and the swell .25/.75 of the instrument's .7 + td)
-  if(leanTo(I.g)){const [a,b2,c]=droneFreqs(),w=leanVoice('inst',{w1:'triangle',w2:'triangle',w3:'sine',l2:.55,l3:.8,a:1,form:[],dir:1,lpq:1,td:MIN()?0:.25*.7/.75,retro:false,rate:.07,vib:5,
+  if(leanTo(I.g)){const [a,b2,c]=droneFreqs(),w=leanVoice('inst',{pin:1,w1:'triangle',w2:'triangle',w3:'sine',l2:.55,l3:.8,a:1,form:[],dir:1,lpq:1,td:MIN()?0:.25*.7/.75,retro:false,rate:.07,vib:5,
       init:[a,b2,c,900,0,0,0,.75/.7]},I.g),p=i=>wlParam(w,i);I.d1={frequency:p(0)};I.d2={frequency:p(1)};I.d3={frequency:p(2)};I.wl=w;I.srcs.push({stop(){wlStop(w)},start(){}});return I}
   // Lightest: the drone holds still (no slow breathing LFO)
   const breath=mkGain(.75),bl=MIN()?null:AC.createOscillator();if(bl){bl.frequency.value=.07;const bd=mkGain(.25);bl.connect(bd);bd.connect(breath.gain)}
@@ -12727,7 +12755,7 @@ function buildAny(body,v,f){const lm=lmode(),sp=specOf(body);v.lkey=lkey(S.voice
 function lineBreath(P,t0){const hv=P.hv;let d=0;parseWords(hv.words||'a:').forEach(({t,hold})=>{d+=FT.bass[t]?(hv.syl||.6)*(hold?2.4:1):.1});
   d=Math.max(1.2,d*(.85+Math.random()*.3));const g=P.br.gain;g.setTargetAtTime(1,t0,.2);g.setTargetAtTime(P.floor,t0+d,.4);
   P.next=t0+d+.6+Math.max(.5,(hv.rest||1.5)*(.7+Math.random()*.6))}
-function linesTick(part,f,now){const P=part&&part.L;if(!P)return;P.lv.setF(f);P.f=f;if(!P.steady&&now+.12>=P.next)lineBreath(P,Math.max(now+.05,P.next))}
+function linesTick(part,f,now){const P=part&&part.L;if(!P)return;P.lv.setF(f);P.f=f;if(!P.steady&&now+AHEAD()>=P.next)lineBreath(P,Math.max(now+.05,P.next))}
 // a thinker's articulation on the lines: the chord struck (a quick swell settling to half) with the sirens' grace or flourish in pitch
 function lineAccent(part,f,retro,flourish){const P=part&&part.L;if(!P)return;const now=AC.currentTime,a=P.br.gain;a.cancelScheduledValues(now);a.setValueAtTime(a.value,now);a.linearRampToValueAtTime(1,now+.035);a.setTargetAtTime(.5,now+.14,.35);
   P.lv.accent(f,flourish?'flourish':retro?'retro':'',now);P.f=f}
@@ -12910,6 +12938,7 @@ function smFocus(ang){if(!FOC.g){FOC.p=mkPanL(false);FOC.g=mkGain(0,FOC.p)}setPo
 // (PARK) parkVoices lives with the thinkers' code, which the flight page does not carry
 const PARK=(a,b)=>{if(typeof parkVoices==='function')parkVoices(a,b)};
 function updateAudio(){
+  frameGap();   // (SOUND-FIX)
   if(window.MOTS&&MOTS.midi.on)midiHolds();
   if(window.MOTS_CRAFT)MOTS_CRAFT.audio(listenerPos(),!SYS.id&&S.thinker==='today');   // craft.js
   if(SYS.id){PARK(true,true);tgt(bus.gain,1,.35);updateSystemAudio();return}
@@ -12944,6 +12973,7 @@ function updateAudio(){
     else if(!want&&v.part&&now-(v.born||0)>6){killPart(v.part);v.part=null;v.mode=null}
     if(v.part&&v.parked&&typeof parkV==='function')parkV(v,false);   // (PARK) plugged back in as soon as it has something to sing
     v.culled=!v.part;
+    if(v.part)leanPin(v.part.wl||(v.part.h&&v.part.h.wl),aud);   // (CULL) the body you audition is always made
     const I=v.mode==='instrument'?v.part:null, Hp=v.mode==='human'?v.part:null, W=WOB[b.id]||{c:0,a:0};
     const duck=aud&&S.speaking?.3:1;
     if(v.part&&v.part.osc)v.part.osc.forEach(([o,base])=>tgt(o.detune,base+W.c,.05));
