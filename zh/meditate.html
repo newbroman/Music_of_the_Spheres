@@ -5129,6 +5129,109 @@ function mount(){if(!SR)return;let done=true;
 let tries=0;(function wait(){if(!mount()&&++tries<40)setTimeout(wait,250)})();
 if(keepOn&&SR)setTimeout(()=>{if(keepOn&&!rec)start('keep')},1500);
 })();
+
+/* ---------- Send feedback: an email to the maker, with a few details about the device that help put things right ----------
+   Built into every page: mklang.py appends this file to lang_built.js (after the shell, What's new and voice commands).
+   Where it shows: the site navigation's strip (after Tour and Talk, "✉ Feedback"), the "⋯" menu (phones),
+   the help page (a line under its title and an entry in its contents) and every page's footer; on the home page, its links row.
+   The message: subject "Music of the Spheres feedback"; a prompt line in the visitor's language, a blank line, then the details:
+   the page, the app's version (What's new version and the offline copy's name), the language, whether it runs as the Play app,
+   the Sound check's repairs (mots.afix, mots.afix.lite, mots.nowl) and the browser's user agent. Nothing else about the visitor.
+   ---------- */
+(()=>{
+"use strict";
+const TO='martin.hollingham+spheres@gmail.com',SUBJ='Music of the Spheres feedback';
+// b: the button, s: its short word in the strip, tip: its tooltip, p: the first line of the email, h: the line on the help page
+const FB={
+ en:{b:'Send feedback',s:'Feedback',tip:'Email the maker of the app: ideas, problems, anything',p:'Your feedback (what you liked, what went wrong, ideas):',h:'Found a problem, or have an idea? Email me: the message includes a few details about your device that help me put things right.'},
+ pl:{b:'Wyślij opinię',s:'Opinia',tip:'Napisz do twórcy aplikacji: pomysły, problemy, cokolwiek',p:'Twoja opinia (co się podobało, co nie działało, pomysły):',h:'Masz problem albo pomysł? Napisz do mnie: wiadomość zawiera kilka informacji o urządzeniu, które pomagają mi coś naprawić.'},
+ cy:{b:'Anfon adborth',s:'Adborth',tip:'E-bostiwch wneuthurwr yr ap: syniadau, problemau, unrhyw beth',p:'Eich adborth (beth oeddech chi’n ei hoffi, beth aeth o’i le, syniadau):',h:'Wedi cael problem, neu â syniad? Anfonwch e-bost ataf: mae’r neges yn cynnwys ychydig o fanylion am eich dyfais sy’n fy helpu i drwsio pethau.'},
+ de:{b:'Feedback senden',s:'Feedback',tip:'Schreib dem Macher der App: Ideen, Probleme, alles',p:'Dein Feedback (was dir gefiel, was schiefging, Ideen):',h:'Ein Problem gefunden oder eine Idee? Schreib mir: Die Nachricht enthält ein paar Angaben zu deinem Gerät, die mir beim Beheben helfen.'},
+ es:{b:'Enviar comentarios',s:'Comentarios',tip:'Escribe al creador de la app: ideas, problemas, lo que sea',p:'Tus comentarios (qué te gustó, qué falló, ideas):',h:'¿Has encontrado un problema o tienes una idea? Escríbeme: el mensaje incluye unos datos de tu dispositivo que me ayudan a arreglarlo.'},
+ fr:{b:'Envoyer un avis',s:'Avis',tip:'Écrire au créateur de l’appli : idées, problèmes, tout',p:'Votre avis (ce qui vous a plu, ce qui n’a pas marché, vos idées) :',h:'Un problème, une idée ? Écrivez-moi : le message contient quelques détails sur votre appareil qui m’aident à corriger.'},
+ it:{b:'Invia un parere',s:'Parere',tip:'Scrivi all’autore dell’app: idee, problemi, qualsiasi cosa',p:'Il tuo parere (cosa ti è piaciuto, cosa non ha funzionato, idee):',h:'Hai trovato un problema o hai un’idea? Scrivimi: il messaggio contiene alcuni dati sul tuo dispositivo che mi aiutano a sistemare le cose.'},
+ zh:{b:'发送反馈',s:'反馈',tip:'给应用作者发邮件：想法、问题，什么都行',p:'你的反馈（喜欢什么、哪里出了问题、有什么想法）：',h:'发现问题或有想法？请给我发邮件：邮件附有几条关于你设备的信息，帮助我修复问题。'},
+ ja:{b:'フィードバックを送る',s:'フィードバック',tip:'アプリの作者にメール：アイデア、不具合、なんでも',p:'ご意見（気に入った点、うまくいかなかった点、アイデア）：',h:'不具合やアイデアはメールでお知らせください。メールには修正に役立つ端末の情報が少し含まれます。'},
+ vi:{b:'Gửi góp ý',s:'Góp ý',tip:'Gửi email cho tác giả ứng dụng: ý tưởng, lỗi, bất cứ điều gì',p:'Góp ý của bạn (điều bạn thích, điều gì bị lỗi, ý tưởng):',h:'Bạn gặp lỗi hay có ý tưởng? Hãy gửi email cho tôi: thư có kèm vài thông tin về thiết bị của bạn để giúp tôi sửa lỗi.'},
+ bg:{b:'Изпрати отзив',s:'Отзив',tip:'Пиши на автора на приложението: идеи, проблеми, каквото и да е',p:'Твоят отзив (какво ти хареса, какво не работи, идеи):',h:'Откри проблем или имаш идея? Пиши ми: писмото съдържа няколко данни за устройството ти, които ми помагат да оправя нещата.'},
+ pt:{b:'Enviar comentários',s:'Comentários',tip:'Escreva para o criador do app: ideias, problemas, qualquer coisa',p:'Seu comentário (do que você gostou, o que deu errado, ideias):',h:'Encontrou um problema ou tem uma ideia? Escreva para mim: a mensagem inclui alguns dados do seu aparelho que me ajudam a corrigir.'},
+ nb:{b:'Send tilbakemelding',s:'Tilbakemelding',tip:'Send e-post til den som lagde appen: ideer, problemer, hva som helst',p:'Din tilbakemelding (hva du likte, hva som gikk galt, ideer):',h:'Fant du et problem, eller har du en idé? Send meg en e-post: meldingen har med noen opplysninger om enheten din som hjelper meg å rette feil.'},
+ nn:{b:'Send tilbakemelding',s:'Tilbakemelding',tip:'Send e-post til den som laga appen: idear, problem, kva som helst',p:'Tilbakemeldinga di (kva du likte, kva som gjekk gale, idear):',h:'Fann du eit problem, eller har du ein idé? Send meg ein e-post: meldinga har med nokre opplysningar om eininga di som hjelper meg å retta feil.'}
+};
+const cur=(document.documentElement.lang||'en').slice(0,2);
+const F=Object.assign({},FB.en,FB[cur]||{});
+const ICON='✉︎';
+const LSg=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
+const SSg=k=>{try{return sessionStorage.getItem(k)}catch(e){return null}};
+// the page within the app, whichever language folder it is in
+const PAGE=(()=>{const m=location.pathname.match(/([a-z]+)\.html$/),p=m?m[1]:'index';return p==='index'?'dial':p})();
+let ver='';
+const version=()=>{const w=(window.MOTS&&MOTS.whatsnew&&MOTS.whatsnew.version)||'?';return w+(ver?' · '+ver:'')};
+// the offline copy's name (mots-<fingerprint>, from sw.js): the build the visitor actually has
+function readVer(){try{if(window.caches&&caches.keys)caches.keys().then(ks=>{const v=ks.filter(k=>/^mots-/.test(k)&&k!=='mots-ext').sort().pop();if(v&&v!==ver){ver=v;refresh()}}).catch(()=>{})}catch(e){}}
+function body(){
+  const play=SSg('mots.play')==='1'||LSg('mots.play')==='1'||/[?&]playapp=1/.test(location.search)||/^android-app:/.test(document.referrer||'');
+  let inst=false;try{inst=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){}
+  const ck='afix '+(LSg('mots.afix')||'0')+', lite '+(LSg('mots.afix.lite')||'0')+', nowl '+(LSg('mots.nowl')||'0')+(LSg('mots.route')?', route '+LSg('mots.route'):'');
+  return F.p+'\n\n-- \n'+[
+    'Page: '+PAGE,
+    'Version: '+version(),
+    'Language: '+cur,
+    'Play app: '+(play?'yes':'no')+(inst?' (installed)':''),
+    'Sound check: '+ck,
+    'Browser: '+navigator.userAgent].join('\n');
+}
+const href=()=>'mailto:'+TO+'?subject='+encodeURIComponent(SUBJ)+'&body='+encodeURIComponent(body());
+function refresh(){document.querySelectorAll('a.mots-fb').forEach(a=>{a.href=href()})}
+// one link, in a menu (the full words) or in the strip (the short word, the full words in its title)
+function link(cls,short){const a=document.createElement('a');a.className='mots-fb '+cls;a.href=href();a.title=F.tip;a.dataset.guide='fb';
+  if(short)a.setAttribute('aria-label',F.b);
+  a.innerHTML='<span class="i" aria-hidden="true">'+ICON+'</span><span class="l">'+(short?F.s:F.b)+'</span>';
+  // the details may have changed since the page opened (a repair in the Sound check): fresh ones on every tap
+  const upd=()=>{a.href=href()};a.addEventListener('pointerdown',upd);a.addEventListener('focus',upd);
+  a.addEventListener('click',()=>{upd();const d=a.closest('details');if(d)setTimeout(()=>{d.open=false},0)});
+  return a}
+function wire(){
+  // the strip of the site navigation: after the tour and the talk (or, in the home redesign's row, after Help)
+  document.querySelectorAll('nav.site .strip').forEach(s=>{if(!s.querySelector('.mots-fb')){const row=!!s.closest('nav.site.row4');s.appendChild(link(row?'fb-pill':'g-fb act',true))}});
+  // the "⋯" menus (on a desktop the strip has it, so there it hides: CSS below)
+  document.querySelectorAll('.mots-more .mmenu').forEach(m=>{if(!m.querySelector('.mots-fb')){const a=link('g-fb');a.setAttribute('role','menuitem');m.appendChild(a)}});
+  // the help page: a line under its title, and its contents
+  if(PAGE==='help'){
+    const lede=document.querySelector('header.top .lede');
+    if(lede&&!document.getElementById('fbHelp')){const p=document.createElement('p');p.id='fbHelp';p.className='fb-help';const t=document.createElement('span');t.textContent=F.h+' ';p.append(t,link('fb-btn'));lede.insertAdjacentElement('afterend',p)}
+    const ol=document.querySelector('nav.toc ol');if(ol&&!ol.querySelector('.fb-toc')){const li=document.createElement('li');li.className='fb-toc';const a=link('');a.removeAttribute('data-guide');a.textContent=F.b;li.appendChild(a);ol.appendChild(li)}
+  }
+  // the home page's links row
+  const hl=document.querySelector('main.hm nav.links');if(hl&&!hl.querySelector('.mots-fb')){const a=link('');a.removeAttribute('data-guide');a.textContent=F.b;a.id='hFeedback';hl.appendChild(a)}
+  // the footer: under What's new
+  const f=document.getElementById('motsCopy');if(f&&!f.querySelector('.mots-fb')){const a=link('fb-foot');a.removeAttribute('data-guide');const br=document.createElement('br');
+    const wn=f.querySelector('.wn-foot');if(wn&&wn.nextSibling)f.insertBefore(a,wn.nextSibling.nextSibling);else f.prepend(a);a.insertAdjacentElement('afterend',br)}
+}
+const css=document.createElement('style');css.id='fbCss';
+css.textContent=`
+nav.site .strip a.g-fb .i,.mots-more .mmenu > a.g-fb .i{color:var(--bronze,#c9984f);width:1.1em;text-align:center;font-family:system-ui,sans-serif}
+nav.site .strip a.g-fb{border-left:1px solid var(--line-2,var(--line,#3a4068))}
+@media not ((max-width:560px) or ((max-height:520px) and (orientation:landscape))){header.top.shell nav.site > .mots-more .mmenu > [data-guide="fb"]{display:none!important}}
+@media not ((pointer:coarse) or (max-width:760px)){.hud.tr .mots-more .mmenu > [data-guide="fb"]{display:none!important}}
+#motsCopy .fb-foot{display:inline-flex;align-items:center;gap:.4em;min-height:44px;padding:0 10px;color:var(--bronze,#c9984f);text-decoration:none;font-size:.95rem}
+#motsCopy .fb-foot:hover{text-decoration:underline}
+.fb-help{margin:.8rem 0 0;font-size:.95rem;line-height:1.5;color:var(--vellum-dim,#aea791)}
+.fb-help .fb-btn{display:flex;width:-webkit-max-content;width:max-content;max-width:100%;align-items:center;gap:.45em;margin:.5rem 0 0;padding:.45rem 1rem;min-height:2.75rem;box-sizing:border-box;border:1px solid var(--bronze,#c9984f);border-radius:999px;color:#f3d9a4;text-decoration:none;background:rgba(201,152,79,.12);white-space:nowrap}
+.fb-help .fb-btn:hover{background:rgba(201,152,79,.24)}
+.toc li.fb-toc a::before,#tocSheet li.fb-toc a::before{content:"✉\\FE0E";font-family:system-ui,sans-serif}
+nav.site.row4 .fb-pill{order:4;flex:none;display:inline-flex;align-items:center;justify-content:center;gap:.35em;min-width:var(--tap,2.75rem);height:var(--tap,2.75rem);padding:0 .8rem;border-radius:999px;border:1px solid var(--line-2,#3a4068);background:transparent;color:var(--bronze,#c9984f);text-decoration:none;font-size:.85rem;box-sizing:border-box}
+nav.site.row4 .fb-pill:hover{border-color:var(--bronze,#c9984f);background:rgba(201,152,79,.12)}
+.hud.tl nav.site.row4 .fb-pill{background:var(--glass,rgba(10,12,24,.78))}
+@media (max-width:560px), (max-height:520px) and (orientation:landscape), (pointer:coarse) and (max-width:760px){nav.site.row4 .fb-pill .l{display:none}nav.site.row4 .fb-pill{padding:0;width:var(--tap,2.75rem)}}
+`;
+document.head.appendChild(css);
+function start(){wire();readVer();
+  // the shell rebuilds its menus as the layout changes: keep the entry in them
+  setTimeout(wire,150);setTimeout(wire,800);setTimeout(()=>{wire();readVer()},2500)}
+window.MOTS=window.MOTS||{};MOTS.feedback={href,body,to:TO,subject:SUBJ};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
+})();
 </script>
 <script>
 /* ---------- drawers: the pull-out drawers shared by every page (slim bronze tabs, swipe to tuck, Clear view and H) ----------
