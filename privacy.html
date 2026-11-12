@@ -270,6 +270,10 @@ function ok(c,max){var m=c.__mt;if(m.okSaid)return;m.okSaid=true;SSs('mots.afix.
 function pageCtxs(){return C.ctxs.filter(function(c){return c.state!=='closed'&&c!==toneCtx})}
 function repair(kind,why,c){var m=c&&c.__mt;if(m){if(m.repaired===kind)return;m.repaired=kind}
   flog(kind+': '+why+' (level '+FIX.level+(FIX.lite?', lite':'')+(c?', '+c.sampleRate+' Hz':'')+')');
+  // (LEAN-ENGINE) the dial's lean sound engine is on and its host failed to load or threw, or the sound came out silent or NaN:
+  // first of all, back to the old engine on this phone (mots.engine=old; ?engine=lean is taken out of the address so it is not set again)
+  if(kind==='lean'||((kind==='wlerr'||kind==='silent'||kind==='nan')&&leanOn())){LSs('mots.engine','old');flog('lean engine off');
+    try{history.replaceState(history.state,'',location.href.replace(/([?&])engine=lean(&|(?=#)|$)/,'$1').replace(/[?&](?=#|$)/,''))}catch(e){}reloadFix(why);return}
   if(kind==='stuck'){ // a context held back: one big button; a tap is what lets the phone start it
     showTap(function retry(){var cs=pageCtxs();cs.forEach(function(x){var mm=x.__mt;if(mm)mm.repaired=null;try{var p=res0.call(x);if(p&&p.then)p.then(null,function(){})}catch(e){}});
       setTimeout(function(){var good=cs.some(function(x){return x.state==='running'});
@@ -282,6 +286,8 @@ function repair(kind,why,c){var m=c&&c.__mt;if(m){if(m.repaired===kind)return;m.
   if(!FIX.lite){FIX.lite=true;LSs('mots.afix.lite','1');flog('output stage made lighter');reloadFix(why);return}
   if(kind==='nan'){escalate(why);return}
   flog('no repair left for this; tell Martin')}
+function leanOn(){try{if(W.MOTS&&MOTS.engine)return MOTS.engine()==='lean'}catch(e){}return false}
+C.leanOff=function(why,c){repair('lean',why,c||null)};
 function escalate(why){if(FIX.level>=2){flog('all repairs tried');fail(why);return}
   FIX.level++;LSs('mots.afix',String(FIX.level));flog('next time: sound settings '+FIX.level);reloadFix(why)}
 // reload with the new settings, at most three times a visit; the reloaded page shows the big button, whose tap starts the page's music
@@ -387,6 +393,8 @@ function report(){var L=[];
   {var pc=null;C.ctxs.forEach(function(c){if(c.state!=='closed'&&c!==toneCtx)pc=c});if(pc&&pc.__clk&&pc.__clk.length>2){var A=pc.__clk[0],B=pc.__clk[pc.__clk.length-1],dw=(B[0]-A[0])/1000;if(dw>1)L.push('sound clock: '+Math.round(100*(B[1]-A[1])/dw)+'% of real time over the last '+Math.round(dw)+' s'+(D.hidden?' (hidden)':''))}}
   {var rc=null;C.ctxs.forEach(function(c){if(c.state!=='closed'&&c.__rc&&c.__rc.avg!=null)rc=c.__rc});if(rc)L.push('audio thread: busy '+Math.round(100*rc.avg)+'% (peak '+Math.round(100*rc.peak)+'%) · deadlines missed '+Math.round(100*rc.under)+'%');}
   if(C.etest)L.push('engine test (sound clock): '+C.etest.join(' · '));
+  {var eng='old',why='';try{if(W.MOTS&&MOTS.engine){eng=MOTS.engine();if(eng!=='lean'&&MOTS.engineWhy)why=MOTS.engineWhy()}}catch(e){}
+   L.push('engine: '+eng+(eng==='lean'?(LSg('mots.engine')==='lean'?' (chosen)':' (default)'):(why?' ('+why+')':(W.MOTS&&MOTS.engine?' (lean stopped this visit)':''))))}
   L.push('self-repair: level '+FIX.level+(FIX.nowl?' · worklets off':'')+(LSg('mots.route')==='media'?' · through the media player':'')+(FIX.lite?' · lite output':'')+(FIX.bgbuf?' · screen-off buffer '+Math.round(FIX.bgbuf*1000)+' ms':'')+(LSg('mots.afix.sr')?' · own rate '+LSg('mots.afix.sr')+' Hz':'')+(FIX.log.length?'\n  '+FIX.log.slice(-10).join('\n  '):' · nothing needed so far'));
   {var bl=[];try{bl=JSON.parse(LSg('mots.bglog')||'[]')}catch(e){}L.push('screen off / other app ('+bl.length+'):'+(bl.length?'\n  '+bl.join('\n  '):' nothing recorded yet'))}
   try{var DL=W.MOTS&&MOTS.diagLines;if(DL&&DL.length){L.push('live:');DL.forEach(function(f){try{var x=f();if(x)L.push('  '+x)}catch(e){L.push('  ('+e.message+')')}})}}catch(e){}
