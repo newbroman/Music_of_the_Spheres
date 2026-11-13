@@ -673,6 +673,9 @@ body:not(.thinking) .thinker-only{display:none!important}
 .tl-sec{flex:0 0 auto;align-self:stretch;display:flex;align-items:center;max-width:7.5rem;padding:0 .2rem 0 .7rem;margin-left:.3rem;border-left:1px solid var(--bronze-dim);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;line-height:1.25;color:var(--bronze)}
 .tl-chip[data-t="today"]+.tl-sec{margin-left:.1rem}
 .tl-chip[data-t="today"]{order:-1;position:sticky;left:0;z-index:2;background:var(--sky-2);margin-right:.2rem}
+/* (UI-CLEAR) the pinned Today chip: a soft shadow on its right edge so the chips sliding under it read as passing behind, and the row scrolls a chosen heaven clear of it */
+html .tl-chip[data-t="today"],html .tl-wrap[data-l="1"] .tl-chip[data-t="today"]{box-shadow:6px 0 0 0 rgba(8,10,20,1),20px 0 14px 0 rgba(8,10,20,.95)}
+.tl-row{scroll-padding-left:6.5rem}
 .tl-wrap[data-l="1"] .tl-chip[data-t="today"]{box-shadow:8px 0 12px -2px rgba(0,0,0,.7)}
 .tl-chip[data-t="today"].on{background:linear-gradient(180deg,#2a2518,#1f1b13)}
 @media (min-width:1500px){.tl-row{flex-wrap:wrap;overflow:visible}.tl-chip[data-t="today"]{position:static;box-shadow:none}.tl-arr{display:none!important}}
@@ -14648,7 +14651,10 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
           g.fillText = f;
           txt(g, t2, x, y);
         };
-        g.fillText("mot Solen", sx, sy + 14);
+        const hw = g.measureText("toward the Sun").width / 2 + 2, th = 13 * K;
+        let ty = sy + 14;
+        if (uiClearDy(sx - hw, ty, sx + hw, ty + th)) ty = sy - 14 - th;
+        g.fillText("mot Solen", sx, ty);
       }
     }
     SYS.moons.filter((sm) => !sm.m.sm).map((sm) => ({ sm, s: sysProj(sm.pos.x, sm.pos.y, sm.pos.z) })).sort((p, q) => q.s.d - p.s.d).forEach(({ sm, s }) => {
@@ -14902,6 +14908,33 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
   function labClear() {
     LQ.length = 0;
     LOBS = [];
+  }
+  let UIR = [], UIRt = -1e9;
+  function uiRects() {
+    const n = performance.now();
+    if (n - UIRt < 400) return UIR;
+    UIRt = n;
+    UIR = [];
+    if (typeof cv === "undefined" || !cv) return UIR;
+    const cr = cv.getBoundingClientRect();
+    [document.getElementById("floorSw"), document.getElementById("lsChip"), cv.parentElement && cv.parentElement.querySelector(".fvBtn")].forEach((e) => {
+      if (!e || e.hidden) return;
+      const r = e.getBoundingClientRect();
+      if (r.width && r.height) UIR.push({ x0: r.left - cr.left - 4, y0: r.top - cr.top - 4, x1: r.right - cr.left + 4, y1: r.bottom - cr.top + 4 });
+    });
+    return UIR;
+  }
+  function uiClearDy(x0, y0, x1, y1) {
+    let dy = 0;
+    for (let k = 0; k < 3; k++) {
+      let moved2 = false;
+      for (const r of uiRects()) if (x1 > r.x0 && x0 < r.x1 && y1 + dy > r.y0 && y0 + dy < r.y1) {
+        dy = r.y0 - y1;
+        moved2 = true;
+      }
+      if (!moved2) break;
+    }
+    return dy;
   }
   function qLabel(o) {
     LQ.push(o);
@@ -20658,7 +20691,11 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
       THINK.plato.fates.forEach(([w], k) => {
         const a = -Math.PI / 2 + (k - 1) * 0.55;
         const p = { x: CX + RR * 1.17 * Math.cos(a), y: CY - RR * 1.17 * Math.sin(a) };
-        label(g, bodyName(w), p.x, p.y, "rgba(212,166,87,.95)", 12, "center", '"GFS Didot",Georgia,serif');
+        const nm = bodyName(w);
+        g.font = "".concat(12 * K, 'px "GFS Didot",Georgia,serif');
+        const hw = g.measureText(nm).width / 2 + 2, hh = 8 * K;
+        p.y += uiClearDy(p.x - hw, p.y - hh, p.x + hw, p.y + hh);
+        label(g, nm, p.x, p.y, "rgba(212,166,87,.95)", 12, "center", '"GFS Didot",Georgia,serif');
       });
     },
     aristotle(g, t) {
