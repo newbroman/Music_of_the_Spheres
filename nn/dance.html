@@ -6214,10 +6214,23 @@ html:not(.drw-m-land) .drw-has-tx .aud{top:calc(12px + 3.2rem + 48px)}
   // a section opened from the bar comes into view just under it (after the opening has begun), unless it is already in view
   const firstOf=k=>{const d={bot:()=>[tl],story:storyEls,voices:voicesEls,side:()=>[panel]}[k];const e=d&&d().find(x=>x&&x.offsetParent!==null);return e};
   if(W.MutationObserver){const t0=Date.now();new MutationObserver(ms=>{for(const m of ms){const t=m.target;if(Date.now()-t0<2500||api.gated())continue;
-      if(t.getAttribute('aria-expanded')!=='true'||!t.closest('.drw-secbar'))continue;
+      if(t.getAttribute('aria-expanded')!=='true'||m.oldValue==='true'||!t.closest('.drw-secbar')||t.dataset.k==='story')continue;
+      // (STORY) only the tab that has just opened (apply() writes every tab's aria-expanded again, which used to send the page to the last
+      // open section, the Controls, whenever any tab was tapped); Story scrolls itself, below
       setTimeout(()=>{const e=firstOf(t.dataset.k);if(!e)return;const r=e.getBoundingClientRect(),bar=rail.getBoundingClientRect();
         if(r.top<bar.bottom+4||r.top>innerHeight*.6)scrollTo({top:Math.max(0,r.top+scrollY-bar.bottom-8),behavior:MQR.matches?'auto':'smooth'})},90)}})
-    .observe(rail,{attributes:true,attributeFilter:['aria-expanded'],subtree:true})}
+    .observe(rail,{attributes:true,attributeFilter:['aria-expanded'],attributeOldValue:true,subtree:true})}
+  // (STORY, Martin 13 Nov) a tap on Story opens "How it sounds and why" (the heaven's fold, What you hear first) and brings the top of the
+  // story to just under the sticky section bar; on a wide screen, where Story starts open, the fold opens the first time it is shown
+  const storyFold=()=>info&&info.querySelector('details.tdesc');
+  const storyGo=()=>{if(!info||api.gated())return;const r=info.getBoundingClientRect(),cs=getComputedStyle(rail),top=parseFloat(cs.top)||0;
+    const y=Math.max(0,r.top+scrollY-top-rail.offsetHeight-8);if(Math.abs(y-scrollY)>4)scrollTo({top:y,behavior:MQR.matches?'auto':'smooth'})};
+  const storyTab=api.tabs&&api.tabs.story;
+  if(storyTab)storyTab.addEventListener('click',()=>{if(!api.st().story||api.clear()||api.gated())return;const d=storyFold();if(d&&!d.open)d.open=true;
+    requestAnimationFrame(()=>setTimeout(storyGo,60))});
+  MOTS.app.story={open:()=>{if(!api.st().story||api.clear())api.set('story',true);const d=storyFold();if(d&&!d.open)d.open=true;requestAnimationFrame(()=>setTimeout(storyGo,60))}};
+  {let first=true;const wideFirst=()=>{if(!first)return;const d=storyFold();if(!d)return;first=false;if(modeOf()==='wide'&&api.st().story&&!api.clear()&&!d.open)d.open=true};
+    if(info&&W.MutationObserver){new MutationObserver(wideFirst).observe(info,{childList:true});wideFirst()}}
   // the chosen heaven's chip in view in its row (the row scrolls sideways; the page is not moved)
   const showChip=()=>{const c=tl.querySelector('.tl-chip[aria-pressed="true"],.tl-chip.on');if(!c)return;let row=c.parentElement;
     while(row&&row!==tl&&!(row.scrollWidth>row.clientWidth+2&&/(auto|scroll)/.test(getComputedStyle(row).overflowX)))row=row.parentElement;if(!row||row===tl&&!(tl.scrollWidth>tl.clientWidth+2))return;
@@ -28974,6 +28987,147 @@ function rtShow(blob,secs,kind){
     b.onclick = () => setStyle("wagner");
     prev.insertAdjacentElement("afterend", b);
   })();
+  {
+    let stDesc = function(k) {
+      const m = typeof MUI !== "undefined" && MUI[k];
+      if (m && m[1]) return m[1];
+      if (STORY_HELP && STORY_HELP[k]) return STORY_HELP[k];
+      const le = document.querySelector("header .lede");
+      return le ? le.textContent.replace(/\s+/g, " ").trim() : "";
+    }, stRender = function(force) {
+      const hide = typeof gameHiding === "function" && gameHiding(), k = D.style, sig = k + "|" + hide;
+      if (force || sig !== stSig) {
+        stSig = sig;
+        Q(".ds-k").textContent = stLabel();
+        Q("#dsName").textContent = hide ? GAMET && GAMET.which || "?" : styleLabel(k);
+        Q(".ds-desc").textContent = hide ? ST.secret : stDesc(k);
+      }
+      const sky = stTxt("progNote");
+      if (Q(".ds-sky").textContent !== sky) Q(".ds-sky").textContent = sky;
+      Q(".ds-hh").hidden = Q(".ds-sky").hidden = !sky;
+      const rows = hide ? [] : [...document.querySelectorAll("#mix .mrow:not(.off) .nm")].map((n) => {
+        const i = n.querySelector("span");
+        return [n.firstChild ? n.firstChild.textContent.trim() : "", i ? i.textContent.trim() : ""];
+      });
+      const bh = rows.map((r) => "<li><b></b> <span></span></li>").join("");
+      const ul = Q(".ds-band");
+      const want = JSON.stringify(rows);
+      if (ul.dataset.v !== want) {
+        ul.dataset.v = want;
+        ul.innerHTML = bh;
+        [...ul.children].forEach((li, i) => {
+          li.firstChild.textContent = rows[i][0];
+          li.lastChild.textContent = rows[i][1];
+        });
+      }
+      Q(".ds-bh").hidden = ul.hidden = !rows.length;
+      const live = [hide ? "" : stTxt("keyTxt"), stTxt("bpmOut") || D.bpm + " BPM", stCap(stTxt("secTxt")) + (stTxt("barTxt") ? " · " + stTxt("barTxt") : "")].filter(Boolean).join(" · ");
+      if (Q(".ds-live").textContent !== live) Q(".ds-live").textContent = live;
+      const a = $("aspTxt"), asp = a ? (a.innerText || a.textContent).split("\n").map((x) => x.trim()).filter(Boolean).join(" · ") : "";
+      if (Q(".ds-asp").textContent !== asp) Q(".ds-asp").textContent = asp;
+    }, stOpen = function(v) {
+      box.hidden = !v;
+      if (tabB) {
+        tabB.setAttribute("aria-expanded", String(v));
+        tabB.dataset.go = v ? "down" : "up";
+      }
+      if (v) stRender(true);
+    }, stTab = function() {
+      const strip = document.querySelector(".drw-dstrip"), M = window.MOTS && MOTS.drw;
+      if (!strip || !M) {
+        if ((stTab.n = (stTab.n || 0) + 1) < 60) {
+          setTimeout(stTab, 150);
+          return;
+        }
+      }
+      const b = M ? M.tab("story", stLabel()) : document.createElement("button");
+      if (!M) {
+        b.type = "button";
+        b.className = "mixbtn";
+        b.textContent = stLabel();
+      }
+      b.id = "storyBtn";
+      b.setAttribute("aria-controls", "danceStory");
+      b.setAttribute("aria-expanded", "false");
+      b.dataset.go = "up";
+      b.setAttribute("aria-label", stLabel());
+      b.addEventListener("click", () => stOpen(box.hidden));
+      tabB = b;
+      if (strip) {
+        const eye = strip.querySelector(".drw-eye");
+        strip.insertBefore(b, eye || null);
+      } else {
+        const t = document.querySelector(".deck .tools") || $("play");
+        t.parentNode.insertBefore(b, t.nextSibling);
+      }
+    };
+    const STORY_HELP = (
+      /*STORY-HELP*/
+      { "waltz": "Eit wienarorkester. Oom-pa-pa: kontrabassane til Zevs på slag éin, så hornet til Kronos og pizzicato-strykarane til Gaia på to og tre, med strykarar som syng over og cellane til Poseidon under; slag to kjem litt tidleg, slik det gjer i Wien. Afrodite speler solofiolin, og fløyta kjem til ved dropet. Ares speler pauker, Hermes triangelet, og månane harpa. Lydisk, den moderne durskalaen.", "slowwaltz": "Det same orkesteret i det rolege tempoet til den engelske valsen, med lengre, meir legato frasar.", "tango": "Ein orquesta típica. Bandoneonane til Kronos speler marcato-akkordar og dreg inn i annankvar takt. Kontrabassen til Zevs speler marcato i fire, dreg opp mot slag éin (arrastre), og går over til 3-3-2-síncopa i klimaks; cellane til Poseidon syng under pausen. Gaia og Ares er pianoet, Afrodite er solofiolinen, og Hermes skrapar chicharraen til fiolinen. Moll.", "samba": "Ein roda de samba. Surdoen til Apollon svarar på to og fire, under ganzáen til Hermes, tamborimen til Gaia og agogô-bjøllene til Ares. Zevs speler sjustrengs gitar, Kronos cavaquinho og Afrodite fløyte.", "chacha": "Ein kubansk charanga. Afrodite speler fløyte over pianomontunoen og fiolinane til Kronos. Zevs speler ein tumbao-bass. Gaia speler son-clave, Ares conga, og bjølla og timbalesen til Apollon markerer «cha-cha-chá» på fire-og-ein medan güiroen til Hermes skrapar lang-kort-kort.", "swing": "Eit storband med åttedelar i triolswing. Saksofongruppa til Kronos speler ein charleston-rytme, og Afrodite tek soloen på dempa trompet. Zevs går bassen, og Hermes, Gaia og Apollon er ride, visper og stortromme. Uranos leier trombonane, og messinga ropar ved dropet.", "jive": "Eit jump blues-band. Det speler raskare swing med eit hardt skarptromme-backbeat, piano på off-beats, tutande saksofonar og boogie-bassen til Zevs under klimaks. Afrodite speler tenorsaksofon, og månane er ein elgitar.", "fandango": "Ei flamencogruppe: cajón, kastanjettar, palmas og ein gitar som slår rasgueado og plukkar picado, med canten til Afrodite. Den andalusiske kadensen: Zevs og Kronos vel to akkordar, så fører den frygiske sekunden heim til ein durakkord.", "baroque": "Stilen Bach skriv kontrapunkt i manér av ein bachsk invensjon eller fuge. Teiknet til Afrodite komponerer eit tema på to taktar: akkordtonar på slaga og trinnvise løp imellom, i åttedelar og sekstendelar, som kjem heim på ein lang tone. Ho framfører det åleine på fiolin. Ares svarar med den same linja på obo ein takt seinare, og Hermes legg til temaet opp ned på cembalo som eit kontrasubjekt. Kvar stemme følgjer akkordane, så linjene rører seg saman som ein sekvens gjennom akkordrekkja. Zevs går ein continuo-bass på cello under cembaloakkordane til Kronos.", "mozart": "Ein klassisk periode på åtte taktar, eit spørsmål som endar på dominanten og eit svar som kjem heim. Zevs speler ein Alberti-bass på pianoet og Afrodite fiolinmelodien, komponert ut frå teiknet hennar. Oboen til Gaia følgjer i tersar, og fløyta til Hermes trillar ved kvar kadens. Horn og pauker kjem inn ved klimaks.", "satie": "Ein langsam tretakt i manér av Gymnopédies. Ein basstone fell på slag éin, så ein svevande septimakkord som vekslar mellom to harmoniar, under ein sparsam, fallande melodi.", "debussy": "Nonakkordar som glir parallelt i heiltonesteg, harpestrøk frå månane til Jupiter og ein fløytearabesk. Månen vel skalaen: heiltoneskalaen medan ho veks, pentatonikken medan ho minkar.", "part": "Tintinnabuli. Fiolinmelodien rører seg steg for steg mot ein sentral tone, i frasar som veks med éin tone kvar gong, og nærmar seg vekselvis ovanfrå og nedanfrå. Pianoet svarar på kvar tone med den næraste tonen i heimetriaden, ein cello speglar linja nedanfor, og ei bjølle markerer tida.", "reich": "Faseforskyving. Tre marimbaer speler det same mønsteret på tolv tonar. Den andre blir forskoven med vinkelen mellom Venus og Jorda, den tredje med Mars, så mønstera glir mot kvarandre når planetane rører seg. Klappinga blir faseforskoven av Månen.", "glass": "Additive orgelarpeggioar som veks med ein tone for kvar takt, i triolar mot ei venstrehand i toarar, over ein orgelpedal, med kor." }
+    );
+    const STORY_T = {
+      en: { how: "How the sky plays it", band: "The band", now: "In the sky now", close: "Close", secret: "Guess the style first: its story comes with the answer" },
+      pl: { how: "Jak gra go niebo", band: "Zespół", now: "Teraz na niebie", close: "Zamknij", secret: "Najpierw zgadnij styl: jego opowieść pojawi się z odpowiedzią" },
+      cy: { how: "Sut mae’r awyr yn ei chwarae", band: "Y band", now: "Yn yr awyr nawr", close: "Cau", secret: "Dyfalwch yr arddull yn gyntaf: daw ei stori gyda’r ateb" },
+      de: { how: "Wie der Himmel ihn spielt", band: "Die Band", now: "Jetzt am Himmel", close: "Schließen", secret: "Erst den Stil raten: seine Geschichte kommt mit der Auflösung" },
+      es: { how: "Cómo lo toca el cielo", band: "La banda", now: "Ahora en el cielo", close: "Cerrar", secret: "Adivina primero el estilo: su historia aparece con la respuesta" },
+      fr: { how: "Comment le ciel le joue", band: "Le groupe", now: "Dans le ciel en ce moment", close: "Fermer", secret: "Devinez d’abord le style : son récit s’affiche avec la réponse" },
+      it: { how: "Come lo suona il cielo", band: "La band", now: "Ora nel cielo", close: "Chiudi", secret: "Prima indovina lo stile: la sua storia arriva con la risposta" },
+      zh: { how: "天空如何演奏它", band: "乐队", now: "此刻的天空", close: "关闭", secret: "先猜曲风：揭晓答案时再显示它的故事" },
+      ja: { how: "空がどう奏でるか", band: "バンド", now: "いまの空", close: "閉じる", secret: "まずスタイルを当てましょう。物語は正解とともに表示されます" },
+      vi: { how: "Bầu trời chơi nó thế nào", band: "Ban nhạc", now: "Trên bầu trời lúc này", close: "Đóng", secret: "Hãy đoán phong cách trước: câu chuyện sẽ hiện cùng lời giải" },
+      bg: { how: "Как го свири небето", band: "Групата", now: "Сега на небето", close: "Затвори", secret: "Първо познай стила: историята му се показва с отговора" },
+      pt: { how: "Como o céu o toca", band: "A banda", now: "Agora no céu", close: "Fechar", secret: "Adivinhe o estilo primeiro: a história aparece com a resposta" },
+      nn: { how: "Korleis himmelen spelar han", band: "Bandet", now: "På himmelen no", close: "Lukk", secret: "Gjett stilen først: forteljinga kjem med svaret" },
+      nb: { how: "Hvordan himmelen spiller den", band: "Bandet", now: "På himmelen nå", close: "Lukk", secret: "Gjett stilen først: fortellingen kommer med svaret" }
+    };
+    const STL = (document.documentElement.lang || "en").slice(0, 2), ST = Object.assign({}, STORY_T.en, STORY_T[STL] || {});
+    const stTxt = (id) => {
+      const e = $(id);
+      return e ? e.textContent.replace(/\s+/g, " ").trim() : "";
+    };
+    const stCap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+    const STORY_CSS = "\n.dstory{position:fixed;z-index:44;right:16px;bottom:16px;width:min(27rem,calc(100vw - 32px));max-height:min(72vh,40rem);overflow:auto;overscroll-behavior:contain;box-sizing:border-box;\n  padding:.85rem 1rem 1rem;border:1px solid var(--bronze,#c9984f);border-radius:14px;background:rgba(12,14,26,.96);color:var(--vellum,#e9e1cc);box-shadow:0 12px 40px rgba(0,0,0,.6);\n  font:400 .95rem/1.5 var(--f-body,system-ui,sans-serif);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}\n.dstory[hidden]{display:none}\n.dstory .ds-top{display:flex;align-items:flex-start;gap:.6rem}\n.dstory .ds-k{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze,#c9984f)}\n.dstory h2{margin:.1rem 0 0;font:500 1.35rem/1.2 var(--f-display,serif);color:var(--vellum,#e9e1cc)}\n.dstory .ds-x{margin-left:auto;flex:none;appearance:none;-webkit-appearance:none;width:44px;height:44px;border-radius:22px;border:1px solid rgba(201,152,79,.5);background:transparent;color:var(--vellum,#e9e1cc);font-size:1.1rem;cursor:pointer}\n.dstory .ds-x:hover,.dstory .ds-x:focus-visible{border-color:var(--bronze,#c9984f);color:#f3d9a4}\n.dstory h3{margin:.8rem 0 .2rem;font:500 .74rem/1.3 var(--f-body,system-ui,sans-serif);letter-spacing:.14em;text-transform:uppercase;color:var(--vellum-dim,#aea791)}\n.dstory p{margin:.35rem 0}\n.dstory .ds-desc{font-size:1rem}\n.dstory ul{list-style:none;margin:.2rem 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:2px .9rem;font-size:.88rem}\n.dstory li b{font-weight:500;color:var(--vellum,#e9e1cc)}.dstory li span{color:var(--vellum-dim,#aea791)}\n.dstory .ds-live{font-size:.9rem;color:var(--vellum,#e9e1cc)}.dstory .ds-asp{font-size:.85rem;color:var(--vellum-dim,#aea791)}\n:lang(zh) .dstory h3,:lang(ja) .dstory h3,:lang(zh) .dstory .ds-k,:lang(ja) .dstory .ds-k{letter-spacing:.04em}\n@media (max-width:760px),(max-height:520px) and (orientation:landscape){\n  .dstory{left:8px;right:8px;width:auto;bottom:calc(var(--dtb-h,0px) + 8px + env(safe-area-inset-bottom,0px));max-height:min(64vh,calc(100vh - var(--dtb-h,0px) - 80px));border-radius:16px 16px 12px 12px}}\nhtml.mots-proj .dstory,html.mots-show .dstory{display:none!important}\n";
+    const box = document.createElement("section");
+    box.className = "dstory";
+    box.id = "danceStory";
+    box.hidden = true;
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-labelledby", "dsName");
+    box.innerHTML = '<div class="ds-top"><div><div class="ds-k"></div><h2 id="dsName"></h2></div><button type="button" class="ds-x" aria-label="">✕</button></div><p class="ds-desc"></p><h3 class="ds-hh"></h3><p class="ds-sky"></p><h3 class="ds-bh"></h3><ul class="ds-band"></ul><h3 class="ds-nh"></h3><p class="ds-live"></p><p class="ds-asp"></p>';
+    const css = document.createElement("style");
+    css.textContent = STORY_CSS;
+    document.head.appendChild(css);
+    document.body.appendChild(box);
+    const Q = (s) => box.querySelector(s);
+    const stLabel = () => {
+      const L = window.MOTS && MOTS.drw && MOTS.drw.L;
+      return L && L.story || "Story";
+    };
+    Q(".ds-x").setAttribute("aria-label", ST.close);
+    Q(".ds-x").title = ST.close;
+    Q(".ds-hh").textContent = ST.how;
+    Q(".ds-bh").textContent = ST.band;
+    Q(".ds-nh").textContent = ST.now;
+    let tabB = null;
+    let stSig = "";
+    Q(".ds-x").onclick = () => {
+      stOpen(false);
+      if (tabB) tabB.focus();
+    };
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !box.hidden) {
+        stOpen(false);
+        if (tabB) tabB.focus();
+      }
+    });
+    setInterval(() => {
+      if (!box.hidden) stRender(false);
+    }, 400);
+    stTab();
+    window.MOTS = window.MOTS || {};
+    MOTS.danceStory = { open: () => stOpen(true), close: () => stOpen(false), isOpen: () => !box.hidden, text: () => box.innerText };
+  }
 })();
 </script>
 

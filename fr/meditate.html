@@ -6094,10 +6094,23 @@ html:not(.drw-m-land) .drw-has-tx .aud{top:calc(12px + 3.2rem + 48px)}
   // a section opened from the bar comes into view just under it (after the opening has begun), unless it is already in view
   const firstOf=k=>{const d={bot:()=>[tl],story:storyEls,voices:voicesEls,side:()=>[panel]}[k];const e=d&&d().find(x=>x&&x.offsetParent!==null);return e};
   if(W.MutationObserver){const t0=Date.now();new MutationObserver(ms=>{for(const m of ms){const t=m.target;if(Date.now()-t0<2500||api.gated())continue;
-      if(t.getAttribute('aria-expanded')!=='true'||!t.closest('.drw-secbar'))continue;
+      if(t.getAttribute('aria-expanded')!=='true'||m.oldValue==='true'||!t.closest('.drw-secbar')||t.dataset.k==='story')continue;
+      // (STORY) only the tab that has just opened (apply() writes every tab's aria-expanded again, which used to send the page to the last
+      // open section, the Controls, whenever any tab was tapped); Story scrolls itself, below
       setTimeout(()=>{const e=firstOf(t.dataset.k);if(!e)return;const r=e.getBoundingClientRect(),bar=rail.getBoundingClientRect();
         if(r.top<bar.bottom+4||r.top>innerHeight*.6)scrollTo({top:Math.max(0,r.top+scrollY-bar.bottom-8),behavior:MQR.matches?'auto':'smooth'})},90)}})
-    .observe(rail,{attributes:true,attributeFilter:['aria-expanded'],subtree:true})}
+    .observe(rail,{attributes:true,attributeFilter:['aria-expanded'],attributeOldValue:true,subtree:true})}
+  // (STORY, Martin 13 Nov) a tap on Story opens "How it sounds and why" (the heaven's fold, What you hear first) and brings the top of the
+  // story to just under the sticky section bar; on a wide screen, where Story starts open, the fold opens the first time it is shown
+  const storyFold=()=>info&&info.querySelector('details.tdesc');
+  const storyGo=()=>{if(!info||api.gated())return;const r=info.getBoundingClientRect(),cs=getComputedStyle(rail),top=parseFloat(cs.top)||0;
+    const y=Math.max(0,r.top+scrollY-top-rail.offsetHeight-8);if(Math.abs(y-scrollY)>4)scrollTo({top:y,behavior:MQR.matches?'auto':'smooth'})};
+  const storyTab=api.tabs&&api.tabs.story;
+  if(storyTab)storyTab.addEventListener('click',()=>{if(!api.st().story||api.clear()||api.gated())return;const d=storyFold();if(d&&!d.open)d.open=true;
+    requestAnimationFrame(()=>setTimeout(storyGo,60))});
+  MOTS.app.story={open:()=>{if(!api.st().story||api.clear())api.set('story',true);const d=storyFold();if(d&&!d.open)d.open=true;requestAnimationFrame(()=>setTimeout(storyGo,60))}};
+  {let first=true;const wideFirst=()=>{if(!first)return;const d=storyFold();if(!d)return;first=false;if(modeOf()==='wide'&&api.st().story&&!api.clear()&&!d.open)d.open=true};
+    if(info&&W.MutationObserver){new MutationObserver(wideFirst).observe(info,{childList:true});wideFirst()}}
   // the chosen heaven's chip in view in its row (the row scrolls sideways; the page is not moved)
   const showChip=()=>{const c=tl.querySelector('.tl-chip[aria-pressed="true"],.tl-chip.on');if(!c)return;let row=c.parentElement;
     while(row&&row!==tl&&!(row.scrollWidth>row.clientWidth+2&&/(auto|scroll)/.test(getComputedStyle(row).overflowX)))row=row.parentElement;if(!row||row===tl&&!(tl.scrollWidth>tl.clientWidth+2))return;
