@@ -8467,7 +8467,7 @@ function rtShow(blob,secs,kind){
   const KS = { jd: null, lon: 0 };
   function sunLon() {
     if (KS.jd !== S.jd) {
-      const e = posAt(byId.earth.el, S.jd);
+      const e = ltBody(byId.earth, S.jd);
       KS.lon = (Math.atan2(-e.y, -e.x) / DEG % 360 + 360) % 360;
       KS.jd = S.jd;
     }
@@ -8508,9 +8508,72 @@ function rtShow(blob,secs,kind){
     return NOTE[(r % 12 + 12) % 12] + (Math.floor(r / 12) - 1) + (c === 0 ? "" : (c > 0 ? " +" : " −") + Math.abs(c) + "¢");
   }
   const P = {};
+  const LT_EL = {
+    mercury: [0.38709843, 0.20563661, 7.00559432, 252.25166724, 77.45771895, 48.33961819, 0, 2123e-8, -590158e-8, 149472.67486623, 0.15940013, -0.12214182],
+    venus: [0.72332102, 676399e-8, 3.39777545, 181.9797085, 131.76755713, 76.67261496, -26e-8, -5107e-8, 43494e-8, 58517.8156026, 0.05679648, -0.27274174],
+    earth: [1.00000018, 0.01673163, -54346e-8, 100.46691572, 102.93005885, -5.11260389, -3e-8, -3661e-8, -0.01337178, 35999.37306329, 0.3179526, -0.24123856],
+    mars: [1.52371243, 0.09336511, 1.85181869, -4.56813164, -23.91744784, 49.71320984, 97e-8, 9149e-8, -724757e-8, 19140.29934243, 0.45223625, -0.26852431],
+    jupiter: [5.20248019, 0.0485359, 1.29861416, 34.33479152, 14.27495244, 100.29282654, -2864e-8, 18026e-8, -322699e-8, 3034.90371757, 0.18199196, 0.13024619, -12452e-8, 0.0606406, -0.35635438, 38.35125],
+    saturn: [9.54149883, 0.05550825, 2.49424102, 50.07571329, 92.86136063, 113.63998702, -3065e-8, -32044e-8, 451969e-8, 1222.11494724, 0.54179478, -0.25015002, 25899e-8, -0.13434469, 0.87320147, 38.35125],
+    uranus: [19.18797948, 0.0468574, 0.77298127, 314.20276625, 172.43404441, 73.96250215, -20455e-8, -155e-7, -180155e-8, 428.49512595, 0.09266985, 0.05739699, 58331e-8, -0.97731848, 0.17689245, 7.67025],
+    neptune: [30.06952752, 895439e-8, 1.7700552, 304.22289287, 46.68158724, 131.78635853, 6447e-8, 818e-8, 224e-6, 218.46515314, 0.01009938, -606302e-8, -41348e-8, 0.68346318, -0.10162547, 7.67025]
+  };
+  function ltPos(id, jd) {
+    const q = LT_EL[id], T = (jd - J2000) / 36525, f = q.length > 12 ? q[15] * T * DEG : 0, x = q.length > 12 ? q[12] * T * T + q[13] * Math.cos(f) + q[14] * Math.sin(f) : 0, vp = q[4] + q[10] * T, Om = q[5] + q[11] * T, L = q[3] + q[9] * T;
+    return posAt({ a: q[0] + q[6] * T, e: q[1] + q[7] * T, i: q[2] + q[8] * T, Om, w: vp - Om, M0: L - vp + x, epoch: jd, n: q[9] / 36525 }, jd);
+  }
+  function ltDT(jd) {
+    const y = (jd - J2000) / 365.25 + 2e3;
+    let u, t;
+    if (y < -500) {
+      u = (y - 1820) / 100;
+      return -20 + 32 * u * u;
+    }
+    if (y < 500) {
+      u = y / 100;
+      return 10583.6 - 1014.41 * u + 33.78311 * u * u - 5.952053 * u ** 3 - 0.1798452 * u ** 4 + 0.022174192 * u ** 5 + 0.0090316521 * u ** 6;
+    }
+    if (y < 1600) {
+      u = (y - 1e3) / 100;
+      return 1574.2 - 556.01 * u + 71.23472 * u * u + 0.319781 * u ** 3 - 0.8503463 * u ** 4 - 5050998e-9 * u ** 5 + 0.0083572073 * u ** 6;
+    }
+    if (y < 1700) {
+      t = y - 1600;
+      return 120 - 0.9808 * t - 0.01532 * t * t + t ** 3 / 7129;
+    }
+    if (y < 1800) {
+      t = y - 1700;
+      return 8.83 + 0.1603 * t - 59285e-7 * t * t + 13336e-8 * t ** 3 - t ** 4 / 1174e3;
+    }
+    t = Math.min(60, y - 1800);
+    return 13.72 - 0.332447 * t + 68612e-7 * t * t + 41116e-7 * t ** 3 - 37436e-8 * t ** 4 + 121272e-10 * t ** 5 - 1699e-10 * t ** 6 + 875e-12 * t ** 7;
+  }
+  const ltPA = (jd) => {
+    const T = (jd - J2000) / 36525;
+    return (5028.796195 * T + 1.1054348 * T * T) / 3600 * DEG;
+  };
+  const ltEps = (jd) => (23.439279 - 0.0130102 * (jd - J2000) / 36525) * DEG;
+  const LT_1800 = jdOf(1800, 1, 1);
+  const ltOn = () => {
+    try {
+      const th = THINK[S.thinker];
+      return !!th && th.era != null && th.era < LT_1800;
+    } catch (e) {
+      return false;
+    }
+  };
+  const ltBody = (b, jd) => ltOn() && LT_EL[b.id] ? ltPos(b.id, jd) : posAt(b.el, jd);
+  MOTS.ephem = () => {
+    const g2 = {};
+    ["sun", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune"].forEach((w) => {
+      const v = geo(w);
+      if (v) g2[w] = +((Math.atan2(v.y, v.x) / DEG % 360 + 360) % 360).toFixed(4);
+    });
+    return { lt: ltOn(), thinker: S.thinker, jd: S.jd, era: (THINK[S.thinker] || {}).era || null, dT: ltDT(S.jd), lon: g2 };
+  };
   function computePositions() {
     BODIES.forEach((b) => {
-      const p = S.thinker === "bethlehem" && XM_LT[b.id] ? xmPos(b.id, S.jd) : posAt(b.el, S.jd);
+      const p = ltBody(b, S.jd);
       p.f = (S.thinker === "kepler" || S.thinker === "sonic") && KEP6.has(b.id) ? kepF(b, p.om) : S.thinker === "copernicus" && KEP6.has(b.id) ? copF(b) : quantize(rawPitch(p.om), b.id);
       if (b.kind === "comet") p.act = Math.min(1, Math.pow(1.6 / p.r, 2));
       P[b.id] = p;

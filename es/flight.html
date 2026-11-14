@@ -12383,7 +12383,7 @@ function quantize(f,id){
 const SIGNS=[['Κριός','Aries','♈'],['Ταῦρος','Tauro','♉'],['Δίδυμοι','Géminis','♊'],['Καρκίνος','Cáncer','♋'],['Λέων','Leo','♌'],['Παρθένος','Virgo','♍'],['Ζυγός','Libra','♎'],['Σκορπίος','Escorpio','♏'],['Τοξότης','Sagitario','♐'],['Αἰγόκερως','Capricornio','♑'],['Ὑδροχόος','Acuario','♒'],['Ἰχθύες','Piscis','♓']];
 // the Sun's longitude as seen from Earth, which is Earth's own heliocentric longitude turned round by 180 degrees
 const KS={jd:null,lon:0};
-function sunLon(){if(KS.jd!==S.jd){const e=posAt(byId.earth.el,S.jd);KS.lon=((Math.atan2(-e.y,-e.x)/DEG)%360+360)%360;KS.jd=S.jd}return KS.lon}
+function sunLon(){if(KS.jd!==S.jd){const e=ltBody(byId.earth,S.jd);   /* (LONG-TERM) */KS.lon=((Math.atan2(-e.y,-e.x)/DEG)%360+360)%360;KS.jd=S.jd}return KS.lon}
 function sunSign(){return Math.floor(sunLon()/30)%12}
 // the Sun's sign sets the key: each sign a Pythagorean fifth above the last, so the year turns once round the circle of fifths.
 // Aries is home; Libra, at the autumn equinox, is the furthest key away. Kept within half an octave either way.
@@ -12405,7 +12405,47 @@ function noteName(f){
 
 /* ---------- frame state ---------- */
 const P={}; // positions this frame
-function computePositions(){BODIES.forEach(b=>{const p=S.thinker==='bethlehem'&&XM_LT[b.id]?xmPos(b.id,S.jd):posAt(b.el,S.jd);   /* (XMAS) */p.f=(S.thinker==='kepler'||S.thinker==='sonic')&&KEP6.has(b.id)?kepF(b,p.om):S.thinker==='copernicus'&&KEP6.has(b.id)?copF(b):quantize(rawPitch(p.om),b.id);if(b.kind==='comet')p.act=Math.min(1,Math.pow(1.6/p.r,2));P[b.id]=p});if(window.MOTS_CRAFT)MOTS_CRAFT.pos(S.jd,P);}   // craft.js: the spacecraft, after the bodies (an orbiter sits at its planet)
+/* ---- (LONG-TERM) the planets for the heavens dated before 1800 (Martin, 14 Nov 2026) ----
+   The app's usual elements (JPL's 1800–2050 fit, without their rates) drift by degrees centuries back, so every heaven of the dial whose
+   sky date (its era) is before 1800 reckons the planets from JPL's long-term elements (Standish, valid 3000 BC – AD 3000: Table 2a with
+   the rates, Table 2b's extra terms for Jupiter to Neptune), turns the sky with the precession of the equinoxes and the obliquity of the
+   date, and keeps the Earth's turning on Universal Time (ΔT, Espenak & Meeus). First written for the Star of Bethlehem (XMAS); shared
+   since v6, for every such heaven whatever the season. Heavens from 1800 on, and Today, keep the usual elements. Pluto, the minor bodies
+   and the comets keep theirs (JPL gives no long-term row for them), and so does the Moon. Source: ephem/longterm.js (ephemtest.mjs checks
+   the master carries it word for word). */
+// [a, e, I, L, long. peri., long. node, and their rates per century, then b, c, s, f]
+const LT_EL={mercury:[0.38709843,0.20563661,7.00559432,252.25166724,77.45771895,48.33961819,0,0.00002123,-0.00590158,149472.67486623,0.15940013,-0.12214182],
+  venus:[0.72332102,0.00676399,3.39777545,181.97970850,131.76755713,76.67261496,-0.00000026,-0.00005107,0.00043494,58517.81560260,0.05679648,-0.27274174],
+  earth:[1.00000018,0.01673163,-0.00054346,100.46691572,102.93005885,-5.11260389,-0.00000003,-0.00003661,-0.01337178,35999.37306329,0.31795260,-0.24123856],
+  mars:[1.52371243,0.09336511,1.85181869,-4.56813164,-23.91744784,49.71320984,0.00000097,0.00009149,-0.00724757,19140.29934243,0.45223625,-0.26852431],
+  jupiter:[5.20248019,0.04853590,1.29861416,34.33479152,14.27495244,100.29282654,-0.00002864,0.00018026,-0.00322699,3034.90371757,0.18199196,0.13024619,-0.00012452,0.06064060,-0.35635438,38.35125000],
+  saturn:[9.54149883,0.05550825,2.49424102,50.07571329,92.86136063,113.63998702,-0.00003065,-0.00032044,0.00451969,1222.11494724,0.54179478,-0.25015002,0.00025899,-0.13434469,0.87320147,38.35125000],
+  uranus:[19.18797948,0.04685740,0.77298127,314.20276625,172.43404441,73.96250215,-0.00020455,-0.00001550,-0.00180155,428.49512595,0.09266985,0.05739699,0.00058331,-0.97731848,0.17689245,7.67025000],
+  neptune:[30.06952752,0.00895439,1.77005520,304.22289287,46.68158724,131.78635853,0.00006447,0.00000818,0.00022400,218.46515314,0.01009938,-0.00606302,-0.00041348,0.68346318,-0.10162547,7.67025000]};
+function ltPos(id,jd){const q=LT_EL[id],T=(jd-J2000)/36525,f=q.length>12?q[15]*T*DEG:0,x=q.length>12?q[12]*T*T+q[13]*Math.cos(f)+q[14]*Math.sin(f):0,
+  vp=q[4]+q[10]*T,Om=q[5]+q[11]*T,L=q[3]+q[9]*T;
+  return posAt({a:q[0]+q[6]*T,e:q[1]+q[7]*T,i:q[2]+q[8]*T,Om,w:vp-Om,M0:L-vp+x,epoch:jd,n:q[9]/36525},jd)}
+// ΔT in seconds (Espenak & Meeus' polynomials, by the year: before −500, −500 … +500, 500 … 1600, 1600 … 1700, 1700 … 1800, then 1800 … 1860)
+function ltDT(jd){const y=(jd-J2000)/365.25+2000;let u,t;
+  if(y<-500){u=(y-1820)/100;return -20+32*u*u}
+  if(y<500){u=y/100;return 10583.6-1014.41*u+33.78311*u*u-5.952053*u**3-0.1798452*u**4+0.022174192*u**5+0.0090316521*u**6}
+  if(y<1600){u=(y-1000)/100;return 1574.2-556.01*u+71.23472*u*u+0.319781*u**3-0.8503463*u**4-0.005050998*u**5+0.0083572073*u**6}
+  if(y<1700){t=y-1600;return 120-0.9808*t-0.01532*t*t+t**3/7129}
+  if(y<1800){t=y-1700;return 8.83+0.1603*t-0.0059285*t*t+0.00013336*t**3-t**4/1174000}
+  t=Math.min(60,y-1800);return 13.72-0.332447*t+0.0068612*t*t+0.0041116*t**3-0.00037436*t**4+0.0000121272*t**5-0.0000001699*t**6+0.000000000875*t**7}
+// the general precession in longitude since J2000 and the obliquity of the date
+const ltPA=jd=>{const T=(jd-J2000)/36525;return (5028.796195*T+1.1054348*T*T)/3600*DEG};
+const ltEps=jd=>(23.439279-0.0130102*(jd-J2000)/36525)*DEG;
+// on for a heaven whose era is before 1 January 1800 (the Star of Bethlehem, Nguyễn Trãi's Thăng Long), whatever the season; always off on
+// the pages that share this engine without the heavens (dance, flight, synth: no THINK there)
+const LT_1800=jdOf(1800,1,1);
+const ltOn=()=>{try{const th=THINK[S.thinker];return !!th&&th.era!=null&&th.era<LT_1800}catch(e){return false}};
+// a body's place: from the long-term elements in such a heaven when JPL gives them, otherwise from its own elements
+const ltBody=(b,jd)=>ltOn()&&LT_EL[b.id]?ltPos(b.id,jd):posAt(b.el,jd);
+// for the tests and the curious: whether the long-term elements are in use, and each planet's geocentric ecliptic longitude (J2000) in degrees
+MOTS.ephem=()=>{const g={};['sun','mercury','venus','mars','jupiter','saturn','uranus','neptune'].forEach(w=>{const v=geo(w);if(v)g[w]=+(((Math.atan2(v.y,v.x)/DEG)%360+360)%360).toFixed(4)});
+  return {lt:ltOn(),thinker:S.thinker,jd:S.jd,era:(THINK[S.thinker]||{}).era||null,dT:ltDT(S.jd),lon:g}};
+function computePositions(){BODIES.forEach(b=>{const p=ltBody(b,S.jd);   /* (LONG-TERM; first for XMAS's Bethlehem) */p.f=(S.thinker==='kepler'||S.thinker==='sonic')&&KEP6.has(b.id)?kepF(b,p.om):S.thinker==='copernicus'&&KEP6.has(b.id)?copF(b):quantize(rawPitch(p.om),b.id);if(b.kind==='comet')p.act=Math.min(1,Math.pow(1.6/p.r,2));P[b.id]=p});if(window.MOTS_CRAFT)MOTS_CRAFT.pos(S.jd,P);}   // craft.js: the spacecraft, after the bodies (an orbiter sits at its planet)
 function listenerPos(){return toE(ship.pos)}
 function facingAngle(){
   const L=listenerPos();let ang=0;
