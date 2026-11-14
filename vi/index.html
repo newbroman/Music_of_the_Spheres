@@ -16794,21 +16794,77 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
     const m = s.match(/^([A-G]#?)(-?\d)$/);
     return 12 * (+m[2] + 1) + XC_PC[m[1]];
   };
-  function xcPrep(T) {
-    if (T.v) return T.v;
+  const XC_SING = { tune: "jupiter", up: "venus", bass: "saturn" }, XC_DOWN = Math.pow(10, -4 / 20), XC_AT_DAWN = false;
+  const XC_PYR = [1, 256 / 243, 9 / 8, 32 / 27, 81 / 64, 4 / 3, 729 / 512, 3 / 2, 128 / 81, 27 / 16, 16 / 9, 243 / 128];
+  const XC_MAG = { mercury: [-0.6, 0.038], venus: [-4.4, 0.013], mars: [-1.52, 0.016], jupiter: [-9.4, 5e-3], saturn: [-8.9, 0.044] };
+  function xcMag(w) {
+    const g = geo(w), h = P[w], E = P.earth;
+    if (!g || !h) return 99;
+    const d = Math.hypot(g.x, g.y, g.z), r = Math.hypot(h.x, h.y, h.z), R = Math.hypot(E.x, E.y, E.z);
+    const a = Math.acos(Math.max(-1, Math.min(1, (r * r + d * d - R * R) / (2 * r * d)))) / DEG;
+    return XC_MAG[w][0] + 5 * Math.log10(r * d) + XC_MAG[w][1] * a;
+  }
+  function xcDir(w) {
+    const v = geo(w);
+    if (!v) return null;
+    const { alt, az } = horiz(v), south = -Math.cos(alt) * Math.cos(az), west = -Math.cos(alt) * Math.sin(az);
+    return { x: west, y: Math.sin(alt), z: -south, alt, az };
+  }
+  function xcSky(jd) {
+    const jd0 = jd != null ? jd : XC_AT_DAWN ? THINK.carols.era : S.jd;
+    if (XC.sky && XC.sky.jd === jd0) return XC.sky;
+    const keep = S.jd, swap = jd0 !== S.jd;
+    if (swap) {
+      S.jd = jd0;
+      computePositions();
+    }
+    const sk = { jd: jd0, dir: {}, mag: {} };
+    ["venus", "jupiter", "saturn", "mars", "mercury"].forEach((w) => {
+      sk.dir[w] = xcDir(w);
+      sk.mag[w] = xcMag(w);
+    });
+    sk.sign = sunSign();
+    const zs = zodShift(sk.sign), st = Math.round(zs * 12);
+    sk.kpc = (st % 12 + 12) % 12;
+    sk.rhz = C_BASE * Math.pow(2, zs);
+    sk.ref = 12 + st;
+    const su = geo("sun"), mo = geo("moon");
+    sk.elong = Math.abs(((lonOf(mo) - lonOf(su)) / DEG + 540) % 360 - 180);
+    sk.lit = (1 - Math.cos(sk.elong * DEG)) / 2;
+    sk.tf = 1 + 0.08 * Math.cos(sk.elong * DEG);
+    sk.low = 38 + ((sk.kpc - 38) % 12 + 12) % 12;
+    const up = ["mercury", "mars", "jupiter", "saturn"].filter((w) => sk.dir[w] && sk.dir[w].alt > 0).sort((a, b) => sk.mag[a] - sk.mag[b]);
+    sk.bell = sk.dir.venus && sk.dir.venus.alt > 0 ? "venus" : up[0] || null;
+    if (swap) {
+      S.jd = keep;
+      computePositions();
+    }
+    sk.base = xcPyHz(sk.low, sk);
+    if (jd == null) XC.sky = sk;
+    return sk;
+  }
+  function xcPyHz(mi, sk) {
+    sk = sk || XC.vs;
+    const n = mi - sk.ref, o = Math.floor(n / 12);
+    return sk.rhz * Math.pow(2, o) * XC_PYR[n - 12 * o];
+  }
+  function xcPrep(T, kpc) {
+    T.vk = T.vk || {};
+    if (T.vk[kpc]) return T.vk[kpc];
     const tk = XC_PC[T.key], sc = T.min ? [0, 2, 3, 5, 7, 8, 10] : [0, 2, 4, 5, 7, 9, 11];
     const tok = T.m.trim().split(/\s+/), N = [];
     for (let i = 0; i < tok.length; i += 2) N.push([tok[i], +tok[i + 1]]);
-    let sh = ((7 - tk) % 12 + 12) % 12;
+    let sh = ((kpc - tk) % 12 + 12) % 12;
     const ns = N.filter((x) => x[0] !== "r").map((x) => xcMidi(x[0])), mid = (Math.min(...ns) + Math.max(...ns)) / 2;
     while (mid + sh > 64) sh -= 12;
     while (mid + sh < 56) sh += 12;
     const roots = T.min ? [0, 4, 3, 6, 2, 5] : [0, 4, 3, 5, 1];
     let lastRoot = 0;
-    T.v = N.map(([n, b], i) => {
+    const low = 38 + ((kpc - 38) % 12 + 12) % 12;
+    return T.vk[kpc] = N.map(([n, b], i) => {
       var _a;
       if (n === "r") return { r: 1, b };
-      const mi = xcMidi(n) + sh, pc = ((mi - 55) % 12 + 12) % 12, deg = sc.indexOf(pc);
+      const mi = xcMidi(n) + sh, pc = ((mi - kpc) % 12 + 12) % 12, deg = sc.indexOf(pc);
       const isLast = !N.slice(i + 1).some((x) => x[0] !== "r") || N[i + 1] && N[i + 1][0] === "r";
       let root = lastRoot;
       if (deg >= 0 && (b >= 1 || isLast)) {
@@ -16817,11 +16873,10 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
       lastRoot = root;
       let up = deg >= 0 ? mi + ((sc[(deg + 2) % 7] - sc[deg]) % 12 + 12) % 12 : mi + 4;
       if (up > 69) up -= 12;
-      let bass = 43 + sc[root];
+      let bass = low + sc[root];
       if (bass > 50) bass -= 12;
       return { m: mi, up, bass, b, last: isLast };
     });
-    return T.v;
   }
   const XC_ERA = (() => {
     const d = /* @__PURE__ */ new Date();
@@ -16829,30 +16884,36 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
     if (d.getMonth() < 6) y -= 1;
     return jdOf(y, 12, 25) + 5 / 24;
   })();
-  const XC = { th: null, g: null, sp: {}, k: -1, i: 0, verse: 0, next: 0, status: "", lit: [0, 0, 0], cur: null, bassOn: null };
-  function xcOut(k, x) {
-    if (!XC.g) XC.g = mkGain(1, bus);
-    if (XC.sp[k]) return XC.sp[k];
-    const g = mkGain(1);
-    try {
-      const p = AC.createStereoPanner();
-      p.pan.value = x;
-      g.connect(p);
-      p.connect(XC.g);
-    } catch (e) {
-      g.connect(XC.g);
+  const XC = { th: null, ac: null, sp: {}, k: -1, i: 0, verse: 0, next: 0, status: "", lit: [0, 0, 0], cur: null, bassOn: null, sky: null, vs: null };
+  function xcOut(k) {
+    if (XC.ac !== AC) {
+      XC.ac = AC;
+      XC.sp = {};
     }
-    return XC.sp[k] = g;
+    let o = XC.sp[k];
+    if (!o) {
+      const p = mkPanner(!LOWPOWER);
+      o = XC.sp[k] = { p, g: mkGain(1, p) };
+    }
+    const w = k === "bell" ? XC.vs && XC.vs.bell : XC_SING[k], d = w && XC.sky && XC.sky.dir[w];
+    if (d) {
+      setPos(o.p, d.x, d.y, d.z, 0.3);
+      const gv = k === "bell" || d.alt > 0 ? 1 : XC_DOWN;
+      if (o.lv !== gv) {
+        o.lv = gv;
+        tgt(o.g.gain, gv, 0.4);
+      }
+    }
+    return o.g;
   }
   const XC_VOW = { a: [[700, 1, 90], [1220, 0.45, 110], [2600, 0.18, 160]], o: [[450, 1, 70], [800, 0.5, 90], [2830, 0.12, 170]], u: [[325, 1, 60], [700, 0.35, 80], [2530, 0.08, 170]] };
   function xcSing(t, f, len, v, part, vow) {
     if (!AC) return;
-    const lite = strokeLite(), q = window.MOTS && MOTS.quality && MOTS.quality() || "std", dest = xcOut(part, [0, -0.35, 0.35][["tune", "up", "bass"].indexOf(part)]);
+    const lite = strokeLite(), q = window.MOTS && MOTS.quality && MOTS.quality() || "std", dest = xcOut(part);
     const o = AC.createOscillator();
     o.type = "sawtooth";
     o.frequency.setValueAtTime(f * 0.985, t);
     o.frequency.exponentialRampToValueAtTime(f, t + 0.07);
-    o.detune.value = [0, -4, 3][["tune", "up", "bass"].indexOf(part)];
     const vb = AC.createOscillator();
     vb.frequency.value = 4.6 + (part === "up" ? 0.4 : part === "bass" ? -0.3 : 0);
     const vd = mkGain(0);
@@ -16879,11 +16940,19 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
     o.stop(t + len + 0.2);
     vb.stop(t + len + 0.2);
   }
-  const xcHz = (mi) => 440 * Math.pow(2, (mi - 69) / 12);
+  function xcBell(at, now) {
+    const sk = XC.vs;
+    if (!sk || !sk.bell) return;
+    const f = sk.base * 8, dest = xcOut("bell");
+    setTimeout(() => {
+      if (audioOn && THINK[S.thinker].xc && !SIR.solo) bellStrike(dest, f, 0.022, true);
+    }, Math.max(0, (at - now) * 1e3 - 20));
+  }
   function xcStatus() {
     const T = XC_TUNES[XC.k];
     if (!T) return TT.ui.xcWait;
-    return TT.ui.xcNow.replace("{c}", T.n).replace("{s}", TT.ui["xcS" + T.src]).replace("{v}", XC.verse + 1);
+    const sk = XC.vs;
+    return TT.ui.xcNow.replace("{c}", T.n).replace("{s}", TT.ui["xcS" + T.src]).replace("{v}", XC.verse + 1) + (sk ? " · " + NOTE[sk.kpc] + " · ♩ = " + Math.round(T.bpm * sk.tf) : "");
   }
   function xcTick(now) {
     if (XC.th !== S.thinker) {
@@ -16891,6 +16960,9 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
       XC.k = -1;
       XC.next = 0;
     }
+    const sky = xcSky();
+    if (!XC.vs) XC.vs = sky;
+    THINK.carols.base = XC.vs.base;
     if (SIR.solo) {
       XC.status = xcStatus();
       return;
@@ -16905,13 +16977,15 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
       }
     }
     while (XC.next < now + BGLA()) {
-      const T = XC_TUNES[XC.k], V2 = xcPrep(T), spb = 60 / T.bpm, e = V2[XC.i], at = XC.next;
+      if (XC.i === 0) XC.vs = sky;
+      const sk = XC.vs, T = XC_TUNES[XC.k], V2 = xcPrep(T, sk.kpc), spb = 60 / (T.bpm * sk.tf), e = V2[XC.i], at = XC.next;
+      if (XC.i === 0) xcBell(at, now);
       if (!e.r) {
         const len = e.b * spb * 0.97, vow = XC.verse ? "o" : "a", lv = XC.verse ? 0.05 : 0.045;
-        xcSing(at, xcHz(e.m), len, lv, "tune", vow);
-        if (parts.includes("up")) xcSing(at, xcHz(e.up), len, lv * 0.62, "up", vow);
+        xcSing(at, xcPyHz(e.m), len, lv, "tune", vow);
+        if (parts.includes("up")) xcSing(at, xcPyHz(e.up), len, lv * 0.62, "up", vow);
         if (parts.includes("bass") && (e.b >= 1 || e.last || XC.bassOn === null)) {
-          xcSing(at, xcHz(e.bass), len, lv * 0.85, "bass", vow === "a" ? "o" : "u");
+          xcSing(at, xcPyHz(e.bass), len, lv * 0.85, "bass", vow === "a" ? "o" : "u");
           XC.bassOn = e.bass;
         }
         XC.litT = performance.now() + (at - now) * 1e3;
@@ -16931,9 +17005,29 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
     }
     XC.status = xcStatus();
   }
+  MOTS.xcInfo = (jd) => {
+    const sk = xcSky(jd), d = (w) => {
+      const x = sk.dir[w];
+      return x && { alt: +(x.alt / DEG).toFixed(1), az: +(x.az / DEG).toFixed(1), x: +x.x.toFixed(3) };
+    };
+    return {
+      jd: sk.jd,
+      sign: sk.sign,
+      key: NOTE[sk.kpc],
+      tonicHz: +sk.base.toFixed(2),
+      elong: +sk.elong.toFixed(1),
+      lit: +sk.lit.toFixed(3),
+      tempo: +sk.tf.toFixed(4),
+      bell: sk.bell,
+      mag: Object.fromEntries(Object.entries(sk.mag).map(([w, m]) => [w, +m.toFixed(2)])),
+      dir: { venus: d("venus"), jupiter: d("jupiter"), saturn: d("saturn"), mars: d("mars"), mercury: d("mercury") },
+      carol: XC.k
+    };
+  };
   function xcKill() {
     XC.k = -1;
     XC.next = 0;
+    XC.vs = null;
   }
   const AU_KM = 1495978707e-1, TONE = 9 / 8, LIM = 256 / 243, APO = 2187 / 2048, MIN3 = 32 / 27;
   const THINK = {
@@ -22180,21 +22274,45 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
       const rr = {};
       order.forEach((w) => rr[w] = R * radii[w]);
       geoNoteRings(g, t, rr, order, true);
-      const lf = Math.max(0, 1 - Math.abs(now - (XC.litT || 0)) / 700);
-      [-1, 0, 1].forEach((k) => {
-        const x = CX + k * R * 0.07, y = CY - R * 0.04;
+      const lf = Math.max(0, 1 - Math.abs(now - (XC.litT || 0)) / 700), sk = audioOn && XC.sky || xcSky(), vs = XC.vs || sk;
+      const sg = ["bass", "tune", "up"].map((k) => ({ k, w: XC_SING[k], d: sk.dir[XC_SING[k]] })).sort((a, b) => (a.d ? a.d.x : 0) - (b.d ? b.d.x : 0));
+      sg.forEach((s, i) => {
+        const x = CX + (i - 1) * R * 0.15, y = CY - R * 0.04, ua = s.d && s.d.alt > 0 ? 1 : 0.45, pl2 = SCR[s.w];
+        if (pl2) {
+          g.strokeStyle = "rgba(255,205,120,".concat(0.16 * ua + 0.2 * lf * ua, ")");
+          g.lineWidth = 1;
+          g.setLineDash([2, 4]);
+          g.beginPath();
+          g.moveTo(x, y);
+          g.lineTo(pl2.x, pl2.y);
+          g.stroke();
+          g.setLineDash([]);
+        }
         const gr = g.createRadialGradient(x, y, 0, x, y, R * 0.07);
-        gr.addColorStop(0, "rgba(255,205,120,".concat(0.35 + 0.45 * lf, ")"));
+        gr.addColorStop(0, "rgba(255,205,120,".concat((0.35 + 0.45 * lf) * ua, ")"));
         gr.addColorStop(1, "rgba(255,205,120,0)");
         g.fillStyle = gr;
         g.beginPath();
         g.arc(x, y, R * 0.07, 0, TAU);
         g.fill();
-        g.fillStyle = "rgba(255,230,180,.9)";
+        g.fillStyle = "rgba(255,230,180,".concat(0.9 * ua, ")");
         g.beginPath();
         g.arc(x, y, 2.5, 0, TAU);
         g.fill();
+        const nm = byId[s.w].god, lx = x + (i - 1) * 4, ly = y + (i === 1 ? -R * 0.085 : R * 0.085);
+        label(g, nm, lx, ly, "rgba(255,230,180,".concat(0.95 * ua, ")"), 11.5, i === 0 ? "right" : i === 2 ? "left" : "center", '"Playfair Display","GFS Didot",Georgia,serif');
+        const tw = g.measureText(nm).width, x0 = i === 0 ? lx - tw : i === 2 ? lx : lx - tw / 2;
+        labObstacle(x0 - 2, ly - 8 * K, x0 + tw + 2, ly + 8 * K);
       });
+      const bp = vs.bell && radii[vs.bell] && SCR[vs.bell];
+      if (bp) {
+        const pf = 0.6 + 0.4 * Math.sin(now / 700);
+        g.strokeStyle = "rgba(255,226,160,".concat(0.35 + 0.35 * pf, ")");
+        g.lineWidth = 1.3;
+        g.beginPath();
+        g.arc(bp.x, bp.y, 10 + 2 * pf, 0, TAU);
+        g.stroke();
+      }
       const T = XC_TUNES[XC.k];
       label(g, T ? T.n : TT.ui.xcHeard, CX, CY + R * 1.06, "rgba(255,214,140,.85)", 13, "center", '"Playfair Display","GFS Didot",Georgia,serif');
       earthAt(g, CX, CY + R * 0.05, 4);
