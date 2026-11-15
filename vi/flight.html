@@ -223,6 +223,9 @@ if(AC0){
   if(res0)AC0.prototype.resume=function(){if(isOffline(this)||this.__etest)return res0.apply(this,arguments);track(this);var c=this,m=c.__mt,p;m.want=true;m.appSus=false;
     try{p=res0.apply(c,arguments)}catch(e){m.err=e;if(inGesture())watch(c);return Promise.reject(e)}
     if(p&&p.then)p.then(function(){m.err=null},function(e){m.err=e});if(inGesture())watch(c);return p};
+  // (CLOSED-PROBE) a context the page has closed is never resumed by the tap below: Firefox keeps a never-started context 'suspended' until
+  // its close() settles, and resuming it then throws InvalidStateError into the Sound check (stage.js's channel-count probe, 15 Nov 2026)
+  var cls0=AC0.prototype.close;if(cls0)AC0.prototype.close=function(){try{if(this.__mt)this.__mt.closed=true}catch(e){}return cls0.apply(this,arguments)};
   if(sus0)AC0.prototype.suspend=function(){if(!isOffline(this)&&!this.__etest){track(this);this.__mt.appSus=true;this.__mt.want=false}return sus0.apply(this,arguments)};
 }
 // (NOWL) worklets off on this phone: hide them so every module builds its plain-node voices. Otherwise count each sound-making worklet as a
@@ -238,7 +241,7 @@ else if(AWN0){var Wk=function AudioWorkletNode(c,name,o){var n=new AWN0(c,name,o
   Wk.prototype=AWN0.prototype;try{Object.setPrototypeOf(Wk,AWN0)}catch(e){}try{W.AudioWorkletNode=Wk}catch(e){}}
 function onGesture(e){if(e&&e.isTrusted===false)return;lastG=Date.now();anyG=true;
   // a context the page made before any tap, or one it asked to start and the browser held back: resume it inside this tap
-  for(var i=0;i<C.ctxs.length;i++){var c=C.ctxs[i],m=c.__mt;if(c.state!=='suspended'&&c.state!=='interrupted')continue;if(m.appSus)continue;
+  for(var i=0;i<C.ctxs.length;i++){var c=C.ctxs[i],m=c.__mt;if(c.state!=='suspended'&&c.state!=='interrupted')continue;if(m.appSus||m.closed)continue;
     if(m.want||(m.pre&&!m.ran)){try{var p=res0.call(c);if(p&&p.then)p.then(null,function(er){m.err=er})}catch(er){m.err=er}if(m.want)watch(c)}}
   // no Web Audio at all: say so at the first tap on a control (not on the help or privacy pages)
   if(!AC0&&!C.noWAsaid&&e&&e.type==='click'&&!/help|privacy/.test(location.pathname)){var t=e.target;while(t&&t!==D&&!/^(BUTTON|A|SUMMARY|INPUT|LABEL)$/.test(t.tagName))t=t.parentNode;if(t&&t!==D){C.noWAsaid=true;fail(S('noWA'))}}}
@@ -12822,11 +12825,15 @@ function pathPref(){let p=null,a=null,bad=null;try{p=localStorage.getItem('mots.
   if(bad==='1'&&p!=='steady')return 'live';if(p==='live'||p==='steady')return p;return a==='steady'?'steady':'live'}
 function pathMode(){let p=null;try{p=localStorage.getItem('mots.path')}catch(e){}return p==='live'||p==='steady'?p:'auto'}
 function steadyCan(){return leanPref()&&leanCan()&&!!window.Worker&&!!window.MessageChannel&&!!(AC&&AC.audioWorklet)}
-if(window.MOTS){MOTS.path=()=>STEADY.on?'steady':'live';MOTS.pathMode=pathMode;MOTS.pathInfo=()=>({path:STEADY.on?'steady':'live',mode:pathMode(),D:STEADY.D,L:STEADY.L,short:STEADY.u,lost:+STEADY.lost.toFixed(3)})}
+if(window.MOTS){MOTS.path=()=>STEADY.on?'steady':'live';MOTS.pathMode=pathMode;MOTS.pathInfo=()=>({path:STEADY.on?'steady':'live',mode:pathMode(),D:STEADY.D,L:STEADY.L,short:STEADY.u,lost:+STEADY.lost.toFixed(3),late:STEADY.late||0,lateMax:STEADY.lateMax||0,cb:STEADY.cb||0,gaps:playGaps(),draw:MOTS.drawMode?MOTS.drawMode():'full'})}
+// the browser's own count of the gaps it filled (Chrome: playbackStats or the earlier playoutStats), where it has one
+function playGaps(){const c=AC;if(!c)return null;try{const a=c.playbackStats;if(a&&a.underrunEvents!=null)return {n:a.underrunEvents,ms:Math.round(1000*(a.underrunDuration||0))};
+  const b=c.playoutStats;if(b&&b.fallbackFramesEvents!=null)return {n:b.fallbackFramesEvents,ms:Math.round(b.fallbackFramesDuration||0)}}catch(e){}return null}
 function steadyStart(ac){let ring,w;
   try{ring=new AudioWorkletNode(ac,'mots-ring',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
     w=new Worker(URL.createObjectURL(new Blob([STEADY_PRE,VOICE_CODE,STEADY_POST],{type:'text/javascript'})))}catch(e){steadyFail('the steady path would not start ('+e.message+')');return null}
   const ch=new MessageChannel();ring.port.postMessage({port:ch.port2},[ch.port2]);ring.onprocessorerror=()=>steadyFail('the ring failed');
+  ring.port.onmessage=e=>{const d=e.data||{};if(d.lt!=null){STEADY.late=d.lt;STEADY.lateMax=Math.max(STEADY.lateMax||0,d.lm);STEADY.lateNow=d.lm;STEADY.cb=d.cb}};
   w.onmessage=e=>{const d=e.data||{};if(d.h)hostSaid(d.h);else if(d.d!=null){STEADY.D=d.d;STEADY.L=d.l;try{STEADY.delay.delayTime.setValueAtTime(d.d,ac.currentTime)}catch(x){}
       try{localStorage.setItem('mots.steady.li',String([.5,1,2,3].indexOf(d.l)))}catch(x){}}
     else if(d.u!=null)STEADY.u=d.u;else if(d.err)steadyFail('the steady host refused a message ('+d.err+')')};
@@ -12850,9 +12857,19 @@ function steadyGraph(pre){STEADY.on=pathPref()==='steady'&&steadyCan();STEADY.pr
    the sound: mots.draw 'full' (unset) | '20' | '15' frames a second | 'still' (once a second); ?draw= sets it. The music's own updates
    (updateAudio, about 22 a second) are not touched: only the drawing is skipped. */
 {const m=location.search.match(/[?&]draw=(full|20|15|still)\b/);if(m)try{if(m[1]==='full')localStorage.removeItem('mots.draw');else localStorage.setItem('mots.draw',m[1])}catch(e){}}
-const DRAWM=(()=>{let v=null;try{v=localStorage.getItem('mots.draw')}catch(e){}return v==='20'?50:v==='15'?66:v==='still'?1000:0})();
-let drawT=0;function drawDue(t){if(!DRAWM||!audioOn)return true;if(t-drawT<DRAWM-4)return false;drawT=t;return true}
-if(window.MOTS)MOTS.drawMode=()=>DRAWM;
+/* (AUTO-DRAW) with the sound path on Automatic and no drawing chosen by hand, a device that needed Steady draws at 15 a second, and one
+   whose Steady sound still has late callbacks (3 in 10 s, in view) is stepped to a still sky (once a second); remembered as
+   mots.draw.auto. A capable device (Live) draws as before. */
+const DRAWMS={'20':50,'15':66,still:1000};
+function drawPick(){let v=null,a=null;try{v=localStorage.getItem('mots.draw');a=localStorage.getItem('mots.draw.auto')}catch(e){}
+  if(DRAWMS[v])return {v,ms:DRAWMS[v],auto:false};if(pathMode()==='auto'&&STEADY.on&&DRAWMS[a])return {v:a,ms:DRAWMS[a],auto:true};return {v:'full',ms:0,auto:!v}}
+let DRAWP=null,drawT=0;function drawDue(t){if(!DRAWP)DRAWP=drawPick();if(!DRAWP.ms||!audioOn)return true;if(t-drawT<DRAWP.ms-4)return false;drawT=t;return true}
+function drawAuto(v){try{localStorage.setItem('mots.draw.auto',v)}catch(e){}DRAWP=null;try{if(window.MOTS_COMPAT&&MOTS_COMPAT.flog)MOTS_COMPAT.flog('sky drawn '+(v==='still'?'still':v+' a second')+' (late sound callbacks)')}catch(e){}}
+{let l0=null,n=0;setInterval(()=>{DRAWP=drawPick();if(!STEADY.on||!audioOn||document.hidden||pathMode()!=='auto'){l0=null;return}const p=DRAWP;if(!p.auto){l0=null;return}
+  const l=STEADY.late||0;if(l0===null){l0=l;return}if(++n<10)return;n=0;
+  // 3 late spells in 10 s, or the sound clock 30 ms behind (the live path's measure, which also runs here)
+  if(l-l0>=3||STEADY.lost>=.03){if(p.v==='full'||p.v==='20')drawAuto('15');else if(p.v==='15')drawAuto('still')}l0=STEADY.late||0},1000)}
+if(window.MOTS)MOTS.drawMode=()=>{const p=DRAWP||drawPick();return p.v+(p.auto&&p.v!=='full'?' (automatic)':'')};
 /* (STEADY auto) the live sound losing time. A missed deadline leaves the audio clock behind the wall clock by the gap (the 2-6 s average
    hid 160 underruns at 97 %): the smallest wall-minus-audio offset of each second, as it grows, is time lost (timer jitter only ever
    adds to a single reading, never to the smallest). The browser's own count of filled-in frames (Chrome's playoutStats) counts too.
@@ -12867,11 +12884,11 @@ if(window.MOTS)MOTS.drawMode=()=>DRAWM;
     if(mins.length===11||lost>=.03){STEADY.lost=lost;STEADY.lostT.push(lost);if(STEADY.lostT.length>12)STEADY.lostT.shift()}
     if(STEADY.on||pathMode()!=='auto'||said)return;
     if(lost>=.03){hits++;mins=[mins[mins.length-1]];pf=fb}
-    if(hits>=2){said=true;try{localStorage.setItem('mots.path.auto','steady')}catch(e){}
+    if(hits>=2){said=true;try{localStorage.setItem('mots.path.auto','steady');if(!localStorage.getItem('mots.draw.auto'))localStorage.setItem('mots.draw.auto','15')}catch(e){}
       try{if(window.MOTS_COMPAT&&MOTS_COMPAT.flog)MOTS_COMPAT.flog('steady sound path from the next start (live sound lost '+Math.round(lost*1000)+' ms in 10 s)')}catch(e){}
       if(window.MOTS&&MOTS.pathSay)MOTS.pathSay('steady')}},250)}
 if(window.MOTS){MOTS.diagLines=MOTS.diagLines||[];MOTS.diagLines.push(()=>{if(!AC)return '';const m=pathMode();
-  return 'sound path: '+(STEADY.on?'steady':'live')+' ('+(m==='auto'?'automatic':'chosen')+')'+(STEADY.on?' · heard '+STEADY.D.toFixed(2)+' s after · ring short '+STEADY.u+' times':' · lost '+Math.round(STEADY.lost*1000)+' ms in the last 10 s'+(STEADY.lostT.length?' (recent: '+STEADY.lostT.slice(-6).map(x=>Math.round(x*1000)).join(', ')+')':''))})}
+  return 'sound path: '+(STEADY.on?'steady':'live')+' ('+(m==='auto'?'automatic':'chosen')+')'+(STEADY.on?' · heard '+STEADY.D.toFixed(2)+' s after · ring short '+STEADY.u+' times · late callbacks '+(STEADY.late||0)+' (worst '+(STEADY.lateMax||0)+' ms, callback ~'+(STEADY.cb||0)+' ms)'+(playGaps()?' · browser gaps '+playGaps().n+' ('+playGaps().ms+' ms)':'')+' · sky '+(MOTS.drawMode?MOTS.drawMode():'full'):' · lost '+Math.round(STEADY.lost*1000)+' ms in the last 10 s'+(STEADY.lostT.length?' (recent: '+STEADY.lostT.slice(-6).map(x=>Math.round(x*1000)).join(', ')+')':''))})}
 // (STEADY) the sky as it was D ago: the time of the heavens kept for every frame, the positions worked out for t - D, drawn, then put back
 function steadyDraw(t){const H=STEADY.hist,td=t-STEADY.D*1000;H.push([t,S.jd]);while(H.length>2&&H[1][0]<=td)H.shift();
   let jd=H[0][1];if(H.length>1&&H[0][0]<td){const a=H[0],b=H[1];jd=a[1]+(b[1]-a[1])*Math.min(1,(td-a[0])/Math.max(1e-3,b[0]-a[0]))}
@@ -13111,7 +13128,7 @@ function buildInst(b,v,fadeIn){
     I.bp2=AC.createBiquadFilter();I.bp2.type='bandpass';I.bp2.Q.value=6;I.bp2.frequency.value=f0*2;
     const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2200;lp.Q.value=.5;lp.connect(I.g);
     const sum=mkGain(2.6,lp), g2=mkGain(.5,sum);
-    fin.connect(I.bp1);fin.connect(I.bp2);I.bp1.connect(sum);I.bp2.connect(g2);
+    fin.connect(I.bp1);fin.connect(I.bp2);I.bp1.connect(sum);I.bp2.connect(g2);I.inner=[fin,I.bp1,I.bp2,lp,sum,g2];   // (SOAK) unplugged by killPart
   }else{
     // each god's own character: waveforms, spread, brightness, vibrato and, for some, a third voice (Poseidon's an octave below)
     const C=GODTONE[b.id]||{};const det=C.det!==undefined?C.det:4+16*b.sizeN;
@@ -13146,7 +13163,7 @@ function buildInst(b,v,fadeIn){
 function killPart(part){
   if(!part)return;const t=AC.currentTime;
   part.g.gain.setTargetAtTime(0,t,.08);
-  setTimeout(()=>{(part.srcs||[]).forEach(o=>{try{o.stop()}catch(e){}});(part.taps||[]).forEach(([b,n])=>{try{b.disconnect(n)}catch(e){}});(part.hums||[]).forEach(killHuman);try{part.g.disconnect()}catch(e){}},450);
+  setTimeout(()=>{(part.srcs||[]).forEach(o=>{try{o.stop()}catch(e){}});(part.taps||[]).forEach(([b,n])=>{try{b.disconnect(n)}catch(e){}});(part.hums||[]).forEach(killHuman);(part.inner||[]).forEach(n=>{try{n.disconnect()}catch(e){}});try{part.g.disconnect()}catch(e){}},450);
 }
 function buildHumanPart(b,v){
   const part={g:mkGain(0,v.vol)};part.g.gain.setTargetAtTime(1.25,AC.currentTime,.15);
