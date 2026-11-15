@@ -12776,6 +12776,30 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
     };
   }
   {
+    const m = location.search.match(/[?&]draw=(full|20|15|still)\b/);
+    if (m) try {
+      if (m[1] === "full") localStorage.removeItem("mots.draw");
+      else localStorage.setItem("mots.draw", m[1]);
+    } catch (e) {
+    }
+  }
+  const DRAWM = (() => {
+    let v = null;
+    try {
+      v = localStorage.getItem("mots.draw");
+    } catch (e) {
+    }
+    return v === "20" ? 50 : v === "15" ? 66 : v === "still" ? 1e3 : 0;
+  })();
+  let drawT = 0;
+  function drawDue(t) {
+    if (!DRAWM || !audioOn) return true;
+    if (t - drawT < DRAWM - 4) return false;
+    drawT = t;
+    return true;
+  }
+  if (window.MOTS) MOTS.drawMode = () => DRAWM;
+  {
     let mins = [], cur = Infinity, n = 0, pf = null, hits = 0, said = false;
     setInterval(() => {
       const c = AC;
@@ -23843,7 +23867,7 @@ window.MOTS_CRAFT={list:C,get:id=>BYID[id]||null,is:id=>!!BYID[id],T,pos,where,s
         beltPing(p, beltPos(p, S.jd));
       }
     }
-    if (!(window.MOTS && MOTS.skyHidden && MOTS.skyHidden())) {
+    if (!(window.MOTS && MOTS.skyHidden && MOTS.skyHidden()) && drawDue(t)) {
       if (STEADY.on && STEADY.D > 0) steadyDraw(t);
       else draw(t);
     }

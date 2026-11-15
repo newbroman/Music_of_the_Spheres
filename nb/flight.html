@@ -12844,6 +12844,13 @@ function steadyGraph(pre){STEADY.on=pathPref()==='steady'&&steadyCan();STEADY.pr
   STEADY.rg=AC.createGain();STEADY.rg.connect(pre);
   // the heavens fade the bus (tgt): the ring's level makes the same moves D later
   const bg=bus.gain,st0=bg.setTargetAtTime;bg.setTargetAtTime=function(v,t,tc){try{STEADY.rg.gain.setTargetAtTime(v,t+STEADY.D,tc)}catch(e){}return st0.call(bg,v,t,tc)}}
+/* (LOW-DRAW, trial for Martin, not on by default) the sky drawn less often while the sound plays, to leave a slow machine's processor to
+   the sound: mots.draw 'full' (unset) | '20' | '15' frames a second | 'still' (once a second); ?draw= sets it. The music's own updates
+   (updateAudio, about 22 a second) are not touched: only the drawing is skipped. */
+{const m=location.search.match(/[?&]draw=(full|20|15|still)\b/);if(m)try{if(m[1]==='full')localStorage.removeItem('mots.draw');else localStorage.setItem('mots.draw',m[1])}catch(e){}}
+const DRAWM=(()=>{let v=null;try{v=localStorage.getItem('mots.draw')}catch(e){}return v==='20'?50:v==='15'?66:v==='still'?1000:0})();
+let drawT=0;function drawDue(t){if(!DRAWM||!audioOn)return true;if(t-drawT<DRAWM-4)return false;drawT=t;return true}
+if(window.MOTS)MOTS.drawMode=()=>DRAWM;
 /* (STEADY auto) the live sound losing time. A missed deadline leaves the audio clock behind the wall clock by the gap (the 2-6 s average
    hid 160 underruns at 97 %): the smallest wall-minus-audio offset of each second, as it grows, is time lost (timer jitter only ever
    adds to a single reading, never to the smallest). The browser's own count of filled-in frames (Chrome's playoutStats) counts too.
