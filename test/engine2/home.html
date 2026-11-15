@@ -224,6 +224,9 @@ if(AC0){
   if(res0)AC0.prototype.resume=function(){if(isOffline(this)||this.__etest)return res0.apply(this,arguments);track(this);var c=this,m=c.__mt,p;m.want=true;m.appSus=false;
     try{p=res0.apply(c,arguments)}catch(e){m.err=e;if(inGesture())watch(c);return Promise.reject(e)}
     if(p&&p.then)p.then(function(){m.err=null},function(e){m.err=e});if(inGesture())watch(c);return p};
+  // (CLOSED-PROBE) a context the page has closed is never resumed by the tap below: Firefox keeps a never-started context 'suspended' until
+  // its close() settles, and resuming it then throws InvalidStateError into the Sound check (stage.js's channel-count probe, 15 Nov 2026)
+  var cls0=AC0.prototype.close;if(cls0)AC0.prototype.close=function(){try{if(this.__mt)this.__mt.closed=true}catch(e){}return cls0.apply(this,arguments)};
   if(sus0)AC0.prototype.suspend=function(){if(!isOffline(this)&&!this.__etest){track(this);this.__mt.appSus=true;this.__mt.want=false}return sus0.apply(this,arguments)};
 }
 // (NOWL) worklets off on this phone: hide them so every module builds its plain-node voices. Otherwise count each sound-making worklet as a
@@ -239,7 +242,7 @@ else if(AWN0){var Wk=function AudioWorkletNode(c,name,o){var n=new AWN0(c,name,o
   Wk.prototype=AWN0.prototype;try{Object.setPrototypeOf(Wk,AWN0)}catch(e){}try{W.AudioWorkletNode=Wk}catch(e){}}
 function onGesture(e){if(e&&e.isTrusted===false)return;lastG=Date.now();anyG=true;
   // a context the page made before any tap, or one it asked to start and the browser held back: resume it inside this tap
-  for(var i=0;i<C.ctxs.length;i++){var c=C.ctxs[i],m=c.__mt;if(c.state!=='suspended'&&c.state!=='interrupted')continue;if(m.appSus)continue;
+  for(var i=0;i<C.ctxs.length;i++){var c=C.ctxs[i],m=c.__mt;if(c.state!=='suspended'&&c.state!=='interrupted')continue;if(m.appSus||m.closed)continue;
     if(m.want||(m.pre&&!m.ran)){try{var p=res0.call(c);if(p&&p.then)p.then(null,function(er){m.err=er})}catch(er){m.err=er}if(m.want)watch(c)}}
   // no Web Audio at all: say so at the first tap on a control (not on the help or privacy pages)
   if(!AC0&&!C.noWAsaid&&e&&e.type==='click'&&!/help|privacy/.test(location.pathname)){var t=e.target;while(t&&t!==D&&!/^(BUTTON|A|SUMMARY|INPUT|LABEL)$/.test(t.tagName))t=t.parentNode;if(t&&t!==D){C.noWAsaid=true;fail(S('noWA'))}}}
@@ -737,7 +740,7 @@ html.mots-sky .eyebrow,html.mots-sky .gp-home{color:#c9c2ae}
 html.mots-sky .skybar{text-shadow:0 1px 8px rgba(4,5,12,.9)}
 </style>
 </head>
-<body data-page="home"><div id="e2bar" style="position:fixed;left:0;right:0;top:0;z-index:2147483000;background:#3a1f0b;color:#f6e7c8;font:13px/1.35 system-ui,sans-serif;padding:4px 10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Test build (engine2)</b><span id="e2now">sound path: …</span><a style="color:#ffd27a" href="?path=live#plato">Live</a><a style="color:#ffd27a" href="?path=steady#plato">Steady</a><a style="color:#ffd27a" href="?path=auto#plato">Automatic</a><a style="color:#ffd27a" href="home.html">home</a><a style="color:#ffd27a" href="index.html?diag#plato">Sound check</a></div><script>setInterval(function(){try{var M=window.MOTS,i=M&&M.pathInfo&&M.pathInfo(),e=document.getElementById("e2now");if(e&&i)e.textContent="sound path: "+i.path+" ("+i.mode+")"+(i.path==="steady"?" · heard "+i.D.toFixed(2)+" s after · ring short "+i.short:" · lost "+Math.round(i.lost*1000)+" ms / 10 s")}catch(x){}},1000)</script>
+<body data-page="home"><div id="e2bar" style="position:fixed;left:0;right:0;top:0;z-index:2147483000;background:#3a1f0b;color:#f6e7c8;font:13px/1.35 system-ui,sans-serif;padding:4px 10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Test build (engine2)</b><span id="e2now">sound path: …</span><a style="color:#ffd27a" href="?path=live#plato">Live</a><a style="color:#ffd27a" href="?path=steady#plato">Steady</a><a style="color:#ffd27a" href="?path=auto#plato">Automatic</a><a style="color:#ffd27a" href="?draw=full#plato">sky full</a><a style="color:#ffd27a" href="?draw=15#plato">sky 15/s</a><a style="color:#ffd27a" href="?draw=still#plato">sky still</a><a style="color:#ffd27a" href="home.html">home</a><a style="color:#ffd27a" href="index.html?diag#plato">Sound check</a></div><script>setInterval(function(){try{var M=window.MOTS,i=M&&M.pathInfo&&M.pathInfo(),e=document.getElementById("e2now");if(e&&i)e.textContent="sound path: "+i.path+" ("+i.mode+")"+(i.path==="steady"?" · heard "+i.D.toFixed(2)+" s after · ring short "+i.short+" · late callbacks "+i.late+" (worst "+i.lateMax+" ms)":" · lost "+Math.round(i.lost*1000)+" ms / 10 s")+(i.gaps?" · browser gaps "+i.gaps.n+" ("+i.gaps.ms+" ms)":"")+" · sky "+i.draw}catch(x){}},1000)</script>
 <div id="motsSky" aria-hidden="true"><div class="sky-pan"><picture><source media="(min-width:1000px) and (min-height:600px)" type="image/webp" srcset="../../sky/sky-2560.webp"><source media="(min-width:1000px) and (min-height:600px)" srcset="../../sky/sky-2560.jpg"><source type="image/webp" srcset="../../sky/sky-1440.webp"><img class="sky-im" src="../../sky/sky-1440.jpg" alt="" decoding="async" fetchpriority="low"></picture><img class="sky-eu" alt="" decoding="async"></div><div class="sky-tint"></div></div>
 
 <main class="hm">
