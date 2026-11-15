@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sound test</title><meta name="robots" content="noindex">
+<style>
+:root{--bg:#0b0e1a;--fg:#ece4cf;--mut:#a9a28f;--acc:#e0b866;--line:#2b3150;--card:#13172a}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 6px}p{margin:6px 0}.mut{color:var(--mut);font-size:14px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+button,select{font:inherit;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer}
+button.on{border-color:var(--acc);color:var(--acc)}button.stop{border-color:#c66}
+.t{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:10px 0;background:var(--card)}
+.t b{color:var(--acc)}pre{white-space:pre-wrap;font:13px/1.4 ui-monospace,monospace;background:#070912;border:1px solid var(--line);border-radius:10px;padding:10px;min-height:5em}
+canvas{display:block;width:100%;height:120px;border:1px solid var(--line);border-radius:10px;margin-top:8px}
+iframe{position:fixed;left:-20px;top:-20px;width:8px;height:8px;border:0;opacity:0;pointer-events:none}
+</style></head><body><main>
+<h1>Sound test</h1>
+<p class="mut">For finding where crackle comes from. Play one test at a time, for about 20 seconds each, and note which ones crackle or jump. Then press Copy and send the text.</p>
+<div class="row"><label>Output buffer (latencyHint): <select id="hint">
+<option value="interactive">interactive (the browser's smallest)</option><option value="playback" selected>playback (what the app asks for)</option>
+<option value="0.1">0.1 s</option><option value="0.2">0.2 s</option></select></label>
+<label><input type="checkbox" id="busy"> busy screen (draws like the dial)</label></div>
+<div class="t"><b>A</b> One plain sine (440 Hz). <div class="row"><button data-t="a">Play A</button></div></div>
+<div class="t"><b>B</b> Twenty plain sines (a soft chord). <div class="row"><button data-t="b">Play B</button></div></div>
+<div class="t"><b>C</b> A sine through the app's output stage alone (level control, safety limiter, width matrix, soft-clip guard). <div class="row"><button data-t="c">Play C</button></div></div>
+<div class="t"><b>D</b> Plato from the dial, as the app plays him (its own output buffer, the app's output stage). <div class="row"><button data-t="d">Play D</button></div></div>
+<div class="t"><b>E</b> Plato from the dial without the app's output stage. <div class="row"><button data-t="e">Play E</button></div></div>
+<div class="t"><b>F</b> Plato from the dial with the output buffer chosen above (0.1 s or 0.2 s; interactive and playback both play as D).<div class="row"><button data-t="f">Play F</button></div></div>
+<div class="row"><button class="stop" id="stop">Stop</button><button id="copy">Copy</button></div>
+<pre id="out">Nothing playing.</pre>
+<canvas id="cv" width="760" height="120"></canvas>
+<p class="mut">Plato's tests play the dial in a hidden frame (Lightest quality is kept if you chose it in the app). Test F changes the app's output buffer for this browser until you play D or E again here.</p>
+</main>
+<script>
+(function(){
+'use strict';
+var $=function(i){return document.getElementById(i)};
+var AC=window.AudioContext||window.webkitAudioContext,NATIVE_CONNECT=window.AudioNode&&AudioNode.prototype.connect;
+var cur=null,log=[],clk=[],frame=null,t0=0,lastFrame=0,longFrames=0,frames=0,tick=0;
+function hint(){var v=$('hint').value;return isNaN(+v)?v:+v}
+function stopAll(){if(cur&&cur.ctx){try{cur.ctx.close()}catch(e){}}if(cur&&cur.stopFrame){try{var w=frame.contentWindow;w.MOTS.app.stop()}catch(e){}}
+  if(frame){frame.remove();frame=null}cur=null;clk=[];marks();}
+function marks(){var bs=document.querySelectorAll('button[data-t]');for(var i=0;i<bs.length;i++)bs[i].classList.toggle('on',!!cur&&cur.t===bs[i].dataset.t)}
+function newCtx(){var h=hint(),c;try{c=new AC({latencyHint:h})}catch(e){c=new AC()}return c}
+function softCurve(){var n=2048,cv=new Float32Array(n),k=.8;for(var i=0;i<n;i++){var x=i/(n-1)*2-1,a=Math.abs(x);cv[i]=(a<=k?a:k+(1-k)*Math.tanh((a-k)/(1-k)))*(x<0?-1:1)}return cv}
+function outStage(c){ // as stage.js builds it (desktop: limiter at -1.5 dBFS, width 1, guard without oversampling on Lightest)
+  var lvl=c.createGain();lvl.gain.value=1.7;var safe=c.createDynamicsCompressor();safe.threshold.value=-1.5;safe.knee.value=0;safe.ratio.value=20;safe.attack.value=.002;safe.release.value=.1;
+  var sp=c.createChannelSplitter(2),mg=c.createChannelMerger(2),ll=c.createGain(),lr=c.createGain(),rl=c.createGain(),rr=c.createGain();lr.gain.value=0;rl.gain.value=0;
+  lvl.connect(safe);safe.connect(sp);sp.connect(ll,0);sp.connect(lr,0);sp.connect(rl,1);sp.connect(rr,1);ll.connect(mg,0,0);rl.connect(mg,0,0);lr.connect(mg,0,1);rr.connect(mg,0,1);
+  var g=c.createWaveShaper();g.curve=softCurve();g.oversample='none';mg.connect(g);g.connect(c.destination);var an=c.createAnalyser();an.fftSize=1024;g.connect(an);return lvl}
+function sines(n,dest,c){var t=c.currentTime+.05;for(var i=0;i<n;i++){var o=c.createOscillator(),g=c.createGain();o.frequency.value=n===1?440:220*Math.pow(2,i/12*1.5);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime((n===1?.2:.6/n),t+.3);o.connect(g);g.connect(dest);o.start(t)}}
+function play(t){stopAll();t0=performance.now();longFrames=0;frames=0;log.push(new Date().toISOString().slice(11,19)+' play '+t.toUpperCase()+(t<'d'||t==='f'?' · hint '+$('hint').value:'')+($('busy').checked?' · busy screen':''));
+  if(t==='a'||t==='b'||t==='c'){var c=newCtx();cur={t:t,ctx:c};var dest=t==='c'?outStage(c):c.destination;sines(t==='a'?1:20,dest,c);if(c.resume)c.resume();marks();return}
+  // Plato in a hidden frame of the dial, as the home page plays him. bgbuf sets the dial's output buffer (compat.js); bgbuf=0 puts it back
+  var h=hint(),buf=t==='f'&&typeof h==='number'?h:0;
+  frame=document.createElement('iframe');frame.allow='autoplay';frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
+  frame.src='index.html?homebg&notour&bgbuf='+buf+'#plato';document.body.appendChild(frame);cur={t:t,stopFrame:true,loading:true};marks();
+  frame.onload=function(){var w=frame.contentWindow,n=0;
+    (function wait(){var ok=false;try{ok=!!(w.MOTS&&w.MOTS.app&&w.MOTS.app.start&&w.MOTS.app.thinker)}catch(e){}
+      if(!ok){if(++n<150)setTimeout(wait,100);else log.push('the dial did not get ready');return}
+      if(t==='e'){try{var P=w.AudioNode.prototype,prev=P.connect;P.connect=function(d){if(d instanceof w.AudioDestinationNode&&arguments.length===1)return NATIVE_CONNECT.call(this,d);return prev.apply(this,arguments)}}catch(e){log.push('could not bypass the output stage: '+e.message)}}
+      try{if(w.MOTS.app.current()!=='plato')w.MOTS.app.thinker('plato')}catch(e){}
+      Promise.resolve().then(function(){return w.MOTS.app.start()}).then(function(){var c=null;try{c=w.MOTS_COMPAT.ctxs.filter(function(x){return x.state!=='closed'}).pop()}catch(e){}
+        if(cur&&cur.t===t){cur.ctx=c;cur.loading=false}}).catch(function(e){log.push('start failed: '+e.message)})})()}}
+// what the browser tells: the sound clock against the wall clock, its buffers, and (Chrome) its own count of glitches
+function report(){var c=cur&&cur.ctx,L=[];L.push(navigator.userAgent);
+  if(!cur)L.push('Nothing playing.');else if(!c)L.push((cur.loading?'Loading the dial…':'No sound context')+' (test '+cur.t.toUpperCase()+')');
+  else{var now=performance.now();clk.push([now,c.currentTime]);while(clk.length&&now-clk[0][0]>5200)clk.shift();
+    var a=clk[0],b=clk[clk.length-1],r=b[0]>a[0]+500?(b[1]-a[1])/((b[0]-a[0])/1000):NaN;
+    L.push('test '+cur.t.toUpperCase()+' · '+c.state+' · '+c.sampleRate+' Hz · base '+Math.round((c.baseLatency||0)*1000)+' ms · out '+Math.round((c.outputLatency||0)*1000)+' ms');
+    L.push('sound clock '+(isNaN(r)?'…':Math.round(100*r)+'% of real time')+' over the last '+Math.round((b[0]-a[0])/1000)+' s');
+    var ps=c.playoutStats;if(ps)L.push('browser glitch count: '+(ps.fallbackFramesEvents!=null?ps.fallbackFramesEvents+' gaps, '+Math.round((ps.fallbackFramesDuration||0))+' ms silent':JSON.stringify(ps)));
+    L.push('screen: '+frames+' frames, '+longFrames+' over 50 ms, in '+Math.round((now-t0)/1000)+' s')}
+  L.push('');L=L.concat(log.slice(-12));$('out').textContent=L.join('\n')}
+setInterval(report,1000);
+window.SOUNDTEST={ctx:function(){return cur&&cur.ctx||null},play:play,stop:stopAll};
+// the busy screen: a full-size canvas of a few thousand moving stars, redrawn every frame (what the dial's sky costs a slow machine)
+var cv=$('cv'),g=cv.getContext('2d'),S=[];for(var i=0;i<3000;i++)S.push([Math.random(),Math.random(),Math.random()*2+.3]);
+function draw(ts){requestAnimationFrame(draw);if(lastFrame){frames++;if(ts-lastFrame>50)longFrames++}lastFrame=ts;if(!$('busy').checked)return;
+  var W=cv.width,H=cv.height;g.fillStyle='#070912';g.fillRect(0,0,W,H);var k=ts/9000;
+  for(var i=0;i<S.length;i++){var s=S[i],x=((s[0]+k*s[2]*.05)%1)*W,y=s[1]*H;g.globalAlpha=.4+.6*Math.abs(Math.sin(ts/700+i));g.fillStyle=i%7?'#cfd6ff':'#e0b866';g.beginPath();g.arc(x,y,s[2],0,6.283);g.fill()}g.globalAlpha=1}
+requestAnimationFrame(draw);
+document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('button[data-t]');if(b)play(b.dataset.t)});
+$('stop').onclick=function(){log.push(new Date().toISOString().slice(11,19)+' stop');stopAll()};
+$('copy').onclick=function(){var t=$('out').textContent+'\n'+log.join('\n');try{navigator.clipboard.writeText(t).then(function(){$('copy').textContent='Copied'},function(){})}catch(e){}};
+})();
+</script></body></html>
