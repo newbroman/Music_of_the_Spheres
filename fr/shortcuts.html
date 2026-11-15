@@ -19,7 +19,7 @@
 'use strict';
 var W=window,D=document,N=navigator,T0=Date.now();
 if(W.MOTS_COMPAT)return;
-var C=W.MOTS_COMPAT={v:'2026-10-15',base:'chrome61',errs:[],ctxs:[],poly:[],fails:[],notes:[]};
+var C=W.MOTS_COMPAT={v:'2026-11-15',base:'chrome61',errs:[],ctxs:[],poly:[],fails:[],notes:[]};
 function now(){return ((Date.now()-T0)/1000).toFixed(1)+'s'}
 function def(o,k,v){if(!o||k in o)return;try{Object.defineProperty(o,k,{value:v,writable:true,configurable:true})}catch(e){try{o[k]=v}catch(e2){return}}C.poly.push(k)}
 
@@ -219,10 +219,11 @@ if(AC0){
     track(c);return c};
   Wr.prototype=AC0.prototype;try{Object.setPrototypeOf(Wr,AC0)}catch(e){}
   if(W.AudioContext)W.AudioContext=Wr;if(W.webkitAudioContext)W.webkitAudioContext=Wr;
-  if(res0)AC0.prototype.resume=function(){if(isOffline(this))return res0.apply(this,arguments);track(this);var c=this,m=c.__mt,p;m.want=true;m.appSus=false;
+  // (ETEST-UNTRACKED) the engine test's own contexts (marked __etest) are not the page's: they are left out of the list, the clock line and the repairs
+  if(res0)AC0.prototype.resume=function(){if(isOffline(this)||this.__etest)return res0.apply(this,arguments);track(this);var c=this,m=c.__mt,p;m.want=true;m.appSus=false;
     try{p=res0.apply(c,arguments)}catch(e){m.err=e;if(inGesture())watch(c);return Promise.reject(e)}
     if(p&&p.then)p.then(function(){m.err=null},function(e){m.err=e});if(inGesture())watch(c);return p};
-  if(sus0)AC0.prototype.suspend=function(){if(!isOffline(this)){track(this);this.__mt.appSus=true;this.__mt.want=false}return sus0.apply(this,arguments)};
+  if(sus0)AC0.prototype.suspend=function(){if(!isOffline(this)&&!this.__etest){track(this);this.__mt.appSus=true;this.__mt.want=false}return sus0.apply(this,arguments)};
 }
 // (NOWL) worklets off on this phone: hide them so every module builds its plain-node voices. Otherwise count each sound-making worklet as a
 // started source (so silence from worklet-only music is noticed) and turn a processor that throws into a repair.
@@ -424,7 +425,12 @@ function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(P
   QORDER.forEach(function(k){var o=D.createElement('option');o.value=k;o.textContent=qLabel(k);qs.appendChild(o)});qs.value=qNow();
   qs.onchange=function(){setQ(qs.value)};ql.appendChild(qs);
   // (GREY) the qualities above the one this device was measured to sustain are greyed, with "Measure again" beside them
-  a.appendChild(ql);var qa=el('button','mc-btn',qgT().again);qa.type='button';qa.id='mc-qagain';qa.style.display='none';qa.onclick=function(){qAgain()};a.appendChild(qa);
+  a.appendChild(ql);
+  // (STEADY) the sound path, on a page that has one (the dial): Automatic, Live, Steady, in the page's words (stage.js, MOTS.pathText)
+  try{if(W.MOTS&&MOTS.pathMode&&MOTS.pathText&&MOTS.setPath){var PTc=MOTS.pathText[lang()]||MOTS.pathText.en,pl=el('label','mc-fixl');pl.appendChild(el('span',null,PTc.h+': '));
+    var ps=D.createElement('select');ps.id='mc-path';ps.className='mc-btn';['auto','live','steady'].forEach(function(k){var o=D.createElement('option');o.value=k;o.textContent=PTc[k];ps.appendChild(o)});
+    ps.value=MOTS.pathMode();ps.onchange=function(){MOTS.setPath(ps.value);msg.textContent=PTc.next;if(PANEL&&PANEL.upd)PANEL.upd()};pl.appendChild(ps);a.appendChild(pl)}}catch(e){}
+  var qa=el('button','mc-btn',qgT().again);qa.type='button';qa.id='mc-qagain';qa.style.display='none';qa.onclick=function(){qAgain()};a.appendChild(qa);
   var eb=el('button','mc-btn',ETL());eb.type='button';eb.id='mc-etest';eb.onclick=function(){engineTest(eb,msg)};a.appendChild(eb);
   var cb=el('button','mc-btn',S('copy'));cb.type='button';cb.onclick=function(){copy(report(),cb)};a.appendChild(cb);
   var xb=el('button','mc-btn',S('close'));xb.type='button';xb.onclick=function(){p.style.display='none';clearInterval(tick);tick=0};a.appendChild(xb);
@@ -439,7 +445,7 @@ function ETL(){var t={en:'Test the sound engine',pl:'Sprawdź silnik dźwięku',
 C.etest=null;
 function engineTest(btn,msg){if(btn.disabled)return;btn.disabled=true;var steps=[['plain tone',0],['+ recording tap',1],['+ output stage',2],['+ 60 voices',3],['all with the app\'s options '+(C.pageOpts?JSON.stringify(C.pageOpts):'(none)'),3]],out=[],i=0;
   function one(){if(i>=steps.length){C.etest=out;btn.disabled=false;msg.textContent='';if(PANEL&&PANEL.upd)PANEL.upd();return}
-    var st=steps[i],c;try{c=i===4&&C.pageOpts?new AC0(C.pageOpts):new AC0()}catch(e){out.push(st[0]+': could not start');i++;one();return}
+    var st=steps[i],c;try{c=i===4&&C.pageOpts?new AC0(C.pageOpts):new AC0();c.__etest=1}catch(e){out.push(st[0]+': could not start');i++;one();return}
     msg.textContent=ETL()+' '+(i+1)+'/'+steps.length+'…';
     try{var g=c.createGain();g.gain.value=.03;var o=c.createOscillator();o.frequency.value=440;CN0.call(o,g);var end=c.destination;
       if(st[1]>=2){var ws=c.createWaveShaper();var cv=new Float32Array(2048);for(var k=0;k<2048;k++){var x=k/1023.5-1;cv[k]=Math.tanh(x)}ws.curve=cv;ws.oversample='2x';var dc=c.createDynamicsCompressor();CN0.call(ws,dc);CN0.call(dc,c.destination);end=ws}

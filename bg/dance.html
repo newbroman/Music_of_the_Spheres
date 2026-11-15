@@ -19,7 +19,7 @@
 'use strict';
 var W=window,D=document,N=navigator,T0=Date.now();
 if(W.MOTS_COMPAT)return;
-var C=W.MOTS_COMPAT={v:'2026-10-15',base:'chrome61',errs:[],ctxs:[],poly:[],fails:[],notes:[]};
+var C=W.MOTS_COMPAT={v:'2026-11-15',base:'chrome61',errs:[],ctxs:[],poly:[],fails:[],notes:[]};
 function now(){return ((Date.now()-T0)/1000).toFixed(1)+'s'}
 function def(o,k,v){if(!o||k in o)return;try{Object.defineProperty(o,k,{value:v,writable:true,configurable:true})}catch(e){try{o[k]=v}catch(e2){return}}C.poly.push(k)}
 
@@ -219,10 +219,11 @@ if(AC0){
     track(c);return c};
   Wr.prototype=AC0.prototype;try{Object.setPrototypeOf(Wr,AC0)}catch(e){}
   if(W.AudioContext)W.AudioContext=Wr;if(W.webkitAudioContext)W.webkitAudioContext=Wr;
-  if(res0)AC0.prototype.resume=function(){if(isOffline(this))return res0.apply(this,arguments);track(this);var c=this,m=c.__mt,p;m.want=true;m.appSus=false;
+  // (ETEST-UNTRACKED) the engine test's own contexts (marked __etest) are not the page's: they are left out of the list, the clock line and the repairs
+  if(res0)AC0.prototype.resume=function(){if(isOffline(this)||this.__etest)return res0.apply(this,arguments);track(this);var c=this,m=c.__mt,p;m.want=true;m.appSus=false;
     try{p=res0.apply(c,arguments)}catch(e){m.err=e;if(inGesture())watch(c);return Promise.reject(e)}
     if(p&&p.then)p.then(function(){m.err=null},function(e){m.err=e});if(inGesture())watch(c);return p};
-  if(sus0)AC0.prototype.suspend=function(){if(!isOffline(this)){track(this);this.__mt.appSus=true;this.__mt.want=false}return sus0.apply(this,arguments)};
+  if(sus0)AC0.prototype.suspend=function(){if(!isOffline(this)&&!this.__etest){track(this);this.__mt.appSus=true;this.__mt.want=false}return sus0.apply(this,arguments)};
 }
 // (NOWL) worklets off on this phone: hide them so every module builds its plain-node voices. Otherwise count each sound-making worklet as a
 // started source (so silence from worklet-only music is noticed) and turn a processor that throws into a repair.
@@ -424,7 +425,12 @@ function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(P
   QORDER.forEach(function(k){var o=D.createElement('option');o.value=k;o.textContent=qLabel(k);qs.appendChild(o)});qs.value=qNow();
   qs.onchange=function(){setQ(qs.value)};ql.appendChild(qs);
   // (GREY) the qualities above the one this device was measured to sustain are greyed, with "Measure again" beside them
-  a.appendChild(ql);var qa=el('button','mc-btn',qgT().again);qa.type='button';qa.id='mc-qagain';qa.style.display='none';qa.onclick=function(){qAgain()};a.appendChild(qa);
+  a.appendChild(ql);
+  // (STEADY) the sound path, on a page that has one (the dial): Automatic, Live, Steady, in the page's words (stage.js, MOTS.pathText)
+  try{if(W.MOTS&&MOTS.pathMode&&MOTS.pathText&&MOTS.setPath){var PTc=MOTS.pathText[lang()]||MOTS.pathText.en,pl=el('label','mc-fixl');pl.appendChild(el('span',null,PTc.h+': '));
+    var ps=D.createElement('select');ps.id='mc-path';ps.className='mc-btn';['auto','live','steady'].forEach(function(k){var o=D.createElement('option');o.value=k;o.textContent=PTc[k];ps.appendChild(o)});
+    ps.value=MOTS.pathMode();ps.onchange=function(){MOTS.setPath(ps.value);msg.textContent=PTc.next;if(PANEL&&PANEL.upd)PANEL.upd()};pl.appendChild(ps);a.appendChild(pl)}}catch(e){}
+  var qa=el('button','mc-btn',qgT().again);qa.type='button';qa.id='mc-qagain';qa.style.display='none';qa.onclick=function(){qAgain()};a.appendChild(qa);
   var eb=el('button','mc-btn',ETL());eb.type='button';eb.id='mc-etest';eb.onclick=function(){engineTest(eb,msg)};a.appendChild(eb);
   var cb=el('button','mc-btn',S('copy'));cb.type='button';cb.onclick=function(){copy(report(),cb)};a.appendChild(cb);
   var xb=el('button','mc-btn',S('close'));xb.type='button';xb.onclick=function(){p.style.display='none';clearInterval(tick);tick=0};a.appendChild(xb);
@@ -439,7 +445,7 @@ function ETL(){var t={en:'Test the sound engine',pl:'Sprawdź silnik dźwięku',
 C.etest=null;
 function engineTest(btn,msg){if(btn.disabled)return;btn.disabled=true;var steps=[['plain tone',0],['+ recording tap',1],['+ output stage',2],['+ 60 voices',3],['all with the app\'s options '+(C.pageOpts?JSON.stringify(C.pageOpts):'(none)'),3]],out=[],i=0;
   function one(){if(i>=steps.length){C.etest=out;btn.disabled=false;msg.textContent='';if(PANEL&&PANEL.upd)PANEL.upd();return}
-    var st=steps[i],c;try{c=i===4&&C.pageOpts?new AC0(C.pageOpts):new AC0()}catch(e){out.push(st[0]+': could not start');i++;one();return}
+    var st=steps[i],c;try{c=i===4&&C.pageOpts?new AC0(C.pageOpts):new AC0();c.__etest=1}catch(e){out.push(st[0]+': could not start');i++;one();return}
     msg.textContent=ETL()+' '+(i+1)+'/'+steps.length+'…';
     try{var g=c.createGain();g.gain.value=.03;var o=c.createOscillator();o.frequency.value=440;CN0.call(o,g);var end=c.destination;
       if(st[1]>=2){var ws=c.createWaveShaper();var cv=new Float32Array(2048);for(var k=0;k<2048;k++){var x=k/1023.5-1;cv[k]=Math.tanh(x)}ws.curve=cv;ws.oversample='2x';var dc=c.createDynamicsCompressor();CN0.call(ws,dc);CN0.call(dc,c.destination);end=ws}
@@ -2582,6 +2588,59 @@ html:not(.mots-sky) #motsSky{display:none}
     const n = document.getElementById("stOutNote");
     if (n) n.textContent = T.outNote[mode] || "";
   }
+  const PATHT = {
+    en: { h: "Sound path", auto: "Automatic", live: "Live", steady: "Steady", note: { auto: "Live, and Steady from the next start if this device is heard losing sound.", live: "The sound is made as it plays: taps are heard at once.", steady: "The sound is made a little ahead and played from a store: smooth on slow machines, heard up to 3 seconds after a tap (the sky is drawn as it is heard)." }, next: "From the next start of the sound.", say: "Steadier sound for this device from the next start (Stage → Advanced → Sound path: Steady)" },
+    pl: { h: "Tor dźwięku", auto: "Automatyczny", live: "Na żywo", steady: "Stabilny", note: { auto: "Na żywo, a Stabilny od następnego uruchomienia, jeśli to urządzenie gubi dźwięk.", live: "Dźwięk powstaje w trakcie grania: dotknięcia słychać od razu.", steady: "Dźwięk powstaje trochę wcześniej i gra z zapasu: płynnie na wolnych urządzeniach, słychać go do 3 sekund po dotknięciu (niebo rysuje się tak, jak słychać)." }, next: "Od następnego uruchomienia dźwięku.", say: "Stabilniejszy dźwięk dla tego urządzenia od następnego uruchomienia (Scena → Zaawansowane → Tor dźwięku: Stabilny)" },
+    cy: { h: "Llwybr y sain", auto: "Awtomatig", live: "Byw", steady: "Cyson", note: { auto: "Byw, a Cyson o’r cychwyn nesaf os clywir y ddyfais hon yn colli sain.", live: "Gwneir y sain wrth iddi chwarae: clywir tapiau ar unwaith.", steady: "Gwneir y sain ychydig ymlaen llaw a’i chwarae o storfa: llyfn ar beiriannau araf, a’i chlywed hyd at 3 eiliad ar ôl tap (lluniadir yr awyr fel y’i clywir)." }, next: "O gychwyn nesaf y sain.", say: "Sain fwy cyson i’r ddyfais hon o’r cychwyn nesaf (Llwyfan → Uwch → Llwybr y sain: Cyson)" },
+    de: { h: "Klangweg", auto: "Automatisch", live: "Live", steady: "Stabil", note: { auto: "Live, und ab dem nächsten Start Stabil, wenn dieses Gerät hörbar Klang verliert.", live: "Der Klang entsteht beim Spielen: Tippen ist sofort zu hören.", steady: "Der Klang entsteht etwas im Voraus und spielt aus einem Vorrat: flüssig auf langsamen Geräten, bis zu 3 Sekunden nach dem Tippen zu hören (der Himmel wird gezeichnet, wie er zu hören ist)." }, next: "Ab dem nächsten Start des Klangs.", say: "Stabilerer Klang für dieses Gerät ab dem nächsten Start (Bühne → Erweitert → Klangweg: Stabil)" },
+    es: { h: "Ruta del sonido", auto: "Automática", live: "En vivo", steady: "Estable", note: { auto: "En vivo, y Estable desde el próximo inicio si este dispositivo pierde sonido.", live: "El sonido se crea mientras suena: los toques se oyen al instante.", steady: "El sonido se crea un poco antes y suena desde una reserva: fluido en equipos lentos, se oye hasta 3 segundos después de un toque (el cielo se dibuja tal como se oye)." }, next: "Desde el próximo inicio del sonido.", say: "Sonido más estable para este dispositivo desde el próximo inicio (Escenario → Avanzado → Ruta del sonido: Estable)" },
+    fr: { h: "Chemin du son", auto: "Automatique", live: "Direct", steady: "Stable", note: { auto: "Direct, puis Stable dès le prochain démarrage si cet appareil perd du son.", live: "Le son est créé pendant qu’il joue : les touches s’entendent aussitôt.", steady: "Le son est créé un peu à l’avance et joué depuis une réserve : fluide sur les machines lentes, entendu jusqu’à 3 secondes après une touche (le ciel est dessiné tel qu’on l’entend)." }, next: "Dès le prochain démarrage du son.", say: "Son plus stable pour cet appareil dès le prochain démarrage (Scène → Avancé → Chemin du son : Stable)" },
+    it: { h: "Percorso del suono", auto: "Automatico", live: "Dal vivo", steady: "Stabile", note: { auto: "Dal vivo, e Stabile dal prossimo avvio se questo dispositivo perde suono.", live: "Il suono nasce mentre suona: i tocchi si sentono subito.", steady: "Il suono nasce un po’ prima e suona da una riserva: fluido sulle macchine lente, si sente fino a 3 secondi dopo un tocco (il cielo è disegnato come si sente)." }, next: "Dal prossimo avvio del suono.", say: "Suono più stabile per questo dispositivo dal prossimo avvio (Palco → Avanzate → Percorso del suono: Stabile)" },
+    zh: { h: "声音路径", auto: "自动", live: "实时", steady: "平稳", note: { auto: "先用实时；若此设备出现丢音，下次开始声音时改用平稳。", live: "声音边播放边生成：点按立即可闻。", steady: "声音提前生成并从缓存播放：慢设备上也流畅，点按后最多 3 秒才听到（星空按听到的时刻绘制）。" }, next: "从下次开始声音时生效。", say: "从下次开始起，为此设备使用更平稳的声音（舞台 → 高级 → 声音路径：平稳）" },
+    ja: { h: "音の経路", auto: "自動", live: "ライブ", steady: "安定", note: { auto: "ライブで再生し、この端末で音の途切れが聞こえたら次の開始から安定に切り替えます。", live: "音を鳴らしながら作ります：タップはすぐに聞こえます。", steady: "音を少し先に作って蓄えから再生します：遅い端末でもなめらかですが、タップから最大3秒遅れて聞こえます（空は聞こえるとおりに描かれます）。" }, next: "次に音を始めたときから。", say: "次の開始から、この端末ではより安定した音にします（ステージ → 詳細設定 → 音の経路：安定）" },
+    vi: { h: "Đường âm thanh", auto: "Tự động", live: "Trực tiếp", steady: "Ổn định", note: { auto: "Trực tiếp, và Ổn định từ lần bắt đầu sau nếu thiết bị này bị mất tiếng.", live: "Âm thanh được tạo khi phát: chạm là nghe ngay.", steady: "Âm thanh được tạo trước một chút và phát từ bộ đệm: mượt trên máy chậm, nghe chậm tới 3 giây sau khi chạm (bầu trời được vẽ đúng lúc nghe)." }, next: "Từ lần bắt đầu âm thanh tiếp theo.", say: "Âm thanh ổn định hơn cho thiết bị này từ lần bắt đầu sau (Sân khấu → Nâng cao → Đường âm thanh: Ổn định)" },
+    bg: { h: "Път на звука", auto: "Автоматично", live: "На живо", steady: "Стабилно", note: { auto: "На живо, а Стабилно от следващото пускане, ако това устройство губи звук.", live: "Звукът се създава, докато свири: докосванията се чуват веднага.", steady: "Звукът се създава малко предварително и свири от запас: гладко на бавни машини, чува се до 3 секунди след докосване (небето се рисува така, както се чува)." }, next: "От следващото пускане на звука.", say: "По-стабилен звук за това устройство от следващото пускане (Сцена → Разширени → Път на звука: Стабилно)" },
+    pt: { h: "Caminho do som", auto: "Automático", live: "Ao vivo", steady: "Estável", note: { auto: "Ao vivo, e Estável a partir do próximo início se este aparelho perder som.", live: "O som é criado enquanto toca: os toques soam na hora.", steady: "O som é criado um pouco antes e toca de uma reserva: suave em aparelhos lentos, ouvido até 3 segundos depois de um toque (o céu é desenhado como é ouvido)." }, next: "A partir do próximo início do som.", say: "Som mais estável para este aparelho a partir do próximo início (Palco → Avançado → Caminho do som: Estável)" },
+    nn: { h: "Lydveg", auto: "Automatisk", live: "Direkte", steady: "Stødig", note: { auto: "Direkte, og Stødig frå neste start om denne eininga mistar lyd.", live: "Lyden blir laga medan han spelar: trykk høyrest med éin gong.", steady: "Lyden blir laga litt på førehand og spela frå eit lager: jamt på trege maskiner, høyrest opptil 3 sekund etter eit trykk (himmelen blir teikna slik han høyrest)." }, next: "Frå neste gong lyden startar.", say: "Stødigare lyd for denne eininga frå neste start (Scene → Avansert → Lydveg: Stødig)" },
+    nb: { h: "Lydvei", auto: "Automatisk", live: "Direkte", steady: "Stødig", note: { auto: "Direkte, og Stødig fra neste start hvis denne enheten mister lyd.", live: "Lyden lages mens den spilles: trykk høres med en gang.", steady: "Lyden lages litt på forhånd og spilles fra et lager: jevnt på trege maskiner, høres opptil 3 sekunder etter et trykk (himmelen tegnes slik den høres)." }, next: "Fra neste gang lyden starter.", say: "Stødigere lyd for denne enheten fra neste start (Scene → Avansert → Lydvei: Stødig)" }
+  };
+  const PTX = PATHT[LANG] || PATHT.en;
+  MOTS.pathText = PATHT;
+  MOTS.setPath = (m) => {
+    if (!PATHT.en[m]) return;
+    try {
+      if (m === "auto") localStorage.removeItem("mots.path");
+      else localStorage.setItem("mots.path", m);
+      if (m === "steady") localStorage.removeItem("mots.path.bad");
+    } catch (e) {
+    }
+    syncP();
+    try {
+      if (window.MOTS_COMPAT && MOTS_COMPAT.flog) MOTS_COMPAT.flog("sound path: " + m + " (chosen)");
+    } catch (e) {
+    }
+  };
+  MOTS.pathSay = () => {
+    const t = document.createElement("div");
+    t.setAttribute("role", "status");
+    t.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9500;max-width:min(92vw,560px);background:#13162a;color:#e9e1cc;border:1px solid #c9984f;border-radius:12px;padding:10px 14px;font:15px/1.4 "Alegreya Sans",system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.5);transition:opacity .6s';
+    t.textContent = PTX.say;
+    document.body.appendChild(t);
+    setTimeout(() => {
+      t.style.opacity = "0";
+      setTimeout(() => t.remove(), 700);
+    }, 9e3);
+    syncP();
+  };
+  function syncP() {
+    const m = MOTS.pathMode ? MOTS.pathMode() : "auto";
+    document.querySelectorAll("#stP button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === m)));
+    const n = document.getElementById("stPNote");
+    if (n) {
+      const now = MOTS.path ? MOTS.path() : "live";
+      n.textContent = PTX.note[m] + " " + (now !== (m === "auto" ? now : m) ? PTX.next : "");
+    }
+  }
   function syncQ() {
     document.querySelectorAll("#stQ button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === quality)));
     const n = document.getElementById("stQNote");
@@ -2859,7 +2918,7 @@ html:not(.mots-sky) #motsSky{display:none}
     }
     const WHY = { en: { billing: "Opened free: Google Play billing is not available here.", products: "Opened free: Google Play is not offering the supporter purchases on this device yet.", error: "Opened free: Google Play could not be reached." }, pl: { billing: "Otwarte bezpłatnie: płatności Google Play nie są tu dostępne.", products: "Otwarte bezpłatnie: Google Play nie oferuje jeszcze zakupów wsparcia na tym urządzeniu.", error: "Otwarte bezpłatnie: nie udało się połączyć z Google Play." }, cy: { billing: "Wedi agor am ddim: nid yw taliadau Google Play ar gael yma.", products: "Wedi agor am ddim: nid yw Google Play yn cynnig y pryniannau cefnogwr ar y ddyfais hon eto.", error: "Wedi agor am ddim: methu cyrraedd Google Play." }, de: { billing: "Kostenlos geöffnet: Google-Play-Abrechnung ist hier nicht verfügbar.", products: "Kostenlos geöffnet: Google Play bietet die Unterstützer-Käufe auf diesem Gerät noch nicht an.", error: "Kostenlos geöffnet: Google Play war nicht erreichbar." }, es: { billing: "Abierto gratis: la facturación de Google Play no está disponible aquí.", products: "Abierto gratis: Google Play aún no ofrece las compras de apoyo en este dispositivo.", error: "Abierto gratis: no se pudo contactar con Google Play." }, fr: { billing: "Ouvert gratuitement : la facturation Google Play n’est pas disponible ici.", products: "Ouvert gratuitement : Google Play ne propose pas encore les achats de soutien sur cet appareil.", error: "Ouvert gratuitement : Google Play est injoignable." }, it: { billing: "Aperto gratis: la fatturazione di Google Play non è disponibile qui.", products: "Aperto gratis: Google Play non offre ancora gli acquisti di sostegno su questo dispositivo.", error: "Aperto gratis: impossibile raggiungere Google Play." }, ja: { billing: "無料で開きました：ここでは Google Play の課金を利用できません。", products: "無料で開きました：この端末ではまだ Google Play でサポーター購入が提供されていません。", error: "無料で開きました：Google Play に接続できませんでした。" }, zh: { billing: "已免费打开：此处无法使用 Google Play 结算。", products: "已免费打开：Google Play 尚未在此设备上提供支持者购买。", error: "已免费打开：无法连接 Google Play。" }, vi: { billing: "Mở miễn phí: thanh toán Google Play không khả dụng ở đây.", products: "Mở miễn phí: Google Play chưa cung cấp các gói ủng hộ trên thiết bị này.", error: "Mở miễn phí: không kết nối được với Google Play." }, bg: { billing: "Отворено безплатно: плащанията през Google Play не са достъпни тук.", products: "Отворено безплатно: Google Play все още не предлага покупките за поддръжници на това устройство.", error: "Отворено безплатно: няма връзка с Google Play." }, pt: { billing: "Aberto grátis: o faturamento do Google Play não está disponível aqui.", products: "Aberto grátis: o Google Play ainda não oferece as compras de apoiador neste aparelho.", error: "Aberto grátis: não foi possível acessar o Google Play." }, nn: { billing: "Opna gratis: Google Play-fakturering er ikkje tilgjengeleg her.", products: "Opna gratis: Google Play tilbyr ikkje støttekjøpa på denne eininga enno.", error: "Opna gratis: Fekk ikkje kontakt med Google Play." }, nb: { billing: "Åpnet gratis: Google Play-fakturering er ikke tilgjengelig her.", products: "Åpnet gratis: Google Play tilbyr ikke støttekjøpene på denne enheten ennå.", error: "Åpnet gratis: Fikk ikke kontakt med Google Play." } }[(document.documentElement.lang || "en").slice(0, 2)];
     const why = inPlayApp() && !isSupporter() && SUP.free && SUP.why && WHY ? '<p class="n" style="opacity:.7;margin-top:0">'.concat((WHY || {})[SUP.why] || "", "</p>") : "";
-    p.innerHTML = "<h2>".concat(T.title, "</h2>").concat(why, "\n  <h3>").concat(T.output, '</h3><div class="seg" id="stOut">').concat(["hrtf", "stereo", "pa", "mono", "5.1"].map((v) => '<button type="button" data-v="'.concat(v, '" aria-pressed="false">').concat(T[v], "</button>")).join(""), '</div><p class="n" id="stOutNote"></p><button type="button" class="b" id="stTest" hidden style="margin-top:8px">').concat(T.test, "</button>\n  <h3>").concat(Q.q, '</h3><div class="seg" id="stQ">').concat(["min", "eco", "std", "high"].map((v) => '<button type="button" data-v="'.concat(v, '" aria-pressed="false">').concat(Q[v], "</button>")).join(""), '</div><p class="n" id="stQNote"></p>\n  <h3>').concat(Q.level, '</h3><canvas id="stMeter" width="600" height="44" aria-label="').concat(Q.level, '"></canvas><p class="n" style="margin-top:4px">').concat(Q.tip, "</p>\n  <h3>").concat(T.midi, '</h3><button type="button" class="b" id="stMidiGo">').concat(T.midiConnect, '</button><select id="stMidi" hidden aria-label="').concat(T.midi, '"></select><p class="n" id="stMidiMsg" hidden></p>\n  <label><input type="checkbox" id="stClock"').concat(clockOn ? " checked" : "", "> ").concat(T.clock, "</label>\n  <details><summary>").concat(T.midiMap, "</summary><p>").concat(T.map, "</p></details>\n  <h3>").concat(T.proj, '</h3><p class="n" style="margin-top:0">').concat(T.projNote, '</p>\n  <label><input type="checkbox" id="stAwake"').concat(awakeOn ? " checked" : "", "> ").concat(T.awake, '</label>\n  <div class="row"><button type="button" class="b" id="stProj">').concat(T.proj, '</button><button type="button" class="b" id="stClose">').concat(T.close, "</button></div>");
+    p.innerHTML = "<h2>".concat(T.title, "</h2>").concat(why, "\n  <h3>").concat(T.output, '</h3><div class="seg" id="stOut">').concat(["hrtf", "stereo", "pa", "mono", "5.1"].map((v) => '<button type="button" data-v="'.concat(v, '" aria-pressed="false">').concat(T[v], "</button>")).join(""), '</div><p class="n" id="stOutNote"></p><button type="button" class="b" id="stTest" hidden style="margin-top:8px">').concat(T.test, "</button>\n  <h3>").concat(Q.q, '</h3><div class="seg" id="stQ">').concat(["min", "eco", "std", "high"].map((v) => '<button type="button" data-v="'.concat(v, '" aria-pressed="false">').concat(Q[v], "</button>")).join(""), '</div><p class="n" id="stQNote"></p>\n  ').concat(MOTS.pathMode ? "<h3>".concat(PTX.h, '</h3><div class="seg" id="stP">').concat(["auto", "live", "steady"].map((v) => '<button type="button" data-v="'.concat(v, '" aria-pressed="false">').concat(PTX[v], "</button>")).join(""), '</div><p class="n" id="stPNote"></p>') : "", "\n  <h3>").concat(Q.level, '</h3><canvas id="stMeter" width="600" height="44" aria-label="').concat(Q.level, '"></canvas><p class="n" style="margin-top:4px">').concat(Q.tip, "</p>\n  <h3>").concat(T.midi, '</h3><button type="button" class="b" id="stMidiGo">').concat(T.midiConnect, '</button><select id="stMidi" hidden aria-label="').concat(T.midi, '"></select><p class="n" id="stMidiMsg" hidden></p>\n  <label><input type="checkbox" id="stClock"').concat(clockOn ? " checked" : "", "> ").concat(T.clock, "</label>\n  <details><summary>").concat(T.midiMap, "</summary><p>").concat(T.map, "</p></details>\n  <h3>").concat(T.proj, '</h3><p class="n" style="margin-top:0">').concat(T.projNote, '</p>\n  <label><input type="checkbox" id="stAwake"').concat(awakeOn ? " checked" : "", "> ").concat(T.awake, '</label>\n  <div class="row"><button type="button" class="b" id="stProj">').concat(T.proj, '</button><button type="button" class="b" id="stClose">').concat(T.close, "</button></div>");
     if (!keep) document.body.appendChild(p);
     syncOut();
     p.querySelectorAll("#stOut button").forEach((b) => b.onclick = () => MOTS.setOut(b.dataset.v));
@@ -2869,6 +2928,8 @@ html:not(.mots-sky) #motsSky{display:none}
       MOTS.setQuality(b.dataset.v);
     });
     syncQ();
+    p.querySelectorAll("#stP button").forEach((b) => b.onclick = () => MOTS.setPath(b.dataset.v));
+    syncP();
     meterLoop();
     p.querySelector("#stMidiGo").onclick = connectMIDI;
     if (access) fillOuts();
