@@ -6666,7 +6666,7 @@ let duckT=0;function duck(on){clearTimeout(duckT);const f=()=>{try{if(MOTS.sheet
 const SPK={on:false,last:null,src:null};
 function manifest(){if(MANP)return MANP;MANP=fetch(BASE+'voice/manifest.json').then(r=>r.ok?r.json():{}).catch(()=>({})).then(m=>MAN=m||{});return MANP}
 const FEM=/female|woman|frau|femme|mujer|donna|kobieta|женск|nữ|女|Zira|Hazel|Susan|Samantha|Karen|Moira|Tessa|Fiona|Amelie|Anna|Alice|Paulina|Monica|Luciana|Joana|Kyoko|Ting-Ting|Daria|Ewa|Zosia|Gwyneth/i;
-function pickVoice(sex){let V=[];try{V=speechSynthesis.getVoices()}catch(e){}const same=V.filter(v=>String(v.lang||'').toLowerCase().replace('_','-').startsWith(LANG));if(!same.length)return null;
+function pickVoice(sex){let V=[];try{V=speechSynthesis.getVoices()}catch(e){}const pre=LANG==='nn'?['nn','nb','no']:LANG==='nb'?['nb','no','nn']:[LANG],rk=v=>pre.findIndex(p=>String(v.lang||'').toLowerCase().replace('_','-').startsWith(p)),same=V.filter(v=>rk(v)>=0).sort((a,b)=>rk(a)-rk(b));if(!same.length)return null;
   const isF=v=>FEM.test(v.name);return sex==='f'?(same.find(isF)||same[0]):(same.find(v=>!isF(v))||same[0])}
 function stopSpeak(){try{speechSynthesis.cancel()}catch(e){}if(SPK.src){try{SPK.src.stop()}catch(e){}SPK.src=null}SPK.on=false;if(PL&&PL.master)PL.master.gain.setTargetAtTime(1,PL.ac.currentTime,.3);duck(!!(PL&&PL.mode));syncCard()}
 /** speak the figure's line: resolves {src: 'clip'|'tts'|'none', text} when it has been heard */
@@ -19010,7 +19010,7 @@ function rtShow(blob,secs,kind){
   const FEM = /female|woman|frau|femme|mujer|donna|kobieta|женск|nữ|女|Zira|Hazel|Susan|Samantha|Karen|Moira|Tessa|Fiona|Veena|Amelie|Anna|Alice|Paulina|Monica|Luciana|Joana|Kyoko|O-Ren|Ting-Ting|Sin-ji|Daria|Milena|Ewa|Zosia|Gwyneth|Google (UK English Female|Deutsch|español|français|italiano|日本語|普通话|Tiếng Việt|polski|português do Brasil|български)/i;
   const MASC = /\bmale\b|\bman\b|mann|homme|hombre|uomo|мъж|男|Daniel|David|George|James|Thomas|Oliver|Arthur|Fred|Alex\b|Tom\b|Rishi|Hans|Stefan|Markus|Yannick|Jorge|Diego|Carlos|Jorge|Paulo|Felipe|Luca|Marco|Otoya|Ichiro|Hattori|Geraint|Krzysztof|Marek|Google UK English Male/i;
   function pickVoice(sex) {
-    const V2 = voices(), l = LANG.toLowerCase(), same = V2.filter((v) => String(v.lang || "").toLowerCase().replace("_", "-").startsWith(l));
+    const V2 = voices(), l = LANG.toLowerCase(), pre2 = l === "nn" ? ["nn", "nb", "no"] : l === "nb" ? ["nb", "no", "nn"] : [l], rk = (v) => pre2.findIndex((p) => String(v.lang || "").toLowerCase().replace("_", "-").startsWith(p)), same = V2.filter((v) => rk(v) >= 0).sort((a, b) => rk(a) - rk(b));
     if (!same.length) return null;
     const isF = (v) => FEM.test(v.name) && !/male(?!.*female)/i.test(v.name.replace(/female/i, "")), isM = (v) => MASC.test(v.name) && !/female/i.test(v.name);
     if (sex === "m") return same.find(isM) || same.find((v) => !isF(v)) || same.find((v) => v.default) || same[0];
@@ -19168,6 +19168,7 @@ function rtShow(blob,secs,kind){
     introDue = null;
     if (introduced.has(k) || k !== introKey()) return;
     introduced.add(k);
+    if (TX[k] == null) return;
     speak(k, introGod(k));
   }
   const MO = { open: false, openAt: 0, armed: false, hushUntil: 0 }, WV = { phase: "off", until: 0 };
