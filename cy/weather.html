@@ -1598,6 +1598,13 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
           }
         }
         if (s.hid > 15) bgNote("hidden " + s.hid.toFixed(0) + " s · sound clock " + s.aud.toFixed(0) + " s (" + Math.round(100 * s.aud / Math.max(0.1, s.hid)) + "%) · " + s.mode + (s.fell ? " → stream next time" : "") + (s.tip ? " → battery tip shown" : "") + (s.lite ? " · went Lightest while hidden" : "") + " · late ticks " + s.gaps + (s.wd ? " · watchdog " + s.wd : ""));
+        if (s.hid > 15 && MOTS.steadyHid) {
+          try {
+            const h = MOTS.steadyHid();
+            if (h) bgNote(h);
+          } catch (e) {
+          }
+        }
         if (/[?&]bgdiag\b/.test(location.search)) bgDiag(s);
       }
     } catch (e) {
@@ -5768,6 +5775,45 @@ const qNow=()=>{let q=null;try{if(window.MOTS&&MOTS.quality)q=MOTS.quality()}cat
 // (AUTO) Auto: the app chooses and steps down by itself; it is on until a quality is chosen by hand
 const qAuto=()=>LS.get('mots.quality.manual')!=='1';
 const qNote=(Q,q)=>qAuto()?(Q.autoNote||'The app chooses for this device and lightens the sound if it falls behind. Now:')+' '+(Q[q]||q)+'.':((Q.note||{})[q]?Q.note[q]+' ':'')+(Q.later||'');
+/* (STEADY in Settings, Martin 18 Nov: "Steady isn't an option") the Sound path and the Sky while the music plays, here too (Stage → Advanced is a
+   supporter unlock in the Play app). The same keys as stage.js and the dial: mots.path (unset = Automatic) and mots.draw (unset =
+   Automatic); on the dial MOTS.setPath / MOTS.setDraw apply them (the path from the next start of the sound, the sky at once). The words
+   are stage.js's PATHT and SKYT (copied here, as this sheet is on every page). */
+const PATHT={en:{h:'Sound path',auto:'Automatic',live:'Live',steady:'Steady',note:{auto:'Live, and Steady from the next start if this device is heard losing sound.',live:'The sound is made as it plays: taps are heard at once.',steady:'The sound is made a little ahead and played from a store: smooth on slow machines, heard up to 3 seconds after a tap (the sky is drawn as it is heard).'},next:'From the next start of the sound.',say:'Steadier sound for this device from the next start (Stage → Advanced → Sound path: Steady)'},
+ pl:{h:'Tor dźwięku',auto:'Automatyczny',live:'Na żywo',steady:'Stabilny',note:{auto:'Na żywo, a Stabilny od następnego uruchomienia, jeśli to urządzenie gubi dźwięk.',live:'Dźwięk powstaje w trakcie grania: dotknięcia słychać od razu.',steady:'Dźwięk powstaje trochę wcześniej i gra z zapasu: płynnie na wolnych urządzeniach, słychać go do 3 sekund po dotknięciu (niebo rysuje się tak, jak słychać).'},next:'Od następnego uruchomienia dźwięku.',say:'Stabilniejszy dźwięk dla tego urządzenia od następnego uruchomienia (Scena → Zaawansowane → Tor dźwięku: Stabilny)'},
+ cy:{h:'Llwybr y sain',auto:'Awtomatig',live:'Byw',steady:'Cyson',note:{auto:'Byw, a Cyson o’r cychwyn nesaf os clywir y ddyfais hon yn colli sain.',live:'Gwneir y sain wrth iddi chwarae: clywir tapiau ar unwaith.',steady:'Gwneir y sain ychydig ymlaen llaw a’i chwarae o storfa: llyfn ar beiriannau araf, a’i chlywed hyd at 3 eiliad ar ôl tap (lluniadir yr awyr fel y’i clywir).'},next:'O gychwyn nesaf y sain.',say:'Sain fwy cyson i’r ddyfais hon o’r cychwyn nesaf (Llwyfan → Uwch → Llwybr y sain: Cyson)'},
+ de:{h:'Klangweg',auto:'Automatisch',live:'Live',steady:'Stabil',note:{auto:'Live, und ab dem nächsten Start Stabil, wenn dieses Gerät hörbar Klang verliert.',live:'Der Klang entsteht beim Spielen: Tippen ist sofort zu hören.',steady:'Der Klang entsteht etwas im Voraus und spielt aus einem Vorrat: flüssig auf langsamen Geräten, bis zu 3 Sekunden nach dem Tippen zu hören (der Himmel wird gezeichnet, wie er zu hören ist).'},next:'Ab dem nächsten Start des Klangs.',say:'Stabilerer Klang für dieses Gerät ab dem nächsten Start (Bühne → Erweitert → Klangweg: Stabil)'},
+ es:{h:'Ruta del sonido',auto:'Automática',live:'En vivo',steady:'Estable',note:{auto:'En vivo, y Estable desde el próximo inicio si este dispositivo pierde sonido.',live:'El sonido se crea mientras suena: los toques se oyen al instante.',steady:'El sonido se crea un poco antes y suena desde una reserva: fluido en equipos lentos, se oye hasta 3 segundos después de un toque (el cielo se dibuja tal como se oye).'},next:'Desde el próximo inicio del sonido.',say:'Sonido más estable para este dispositivo desde el próximo inicio (Escenario → Avanzado → Ruta del sonido: Estable)'},
+ fr:{h:'Chemin du son',auto:'Automatique',live:'Direct',steady:'Stable',note:{auto:'Direct, puis Stable dès le prochain démarrage si cet appareil perd du son.',live:'Le son est créé pendant qu’il joue : les touches s’entendent aussitôt.',steady:'Le son est créé un peu à l’avance et joué depuis une réserve : fluide sur les machines lentes, entendu jusqu’à 3 secondes après une touche (le ciel est dessiné tel qu’on l’entend).'},next:'Dès le prochain démarrage du son.',say:'Son plus stable pour cet appareil dès le prochain démarrage (Scène → Avancé → Chemin du son : Stable)'},
+ it:{h:'Percorso del suono',auto:'Automatico',live:'Dal vivo',steady:'Stabile',note:{auto:'Dal vivo, e Stabile dal prossimo avvio se questo dispositivo perde suono.',live:'Il suono nasce mentre suona: i tocchi si sentono subito.',steady:'Il suono nasce un po’ prima e suona da una riserva: fluido sulle macchine lente, si sente fino a 3 secondi dopo un tocco (il cielo è disegnato come si sente).'},next:'Dal prossimo avvio del suono.',say:'Suono più stabile per questo dispositivo dal prossimo avvio (Palco → Avanzate → Percorso del suono: Stabile)'},
+ zh:{h:'声音路径',auto:'自动',live:'实时',steady:'平稳',note:{auto:'先用实时；若此设备出现丢音，下次开始声音时改用平稳。',live:'声音边播放边生成：点按立即可闻。',steady:'声音提前生成并从缓存播放：慢设备上也流畅，点按后最多 3 秒才听到（星空按听到的时刻绘制）。'},next:'从下次开始声音时生效。',say:'从下次开始起，为此设备使用更平稳的声音（舞台 → 高级 → 声音路径：平稳）'},
+ ja:{h:'音の経路',auto:'自動',live:'ライブ',steady:'安定',note:{auto:'ライブで再生し、この端末で音の途切れが聞こえたら次の開始から安定に切り替えます。',live:'音を鳴らしながら作ります：タップはすぐに聞こえます。',steady:'音を少し先に作って蓄えから再生します：遅い端末でもなめらかですが、タップから最大3秒遅れて聞こえます（空は聞こえるとおりに描かれます）。'},next:'次に音を始めたときから。',say:'次の開始から、この端末ではより安定した音にします（ステージ → 詳細設定 → 音の経路：安定）'},
+ vi:{h:'Đường âm thanh',auto:'Tự động',live:'Trực tiếp',steady:'Ổn định',note:{auto:'Trực tiếp, và Ổn định từ lần bắt đầu sau nếu thiết bị này bị mất tiếng.',live:'Âm thanh được tạo khi phát: chạm là nghe ngay.',steady:'Âm thanh được tạo trước một chút và phát từ bộ đệm: mượt trên máy chậm, nghe chậm tới 3 giây sau khi chạm (bầu trời được vẽ đúng lúc nghe).'},next:'Từ lần bắt đầu âm thanh tiếp theo.',say:'Âm thanh ổn định hơn cho thiết bị này từ lần bắt đầu sau (Sân khấu → Nâng cao → Đường âm thanh: Ổn định)'},
+ bg:{h:'Път на звука',auto:'Автоматично',live:'На живо',steady:'Стабилно',note:{auto:'На живо, а Стабилно от следващото пускане, ако това устройство губи звук.',live:'Звукът се създава, докато свири: докосванията се чуват веднага.',steady:'Звукът се създава малко предварително и свири от запас: гладко на бавни машини, чува се до 3 секунди след докосване (небето се рисува така, както се чува).'},next:'От следващото пускане на звука.',say:'По-стабилен звук за това устройство от следващото пускане (Сцена → Разширени → Път на звука: Стабилно)'},
+ pt:{h:'Caminho do som',auto:'Automático',live:'Ao vivo',steady:'Estável',note:{auto:'Ao vivo, e Estável a partir do próximo início se este aparelho perder som.',live:'O som é criado enquanto toca: os toques soam na hora.',steady:'O som é criado um pouco antes e toca de uma reserva: suave em aparelhos lentos, ouvido até 3 segundos depois de um toque (o céu é desenhado como é ouvido).'},next:'A partir do próximo início do som.',say:'Som mais estável para este aparelho a partir do próximo início (Palco → Avançado → Caminho do som: Estável)'},
+ nn:{h:'Lydveg',auto:'Automatisk',live:'Direkte',steady:'Stødig',note:{auto:'Direkte, og Stødig frå neste start om denne eininga mistar lyd.',live:'Lyden blir laga medan han spelar: trykk høyrest med éin gong.',steady:'Lyden blir laga litt på førehand og spela frå eit lager: jamt på trege maskiner, høyrest opptil 3 sekund etter eit trykk (himmelen blir teikna slik han høyrest).'},next:'Frå neste gong lyden startar.',say:'Stødigare lyd for denne eininga frå neste start (Scene → Avansert → Lydveg: Stødig)'},
+ nb:{h:'Lydvei',auto:'Automatisk',live:'Direkte',steady:'Stødig',note:{auto:'Direkte, og Stødig fra neste start hvis denne enheten mister lyd.',live:'Lyden lages mens den spilles: trykk høres med en gang.',steady:'Lyden lages litt på forhånd og spilles fra et lager: jevnt på trege maskiner, høres opptil 3 sekunder etter et trykk (himmelen tegnes slik den høres).'},next:'Fra neste gang lyden starter.',say:'Stødigere lyd for denne enheten fra neste start (Scene → Avansert → Lydvei: Stødig)'}};
+const SKYT={en:{h:'Sky while the music plays',auto:'Automatic',full:'Full',l15:'Lighter',still:'Still',note:'Drawing the sky less often leaves a slow computer or phone more time for the sound. Automatic draws it in full unless this device needed the Steady sound path.'},
+ pl:{h:'Niebo podczas muzyki',auto:'Automatycznie',full:'Pełne',l15:'Lżejsze',still:'Nieruchome',note:'Rzadsze rysowanie nieba zostawia wolnemu komputerowi lub telefonowi więcej czasu na dźwięk. Automatycznie rysuje je w pełni, chyba że to urządzenie potrzebowało stabilnego toru dźwięku.'},
+ cy:{h:'Yr awyr tra bo’r gerddoriaeth yn chwarae',auto:'Awtomatig',full:'Llawn',l15:'Ysgafnach',still:'Llonydd',note:'Mae lluniadu’r awyr yn llai aml yn gadael mwy o amser i gyfrifiadur neu ffôn araf ar gyfer y sain. Mae Awtomatig yn ei lluniadu’n llawn oni bai bod y ddyfais hon wedi bod angen y llwybr sain Cyson.'},
+ de:{h:'Himmel während der Musik',auto:'Automatisch',full:'Voll',l15:'Leichter',still:'Still',note:'Wird der Himmel seltener gezeichnet, bleibt einem langsamen Computer oder Telefon mehr Zeit für den Klang. Automatisch zeichnet ihn voll, außer dieses Gerät brauchte den stabilen Klangweg.'},
+ es:{h:'Cielo mientras suena la música',auto:'Automático',full:'Completo',l15:'Más ligero',still:'Quieto',note:'Dibujar el cielo con menos frecuencia deja a un ordenador o teléfono lento más tiempo para el sonido. Automático lo dibuja completo, salvo que este dispositivo haya necesitado la ruta de sonido Estable.'},
+ fr:{h:'Ciel pendant la musique',auto:'Automatique',full:'Complet',l15:'Plus léger',still:'Immobile',note:'Dessiner le ciel moins souvent laisse plus de temps au son sur un ordinateur ou un téléphone lent. Automatique le dessine en entier, sauf si cet appareil a eu besoin du chemin du son Stable.'},
+ it:{h:'Cielo durante la musica',auto:'Automatico',full:'Completo',l15:'Più leggero',still:'Fermo',note:'Disegnare il cielo meno spesso lascia più tempo al suono su un computer o un telefono lento. Automatico lo disegna completo, a meno che questo dispositivo non abbia avuto bisogno del percorso del suono Stabile.'},
+ zh:{h:'音乐播放时的星空',auto:'自动',full:'完整',l15:'较轻',still:'静止',note:'减少星空的绘制，能让较慢的电脑或手机把更多时间留给声音。自动模式会完整绘制，除非此设备需要了平稳的声音路径。'},
+ ja:{h:'音楽を流している間の空',auto:'自動',full:'通常',l15:'軽め',still:'静止',note:'空を描く回数を減らすと、遅いパソコンやスマートフォンでも音に時間を回せます。自動では、この端末が安定の音の経路を必要としない限り、通常どおり描きます。'},
+ vi:{h:'Bầu trời khi nhạc phát',auto:'Tự động',full:'Đầy đủ',l15:'Nhẹ hơn',still:'Đứng yên',note:'Vẽ bầu trời thưa hơn giúp máy tính hay điện thoại chậm có thêm thời gian cho âm thanh. Tự động sẽ vẽ đầy đủ, trừ khi thiết bị này cần đường âm thanh Ổn định.'},
+ bg:{h:'Небето, докато свири музиката',auto:'Автоматично',full:'Пълно',l15:'По-леко',still:'Неподвижно',note:'Когато небето се рисува по-рядко, бавният компютър или телефон има повече време за звука. Автоматично го рисува пълно, освен ако това устройство е имало нужда от стабилния път на звука.'},
+ pt:{h:'Céu enquanto a música toca',auto:'Automático',full:'Completo',l15:'Mais leve',still:'Parado',note:'Desenhar o céu menos vezes deixa mais tempo para o som num computador ou celular lento. Automático desenha completo, a menos que este aparelho tenha precisado do caminho do som Estável.'},
+ nn:{h:'Himmelen medan musikken spelar',auto:'Automatisk',full:'Full',l15:'Lettare',still:'Stille',note:'Når himmelen blir teikna sjeldnare, får ei treg datamaskin eller ein treg telefon meir tid til lyden. Automatisk teiknar han fullt, med mindre denne eininga trong den stødige lydvegen.'},
+ nb:{h:'Himmelen mens musikken spiller',auto:'Automatisk',full:'Full',l15:'Lettere',still:'Stille',note:'Når himmelen tegnes sjeldnere, får en treg datamaskin eller telefon mer tid til lyden. Automatisk tegner den fullt, med mindre denne enheten trengte den stødige lydveien.'}};
+const PX=PATHT[cur]||PATHT.en,KX=SKYT[cur]||SKYT.en;
+const pMode=()=>{const v=LS.get('mots.path');return v==='live'||v==='steady'?v:'auto'};
+// what Automatic is doing now: the dial knows; elsewhere, what it decided last on this device
+const pNow=()=>{try{if(window.MOTS&&MOTS.path&&MOTS.path()==='steady')return 'steady'}catch(e){}return LS.get('mots.path.auto')==='steady'&&LS.get('mots.path.bad')!=='1'?'steady':'live'};
+const kMode=()=>{const v=LS.get('mots.draw');return v==='full'||v==='15'||v==='still'?v:v==='20'?'15':'auto'};
+const kNow=()=>{try{if(window.MOTS&&MOTS.drawMode){const m=MOTS.drawMode();if(/^15/.test(m))return '15';if(/^still/.test(m))return 'still'}}catch(e){}return LS.get('mots.draw.auto')&&pNow()==='steady'?'15':'full'};
+const KL={full:'full',15:'l15',still:'still'};
 // the same page in another language folder (relative, so it works wherever the site is served), keeping its place
 function relLang(c){const inL=cur!=='en';return (inL?'../':'')+(c==='en'?'':c+'/')+location.pathname.split('/').pop()+location.hash}
 let opener=null;
@@ -5780,6 +5826,10 @@ function open(from){
   el.innerHTML=`<div class="sh"><h2 id="hSheetT">${esc(T.settings)}</h2>
    <h3>${esc(Q.q)}</h3><div class="qs" role="group" aria-label="${esc(Q.q)}">${['auto','min','eco','std','high'].map(k=>`<button type="button" data-q="${k}"${k==='auto'?' class="qa"':''} aria-pressed="${k==='auto'?qAuto():!qAuto()&&k===q}"${k!=='auto'&&cap&&QR[k]>QR[cap]?' disabled':''}>${esc(Q[k]||(k==='auto'?'Auto':k))}</button>`).join('')}</div>
    <p class="note" id="hSheetNote">${esc(qNote(Q,q))}</p>
+   <h3>${esc(PX.h)}</h3><div class="ps" role="group" aria-label="${esc(PX.h)}">${['auto','live','steady'].map(k=>`<button type="button" data-p="${k}" aria-pressed="${pMode()===k}">${esc(PX[k])}</button>`).join('')}</div>
+   <p class="note" id="hSheetPNote"></p>
+   <h3>${esc(KX.h)}</h3><div class="ks" role="group" aria-label="${esc(KX.h)}">${['auto','full','15','still'].map(k=>`<button type="button" data-k="${k}" aria-pressed="${kMode()===k}">${esc(k==='auto'?KX.auto:KX[KL[k]])}</button>`).join('')}</div>
+   <p class="note" id="hSheetKNote"></p>
    ${L&&L.list&&L.list.length>1?`<h3>${esc(T.lang)}</h3><div class="langs">${L.list.map(([c,n])=>`<a href="${esc(c===L.cur?'#':relLang(c))}" lang="${c}" data-l="${c}"${c===L.cur?' aria-current="true"':''}>${esc(n)}</a>`).join('')}</div>`:''}
    <button type="button" class="close">${esc(T.close)}</button></div>`;
   document.body.appendChild(el);
@@ -5787,13 +5837,22 @@ function open(from){
   const key=e=>{if(e.key==='Escape')shut()};document.addEventListener('keydown',key);
   el.addEventListener('click',e=>{if(e.target===el)shut()});el.querySelector('.close').onclick=shut;
   const sync=()=>{const now=qNow(),au=qAuto();el.querySelectorAll('.qs button').forEach(x=>x.setAttribute('aria-pressed',String(au?x.dataset.q==='auto':x.dataset.q===now)));
-    const n=$('hSheetNote');if(n)n.textContent=qNote(Q,now)};
+    const n=$('hSheetNote');if(n)n.textContent=qNote(Q,now);
+    // the path and the sky: which is chosen, and on Automatic what it is doing now ("Automatic (→ Steady)")
+    const pm=pMode(),pn=pNow();el.querySelectorAll('.ps button').forEach(x=>{x.setAttribute('aria-pressed',String(x.dataset.p===pm));x.textContent=x.dataset.p==='auto'&&pm==='auto'?PX.auto+' (→ '+PX[pn]+')':PX[x.dataset.p]});
+    const pnote=$('hSheetPNote');if(pnote)pnote.textContent=(PX.note[pm]||'')+' '+((pm==='auto'?pn:pm)!==pn?PX.next:'');
+    const km=kMode(),kn=kNow();el.querySelectorAll('.ks button').forEach(x=>{x.setAttribute('aria-pressed',String(x.dataset.k===km));x.textContent=x.dataset.k==='auto'&&km==='auto'?KX.auto+' (→ '+KX[KL[kn]]+')':(x.dataset.k==='auto'?KX.auto:KX[KL[x.dataset.k]])});
+    const knote=$('hSheetKNote');if(knote)knote.textContent=KX.note};
   el.querySelectorAll('.qs button').forEach(b=>b.onclick=()=>{const k=b.dataset.q;
     if(k==='auto'){if(window.MOTS&&MOTS.setAuto){try{MOTS.setAuto()}catch(e){}}else{try{localStorage.removeItem('mots.quality.manual');localStorage.removeItem('mots.quality')}catch(e){}}sync();return}
     LS.set('mots.quality.manual','1');
     if(window.MOTS&&MOTS.setQuality){try{MOTS.setQuality(k)}catch(e){}if(qNow()!==k)LS.set('mots.quality',k)}else LS.set('mots.quality',k);sync()});
+  el.querySelectorAll('.ps button').forEach(b=>b.onclick=()=>{const k=b.dataset.p;
+    if(window.MOTS&&MOTS.setPath){try{MOTS.setPath(k)}catch(e){}}else{try{if(k==='auto')localStorage.removeItem('mots.path');else localStorage.setItem('mots.path',k);if(k==='steady')localStorage.removeItem('mots.path.bad')}catch(e){}}sync()});
+  el.querySelectorAll('.ks button').forEach(b=>b.onclick=()=>{const k=b.dataset.k;
+    if(window.MOTS&&MOTS.setDraw){try{MOTS.setDraw(k)}catch(e){}}else{try{if(k==='auto')localStorage.removeItem('mots.draw');else localStorage.setItem('mots.draw',k)}catch(e){}}sync()});
   el.querySelectorAll('.langs a').forEach(a=>a.onclick=e=>{const c=a.dataset.l;LS.set('mots.lang',c);if(c===(L&&L.cur)){e.preventDefault();shut()}});
-  const f=el.querySelector('.qs button[aria-pressed="true"]');if(f)f.focus();
+  sync();const f=el.querySelector('.qs button[aria-pressed="true"]');if(f)f.focus();
   return el;
 }
 window.MOTS=window.MOTS||{};MOTS.settings={open,T};
@@ -5820,6 +5879,11 @@ nav.site.icons .mots-set-btn .l{display:none}nav.site.icons .mots-set-btn{paddin
 #hSheet.mots-set .qs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 #hSheet.mots-set .qs button,#hSheet.mots-set .close{min-height:var(--tap,2.75rem);border-radius:999px;border:1px solid #3a4068;background:transparent;color:#e9e1cc;cursor:pointer;padding:6px 8px;font:inherit;font-size:15px;line-height:1.15}
 #hSheet.mots-set .qs button.qa{grid-column:1/-1}
+#hSheet.mots-set .ps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+#hSheet.mots-set .ks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+#hSheet.mots-set .ps button,#hSheet.mots-set .ks button{min-height:var(--tap,2.75rem);border-radius:999px;border:1px solid #3a4068;background:transparent;color:#e9e1cc;cursor:pointer;padding:6px 8px;font:inherit;font-size:15px;line-height:1.15}
+#hSheet.mots-set .ps button[aria-pressed="true"],#hSheet.mots-set .ks button[aria-pressed="true"]{border-color:#e9d093;background:rgba(233,208,147,.14);color:#e9d093}
+#hSheet.mots-set .ks button[data-k="auto"]{grid-column:1/-1}
 #hSheet.mots-set .qs button[aria-pressed="true"]{border-color:#e9d093;background:rgba(233,208,147,.14);color:#e9d093}
 #hSheet.mots-set .qs button:disabled{opacity:.4;cursor:default}
 #hSheet.mots-set .note{margin:0;font-size:14px;line-height:1.4;color:#aea791}
