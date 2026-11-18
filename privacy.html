@@ -19,7 +19,7 @@
 'use strict';
 var W=window,D=document,N=navigator,T0=Date.now();
 if(W.MOTS_COMPAT)return;
-var C=W.MOTS_COMPAT={v:'2026-10-15',base:'chrome61',errs:[],ctxs:[],poly:[],fails:[],notes:[]};
+var C=W.MOTS_COMPAT={v:'2026-11-15',base:'chrome61',errs:[],ctxs:[],poly:[],fails:[],notes:[]};
 function now(){return ((Date.now()-T0)/1000).toFixed(1)+'s'}
 function def(o,k,v){if(!o||k in o)return;try{Object.defineProperty(o,k,{value:v,writable:true,configurable:true})}catch(e){try{o[k]=v}catch(e2){return}}C.poly.push(k)}
 
@@ -219,10 +219,14 @@ if(AC0){
     track(c);return c};
   Wr.prototype=AC0.prototype;try{Object.setPrototypeOf(Wr,AC0)}catch(e){}
   if(W.AudioContext)W.AudioContext=Wr;if(W.webkitAudioContext)W.webkitAudioContext=Wr;
-  if(res0)AC0.prototype.resume=function(){if(isOffline(this))return res0.apply(this,arguments);track(this);var c=this,m=c.__mt,p;m.want=true;m.appSus=false;
+  // (ETEST-UNTRACKED) the engine test's own contexts (marked __etest) are not the page's: they are left out of the list, the clock line and the repairs
+  if(res0)AC0.prototype.resume=function(){if(isOffline(this)||this.__etest)return res0.apply(this,arguments);track(this);var c=this,m=c.__mt,p;m.want=true;m.appSus=false;
     try{p=res0.apply(c,arguments)}catch(e){m.err=e;if(inGesture())watch(c);return Promise.reject(e)}
     if(p&&p.then)p.then(function(){m.err=null},function(e){m.err=e});if(inGesture())watch(c);return p};
-  if(sus0)AC0.prototype.suspend=function(){if(!isOffline(this)){track(this);this.__mt.appSus=true;this.__mt.want=false}return sus0.apply(this,arguments)};
+  // (CLOSED-PROBE) a context the page has closed is never resumed by the tap below: Firefox keeps a never-started context 'suspended' until
+  // its close() settles, and resuming it then throws InvalidStateError into the Sound check (stage.js's channel-count probe, 15 Nov 2026)
+  var cls0=AC0.prototype.close;if(cls0)AC0.prototype.close=function(){try{if(this.__mt)this.__mt.closed=true}catch(e){}return cls0.apply(this,arguments)};
+  if(sus0)AC0.prototype.suspend=function(){if(!isOffline(this)&&!this.__etest){track(this);this.__mt.appSus=true;this.__mt.want=false}return sus0.apply(this,arguments)};
 }
 // (NOWL) worklets off on this phone: hide them so every module builds its plain-node voices. Otherwise count each sound-making worklet as a
 // started source (so silence from worklet-only music is noticed) and turn a processor that throws into a repair.
@@ -237,7 +241,7 @@ else if(AWN0){var Wk=function AudioWorkletNode(c,name,o){var n=new AWN0(c,name,o
   Wk.prototype=AWN0.prototype;try{Object.setPrototypeOf(Wk,AWN0)}catch(e){}try{W.AudioWorkletNode=Wk}catch(e){}}
 function onGesture(e){if(e&&e.isTrusted===false)return;lastG=Date.now();anyG=true;
   // a context the page made before any tap, or one it asked to start and the browser held back: resume it inside this tap
-  for(var i=0;i<C.ctxs.length;i++){var c=C.ctxs[i],m=c.__mt;if(c.state!=='suspended'&&c.state!=='interrupted')continue;if(m.appSus)continue;
+  for(var i=0;i<C.ctxs.length;i++){var c=C.ctxs[i],m=c.__mt;if(c.state!=='suspended'&&c.state!=='interrupted')continue;if(m.appSus||m.closed)continue;
     if(m.want||(m.pre&&!m.ran)){try{var p=res0.call(c);if(p&&p.then)p.then(null,function(er){m.err=er})}catch(er){m.err=er}if(m.want)watch(c)}}
   // no Web Audio at all: say so at the first tap on a control (not on the help or privacy pages)
   if(!AC0&&!C.noWAsaid&&e&&e.type==='click'&&!/help|privacy/.test(location.pathname)){var t=e.target;while(t&&t!==D&&!/^(BUTTON|A|SUMMARY|INPUT|LABEL)$/.test(t.tagName))t=t.parentNode;if(t&&t!==D){C.noWAsaid=true;fail(S('noWA'))}}}
@@ -409,7 +413,7 @@ setInterval(function(){C.ctxs.forEach(function(c){if(c.state==='closed')return;v
 C.bgNote=function(s){try{var k='mots.bglog',a=JSON.parse(LSg(k)||'[]');a.push(new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(5,16).replace('T',' ')+' '+(location.pathname.split('/').pop()||'index.html')+': '+s);LSs(k,JSON.stringify(a.slice(-12)))}catch(e){}};
 C.report=report;
 var PANEL=null,tick=0;
-function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(PANEL.upd)PANEL.upd();var f=D.getElementById('mc-fix');if(f)f.value=String(routeNow());var qq=D.getElementById('mc-q');if(qq)qq.value=qNow();qGrey();return}
+function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(PANEL.upd)PANEL.upd();var f=D.getElementById('mc-fix');if(f)f.value=String(routeNow());var qq=D.getElementById('mc-q');if(qq)qq.value=qSel();qGrey();return}
   var p=PANEL=el('div','mc-panel');p.id='mc-diag';p.setAttribute('role','dialog');p.setAttribute('aria-label',S('chk'));
   p.appendChild(el('h2',null,S('chk')));p.appendChild(el('p','mc-sub',S('sub')));
   var pre=el('pre');p.appendChild(pre);var msg=el('p','mc-msg');msg.setAttribute('aria-live','polite');p.appendChild(msg);
@@ -421,10 +425,15 @@ function openDiag(){ready(function(){css();if(PANEL){PANEL.style.display='';if(P
   fs.onchange=function(){setRoute(+fs.value)};fl.appendChild(fs);a.appendChild(fl);
   // (LIGHTEST) the Quality, here too: the Stage panel is locked for non-supporters in the Play app, so this is where they choose it
   var ql=el('label','mc-fixl');ql.appendChild(el('span',null,qT().q+' '));var qs=D.createElement('select');qs.id='mc-q';qs.className='mc-btn';
-  QORDER.forEach(function(k){var o=D.createElement('option');o.value=k;o.textContent=qLabel(k);qs.appendChild(o)});qs.value=qNow();
+  ['auto'].concat(QORDER).forEach(function(k){var o=D.createElement('option');o.value=k;o.textContent=qLabel(k);qs.appendChild(o)});qs.value=qSel();
   qs.onchange=function(){setQ(qs.value)};ql.appendChild(qs);
   // (GREY) the qualities above the one this device was measured to sustain are greyed, with "Measure again" beside them
-  a.appendChild(ql);var qa=el('button','mc-btn',qgT().again);qa.type='button';qa.id='mc-qagain';qa.style.display='none';qa.onclick=function(){qAgain()};a.appendChild(qa);
+  a.appendChild(ql);
+  // (STEADY) the sound path, on a page that has one (the dial): Automatic, Live, Steady, in the page's words (stage.js, MOTS.pathText)
+  try{if(W.MOTS&&MOTS.pathMode&&MOTS.pathText&&MOTS.setPath){var PTc=MOTS.pathText[lang()]||MOTS.pathText.en,pl=el('label','mc-fixl');pl.appendChild(el('span',null,PTc.h+': '));
+    var ps=D.createElement('select');ps.id='mc-path';ps.className='mc-btn';['auto','live','steady'].forEach(function(k){var o=D.createElement('option');o.value=k;o.textContent=PTc[k];ps.appendChild(o)});
+    ps.value=MOTS.pathMode();ps.onchange=function(){MOTS.setPath(ps.value);msg.textContent=PTc.next;if(PANEL&&PANEL.upd)PANEL.upd()};pl.appendChild(ps);a.appendChild(pl)}}catch(e){}
+  var qa=el('button','mc-btn',qgT().again);qa.type='button';qa.id='mc-qagain';qa.style.display='none';qa.onclick=function(){qAgain()};a.appendChild(qa);
   var eb=el('button','mc-btn',ETL());eb.type='button';eb.id='mc-etest';eb.onclick=function(){engineTest(eb,msg)};a.appendChild(eb);
   var cb=el('button','mc-btn',S('copy'));cb.type='button';cb.onclick=function(){copy(report(),cb)};a.appendChild(cb);
   var xb=el('button','mc-btn',S('close'));xb.type='button';xb.onclick=function(){p.style.display='none';clearInterval(tick);tick=0};a.appendChild(xb);
@@ -439,7 +448,7 @@ function ETL(){var t={en:'Test the sound engine',pl:'Sprawdź silnik dźwięku',
 C.etest=null;
 function engineTest(btn,msg){if(btn.disabled)return;btn.disabled=true;var steps=[['plain tone',0],['+ recording tap',1],['+ output stage',2],['+ 60 voices',3],['all with the app\'s options '+(C.pageOpts?JSON.stringify(C.pageOpts):'(none)'),3]],out=[],i=0;
   function one(){if(i>=steps.length){C.etest=out;btn.disabled=false;msg.textContent='';if(PANEL&&PANEL.upd)PANEL.upd();return}
-    var st=steps[i],c;try{c=i===4&&C.pageOpts?new AC0(C.pageOpts):new AC0()}catch(e){out.push(st[0]+': could not start');i++;one();return}
+    var st=steps[i],c;try{c=i===4&&C.pageOpts?new AC0(C.pageOpts):new AC0();c.__etest=1}catch(e){out.push(st[0]+': could not start');i++;one();return}
     msg.textContent=ETL()+' '+(i+1)+'/'+steps.length+'…';
     try{var g=c.createGain();g.gain.value=.03;var o=c.createOscillator();o.frequency.value=440;CN0.call(o,g);var end=c.destination;
       if(st[1]>=2){var ws=c.createWaveShaper();var cv=new Float32Array(2048);for(var k=0;k<2048;k++){var x=k/1023.5-1;cv[k]=Math.tanh(x)}ws.curve=cv;ws.oversample='2x';var dc=c.createDynamicsCompressor();CN0.call(ws,dc);CN0.call(dc,c.destination);end=ws}
@@ -464,15 +473,17 @@ var FIXT={en:['Sound route:',0,0,['standard','a larger output buffer','larger bu
 /* (LIGHTEST) the Quality select: Lightest, Economy, Standard, High. The labels are the page's own (stage.js, MOTS.qualityText) where it has
    them, else these; a choice is applied at once (MOTS.setQuality) and marked as chosen by hand, so the watchdog leaves it alone */
 var QORDER=['min','eco','std','high'];
-var QFT={en:{q:'Quality:',min:'Lightest',eco:'Eco',std:'Standard',high:'High'},pl:{q:'Jakość:',min:'Najlżejsza',eco:'Eko',std:'Standardowa',high:'Wysoka'},
- cy:{q:'Ansawdd:',min:'Ysgafnaf',eco:'Eco',std:'Safonol',high:'Uchel'},de:{q:'Qualität:',min:'Minimal',eco:'Öko',std:'Standard',high:'Hoch'},
- es:{q:'Calidad:',min:'Mínima',eco:'Eco',std:'Estándar',high:'Alta'},fr:{q:'Qualité :',min:'Minimale',eco:'Éco',std:'Standard',high:'Haute'},
- it:{q:'Qualità:',min:'Minima',eco:'Eco',std:'Standard',high:'Alta'},zh:{q:'音质：',min:'最轻',eco:'省电',std:'标准',high:'高'},
- ja:{q:'音質：',min:'最軽量',eco:'エコ',std:'標準',high:'高'},vi:{q:'Chất lượng:',min:'Nhẹ nhất',eco:'Tiết kiệm',std:'Chuẩn',high:'Cao'},
- bg:{q:'Качество:',min:'Най-лек',eco:'Икономичен',std:'Стандартен',high:'Висок'},pt:{q:'Qualidade:',min:'Mínima',eco:'Econômico',std:'Padrão',high:'Alta'}};
+var QFT={en:{q:'Quality:',auto:'Auto',min:'Lightest',eco:'Eco',std:'Standard',high:'High'},pl:{q:'Jakość:',auto:'Auto',min:'Najlżejsza',eco:'Eko',std:'Standardowa',high:'Wysoka'},
+ cy:{q:'Ansawdd:',auto:'Awtomatig',min:'Ysgafnaf',eco:'Eco',std:'Safonol',high:'Uchel'},de:{q:'Qualität:',auto:'Auto',min:'Minimal',eco:'Öko',std:'Standard',high:'Hoch'},
+ es:{q:'Calidad:',auto:'Auto',min:'Mínima',eco:'Eco',std:'Estándar',high:'Alta'},fr:{q:'Qualité :',auto:'Auto',min:'Minimale',eco:'Éco',std:'Standard',high:'Haute'},
+ it:{q:'Qualità:',auto:'Auto',min:'Minima',eco:'Eco',std:'Standard',high:'Alta'},zh:{q:'音质：',auto:'自动',min:'最轻',eco:'省电',std:'标准',high:'高'},
+ ja:{q:'音質：',auto:'自動',min:'最軽量',eco:'エコ',std:'標準',high:'高'},vi:{q:'Chất lượng:',auto:'Tự động',min:'Nhẹ nhất',eco:'Tiết kiệm',std:'Chuẩn',high:'Cao'},
+ bg:{q:'Качество:',auto:'Авто',min:'Най-лек',eco:'Икономичен',std:'Стандартен',high:'Висок'},pt:{q:'Qualidade:',auto:'Auto',min:'Mínima',eco:'Econômico',std:'Padrão',high:'Alta'}};
 function qT(){return QFT[lang()]||QFT.en}
 function qLabel(k){try{var M=window.MOTS;if(M&&M.qualityText&&M.qualityText[k])return M.qualityText[k]}catch(e){}return qT()[k]||QFT.en[k]}
 function qNow(){var q=null;try{if(window.MOTS&&window.MOTS.quality)q=window.MOTS.quality()}catch(e){}if(!q)q=LSg('mots.quality');return QORDER.indexOf(q)>=0?q:'std'}
+// (AUTO) the select shows Auto until a quality is chosen by hand
+function qSel(){return LSg('mots.quality.manual')==='1'?qNow():'auto'}
 // (GREY) the quality the app's watchdog stepped down to on this device (stage.js, mots.qcap): the ones above it are too heavy here
 var QGT={en:['Too heavy for this phone (measured)','Too heavy for this device (measured)','Measure again'],pl:['Za ciężkie dla tego telefonu (zmierzone)','Za ciężkie dla tego urządzenia (zmierzone)','Zmierz ponownie'],
  cy:['Rhy drwm i’r ffôn hwn (wedi’i fesur)','Rhy drwm i’r ddyfais hon (wedi’i fesur)','Mesur eto'],de:['Zu schwer für dieses Telefon (gemessen)','Zu schwer für dieses Gerät (gemessen)','Erneut messen'],
@@ -485,11 +496,13 @@ function qCap(){var c=LSg('mots.qcap');return QORDER.indexOf(c)>=0?c:null}
 function qOver(q){var c=qCap();return !!c&&QORDER.indexOf(q)>QORDER.indexOf(c)}
 function qGrey(){var qs=D.getElementById('mc-q');if(!qs)return;var any=false,i,o;
   for(i=0;i<qs.options.length;i++){o=qs.options[i];var over=qOver(o.value);if(over)any=true;o.disabled=over;o.textContent=qLabel(o.value)+(over?' — '+qgT().heavy:'')}
-  var qa=D.getElementById('mc-qagain');if(qa)qa.style.display=any?'':'none';qs.title=any?qgT().heavy:'';qs.value=qNow()}
+  var qa=D.getElementById('mc-qagain');if(qa)qa.style.display=any?'':'none';qs.title=any?qgT().heavy:'';qs.value=qSel()}
 function qAgain(){var done=false;try{if(W.MOTS&&MOTS.qcap&&MOTS.qcap.again){MOTS.qcap.again();done=true}}catch(e){}
   if(!done){LSs('mots.qcap');LSs('mots.quality.manual');flog('quality limit cleared (Measure again)')}
   qGrey();if(PANEL&&PANEL.upd)PANEL.upd()}
-function setQ(q){if(QORDER.indexOf(q)<0||qOver(q))return;LSs('mots.quality.manual','1');var done=false;
+function setQ(q){if(q==='auto'){var dn=false;try{if(window.MOTS&&window.MOTS.setAuto){window.MOTS.setAuto();dn=true}}catch(e){}
+    if(!dn){LSs('mots.quality.manual');LSs('mots.quality')}flog('quality: Auto (chosen in the Sound check)');if(PANEL&&PANEL.upd)PANEL.upd();return}
+  if(QORDER.indexOf(q)<0||qOver(q))return;LSs('mots.quality.manual','1');var done=false;
   try{if(window.MOTS&&window.MOTS.setQuality){window.MOTS.setQuality(q);done=true}}catch(e){}
   if(!done||LSg('mots.quality')!==q)LSs('mots.quality',q);
   flog('quality: '+q+' (chosen in the Sound check)');
