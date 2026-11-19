@@ -12989,13 +12989,14 @@ function hostSaid(d){if(d.nan)leanFail('a voice in the sound host turned into in
    path is live until the live sound is measured losing time (below), then steady from the next start, remembered as mots.path.auto. The
    rest of the dial's sound (plucks, bells, the Sun …) goes through a delay of D so it stays with the host, the bus level the heavens fade
    is copied D later onto the ring's level, and the sky is drawn as it was D ago (steadyDraw), so what is seen is what is heard. ---------- */
-const STEADY={on:false,w:null,ring:null,rg:null,delay:null,pre:null,D:0,L:0,u:0,hist:[],jd:null,lost:0,lostT:[],why:''};
+{const m=location.search.match(/[?&]handover=([01])\b/);if(m)try{localStorage.setItem('mots.handover',m[1])}catch(e){}}
+const STEADY={ho:(()=>{let v=null;try{v=localStorage.getItem('mots.handover')}catch(e){}return v==='1'?true:v==='0'?false:LOWPOWER})(),on:false,w:null,ring:null,rg:null,delay:null,pre:null,D:0,L:0,u:0,hist:[],jd:null,lost:0,lostT:[],why:''};
 {const m=location.search.match(/[?&]path=(live|steady|auto)\b/);if(m)try{localStorage.setItem('mots.path',m[1]);if(m[1]!=='live')localStorage.removeItem('mots.path.bad')}catch(e){}}
 function pathPref(){let p=null,a=null,bad=null;try{p=localStorage.getItem('mots.path');a=localStorage.getItem('mots.path.auto');bad=localStorage.getItem('mots.path.bad')}catch(e){}
   if(bad==='1'&&p!=='steady')return 'live';if(p==='live'||p==='steady')return p;return a==='steady'?'steady':'live'}
 function pathMode(){let p=null;try{p=localStorage.getItem('mots.path')}catch(e){}return p==='live'||p==='steady'?p:'auto'}
 function steadyCan(){return leanPref()&&leanCan()&&!!window.Worker&&!!window.MessageChannel&&!!(AC&&AC.audioWorklet)}
-if(window.MOTS){MOTS.path=()=>STEADY.on?'steady':'live';MOTS.pathMode=pathMode;MOTS.pathInfo=()=>({path:STEADY.on?'steady':'live',mode:pathMode(),D:STEADY.D,L:STEADY.L,short:STEADY.u,lost:+STEADY.lost.toFixed(3),late:STEADY.late||0,lateMax:STEADY.lateMax||0,cb:STEADY.cb||0,gaps:playGaps(),draw:MOTS.drawMode?MOTS.drawMode():'full'})}
+if(window.MOTS){MOTS.path=()=>STEADY.on?'steady':'live';MOTS._steady=()=>STEADY;MOTS.pathMode=pathMode;MOTS.pathInfo=()=>({path:STEADY.on?'steady':'live',ho:!!STEADY.ho,hand:!!(STEADY.hand&&STEADY.hand.on),hg:STEADY.hgR?[+STEADY.hgR.gain.value.toFixed(2),+(STEADY.hgL?STEADY.hgL.gain.value:0).toFixed(2)]:null,mode:pathMode(),D:STEADY.D,L:STEADY.L,short:STEADY.u,lost:+STEADY.lost.toFixed(3),late:STEADY.late||0,lateMax:STEADY.lateMax||0,cb:STEADY.cb||0,gaps:playGaps(),draw:MOTS.drawMode?MOTS.drawMode():'full'})}
 // the browser's own count of the gaps it filled (Chrome: playbackStats or the earlier playoutStats), where it has one
 function playGaps(){const c=AC;if(!c)return null;try{const a=c.playbackStats;if(a&&a.underrunEvents!=null)return {n:a.underrunEvents,ms:Math.round(1000*(a.underrunDuration||0))};
   const b=c.playoutStats;if(b&&b.fallbackFramesEvents!=null)return {n:b.fallbackFramesEvents,ms:Math.round(b.fallbackFramesDuration||0)}}catch(e){}return null}
@@ -13010,19 +13011,41 @@ function steadyStart(ac){let ring,w;
   w.onerror=e=>{steadyFail('the steady host failed ('+((e&&e.message)||'')+')')};
   let li=0;try{li=Math.max(0,Math.min(3,+(localStorage.getItem('mots.steady.li')||0)||0))}catch(e){}
   w.postMessage({init:1,sr:ac.sampleRate,tables:VWL.T||{},f0:Math.round(ac.currentTime*ac.sampleRate),port:ch.port1,li},[ch.port1]);
-  ring.connect(STEADY.rg);STEADY.ring=ring;STEADY.w=w;
+  // (HANDOVER) the ring through its own hand-over level (1 in view); on a phone a Live host too (see steadyHand)
+  STEADY.hgR=ac.createGain();ring.connect(STEADY.hgR);STEADY.hgR.connect(STEADY.rg);STEADY.ring=ring;STEADY.w=w;
+  let live=null;if(STEADY.ho&&STEADY.lg){try{live=new AudioWorkletNode(ac,'mots-sky',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});live.port.postMessage([15,1]);
+      live.onprocessorerror=()=>leanFail('the sound host failed');live.port.onmessage=e=>hostSaid(e.data||{});
+      STEADY.hgL=ac.createGain();STEADY.hgL.gain.value=0;live.connect(STEADY.hgL);STEADY.hgL.connect(STEADY.lg);STEADY.live=live}catch(e){live=null;STEADY.ho=false}}
   try{if(window.MOTS_COMPAT&&MOTS_COMPAT.notes)MOTS_COMPAT.notes.push('sound path: steady')}catch(e){}
-  return {port:{postMessage:q=>w.postMessage({m:q,t:ac.currentTime})},connect(){},disconnect(){},steady:true}}
+  return {port:{postMessage:q=>{w.postMessage({m:q,t:ac.currentTime});if(live)live.port.postMessage(q)}},connect(){},disconnect(){},steady:true}}
+/* (HANDOVER, Martin 19 Nov) a phone gives a hidden page's Worker too little time, and Steady went silent with the screen off (BV9900). On a
+   phone (STEADY.ho) a second host, a Live one, is fed the same ops and kept quiet (stepped, not made) while Steady plays. The page hidden:
+   the Live host wakes and, 50 ms on, one crossfade (40 ms) takes out the ring and the delayed rest of the sound and brings in the Live host
+   and the rest undelayed (the ring has more than that made already, so nothing is missed; the sound jumps on by D, as agreed), then the
+   Worker pauses and takes in the page's word silently. In view again: the Worker resumes, and after 1.5 s (the ring full again) the
+   crossfade goes back (the sound steps back by D) and the Live host is quieted. Only one of the two is ever heard. A computer (STEADY.ho
+   false; ?handover=1 or 0 sets it, mots.handover) keeps Steady while hidden. */
+function steadyHand(hid){if(!STEADY.on||!STEADY.ho||!STEADY.live||!AC)return;const H=STEADY.hand||(STEADY.hand={on:false,gen:0});const g=++H.gen;
+  // one moment for all four levels: the ring and the delayed rest of the sound out, the Live host and the rest undelayed in (or back)
+  const xf=(toLive,at)=>{const tc=.04;for(const [x,v] of [[STEADY.hgL,1],[STEADY.gZ,1],[STEADY.hgR,0],[STEADY.gD,0]]){try{x.gain.cancelScheduledValues(at);x.gain.setTargetAtTime(toLive?v:1-v,at,tc)}catch(e){}}};
+  if(hid){if(H.on)return;H.on=true;STEADY.live.port.postMessage([15,0]);xf(true,AC.currentTime+.05);try{STEADY.ring.port.postMessage({hold:1})}catch(e){}
+    setTimeout(()=>{if(H.gen===g&&H.on)try{STEADY.w.postMessage({pause:1})}catch(e){}},400)}
+  else{if(!H.on)return;try{STEADY.ring.port.postMessage({hold:0});STEADY.w.postMessage({pause:0})}catch(e){}
+    setTimeout(()=>{if(H.gen!==g)return;H.on=false;xf(false,AC.currentTime+.05);setTimeout(()=>{if(H.gen===g&&!H.on)try{STEADY.live.port.postMessage([15,1])}catch(e){}},500)},1500)}}
+document.addEventListener('visibilitychange',()=>{try{steadyHand(document.hidden)}catch(e){}});
 // the Worker or the ring would not run: live from now on, on this device (until ?path=steady), and start again
 function steadyFail(why){if(STEADY.failed)return;STEADY.failed=true;try{console.warn('steady path: '+why)}catch(e){}
   try{localStorage.setItem('mots.path.bad','1');localStorage.setItem('mots.path.auto','live')}catch(e){}
   try{if(window.MOTS_COMPAT&&MOTS_COMPAT.flog)MOTS_COMPAT.flog('steady sound path off: '+why)}catch(e){}setTimeout(()=>location.reload(),150)}
 // at initAudio, before leanInit: the delay for the rest of the sound and the ring's own level (bus is the voices' bus, pre the gain after it)
 function steadyGraph(pre){STEADY.on=pathPref()==='steady'&&steadyCan();STEADY.pre=pre;if(!STEADY.on){bus.connect(pre);return}
-  STEADY.delay=AC.createDelay(3.5);STEADY.delay.delayTime.value=.56;bus.connect(STEADY.delay);STEADY.delay.connect(pre);
+  STEADY.delay=AC.createDelay(3.5);STEADY.delay.delayTime.value=.56;bus.connect(STEADY.delay);
+  STEADY.gD=AC.createGain();STEADY.delay.connect(STEADY.gD);STEADY.gD.connect(pre);
   STEADY.rg=AC.createGain();STEADY.rg.connect(pre);
+  // (HANDOVER) on a phone: the rest of the sound undelayed too (silent until the hand-over), and the Live host's own level, the bus's at once
+  if(STEADY.ho){STEADY.gZ=AC.createGain();STEADY.gZ.gain.value=0;bus.connect(STEADY.gZ);STEADY.gZ.connect(pre);STEADY.lg=AC.createGain();STEADY.lg.gain.value=bus.gain.value;STEADY.lg.connect(pre)}
   // the heavens fade the bus (tgt): the ring's level makes the same moves D later
-  const bg=bus.gain,st0=bg.setTargetAtTime;bg.setTargetAtTime=function(v,t,tc){try{STEADY.rg.gain.setTargetAtTime(v,t+STEADY.D,tc)}catch(e){}return st0.call(bg,v,t,tc)}}
+  const bg=bus.gain,st0=bg.setTargetAtTime;bg.setTargetAtTime=function(v,t,tc){try{STEADY.rg.gain.setTargetAtTime(v,t+STEADY.D,tc);if(STEADY.lg)STEADY.lg.gain.setTargetAtTime(v,t,tc)}catch(e){}return st0.call(bg,v,t,tc)}}
 /* (LOW-DRAW) the sky drawn less often while the sound plays, to leave a slow machine's processor to the sound: mots.draw unset (automatic)
    | 'full' | '20' | '15' frames a second | 'still' (once a second), chosen in Stage → Advanced → Sky (MOTS.setDraw) or by ?draw=
    (?draw=auto clears it). The music's own updates (updateAudio, about 22 a second) are not touched: only the drawing is skipped. */
@@ -13052,12 +13075,13 @@ if(window.MOTS){MOTS.drawMode=()=>{const p=DRAWP||drawPick();return p.v+(p.auto&
    The spell is noted in the Sound check's screen-off log. */
 {let h0=null;
   // the spell's line for stage.js's screen-off log, whichever visibilitychange listener runs first
-  const line=h=>h?'steady while hidden: ring short '+((h.end?h.u1:STEADY.u)-h.u)+' times in '+Math.round(((h.end||performance.now())-h.t)/1000)+' s, heard '+STEADY.D.toFixed(2)+' s after'+(h.said?' → Live from the next start':''):'';
+  const line=h=>h&&STEADY.ho&&STEADY.live?'steady while hidden: handed to the Live host for '+Math.round(((h.end||performance.now())-h.t)/1000)+' s (phone)':h?'steady while hidden: ring short '+((h.end?h.u1:STEADY.u)-h.u)+' times in '+Math.round(((h.end||performance.now())-h.t)/1000)+' s, heard '+STEADY.D.toFixed(2)+' s after'+(h.said?' → Live from the next start':''):'';
   if(window.MOTS)MOTS.steadyHid=()=>STEADY.on?line(h0):'';
   const hidNow=()=>{if(!STEADY.on)return;if(document.hidden){if(!h0||h0.end)h0={u:STEADY.u,t:performance.now(),said:false,end:0}}
     else if(h0&&!h0.end){h0.end=performance.now();h0.u1=STEADY.u}};
   document.addEventListener('visibilitychange',hidNow);
-  setInterval(()=>{if(!STEADY.on||!document.hidden||!h0||h0.said||h0.end)return;
+  // (HANDOVER) a phone hands over to its Live host while hidden: the ring is not what plays then, so its shortages are not counted
+  setInterval(()=>{if(!STEADY.on||!document.hidden||!h0||h0.said||h0.end||(STEADY.ho&&STEADY.live))return;
     if(h0.end)return;if(STEADY.u-h0.u>=3&&pathMode()==='auto'){h0.said=true;try{localStorage.setItem('mots.path.auto','live');localStorage.setItem('mots.path.hid','1')}catch(e){}
       try{if(window.MOTS_COMPAT&&MOTS_COMPAT.flog)MOTS_COMPAT.flog('steady sound ran short with the screen off: Live from the next start')}catch(e){}}},1000)}
 /* (STEADY auto) the live sound losing time. A missed deadline leaves the audio clock behind the wall clock by the gap (the 2-6 s average
