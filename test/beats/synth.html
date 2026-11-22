@@ -720,6 +720,7 @@ select,.tx{background:#0c0e1c;color:var(--vellum);border:1px solid var(--line-2)
 .mb.m[aria-pressed="true"]{background:#4a2626;color:#f2c7c7;border-color:#8a4444}
 .mb.s[aria-pressed="true"]{background:rgba(201,152,79,.22);color:#f3d9a4;border-color:var(--bronze)}
 @media (max-width:1600px){.mb .lb{display:none}}
+.solobar{align-self:flex-start;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .strip.solo{background:rgba(201,152,79,.1);box-shadow:inset 3px 0 0 var(--bronze)}
 .strips.hasSolo .strip:not(.solo):not(.grp) .nm,.strips.hasSolo .strip:not(.solo):not(.grp) .note,.strips.hasSolo .strip:not(.solo):not(.grp) .lvl{opacity:.4}
 .strip.walk{background:rgba(201,152,79,.16);box-shadow:inset 3px 0 0 #f3d9a4}
@@ -12519,6 +12520,29 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     if (!box) return;
     const anySolo = PLANETS.some((b) => Y.osc[b.id].solo);
     box.classList.toggle("hasSolo", anySolo && !WALK.id);
+    {
+      let sb = $("soloBar");
+      if (!sb) {
+        sb = document.createElement("button");
+        sb.type = "button";
+        sb.id = "soloBar";
+        sb.className = "pb gold solobar";
+        box.parentNode.insertBefore(sb, box);
+        sb.onclick = () => {
+          PLANETS.forEach((x) => {
+            Y.osc[x.id].solo = false;
+          });
+          syncStrips();
+          dirty();
+          toast(TX.soloOff);
+        };
+      }
+      const sol = PLANETS.filter((x) => Y.osc[x.id].solo);
+      sb.hidden = !sol.length || !!WALK.id;
+      sb.textContent = "🎧 " + sol.map((x) => x.god).join(", ") + " · " + TX.soloOff;
+      sb.title = TX.soloOff;
+      sb.setAttribute("aria-label", TX.soloOff);
+    }
     PLANETS.forEach((b) => {
       const o = Y.osc[b.id], d = box.querySelector('.strip[data-id="'.concat(b.id, '"]'));
       if (!d) return;
