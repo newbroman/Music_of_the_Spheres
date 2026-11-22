@@ -637,7 +637,9 @@ select,.tx{background:#0c0e1c;color:var(--vellum);border:1px solid var(--line-2)
 /* (MIXTOP v2) the top mixer: one slim line pinned at the top, sliding away as the page scrolls down; per channel a dot (on/off) and its name (opens its panel) */
 .mixtop{background:rgba(16,18,31,.96);border:1px solid var(--line);border-radius:14px;padding:.25rem;position:sticky;top:.3rem;z-index:20;transition:transform .25s,opacity .25s;backdrop-filter:blur(6px)}
 .mixtop.hid{transform:translateY(-130%);opacity:0;pointer-events:none}
-.mline{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.25rem}
+.mline{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.25rem}
+.mch .mnt .sh{display:none}
+@media (max-width:560px){.mch .mnt .lg{display:none}.mch .mnt .sh{display:inline}.mch .mon{width:1.8rem;height:1.8rem}.mch .mnm{font-size:.8rem;padding:0 .3rem}}
 .mch{display:flex;flex-wrap:wrap;align-items:center;min-width:0;border-radius:12px;border:1px solid transparent;padding-bottom:.15rem}
 .mch .mlv{flex:1 1 auto;width:calc(100% - .6rem);min-width:0;height:1.1rem;margin:.1rem .3rem 0;accent-color:var(--bronze)}
 .mch:not(.on) .mlv{opacity:.45}
@@ -650,6 +652,12 @@ select,.tx{background:#0c0e1c;color:var(--vellum);border:1px solid var(--line-2)
 @media (prefers-reduced-motion:reduce){.mixtop{transition:none}}
 /* (SEQ-PITCH) where the Sequencer's notes come from: a quiet note under its hint (the Galaxy's strips have their own pitches) */
 .seqpitch{border-left:2px solid var(--bronze);padding-left:.6rem;color:var(--vellum-dim)}
+/* (SEQ-TAPE) loops of steps: each row its own playhead, its loop length on its head, the steps past a short loop's end greyed */
+.seqgrid.tape .ph{display:none}
+.sc.cut{opacity:.22}
+.sc.rph{outline:2px solid #f3d9a4;outline-offset:-2px}
+.srow .rl{font-style:normal;font-family:var(--f-mono);font-size:.7rem;color:var(--bronze);border:1px solid var(--line-2);border-radius:999px;padding:0 .35rem;flex:none}
+.srow .rl.away{color:var(--vellum-dim);border-style:dashed}
 html.galaxy .seqpitch{display:none}
 /* (MATRIX-LIST) the routes: one line each, the add line at the foot */
 .mxl{display:flex;flex-direction:column;gap:.5rem}
@@ -1053,6 +1061,25 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
   .deck > .patch > .tools.pt button,.deck > .tools.help button{white-space:normal;text-align:center;line-height:1.05;font-size:.74rem;overflow-wrap:anywhere}
 }
 </style>
+
+<style>
+/* (LOOPS) the tape-loop synthesiser's panel: a chip a planet with its loop turning round it, then the tape speed and the five loops */
+.lpchips{display:grid;grid-template-columns:repeat(auto-fill,minmax(8.6rem,1fr));gap:.4rem;margin:.4rem 0 .8rem}
+.lpc{appearance:none;display:flex;align-items:center;gap:.45rem;border:1px solid var(--line);background:var(--sky);color:var(--vellum);border-radius:10px;padding:.35rem .5rem;cursor:pointer;text-align:left;min-height:var(--tap)}
+.lpc .ring{flex:none;width:1.5rem;height:1.5rem;border-radius:50%;background:conic-gradient(var(--c) var(--p,0deg),rgba(255,255,255,.08) 0);display:grid;place-items:center;transition:transform .15s}
+.lpc .ring i{width:.75rem;height:.75rem;border-radius:50%;background:var(--sky);display:block}
+.lpc.hit .ring{transform:scale(1.25);box-shadow:0 0 10px var(--c)}
+.lpc b{font-family:var(--f-display);font-weight:400;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.lpc small{margin-left:auto;font-family:var(--f-mono);font-size:.68rem;color:var(--vellum-dim);white-space:nowrap}
+.lpc.mute{opacity:.4}.lpc.mute b{text-decoration:line-through}
+.lpspeed{flex:1 1 100%}
+.lplanes{display:flex;flex-direction:column;gap:.35rem;flex:1 1 100%}
+.lprow{display:grid;grid-template-columns:minmax(5.5rem,auto) minmax(7rem,1fr) minmax(5rem,1.4fr);align-items:center;gap:.5rem}
+.lprow .lab{font-size:.85rem;color:var(--vellum)}
+.lprow select{min-width:0}
+.lprow input[type=range]:disabled{opacity:.3}
+.loopcard.off .lpchips{opacity:.6}
+</style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Noto+Serif+JP:wght@400;600&display=swap">
 <style>:root{--f-display:"GFS Didot","Noto Serif JP",Georgia,serif;--f-body:"Alegreya Sans","Noto Sans JP",system-ui,sans-serif}body{line-break:strict;word-break:normal;overflow-wrap:anywhere}</style>
 </head>
@@ -1119,6 +1146,14 @@ html.mots-proj #sbar,html.mots-show #sbar{display:none}
     <div class="seqctl" id="beatctl"></div>
     <div class="seqwrap"><div class="seqgrid" id="beatgrid" role="group" aria-label="Beats"></div></div>
     <div id="beatexp" class="x-expert"></div>
+  </section>
+
+  <!-- (LOOPS, Martin 23 Nov) the tape-loop synthesiser (loops.js): the mixer's fourth channel -->
+  <section class="card seq loopcard" id="loopCard" data-panel="loops" aria-label="テープ・ループ">
+    <h2 id="loopTitle">テープ・ループ <small>κύκλοι</small></h2>
+    <p class="small" id="loopHint"></p>
+    <div class="lpchips" id="loopPl" role="group" aria-label="テープ・ループ"></div>
+    <div class="seqctl" id="loopctl"></div>
   </section>
 
   <section class="card" data-panel="synth" aria-label="モジュレーション・マトリクス">
@@ -4552,6 +4587,21 @@ const s=document.createElement('style');s.id='motsPulseCss';s.textContent=css;(d
 (()=>{
 "use strict";
 const WN=[
+ {id:'loops',d:'2026-11-22',s:'∞',go:{p:'synth.html',h:'loops'},t:{
+  en:["Tape loops in the Synthesiser", "After Brian Eno’s tape loops: the Synthesiser’s mixer has a fourth channel, Loops. Every planet runs five loops at once, each a different length, moving when its note sounds, its pitch, its echo, its place around you and its brightness. Each loop’s length comes from the planet itself: its year, its day, its eccentric orbit or its moons. The Sequencer has Tape loops too: each planet’s row loops at its own length, so the rows drift apart."],
+  pl:["Pętle taśmy w Syntezatorze", "Za pętlami taśmy Briana Eno: mikser Syntezatora ma czwarty kanał, Pętle. Każda planeta prowadzi naraz pięć pętli o różnych długościach, które poruszają to, kiedy brzmi jej dźwięk, jego wysokość, echo, miejsce wokół ciebie i jasność. Długość każdej pętli wynika z samej planety: z jej roku, doby, mimośrodu orbity albo księżyców. Sekwencer też ma Pętle taśmy: rząd każdej planety zapętla się z własną długością, więc rzędy się rozjeżdżają."],
+  cy:["Dolenni tâp yn y Syntheseinydd", "Ar ôl dolenni tâp Brian Eno: mae gan gymysgydd y Syntheseinydd bedwaredd sianel, Dolenni. Mae pob planed yn rhedeg pum dolen ar unwaith, pob un o hyd gwahanol, yn symud pryd mae ei nodyn yn swnio, ei draw, ei atsain, ei lle o’ch cwmpas a’i disgleirdeb. Daw hyd pob dolen o’r blaned ei hun: ei blwyddyn, ei diwrnod, ei horbit echreiddig neu ei lleuadau. Mae gan y Dilyniannwr Ddolenni tâp hefyd: mae rhes pob planed yn dolennu ar ei hyd ei hun, felly mae’r rhesi’n crwydro ar wahân."],
+  de:["Bandschleifen im Synthesizer", "Nach Brian Enos Bandschleifen: Der Mixer des Synthesizers hat einen vierten Kanal, Schleifen. Jeder Planet lässt fünf Schleifen verschiedener Länge zugleich laufen, die bewegen, wann sein Ton erklingt, seine Tonhöhe, sein Echo, seinen Platz um dich herum und seine Helligkeit. Die Länge jeder Schleife kommt vom Planeten selbst: aus seinem Jahr, seinem Tag, seiner exzentrischen Bahn oder seinen Monden. Auch der Sequenzer hat Bandschleifen: Die Reihe jedes Planeten läuft in ihrer eigenen Länge, sodass die Reihen auseinanderdriften."],
+  es:["Bucles de cinta en el Sintetizador", "A partir de los bucles de cinta de Brian Eno: el mezclador del Sintetizador tiene un cuarto canal, Bucles. Cada planeta hace sonar cinco bucles a la vez, cada uno de distinta longitud, que mueven cuándo suena su nota, su altura, su eco, su lugar a tu alrededor y su brillo. La longitud de cada bucle sale del propio planeta: su año, su día, su órbita excéntrica o sus lunas. El Secuenciador también tiene Bucles de cinta: la fila de cada planeta se repite con su propia longitud y las filas se desfasan."],
+  fr:["Boucles de bande dans le Synthé", "D’après les boucles de bande de Brian Eno : la table de mixage du Synthé a une quatrième voie, Boucles. Chaque planète fait tourner cinq boucles à la fois, chacune d’une longueur différente, qui font varier le moment où sonne sa note, sa hauteur, son écho, sa place autour de vous et sa brillance. La longueur de chaque boucle vient de la planète elle-même : son année, son jour, son orbite excentrique ou ses lunes. Le Séquenceur a lui aussi des Boucles de bande : la rangée de chaque planète boucle sur sa propre longueur, si bien que les rangées se décalent."],
+  it:["Loop di nastro nel Synth", "Sulla scia dei loop di nastro di Brian Eno: il mixer del Synth ha un quarto canale, Loop. Ogni pianeta fa girare cinque loop insieme, ognuno di lunghezza diversa, che muovono quando suona la sua nota, la sua altezza, la sua eco, il suo posto intorno a te e la sua brillantezza. La lunghezza di ogni loop viene dal pianeta stesso: il suo anno, il suo giorno, la sua orbita eccentrica o le sue lune. Anche il Sequencer ha i Loop di nastro: la riga di ogni pianeta ripete con la sua lunghezza, così le righe si sfasano."],
+  zh:["合成器里的磁带循环", "借鉴布莱恩·伊诺的磁带循环：合成器的混音器多了第四个通道“循环”。每颗行星同时运行五条长度不同的循环，分别推动它的音何时响起、音高、回声、在你周围的位置和明亮度。每条循环的长度都来自行星自身：它的年、它的日、它的偏心轨道或它的卫星。音序器也有了“磁带循环”：每颗行星的一行按自己的长度循环，各行渐渐错开。"],
+  ja:["シンセのテープ・ループ", "ブライアン・イーノのテープ・ループにならって、シンセのミキサーに四つ目のチャンネル「ループ」が加わりました。惑星はそれぞれ長さの違う五本のループを同時に回し、音が鳴るタイミング、音高、エコー、あなたのまわりでの位置、明るさを動かします。各ループの長さは惑星自身から決まります。年、日、離心軌道、衛星です。シーケンサーにもテープ・ループが加わり、各惑星の行がそれぞれの長さでループして少しずつずれていきます。"],
+  vi:["Vòng băng trong Bộ tổng hợp", "Theo các vòng băng của Brian Eno: bàn trộn của Bộ tổng hợp có kênh thứ tư, Vòng. Mỗi hành tinh chạy cùng lúc năm vòng có độ dài khác nhau, làm thay đổi lúc nốt của nó vang lên, cao độ, tiếng vọng, vị trí quanh bạn và độ sáng. Độ dài mỗi vòng lấy từ chính hành tinh: năm, ngày, quỹ đạo lệch tâm hay các vệ tinh của nó. Trình tự cũng có Vòng băng: hàng của mỗi hành tinh lặp theo độ dài riêng, nên các hàng lệch dần."],
+  bg:["Лентови примки в Синтезатора", "По лентовите примки на Брайън Ино: миксерът на Синтезатора има четвърти канал, Примки. Всяка планета върти едновременно пет примки с различна дължина, които движат кога звучи тонът ѝ, височината, ехото, мястото ѝ около теб и яркостта. Дължината на всяка примка идва от самата планета: от нейната година, ден, ексцентрична орбита или луни. И секвенсерът има Лентови примки: редът на всяка планета се върти със своя дължина и редовете се разминават."],
+  pt:["Loops de fita no Sintetizador", "A partir dos loops de fita de Brian Eno: o mixer do Sintetizador ganhou um quarto canal, Loops. Cada planeta gira cinco loops ao mesmo tempo, cada um de um comprimento, que mexem em quando a sua nota soa, na altura, no eco, no lugar à sua volta e no brilho. O comprimento de cada loop vem do próprio planeta: o seu ano, o seu dia, a sua órbita excêntrica ou as suas luas. O Sequenciador também tem Loops de fita: a linha de cada planeta se repete com seu próprio comprimento, e as linhas se desencontram."],
+  nb:["Båndsløyfer i Synthesizeren", "Etter Brian Enos båndsløyfer: Synthesizerens mikser har fått en fjerde kanal, Sløyfer. Hver planet kjører fem sløyfer med ulik lengde samtidig, som flytter når tonen klinger, tonehøyden, ekkoet, plassen rundt deg og klarheten. Lengden på hver sløyfe kommer fra planeten selv: året, døgnet, den eksentriske banen eller månene. Sekvenseren har også Båndsløyfer: hver planets rad går i sin egen lengde, så radene glir fra hverandre."],
+  nn:["Bandsløyfer i Synthesizeren", "Etter bandsløyfene til Brian Eno: miksaren i Synthesizeren har fått ein fjerde kanal, Sløyfer. Kvar planet køyrer fem sløyfer med ulik lengd samstundes, som flyttar når tonen klingar, tonehøgda, ekkoet, plassen rundt deg og klårleiken. Lengda på kvar sløyfe kjem frå planeten sjølv: året, døgnet, den eksentriske banen eller månane. Sekvensaren har òg Bandsløyfer: rada til kvar planet går i si eiga lengd, så radene glir frå kvarandre."]}},
  {id:'period',d:'2026-11-22',s:'𝄞',t:{
   en:["The thinkers’ own instruments, and Both", "Each thinker’s heaven now plays on the instruments of its day: the aulos and kithara for the Greeks, the water organ and tibia for Rome, a small organ and the harp for Boethius, recorders and the lute for Copernicus, viols and the cornett for Fludd and Kepler, strings and the harpsichord for Newton. The Voices switch has a third choice, Both: the choir sings and the instruments play beneath it."],
   pl:["Instrumenty myślicieli i tryb Oba", "Niebo każdego myśliciela gra teraz na instrumentach jego epoki: aulos i kitara u Greków, organy wodne i tibia w Rzymie, małe organy i harfa u Boecjusza, flety proste i lutnia u Kopernika, viole i kornet u Fludda i Keplera, smyczki i klawesyn u Newtona. Przełącznik Głosy ma trzecią opcję, Oba: chór śpiewa, a instrumenty grają pod nim."],
@@ -10351,7 +10401,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
   const $ = (id) => document.getElementById(id);
   const TX = (
     /*TX*/
-    { "tools": "ツール", "ringShort": "着信音", "scoreShort": "楽譜", "help": "ヘルプ", "title": "銀河間惑星シンセサイザー", "desc": "いまこの瞬間の本物の惑星をオシレーターとするモジュラー・シンセサイザー。音高の法則、音律、軌道速度・距離・離心率・逆行・アスペクトを音へ結びつけるモジュレーション・マトリクス、プリセット、リンクで共有できるパッチ。", "lede": "惑星をオシレーターとするモジュラー・シンセサイザー。いまこの瞬間の空から生で鳴ります。どの量が各音を決めるか、どちら向きか、音をどう調律するかを選び、モジュレーション・マトリクスで空を音に配線しましょう。", "navApp": "アプリ", "navDial": "2D ダイヤル", "navFly": "3D 飛行", "navDance": "舞", "navHelp": "使い方", "transport": "トランスポート", "play": "再生", "pause": "一時停止", "record": "録音", "patch": "パッチ", "patchName": "名前", "patchNamePh": "わたしのパッチ", "save": "保存", "copyLink": "リンクをコピー", "deletePatch": "削除", "volume": "音量", "sky": "空", "skyAlt": "上から見た太陽系。各惑星に神の名と、いま歌っている音が記されています。", "today": "今日", "skyPlay": "空を動かす・止める", "backward": "時間を逆向きに", "skySpeed": "時間の速さ", "listenFrom": "聴く場所", "sun": "太陽（ヘリオス）", "orbits": "軌道", "oscillators": "オシレーター", "mute": "ミュート", "solo": "ソロ", "level": "レベル", "voice": "音色", "octave": "オクターブ", "oct": "oct", "voices": { "god": "神の楽器", "vowel": "歌う母音", "choir": "合唱", "pure": "純音", "string": "撥弦" }, "sunDrone": "太陽：基礎和音", "baseChord": "基礎和音", "chords": { "off": "オフ", "root": "根音", "fifth": "空虚五度", "major": "長三和音", "minor": "短三和音", "sus4": "sus4" }, "moons": "衛星", "follow": "惑星の法則に従う", "followTip": "オン：各衛星自身の大きさや軌道が、同じ法則のもとで惑星の上の音程を決めます。オフ：ダイヤルの、周期による固定の衛星音高。", "minor": "準惑星と小惑星", "comets": "彗星", "pitchLaw": "音高の法則", "lawSource": "各音の由来", "direction": "向き", "dirLow": "大・遅・遠 → 低い", "dirHigh": "大・遅・遠 → 高い", "dirLowTip": "ふつうの向き：ニコマコスは土星を最低音にしました。速く小さく近い天体が高く歌います。", "dirHighTip": "キケロの向き：最も外側の天球が最も高く、月が最も低く響きます。", "spread": "広がり", "octaves": "オクターブ", "trueRatios": "真の比", "register": "音域（地球の音）", "fold": "可聴域へ折り返す（オクターブ単位）", "foldTip": "オン：低すぎる・高すぎる音は、音域を中心とする5オクターブの窓へオクターブ単位で移されます。オフ：可聴域の端で止めるだけで、⤓ を付けます。", "law": { "speed": "軌道速度（いま）", "orbit": "軌道の大きさ", "dist": "太陽からの距離（いま）", "radius": "天体の半径", "mass": "質量", "density": "密度", "spin": "自転（一日の長さ）", "ratio": "大きさ ÷ 軌道", "ecc": "軌道の離心率" }, "lawTip": { "speed": "今日のダイヤルと同じ：この瞬間の太陽をめぐる角速度。離心した軌道では音が滑ります。", "orbit": "太陽からの平均距離。ケプラーの第三法則により、これは姿を変えた公転周期です。", "dist": "いまこの瞬間の太陽からの距離。離心した軌道では変化します。", "radius": "天体の大きさ。", "mass": "天体の重さ。木星は他のすべてを合わせたより重い。", "density": "どれほど詰まっているか。土星は水に浮き、地球が最も密。", "spin": "天体が軸のまわりを回る速さ。木星は10時間、金星は243日。", "ratio": "天体の大きさを軌道の大きさで割ったもの。おおよそ、太陽から見た見かけの大きさ。", "ecc": "軌道が円からどれほど外れているか。水星と冥王星が最も細長い。" }, "tuning": "音律", "system": "方式", "systems": { "pyth": "ピタゴラス音律", "just": "純正律（5リミット）", "tet": "十二平均律", "harm": "根音の倍音", "free": "自由（調律なし）" }, "scale": "音階", "scales": { "dia": "全音階（ギリシアの旋法）", "pent": "五音音階", "whole": "全音音階", "chrom": "半音階" }, "mode": "旋法（主音）", "zodKey": "太陽の星座が調を決める", "key": "調", "reverb": "神殿の残響", "matrix": "モジュレーション・マトリクス", "randomise": "ランダム", "clearMatrix": "消去", "mxHint": "各行は空の生きた量、各列はすべての惑星の声のパラメーターです。マスをタップすると、量を決めて一方を他方へ結べます。金は正、緑は逆向き。点はいま各惑星がそれぞれの源のどこにいるかを示します。", "route": "ルート", "amount": "量", "curve": "カーブ", "curves": { "1": "線形", "2": "二乗", "3": "段階" }, "clearRoute": "ルートを外す", "close": "閉じる", "cleared": "マトリクスを消去しました", "randomised": "いくつかのルートをランダムに選びました", "lfo": "LFO", "shape": "波形", "shapes": { "sine": "サイン", "tri": "三角", "square": "矩形", "saw": "ノコギリ", "rand": "ランダム段階" }, "stagger": "LFO を惑星ごとにずらす", "staggerTip": "各惑星は前の惑星より少し遅れて LFO を聴くので、リトリガーはアルペジオになり、スイープは空をめぐって波打ちます。", "src": { "one": "定数（つねに 1）", "speed": "軌道速度", "rsun": "太陽からの距離（軌道内）", "dlis": "聴き手への近さ", "lon": "黄経（サイン）", "height": "黄道面からの高さ", "ecc": "離心率", "tilt": "自転軸の傾き", "spin": "自転の速さ", "retro": "逆行（聴き手から）", "radius": "半径", "mass": "質量", "moons": "衛星の数", "aspect": "アスペクトの強さ", "sign": "黄道十二宮", "elem": "星座の元素", "sun": "太陽の星座", "lfo1": "LFO 1", "lfo2": "LFO 2", "clock": "空の時計（一年）" }, "srcTip": { "one": "つねに 1。残響の送り量など、すべての惑星のパラメーターを一度に決めるのに使います。", "speed": "この瞬間、惑星が太陽のまわりをどれほど速く動いているか（対数）。水星は高く、海王星は低い。", "rsun": "惑星が自分の軌道のどこにいるか。近日点（太陽に最も近い）で −1、遠日点で +1。離心した軌道だけが大きく振れます。", "dlis": "惑星が聴いている場所にどれほど近いか。+1 がすぐそば、−1 が遠く。", "lon": "太陽をめぐる惑星の黄経のサイン。公転ごとに一回のとても遅い波。", "height": "惑星が黄道面の上（+）か下（−）かどれほど離れているか。自身の軌道傾斜に対する割合。", "ecc": "軌道がどれほど細長いか。0 が円、1 が冥王星の細長さ。", "tilt": "軸がどれほど傾いているか。地球は少し、天王星は横倒し、金星は逆さま。", "spin": "天体が軸のまわりを回る速さ。木星は速く正、金星は遅く負。", "retro": "聴いている場所から見て、惑星は星々を背に後ろへ動いているか。+1 が逆行、−1 が順行。太陽からは決して。", "radius": "天体の大きさ（対数）。", "mass": "天体の重さ（対数）。", "moons": "惑星の衛星の数。ゼロから土星の 146 まで。", "aspect": "この惑星が別の惑星と意味ある角度にどれほど正確にあるか。合・六分・矩・三分・衝。", "sign": "聴いている場所から見て惑星がどの星座にいるか。おひつじ座 0 からうお座 1 まで十二段階。", "elem": "惑星の星座の元素。火 +1、風 +⅓、水 −⅓、地 −1。", "sun": "一年がめぐるなか、太陽がいる星座。", "lfo1": "実時間の低周波オシレーター。速さと波形は下で設定。", "lfo2": "二つ目の低周波オシレーター。", "clock": "空の時間で一年に一回のサイン波。時間の速さによりません。" }, "dst": { "pitch": "音高", "vibD": "ビブラートの深さ", "vibR": "ビブラートの速さ", "tremD": "トレモロの深さ", "tremR": "トレモロの速さ", "cut": "フィルターのカットオフ", "res": "レゾナンス", "vowel": "母音", "bright": "明るさ", "det": "デチューン／コーラス", "pan": "パン", "level": "音量", "verb": "残響への送り", "dly": "ディレイへの送り", "dlyT": "ディレイ時間", "att": "アタック", "rel": "リリース", "trig": "リトリガー" }, "dstTip": { "pitch": "音を上下それぞれ最大1オクターブ曲げます。", "vibD": "ビブラートの揺れの深さ。", "vibR": "ビブラートの揺れの速さ。", "tremD": "音量の脈動（惑星の一日）の深さ。", "tremR": "音量の脈動の速さ。", "cut": "ローパスフィルターを上下3オクターブ開閉します。", "res": "カットオフでのフィルターの鳴り。", "vowel": "「う」から「あ」を経て「い」へ、母音の連なりに沿ってフォルマントを変形します。", "bright": "柔らかい波形を明るい波形へ混ぜます。", "det": "オシレーターを広げてコーラスに。", "pan": "惑星をあなたのまわりで最大三分の一周回します。", "level": "より大きく、またはより小さく。", "verb": "神殿の残響へ送る量。", "dly": "惑星自身のディレイへ送る量。", "dlyT": "ディレイの時間。短い跳ね返りから1秒以上まで。", "att": "打ち直された音の立ち上がりの速さ。", "rel": "撥いた音が鳴り続く長さ。", "trig": "源が段階を越えるたびに音を打ち直します。量が段階の数を決めます。小さければ少なく、大きければ多く。撥弦はこのときだけ鳴ります。" }, "presetGroup": "プリセット", "yourPatches": "あなたのパッチ", "edited": "（編集済み）", "untitled": "無題", "saved": "「{n}」を保存しました", "deleted": "パッチを削除しました", "linkCopied": "リンクをコピーしました。開けばこのパッチが読み込まれます", "linkLoaded": "リンクからパッチを読み込みました", "presets": { "dial": "ダイヤルのとおり（今日）", "true": "真の速度（ラフとロジャース）", "cicero": "遠くは高い（キケロ）", "nicomachus": "遠くは低い（ニコマコス）", "pent": "やさしい五音", "harm": "倍音としての惑星", "kepler": "ケプラーの楕円", "tides": "潮汐", "retro": "逆行の鐘", "aspects": "アスペクトの和音" }, "sunIn": "太陽は", "keyOf": "調：", "noRoutes": "ルートなし", "clampedTip": "可聴域の端で止めています（折り返しオフ）", "foldedTip": "このオクターブ数だけ可聴域へ折り返しました", "speedUnits": { "real": "実時間", "xreal": "× 実時間", "min": " 分/秒", "h": " 時間/秒", "d": " 日/秒", "mo": " か月/秒", "y": " 年/秒" }, "howTitle": "使い方", "keysTitle": "キー", "keys": [["スペース", "音のオン／オフ"], ["1–8", "惑星をミュート（ヘルメスからポセイドンまで）"], ["T", "空を動かす・止める"], ["− +", "時間を遅く・速く"], ["[ ]", "前・次のプリセット"], ["L", "次の天体から聴く"], ["R", "ランダムなルート"], ["C", "マトリクスを消去"], ["?", "この案内"]], "how": [["オシレーター", "八つの惑星が声、太陽が基礎和音、そしてオンにすれば衛星、準惑星、彗星も加わります。各惑星には神の楽器、歌う母音、合唱、純音、撥弦のいずれかと、レベル、オクターブ、いまの音名があります。空の惑星をクリックすると、その惑星だけを聴けます。ヘッドフォンのボタンも同じで、スピーカーのボタンはミュートです。"], ["音高の法則", "一つの規則が本物の量から各音を決めます。軌道速度（ダイヤルと同じ）、軌道の大きさ、太陽からの距離、半径、質量、密度、自転、大きさ ÷ 軌道、離心率。すべて地球を基準にし、地球の音が音域です。<b>向き</b>は規則を裏返します。ニコマコスは土星を最低音に、キケロは最も外側の天球を最高音に聴きました。<b>広がり</b>は狭い2オクターブから真の比まで。真の比はとても低くも高くもなるので、<b>折り返し</b>がオクターブ単位で戻し、⟲ を付けます。"], ["音律", "ピタゴラス、純正、平均律、根音の倍音、あるいは自由な滑奏。ギリシア旋法の全音階、五音、全音、半音階。調はダイヤルと同じく太陽の星座とともに五度圏をめぐることができ、音は別の音にはっきり近づいたときにだけ変わるので、ちらつきません。"], ["モジュレーション・マトリクス", "行は空の生きた量、列はすべての惑星の声のパラメーター。マスは符号付きの量とカーブで一方を他方へ結びます。惑星ごとに速度・距離・高さ・星座が違うので、一つのルートが八通りの変調を生みます。<b>リトリガー</b>は源が段階を越えるたびに音を打ち直します。惑星が逆行に転じる、星座が変わる、アスペクトが正確になる、あるいは LFO がリズムを刻む。撥音は先に予定されるので、正確に鳴ります。"], ["聴く", "太陽からでも、どの惑星からでも聴けます。声は本当の方向に従ってあなたのまわりに置かれ、そう配線すれば近い惑星はより近くより大きく、逆行もそこから判断されます。ステージ・パネルはヘッドフォン、スピーカー、PA、5.1 サラウンド、MIDI 出力（神ごとに専用チャンネルなので DAW が惑星の音符を記録できます）を備えます。プロジェクター表示は空と字幕で画面を満たします。"], ["パッチ", "プリセットはダイヤル自身の規則からケプラーの楕円、逆行の鐘まで。自分のパッチをこのブラウザーに保存するか、<b>リンクをコピー</b>してください。パッチ全体がアドレスに乗るので、開いた人はあなたの作った音をそのまま聴けます。<kbd>?</kbd> でキー一覧。"]], "foot": "惑星の位置は表示された日付について NASA JPL の軌道要素から計算され、衛星は本当の周期でめぐります。すべてはブラウザーの中で生で合成されます。ヘッドフォンか 5.1 システムをおすすめします。", "muteBtn": "ミュート", "soloBtn": "ソロ", "muteTip": "ミュート：この惑星を黙らせる", "soloTip": "ソロ：この惑星だけを聴く（複数をソロにして比べられます。もう一度押すと全員が戻ります）", "stripHint": "惑星をソロにするとその惑星だけが聴こえます。複数をソロにして比べ、もう一度押すと全員が戻ります。", "walk": "一つずつ聴く", "walkStop": "停止", "walkCap": "{g} · {p} · {n} · {law}", "walkDone": "全員が戻りました", "soloToast": "{g}だけ · もう一度押すと全員", "soloOff": "全員が戻ります", "tour": "ツアー", "howBtn": "使い方", "tNext": "次へ", "tPrev": "戻る", "tSkip": "スキップ", "tDone": "完了", "tOf": "{i} / {n}", "tourSteps": [["再生", "再生を押すと惑星が歌い始めます。それぞれ、いまこの瞬間の空の本当の位置から。スペースキーでも同じです。"], ["パッチ", "ここでプリセットを選びます。ダイヤル自身の規則、ケプラーの楕円、逆行の鐘……何かを変えればあなたのものになります。このブラウザーに保存するか、「リンクをコピー」でパッチ全体をウェブアドレスとして共有できます。"], ["空", "今日の位置にある惑星たち。太陽からでも、どの惑星からでも聴けます。声は本当の方向に従ってあなたのまわりに置かれます。時間を速く、遅く、逆向きに進めたり、今日に戻ったりできます。"], ["オシレーター", "各惑星が一つの声です。スピーカーのボタンはミュート、ヘッドフォンのボタンはソロで、その惑星だけを聴けます（いくつかを一緒にして比べることも）。楽器とオクターブを選び、歌っている音を見てください。「一つずつ聴く」は八つすべてをめぐります。"], ["音高の法則", "一つの規則がすべての音を決めます。惑星のどの量を使うか（速度、軌道の大きさ、質量……）、どちら向きか（大きく遅い → 低い、または → 高い）、音の広がりの幅、そしてとても低い・高い音を可聴域へ折り返すかどうか。"], ["音律", "音をどう調律するか。ピタゴラス、純正、平均律、倍音、あるいは自由な滑奏。どの音階と旋法か。そしてダイヤルと同じく太陽の星座が調を選ぶかどうか。"], ["モジュレーション・マトリクス", "この楽器の心臓部。各行は空の生きた量、各列は音のパラメーター。マスをタップしてルートを作ります。たとえば「あなたへの近さ → 音量」や「逆行 → リトリガー」。金は正、緑は逆向きです。"], ["LFO", "空の量と同じように結べる二つの遅いオシレーター。リズムやスイープに。惑星ごとにずらすと、リトリガーはアルペジオになります。"], ["録音とステージ", "聴こえている音をファイルに録音します。ステージはヘッドフォン、スピーカー、PA、5.1 サラウンド、DAW や照明への MIDI 出力、プロジェクター表示を備えます。ツアーと使い方のボタンはいつでもここにあります。"]], "seqTitle": "ステップシーケンサー", "seqHint": "惑星ごとにステップの列があります。ステップをタップするとそこでその惑星が鳴り、長押しでアクセントになります。音は今までどおり空が選び、リズムはあなたが選びます。シーケンサーがオンのとき、ステップのない惑星は黙っています。", "seq": { "on": "シーケンサー", "onTip": "オン：惑星はドラムマシンのように、それぞれのステップで打たれます。オフ：これまでどおり途切れずに歌います。", "bpm": "テンポ", "bpmUnit": "BPM", "steps": "1 小節のステップ数", "gate": "ゲート", "gates": { "short": "短い", "med": "中", "long": "レガート" }, "gateTip": "一打がどれだけ鳴るか：一瞬、半ステップ、または次のステップまで保つ。", "swing": "スウィング", "patterns": "パターン", "pulse": "パルス", "pulseTip": "安定したビート：ゼウスが表拍、ヘルメスが裏拍。", "arp": "アルペジオ", "arpTip": "ヘルメスからポセイドンまで惑星が順に、1 小節に 2 回。", "euclid": "ユークリッド", "euclidTip": "ユークリッド・リズム：公転が速い惑星ほど、1 小節に多く打たれます。", "sky": "空", "skyTip": "今の空から書かれたパターン：各惑星は黄経が小節内に落ちる位置で打たれ、アスペクト中はアクセントが付きます。", "clear": "クリア", "clearTip": "すべての列を空にします。", "muteRow": "この列をミュート", "stepLab": "{g} · ステップ {k}", "accentTip": "タップ：オン / オフ · 長押し：アクセント", "skyWrote": "空からパターンを書きました", "cleared": "パターンをクリアしました", "keyHelp": "ステップシーケンサーのオン / オフ", "caption": "シーケンサー", "tourStep": ["ステップシーケンサー", "シーケンサーをオンにすると、惑星ごとにステップの列が現れます。ステップをタップしてリズムを作りましょう。音は空が選ぶので、ドラムマシンのように拍に合わせて鳴ります。「ユークリッド」と「空」のパターンも試してください。"], "how": ["ステップシーケンサー", "シーケンサーがオンのとき、惑星はもう途切れずに歌いません。各惑星は、その列で点灯させたステップで、設定したテンポで打たれ、一打ごとの音はその瞬間に空がその惑星に与える音を調律に量子化したものです。<b>ユークリッド</b>は各惑星にユークリッド・リズムを与え、公転が速いほど打数が増えます。<b>空</b>は惑星の今の位置からパターンを書きます。モジュレーション・マトリクスは引き続き音を形づくりますが、シーケンサーが拍を取る間、トリガーのルートは休みます。グリッドはこのブラウザーに保存されます。"] }, "mixTitle": "ミキサー", "mixTop": { "title": "ミキサー", "synth": "シンセ", "seq": "シーケンサー", "beats": "Beats", "on": "オン", "off": "オフ", "onTip": "オン・オフを切り替える", "openTip": "操作部を表示（ほかは折りたたまれます）", "level": "レベル" }, "seqPitch": "音の出どころ：各打音は、その惑星自身の音、つまりシンセで歌っているのと同じ音を鳴らします。空と音高の法則がその音を選び、音律が音程を決め、惑星のオクターブとモジュレーション・マトリクスの「音高」ルートがそれを動かします。音は打った瞬間に取られ、そのステップの間保たれるので、惑星が空を進むにつれて打音はゆっくりと音を変えていきます。シンセで法則・音律・オクターブを変えると、次の打音から新しい音になります。", "modes": ["ドリア旋法（E）", "フリギア旋法（D）", "リディア旋法（C）", "ミクソリディア旋法（B）", "ヒポドリア旋法（A）", "ヒポフリギア旋法（G）", "ヒポリディア旋法（F）"] }
+    { "tools": "ツール", "ringShort": "着信音", "scoreShort": "楽譜", "help": "ヘルプ", "title": "銀河間惑星シンセサイザー", "desc": "いまこの瞬間の本物の惑星をオシレーターとするモジュラー・シンセサイザー。音高の法則、音律、軌道速度・距離・離心率・逆行・アスペクトを音へ結びつけるモジュレーション・マトリクス、プリセット、リンクで共有できるパッチ。", "lede": "惑星をオシレーターとするモジュラー・シンセサイザー。いまこの瞬間の空から生で鳴ります。どの量が各音を決めるか、どちら向きか、音をどう調律するかを選び、モジュレーション・マトリクスで空を音に配線しましょう。", "navApp": "アプリ", "navDial": "2D ダイヤル", "navFly": "3D 飛行", "navDance": "舞", "navHelp": "使い方", "transport": "トランスポート", "play": "再生", "pause": "一時停止", "record": "録音", "patch": "パッチ", "patchName": "名前", "patchNamePh": "わたしのパッチ", "save": "保存", "copyLink": "リンクをコピー", "deletePatch": "削除", "volume": "音量", "sky": "空", "skyAlt": "上から見た太陽系。各惑星に神の名と、いま歌っている音が記されています。", "today": "今日", "skyPlay": "空を動かす・止める", "backward": "時間を逆向きに", "skySpeed": "時間の速さ", "listenFrom": "聴く場所", "sun": "太陽（ヘリオス）", "orbits": "軌道", "oscillators": "オシレーター", "mute": "ミュート", "solo": "ソロ", "level": "レベル", "voice": "音色", "octave": "オクターブ", "oct": "oct", "voices": { "god": "神の楽器", "vowel": "歌う母音", "choir": "合唱", "pure": "純音", "string": "撥弦" }, "sunDrone": "太陽：基礎和音", "baseChord": "基礎和音", "chords": { "off": "オフ", "root": "根音", "fifth": "空虚五度", "major": "長三和音", "minor": "短三和音", "sus4": "sus4" }, "moons": "衛星", "follow": "惑星の法則に従う", "followTip": "オン：各衛星自身の大きさや軌道が、同じ法則のもとで惑星の上の音程を決めます。オフ：ダイヤルの、周期による固定の衛星音高。", "minor": "準惑星と小惑星", "comets": "彗星", "pitchLaw": "音高の法則", "lawSource": "各音の由来", "direction": "向き", "dirLow": "大・遅・遠 → 低い", "dirHigh": "大・遅・遠 → 高い", "dirLowTip": "ふつうの向き：ニコマコスは土星を最低音にしました。速く小さく近い天体が高く歌います。", "dirHighTip": "キケロの向き：最も外側の天球が最も高く、月が最も低く響きます。", "spread": "広がり", "octaves": "オクターブ", "trueRatios": "真の比", "register": "音域（地球の音）", "fold": "可聴域へ折り返す（オクターブ単位）", "foldTip": "オン：低すぎる・高すぎる音は、音域を中心とする5オクターブの窓へオクターブ単位で移されます。オフ：可聴域の端で止めるだけで、⤓ を付けます。", "law": { "speed": "軌道速度（いま）", "orbit": "軌道の大きさ", "dist": "太陽からの距離（いま）", "radius": "天体の半径", "mass": "質量", "density": "密度", "spin": "自転（一日の長さ）", "ratio": "大きさ ÷ 軌道", "ecc": "軌道の離心率" }, "lawTip": { "speed": "今日のダイヤルと同じ：この瞬間の太陽をめぐる角速度。離心した軌道では音が滑ります。", "orbit": "太陽からの平均距離。ケプラーの第三法則により、これは姿を変えた公転周期です。", "dist": "いまこの瞬間の太陽からの距離。離心した軌道では変化します。", "radius": "天体の大きさ。", "mass": "天体の重さ。木星は他のすべてを合わせたより重い。", "density": "どれほど詰まっているか。土星は水に浮き、地球が最も密。", "spin": "天体が軸のまわりを回る速さ。木星は10時間、金星は243日。", "ratio": "天体の大きさを軌道の大きさで割ったもの。おおよそ、太陽から見た見かけの大きさ。", "ecc": "軌道が円からどれほど外れているか。水星と冥王星が最も細長い。" }, "tuning": "音律", "system": "方式", "systems": { "pyth": "ピタゴラス音律", "just": "純正律（5リミット）", "tet": "十二平均律", "harm": "根音の倍音", "free": "自由（調律なし）" }, "scale": "音階", "scales": { "dia": "全音階（ギリシアの旋法）", "pent": "五音音階", "whole": "全音音階", "chrom": "半音階" }, "mode": "旋法（主音）", "zodKey": "太陽の星座が調を決める", "key": "調", "reverb": "神殿の残響", "matrix": "モジュレーション・マトリクス", "randomise": "ランダム", "clearMatrix": "消去", "mxHint": "各行は空の生きた量、各列はすべての惑星の声のパラメーターです。マスをタップすると、量を決めて一方を他方へ結べます。金は正、緑は逆向き。点はいま各惑星がそれぞれの源のどこにいるかを示します。", "route": "ルート", "amount": "量", "curve": "カーブ", "curves": { "1": "線形", "2": "二乗", "3": "段階" }, "clearRoute": "ルートを外す", "close": "閉じる", "cleared": "マトリクスを消去しました", "randomised": "いくつかのルートをランダムに選びました", "lfo": "LFO", "shape": "波形", "shapes": { "sine": "サイン", "tri": "三角", "square": "矩形", "saw": "ノコギリ", "rand": "ランダム段階" }, "stagger": "LFO を惑星ごとにずらす", "staggerTip": "各惑星は前の惑星より少し遅れて LFO を聴くので、リトリガーはアルペジオになり、スイープは空をめぐって波打ちます。", "src": { "one": "定数（つねに 1）", "speed": "軌道速度", "rsun": "太陽からの距離（軌道内）", "dlis": "聴き手への近さ", "lon": "黄経（サイン）", "height": "黄道面からの高さ", "ecc": "離心率", "tilt": "自転軸の傾き", "spin": "自転の速さ", "retro": "逆行（聴き手から）", "radius": "半径", "mass": "質量", "moons": "衛星の数", "aspect": "アスペクトの強さ", "sign": "黄道十二宮", "elem": "星座の元素", "sun": "太陽の星座", "lfo1": "LFO 1", "lfo2": "LFO 2", "clock": "空の時計（一年）" }, "srcTip": { "one": "つねに 1。残響の送り量など、すべての惑星のパラメーターを一度に決めるのに使います。", "speed": "この瞬間、惑星が太陽のまわりをどれほど速く動いているか（対数）。水星は高く、海王星は低い。", "rsun": "惑星が自分の軌道のどこにいるか。近日点（太陽に最も近い）で −1、遠日点で +1。離心した軌道だけが大きく振れます。", "dlis": "惑星が聴いている場所にどれほど近いか。+1 がすぐそば、−1 が遠く。", "lon": "太陽をめぐる惑星の黄経のサイン。公転ごとに一回のとても遅い波。", "height": "惑星が黄道面の上（+）か下（−）かどれほど離れているか。自身の軌道傾斜に対する割合。", "ecc": "軌道がどれほど細長いか。0 が円、1 が冥王星の細長さ。", "tilt": "軸がどれほど傾いているか。地球は少し、天王星は横倒し、金星は逆さま。", "spin": "天体が軸のまわりを回る速さ。木星は速く正、金星は遅く負。", "retro": "聴いている場所から見て、惑星は星々を背に後ろへ動いているか。+1 が逆行、−1 が順行。太陽からは決して。", "radius": "天体の大きさ（対数）。", "mass": "天体の重さ（対数）。", "moons": "惑星の衛星の数。ゼロから土星の 146 まで。", "aspect": "この惑星が別の惑星と意味ある角度にどれほど正確にあるか。合・六分・矩・三分・衝。", "sign": "聴いている場所から見て惑星がどの星座にいるか。おひつじ座 0 からうお座 1 まで十二段階。", "elem": "惑星の星座の元素。火 +1、風 +⅓、水 −⅓、地 −1。", "sun": "一年がめぐるなか、太陽がいる星座。", "lfo1": "実時間の低周波オシレーター。速さと波形は下で設定。", "lfo2": "二つ目の低周波オシレーター。", "clock": "空の時間で一年に一回のサイン波。時間の速さによりません。" }, "dst": { "pitch": "音高", "vibD": "ビブラートの深さ", "vibR": "ビブラートの速さ", "tremD": "トレモロの深さ", "tremR": "トレモロの速さ", "cut": "フィルターのカットオフ", "res": "レゾナンス", "vowel": "母音", "bright": "明るさ", "det": "デチューン／コーラス", "pan": "パン", "level": "音量", "verb": "残響への送り", "dly": "ディレイへの送り", "dlyT": "ディレイ時間", "att": "アタック", "rel": "リリース", "trig": "リトリガー" }, "dstTip": { "pitch": "音を上下それぞれ最大1オクターブ曲げます。", "vibD": "ビブラートの揺れの深さ。", "vibR": "ビブラートの揺れの速さ。", "tremD": "音量の脈動（惑星の一日）の深さ。", "tremR": "音量の脈動の速さ。", "cut": "ローパスフィルターを上下3オクターブ開閉します。", "res": "カットオフでのフィルターの鳴り。", "vowel": "「う」から「あ」を経て「い」へ、母音の連なりに沿ってフォルマントを変形します。", "bright": "柔らかい波形を明るい波形へ混ぜます。", "det": "オシレーターを広げてコーラスに。", "pan": "惑星をあなたのまわりで最大三分の一周回します。", "level": "より大きく、またはより小さく。", "verb": "神殿の残響へ送る量。", "dly": "惑星自身のディレイへ送る量。", "dlyT": "ディレイの時間。短い跳ね返りから1秒以上まで。", "att": "打ち直された音の立ち上がりの速さ。", "rel": "撥いた音が鳴り続く長さ。", "trig": "源が段階を越えるたびに音を打ち直します。量が段階の数を決めます。小さければ少なく、大きければ多く。撥弦はこのときだけ鳴ります。" }, "presetGroup": "プリセット", "yourPatches": "あなたのパッチ", "edited": "（編集済み）", "untitled": "無題", "saved": "「{n}」を保存しました", "deleted": "パッチを削除しました", "linkCopied": "リンクをコピーしました。開けばこのパッチが読み込まれます", "linkLoaded": "リンクからパッチを読み込みました", "presets": { "dial": "ダイヤルのとおり（今日）", "true": "真の速度（ラフとロジャース）", "cicero": "遠くは高い（キケロ）", "nicomachus": "遠くは低い（ニコマコス）", "pent": "やさしい五音", "harm": "倍音としての惑星", "kepler": "ケプラーの楕円", "tides": "潮汐", "retro": "逆行の鐘", "aspects": "アスペクトの和音" }, "sunIn": "太陽は", "keyOf": "調：", "noRoutes": "ルートなし", "clampedTip": "可聴域の端で止めています（折り返しオフ）", "foldedTip": "このオクターブ数だけ可聴域へ折り返しました", "speedUnits": { "real": "実時間", "xreal": "× 実時間", "min": " 分/秒", "h": " 時間/秒", "d": " 日/秒", "mo": " か月/秒", "y": " 年/秒" }, "howTitle": "使い方", "keysTitle": "キー", "keys": [["スペース", "音のオン／オフ"], ["1–8", "惑星をミュート（ヘルメスからポセイドンまで）"], ["T", "空を動かす・止める"], ["− +", "時間を遅く・速く"], ["[ ]", "前・次のプリセット"], ["L", "次の天体から聴く"], ["R", "ランダムなルート"], ["C", "マトリクスを消去"], ["?", "この案内"]], "how": [["オシレーター", "八つの惑星が声、太陽が基礎和音、そしてオンにすれば衛星、準惑星、彗星も加わります。各惑星には神の楽器、歌う母音、合唱、純音、撥弦のいずれかと、レベル、オクターブ、いまの音名があります。空の惑星をクリックすると、その惑星だけを聴けます。ヘッドフォンのボタンも同じで、スピーカーのボタンはミュートです。"], ["音高の法則", "一つの規則が本物の量から各音を決めます。軌道速度（ダイヤルと同じ）、軌道の大きさ、太陽からの距離、半径、質量、密度、自転、大きさ ÷ 軌道、離心率。すべて地球を基準にし、地球の音が音域です。<b>向き</b>は規則を裏返します。ニコマコスは土星を最低音に、キケロは最も外側の天球を最高音に聴きました。<b>広がり</b>は狭い2オクターブから真の比まで。真の比はとても低くも高くもなるので、<b>折り返し</b>がオクターブ単位で戻し、⟲ を付けます。"], ["音律", "ピタゴラス、純正、平均律、根音の倍音、あるいは自由な滑奏。ギリシア旋法の全音階、五音、全音、半音階。調はダイヤルと同じく太陽の星座とともに五度圏をめぐることができ、音は別の音にはっきり近づいたときにだけ変わるので、ちらつきません。"], ["モジュレーション・マトリクス", "行は空の生きた量、列はすべての惑星の声のパラメーター。マスは符号付きの量とカーブで一方を他方へ結びます。惑星ごとに速度・距離・高さ・星座が違うので、一つのルートが八通りの変調を生みます。<b>リトリガー</b>は源が段階を越えるたびに音を打ち直します。惑星が逆行に転じる、星座が変わる、アスペクトが正確になる、あるいは LFO がリズムを刻む。撥音は先に予定されるので、正確に鳴ります。"], ["聴く", "太陽からでも、どの惑星からでも聴けます。声は本当の方向に従ってあなたのまわりに置かれ、そう配線すれば近い惑星はより近くより大きく、逆行もそこから判断されます。ステージ・パネルはヘッドフォン、スピーカー、PA、5.1 サラウンド、MIDI 出力（神ごとに専用チャンネルなので DAW が惑星の音符を記録できます）を備えます。プロジェクター表示は空と字幕で画面を満たします。"], ["パッチ", "プリセットはダイヤル自身の規則からケプラーの楕円、逆行の鐘まで。自分のパッチをこのブラウザーに保存するか、<b>リンクをコピー</b>してください。パッチ全体がアドレスに乗るので、開いた人はあなたの作った音をそのまま聴けます。<kbd>?</kbd> でキー一覧。"]], "foot": "惑星の位置は表示された日付について NASA JPL の軌道要素から計算され、衛星は本当の周期でめぐります。すべてはブラウザーの中で生で合成されます。ヘッドフォンか 5.1 システムをおすすめします。", "muteBtn": "ミュート", "soloBtn": "ソロ", "muteTip": "ミュート：この惑星を黙らせる", "soloTip": "ソロ：この惑星だけを聴く（複数をソロにして比べられます。もう一度押すと全員が戻ります）", "stripHint": "惑星をソロにするとその惑星だけが聴こえます。複数をソロにして比べ、もう一度押すと全員が戻ります。", "walk": "一つずつ聴く", "walkStop": "停止", "walkCap": "{g} · {p} · {n} · {law}", "walkDone": "全員が戻りました", "soloToast": "{g}だけ · もう一度押すと全員", "soloOff": "全員が戻ります", "tour": "ツアー", "howBtn": "使い方", "tNext": "次へ", "tPrev": "戻る", "tSkip": "スキップ", "tDone": "完了", "tOf": "{i} / {n}", "tourSteps": [["再生", "再生を押すと惑星が歌い始めます。それぞれ、いまこの瞬間の空の本当の位置から。スペースキーでも同じです。"], ["パッチ", "ここでプリセットを選びます。ダイヤル自身の規則、ケプラーの楕円、逆行の鐘……何かを変えればあなたのものになります。このブラウザーに保存するか、「リンクをコピー」でパッチ全体をウェブアドレスとして共有できます。"], ["空", "今日の位置にある惑星たち。太陽からでも、どの惑星からでも聴けます。声は本当の方向に従ってあなたのまわりに置かれます。時間を速く、遅く、逆向きに進めたり、今日に戻ったりできます。"], ["オシレーター", "各惑星が一つの声です。スピーカーのボタンはミュート、ヘッドフォンのボタンはソロで、その惑星だけを聴けます（いくつかを一緒にして比べることも）。楽器とオクターブを選び、歌っている音を見てください。「一つずつ聴く」は八つすべてをめぐります。"], ["音高の法則", "一つの規則がすべての音を決めます。惑星のどの量を使うか（速度、軌道の大きさ、質量……）、どちら向きか（大きく遅い → 低い、または → 高い）、音の広がりの幅、そしてとても低い・高い音を可聴域へ折り返すかどうか。"], ["音律", "音をどう調律するか。ピタゴラス、純正、平均律、倍音、あるいは自由な滑奏。どの音階と旋法か。そしてダイヤルと同じく太陽の星座が調を選ぶかどうか。"], ["モジュレーション・マトリクス", "この楽器の心臓部。各行は空の生きた量、各列は音のパラメーター。マスをタップしてルートを作ります。たとえば「あなたへの近さ → 音量」や「逆行 → リトリガー」。金は正、緑は逆向きです。"], ["LFO", "空の量と同じように結べる二つの遅いオシレーター。リズムやスイープに。惑星ごとにずらすと、リトリガーはアルペジオになります。"], ["録音とステージ", "聴こえている音をファイルに録音します。ステージはヘッドフォン、スピーカー、PA、5.1 サラウンド、DAW や照明への MIDI 出力、プロジェクター表示を備えます。ツアーと使い方のボタンはいつでもここにあります。"]], "seqTitle": "ステップシーケンサー", "seqHint": "惑星ごとにステップの列があります。ステップをタップするとそこでその惑星が鳴り、長押しでアクセントになります。音は今までどおり空が選び、リズムはあなたが選びます。シーケンサーがオンのとき、ステップのない惑星は黙っています。", "seq": { "on": "シーケンサー", "onTip": "オン：惑星はドラムマシンのように、それぞれのステップで打たれます。オフ：これまでどおり途切れずに歌います。", "bpm": "テンポ", "bpmUnit": "BPM", "steps": "1 小節のステップ数", "gate": "ゲート", "gates": { "short": "短い", "med": "中", "long": "レガート" }, "gateTip": "一打がどれだけ鳴るか：一瞬、半ステップ、または次のステップまで保つ。", "swing": "スウィング", "patterns": "パターン", "pulse": "パルス", "pulseTip": "安定したビート：ゼウスが表拍、ヘルメスが裏拍。", "arp": "アルペジオ", "arpTip": "ヘルメスからポセイドンまで惑星が順に、1 小節に 2 回。", "euclid": "ユークリッド", "euclidTip": "ユークリッド・リズム：公転が速い惑星ほど、1 小節に多く打たれます。", "sky": "空", "skyTip": "今の空から書かれたパターン：各惑星は黄経が小節内に落ちる位置で打たれ、アスペクト中はアクセントが付きます。", "clear": "クリア", "clearTip": "すべての列を空にします。", "muteRow": "この列をミュート", "stepLab": "{g} · ステップ {k}", "accentTip": "タップ：オン / オフ · 長押し：アクセント", "skyWrote": "空からパターンを書きました", "cleared": "パターンをクリアしました", "keyHelp": "ステップシーケンサーのオン / オフ", "caption": "シーケンサー", "tourStep": ["ステップシーケンサー", "シーケンサーをオンにすると、惑星ごとにステップの列が現れます。ステップをタップしてリズムを作りましょう。音は空が選ぶので、ドラムマシンのように拍に合わせて鳴ります。「ユークリッド」と「空」のパターンも試してください。"], "how": ["ステップシーケンサー", "シーケンサーがオンのとき、惑星はもう途切れずに歌いません。各惑星は、その列で点灯させたステップで、設定したテンポで打たれ、一打ごとの音はその瞬間に空がその惑星に与える音を調律に量子化したものです。<b>ユークリッド</b>は各惑星にユークリッド・リズムを与え、公転が速いほど打数が増えます。<b>空</b>は惑星の今の位置からパターンを書きます。モジュレーション・マトリクスは引き続き音を形づくりますが、シーケンサーが拍を取る間、トリガーのルートは休みます。グリッドはこのブラウザーに保存されます。"], "tape": "テープ・ループ", "tapeTip": "各惑星の行が、それぞれの長さのループになります。長さはイーノのループのように太陽からの距離で決まり、ヘルメスは16ステップ中10ステップごと、ゼウスは36、ポセイドンは88で一巡します。行は少しずつずれ、惑星と同じくらいまれにしか揃いません。", "tapeOn": "テープ・ループ：各行がそれぞれの長さでループします", "tapeOff": "テープ・ループ オフ：各行は小節に合わせてループします", "loopLen": "この行のループの長さ（ステップ数）" }, "mixTitle": "ミキサー", "mixTop": { "title": "ミキサー", "synth": "シンセ", "seq": "シーケンサー", "beats": "Beats", "on": "オン", "off": "オフ", "onTip": "オン・オフを切り替える", "openTip": "操作部を表示（ほかは折りたたまれます）", "level": "レベル", "loops": "ループ", "synthS": "シンセ", "seqS": "シーケンサー" }, "seqPitch": "音の出どころ：各打音は、その惑星自身の音、つまりシンセで歌っているのと同じ音を鳴らします。空と音高の法則がその音を選び、音律が音程を決め、惑星のオクターブとモジュレーション・マトリクスの「音高」ルートがそれを動かします。音は打った瞬間に取られ、そのステップの間保たれるので、惑星が空を進むにつれて打音はゆっくりと音を変えていきます。シンセで法則・音律・オクターブを変えると、次の打音から新しい音になります。", "loopsTitle": "テープ・ループ", "modes": ["ドリア旋法（E）", "フリギア旋法（D）", "リディア旋法（C）", "ミクソリディア旋法（B）", "ヒポドリア旋法（A）", "ヒポフリギア旋法（G）", "ヒポリディア旋法（F）"] }
   );
   const LOC = (
     /*LOC*/
@@ -11624,7 +11674,13 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     } else l.setOrientation(1, 0, 0, 0, 1, 0);
   }
   const SEQ_STEPS = [8, 12, 16, 24, 32], SEQ_MAX = 32, SKEY = "mots.synth.seq";
-  const SEQ = { on: false, bpm: 100, steps: 16, swing: 0, gate: "med", rows: {}, play: false, t0: 0, next: 0, q: [], cur: null };
+  const SEQ = { on: false, bpm: 100, steps: 16, swing: 0, gate: "med", rows: {}, play: false, t0: 0, next: 0, q: [], cur: null, tape: false };
+  const rowLen = (b) => !SEQ.tape || !b || !b.el || !b.el.a ? SEQ.steps : Math.max(3, Math.round(SEQ.steps * Math.sqrt(b.el.a)));
+  const rowStep = (b, k) => k % rowLen(b);
+  const rowVal = (b, k) => {
+    const j = rowStep(b, k);
+    return j < SEQ.steps ? SEQ.rows[b.id].s[j] : 0;
+  };
   PLANETS.forEach((b) => SEQ.rows[b.id] = { m: false, s: new Array(SEQ_MAX).fill(0) });
   function seqLoad() {
     try {
@@ -11635,6 +11691,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       if (SEQ_STEPS.includes(o.steps)) SEQ.steps = o.steps;
       if (o.swing >= 0 && o.swing <= 0.6) SEQ.swing = o.swing;
       if (["short", "med", "long"].includes(o.gate)) SEQ.gate = o.gate;
+      SEQ.tape = !!o.tape;
       if (o.rows) PLANETS.forEach((b) => {
         const r = o.rows[b.id];
         if (!r) return;
@@ -11649,7 +11706,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
   let seqSaveT = null;
   function seqSave() {
     clearTimeout(seqSaveT);
-    seqSaveT = setTimeout(() => LS.set(SKEY, JSON.stringify({ on: SEQ.on, bpm: SEQ.bpm, steps: SEQ.steps, swing: SEQ.swing, gate: SEQ.gate, rows: SEQ.rows })), 250);
+    seqSaveT = setTimeout(() => LS.set(SKEY, JSON.stringify({ on: SEQ.on, bpm: SEQ.bpm, steps: SEQ.steps, swing: SEQ.swing, gate: SEQ.gate, tape: SEQ.tape, rows: SEQ.rows })), 250);
   }
   const stepDur = () => {
     const g2 = GM();
@@ -11733,7 +11790,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     const i = k % SEQ.steps;
     const RW = SEQ_ROWS(), rows = RW.filter((b) => {
       const r = SEQ.rows[b.id], v = V[b.id];
-      return r && v && r.s[i] && !r.m && v.part && v.part.env && v.lvl > 0;
+      return r && v && rowVal(b, k) && !r.m && v.part && v.part.env && v.lvl > 0;
     });
     const cap = MIN() ? 3 : LOWPOWER || QUAL() === "eco" ? 4 : RW.length;
     let hit = rows;
@@ -11743,8 +11800,8 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     }
     const fs = {};
     const g2 = GM();
-    hit.forEach((b) => fs[b.id] = g2 ? g2.strike(b.id, t, SEQ.rows[b.id].s[i] === 2, sd) : strike(V[b.id], t, SEQ.rows[b.id].s[i] === 2, sd));
-    SEQ.q.push({ t, i, ids: hit.map((b) => b.id), fs, done: false, pitched: false });
+    hit.forEach((b) => fs[b.id] = g2 ? g2.strike(b.id, t, rowVal(b, k) === 2, sd) : strike(V[b.id], t, rowVal(b, k) === 2, sd));
+    SEQ.q.push({ t, i, k, ids: hit.map((b) => b.id), fs, done: false, pitched: false });
     if (SEQ.q.length > 96) SEQ.q.splice(0, SEQ.q.length - 96);
   }
   function strike(v, t, acc, sd) {
@@ -11926,6 +11983,28 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     sf.classList.add("x-expert");
     sf.querySelector("output").textContent = Math.round(SEQ.swing * 100) + "%";
     C.appendChild(sf);
+    {
+      const tb = document.createElement("button");
+      tb.className = "pb x-expert";
+      tb.id = "seqTape";
+      tb.type = "button";
+      tb.title = T.tapeTip;
+      const lab = () => {
+        tb.setAttribute("aria-pressed", String(SEQ.tape));
+        tb.classList.toggle("gold", SEQ.tape);
+        tb.textContent = (SEQ.tape ? "● " : "○ ") + T.tape;
+      };
+      lab();
+      tb.onclick = () => {
+        SEQ.tape = !SEQ.tape;
+        lab();
+        if (AC && SEQ.play) seqRestart(AC.currentTime);
+        renderSeqGrid();
+        seqSave();
+        toast(SEQ.tape ? T.tapeOn : T.tapeOff);
+      };
+      C.appendChild(tb);
+    }
     const pats = document.createElement("div");
     pats.className = "pats";
     pats.innerHTML = '<span class="lab">'.concat(esc(T.patterns), "</span>");
@@ -11957,14 +12036,16 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     }
     RW.forEach((b) => {
       const r = SEQ.rows[b.id];
-      h += '<button type="button" class="srow" data-id="'.concat(b.id, '" aria-pressed="').concat(r.m, '" title="').concat(esc(T.muteRow), '" aria-label="').concat(esc(T.muteRow), " · ").concat(esc(b.god), '"><span class="sw" style="background:').concat(b.color, ";color:").concat(b.color, '"></span><b>').concat(esc(b.god), "</b>").concat(ICO.mute, "</button>");
+      h += '<button type="button" class="srow" data-id="'.concat(b.id, '" aria-pressed="').concat(r.m, '" title="').concat(esc(T.muteRow), '" aria-label="').concat(esc(T.muteRow), " · ").concat(esc(b.god), '"><span class="sw" style="background:').concat(b.color, ";color:").concat(b.color, '"></span><b>').concat(esc(b.god), "</b>").concat(SEQ.tape && rowLen(b) !== n ? '<i class="rl" data-id="'.concat(b.id, '" title="').concat(esc(T.loopLen), '">').concat(rowLen(b), "</i>") : "").concat(ICO.mute, "</button>");
+      const L = rowLen(b);
       for (let k = 0; k < n; k++) {
         const v = r.s[k];
-        h += '<button type="button" class="sc'.concat(v ? " on" : "").concat(v === 2 ? " acc" : "").concat(r.m ? " dim" : "").concat(k % grp === 0 ? " beat" : "").concat(Math.floor(k / grp) % 2 ? " alt" : "", '" data-id="').concat(b.id, '" data-k="').concat(k, '" aria-pressed="').concat(!!v, '" aria-label="').concat(esc(T.stepLab.replace("{g}", b.god).replace("{k}", k + 1)), '" title="').concat(esc(T.accentTip), '" style="--c1:').concat(hexA(b.color, 0.55), ";--c2:").concat(b.color, '"></button>');
+        h += '<button type="button" class="sc'.concat(v ? " on" : "").concat(v === 2 ? " acc" : "").concat(r.m ? " dim" : "").concat(k >= L ? " cut" : "").concat(k % grp === 0 ? " beat" : "").concat(Math.floor(k / grp) % 2 ? " alt" : "", '" data-id="').concat(b.id, '" data-k="').concat(k, '" aria-pressed="').concat(!!v, '" aria-label="').concat(esc(T.stepLab.replace("{g}", b.god).replace("{k}", k + 1)), '" title="').concat(esc(T.accentTip), '" style="--c1:').concat(hexA(b.color, 0.55), ";--c2:").concat(b.color, '"></button>');
       }
     });
     h += '<div class="ph" id="seqPh" aria-hidden="true"></div>';
     G.innerHTML = h;
+    G.classList.toggle("tape", SEQ.tape);
     let lp = null, lpHit = false;
     const clearLp = () => {
       clearTimeout(lp);
@@ -12051,6 +12132,23 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       SEQ.cur = ev.i;
       seqPhAt(ev.i);
     }
+    if (SEQ.tape && ev && ev.k != null && SEQ.curK !== ev.k) {
+      SEQ.curK = ev.k;
+      const G = $("seqgrid");
+      G.querySelectorAll(".sc.rph").forEach((c) => c.classList.remove("rph"));
+      SEQ_ROWS().forEach((b) => {
+        const j = rowStep(b, ev.k), L = rowLen(b);
+        if (j < SEQ.steps) {
+          const c = G.querySelector('.sc[data-id="'.concat(b.id, '"][data-k="').concat(j, '"]'));
+          if (c) c.classList.add("rph");
+        }
+        const rl = G.querySelector('.rl[data-id="'.concat(b.id, '"]'));
+        if (rl) {
+          rl.textContent = j >= SEQ.steps ? j + 1 + "/" + L : L;
+          rl.classList.toggle("away", j >= SEQ.steps);
+        }
+      });
+    }
   }
   function seqPhAt(i) {
     const G = $("seqgrid"), ph = $("seqPh"), sh = G.querySelector('.sh[data-k="'.concat(i, '"]'));
@@ -12081,11 +12179,12 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       Object.assign(st, JSON.parse(LS.get(K2) || "{}"));
     } catch (e) {
     }
-    if (!["synth", "seq", "beats"].includes(st.open)) st.open = "synth";
+    if (!["synth", "seq", "beats", "loops"].includes(st.open)) st.open = "synth";
+    if (/^#loops\b/.test(location.hash)) st.open = "loops";
     if (/^#beats\b/.test(location.hash)) st.open = "beats";
     const save = () => LS.set(K2, JSON.stringify(st));
     const T = TX.mixTop || { title: "Mixer", synth: "Synthesiser", seq: "Sequencer", beats: "Beats", on: "On", off: "Off", onTip: "Switch on or off", openTip: "Show its controls", level: "Level" };
-    const BT = () => window.BEATS || null;
+    const BT = () => window.BEATS || null, LO = () => window.LOOPS || null;
     function apply() {
       if (!AC || !bus) return;
       const g2 = SEQ.on ? st.syn ? 1 : 2.5 : st.syn ? st.synL : 0;
@@ -12093,7 +12192,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       if (vsend) tgt(vsend.gain, g2, 0.08);
       if (sunV && sunV.gate) tgt(sunV.gate.gain, st.syn ? SEQ.on ? st.synL : 1 : 0, 0.08);
     }
-    const lvlOf = (k) => k === "synth" ? st.synL : k === "seq" ? st.seqL : BT() ? BT().B.lvl : 0.8;
+    const lvlOf = (k) => k === "synth" ? st.synL : k === "seq" ? st.seqL : k === "loops" ? LO() ? LO().LP.lvl : 0.8 : BT() ? BT().B.lvl : 0.8;
     function setLvl(k, v) {
       v = clamp(v, 0, 1);
       if (k === "synth") {
@@ -12103,11 +12202,13 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       } else if (k === "seq") {
         st.seqL = v;
         save();
+      } else if (k === "loops") {
+        if (LO()) LO().setLvl(v);
       } else if (BT()) {
         BT().setLvl(v);
       }
     }
-    const isOn = (k) => k === "synth" ? st.syn : k === "seq" ? SEQ.on : !!(BT() && BT().B.on);
+    const isOn = (k) => k === "synth" ? st.syn : k === "seq" ? SEQ.on : k === "loops" ? !!(LO() && LO().LP.on) : !!(BT() && BT().B.on);
     function setOn(k, on) {
       if (k === "synth") {
         st.syn = on;
@@ -12116,6 +12217,8 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       } else if (k === "seq") {
         seqSetOn(on);
         return;
+      } else if (k === "loops") {
+        if (LO()) LO().setOn(on);
       } else if (BT()) BT().setOn(on);
       if (!on && Y.playing && silentNow()) setPlaying(false);
       render();
@@ -12124,7 +12227,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       st.open = k;
       save();
       document.querySelectorAll("[data-panel]").forEach((el) => el.classList.toggle("shut", el.dataset.panel !== k));
-      const card = k === "seq" ? $("seqCard") : k === "beats" ? $("beatCard") : null;
+      const card = k === "seq" ? $("seqCard") : k === "beats" ? $("beatCard") : k === "loops" ? $("loopCard") : null;
       if (card && card.classList.contains("drw-sf")) {
         const h = card.querySelector(":scope > h2");
         if (h) h.click();
@@ -12138,7 +12241,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     function render() {
       const box = $("mixTop");
       if (!box) return;
-      box.innerHTML = '<div class="mline">' + [["synth", T.synth], ["seq", T.seq], ["beats", T.beats]].map(([k, name]) => '<div class="mch'.concat(isOn(k) ? " on" : "").concat(st.open === k ? " cur" : "", '" data-k="').concat(k, '">\n      <button type="button" class="mon" aria-pressed="').concat(isOn(k), '" title="').concat(T.onTip, '" aria-label="').concat(name, ": ").concat(isOn(k) ? T.on : T.off, '">').concat(isOn(k) ? "●" : "○", '</button>\n      <button type="button" class="mnm" aria-expanded="').concat(st.open === k, '" title="').concat(T.openTip, '"><span class="mnt">').concat(name, '</span></button>\n      <input type="range" class="mlv" min="0" max="100" value="').concat(Math.round(lvlOf(k) * 100), '" aria-label="').concat(name, ": ").concat(T.level, '" title="').concat(T.level, '"></div>')).join("") + "</div>";
+      box.innerHTML = '<div class="mline">' + [["synth", T.synth, T.synthS], ["seq", T.seq, T.seqS], ["beats", T.beats, T.beats], ["loops", T.loops || "Loops", T.loops || "Loops"]].map(([k, name, short]) => '<div class="mch'.concat(isOn(k) ? " on" : "").concat(st.open === k ? " cur" : "", '" data-k="').concat(k, '">\n      <button type="button" class="mon" aria-pressed="').concat(isOn(k), '" title="').concat(T.onTip, '" aria-label="').concat(name, ": ").concat(isOn(k) ? T.on : T.off, '">').concat(isOn(k) ? "●" : "○", '</button>\n      <button type="button" class="mnm" aria-expanded="').concat(st.open === k, '" title="').concat(T.openTip, '"><span class="mnt"><span class="lg">').concat(name, '</span><span class="sh">').concat(short || name, '</span></span></button>\n      <input type="range" class="mlv" min="0" max="100" value="').concat(Math.round(lvlOf(k) * 100), '" aria-label="').concat(name, ": ").concat(T.level, '" title="').concat(T.level, '"></div>')).join("") + "</div>";
       box.querySelectorAll(".mch").forEach((c) => {
         const k = c.dataset.k;
         c.querySelector(".mnm").onclick = () => open(k);
@@ -12151,7 +12254,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       });
     }
     function silentNow() {
-      return !st.syn && !SEQ.on && !(BT() && BT().B.on);
+      return !st.syn && !SEQ.on && !(BT() && BT().B.on) && !(LO() && LO().LP.on);
     }
     {
       let lastY = scrollY;
@@ -12204,6 +12307,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     },
     seqT0: () => SEQ.on && SEQ.play ? SEQ.t0 : null,
     root: keyRoot,
+    note: (id) => NOTES[id] ? NOTES[id].f : null,
     lon: (id) => LON[id] != null ? LON[id] : null,
     jd: () => S.jd,
     body: bodyById,
@@ -16949,6 +17053,237 @@ function init(){if(!$('beatCard'))return;const st=document.createElement('style'
 function setLvl(v){B.lvl=clamp(v,0,1);if(bus)bus.gain.setTargetAtTime(B.lvl,now(),.03);const lv=document.getElementById('beatLvl');if(lv&&+lv.value!==Math.round(B.lvl*100))lv.value=Math.round(B.lvl*100);save()}
 window.BEATS={B,setLvl,KIT,tick,render,apply,exp,setOn,renderRows,renderOne,midi,wav,zip,PAT,skyBar,skyApply,eventAt,jdBar};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script>
+<script>
+/* ================= (LOOPS, Martin 23 Nov) the tape-loop synthesiser: the fourth channel of the Synthesiser's mixer =================
+   Brian Eno's idea in Music for Airports, borrowed in manner only (no note or loop of his): several tape loops of different lengths run at
+   once and drift in and out of phase, so the music almost never repeats. Here every planet runs five loops at once, and each loop moves one
+   property of its sound: when the note sounds, its pitch, its tape echo, its place around you and its brightness. Each loop's length
+   comes from one of the planet's own properties, the same rule for every planet, so each planet's loops differ:
+     Year          17.8 s × √(distance from the Sun in AU), Eno's rule from Dance: Mercury 11 s, the Earth 17.8 s, Neptune 98 s
+     Day           the planet's day (its rotation), 4 s × ∛(hours): Jupiter 8.6 s, the Earth 11.5 s, Venus 72 s; backward spin runs the tape backwards
+     Eccentricity  the Year loop, its tape fast near the Sun and slow far out (Kepler's second law; the stretch tripled so it can be heard):
+                   Mercury and Mars lurch, Venus and Neptune run nearly even
+     Moons         the Year loop shared among the planet's moons: Jupiter and Saturn busy, Mercury and Venus whole
+   The notes are the Synthesiser's own (the sky through the Pitch law and the Tuning), read as each note sounds.
+   It needs from synth.js only window.SYNHOOK (ac, out, playing, note, body, lon); the mixer (SYNMIX) switches it on and sets its level. */
+(()=>{
+'use strict';
+/*LP_ALL*/
+const LP_ALL={
+en:{title:'Tape loops',hint:'Every planet runs five tape loops at once, each a different length, so they drift in and out of phase like Brian Eno’s loops. Each loop moves one thing about the planet’s sound, and its length comes from one of the planet’s own properties. The notes are the Synthesiser’s own, from the sky.',speed:'Tape speed',speedTip:'Stretches or squeezes every loop at once: slower is longer and sparser.',lenFrom:'Length from',depth:'Depth',
+  lanes:{note:'Note',pitch:'Pitch',echo:'Echo',pan:'Pan',bright:'Brightness'},
+  laneTips:{note:'When the note sounds: once each time the loop comes round. Off: a held tone, moved by the other loops.',pitch:'Steps the note up and down a pentatonic scale as the loop turns.',echo:'How much goes into the tape echo.',pan:'Moves the planet round you, left to right.',bright:'Opens and closes the tone.'},
+  srcs:{year:'Year',day:'Day',ecc:'Eccentricity',moons:'Moons',off:'Off'},
+  srcTips:{year:'17.8 s × the square root of the distance from the Sun: Mercury 11 s, the Earth 18 s, Neptune 98 s.',day:'The planet’s rotation: Jupiter 9 s, the Earth 12 s, Venus 72 s, backwards for a backward spin.',ecc:'The Year loop, fast near the Sun and slow far out, as Kepler’s second law says: Mercury and Mars lurch, Venus runs even.',moons:'The Year loop shared among the planet’s moons: Jupiter and Saturn busy, Mercury and Venus whole.',off:'This loop does nothing.'},
+  muteTip:'Tap to leave this planet out (or bring it back)',secs:'{n} s'},
+pl:{title:'Pętle taśmy',hint:'Każda planeta prowadzi naraz pięć pętli taśmy, każdą innej długości, więc rozjeżdżają się i schodzą jak pętle Briana Eno. Każda pętla porusza jedną cechę dźwięku planety, a jej długość wynika z jednej z cech samej planety. Dźwięki są dźwiękami Syntezatora, z nieba.',speed:'Prędkość taśmy',speedTip:'Rozciąga lub ściska wszystkie pętle naraz: wolniej to dłużej i rzadziej.',lenFrom:'Długość z',depth:'Głębia',
+  lanes:{note:'Dźwięk',pitch:'Wysokość',echo:'Echo',pan:'Panorama',bright:'Jasność'},
+  laneTips:{note:'Kiedy brzmi dźwięk: raz za każdym obrotem pętli. Wył.: dźwięk trzymany, poruszany przez pozostałe pętle.',pitch:'Przesuwa dźwięk w górę i w dół skali pentatonicznej, gdy pętla się obraca.',echo:'Ile trafia do echa taśmy.',pan:'Przesuwa planetę wokół ciebie, z lewa na prawo.',bright:'Otwiera i zamyka barwę.'},
+  srcs:{year:'Rok',day:'Doba',ecc:'Mimośród',moons:'Księżyce',off:'Wył.'},
+  srcTips:{year:'17,8 s × pierwiastek z odległości od Słońca: Merkury 11 s, Ziemia 18 s, Neptun 98 s.',day:'Obrót planety: Jowisz 9 s, Ziemia 12 s, Wenus 72 s, wstecz przy obrocie wstecznym.',ecc:'Pętla Roku, szybka blisko Słońca i wolna daleko, jak mówi drugie prawo Keplera: Merkury i Mars szarpią, Wenus biegnie równo.',moons:'Pętla Roku dzielona między księżyce planety: Jowisz i Saturn gęsto, Merkury i Wenus w całości.',off:'Ta pętla nic nie robi.'},
+  muteTip:'Dotknij, by pominąć tę planetę (lub ją przywrócić)',secs:'{n} s'},
+cy:{title:'Dolenni tâp',hint:'Mae pob planed yn rhedeg pum dolen dâp ar unwaith, pob un o hyd gwahanol, felly maen nhw’n crwydro i mewn ac allan o gam fel dolenni Brian Eno. Mae pob dolen yn symud un peth am sain y blaned, ac mae ei hyd yn dod o un o briodweddau’r blaned ei hun. Nodau’r Syntheseinydd yw’r nodau, o’r awyr.',speed:'Cyflymder y tâp',speedTip:'Yn ymestyn neu’n gwasgu pob dolen ar unwaith: arafach yw hirach a phrinnach.',lenFrom:'Hyd o',depth:'Dyfnder',
+  lanes:{note:'Nodyn',pitch:'Traw',echo:'Atsain',pan:'Pan',bright:'Disgleirdeb'},
+  laneTips:{note:'Pryd mae’r nodyn yn swnio: unwaith bob tro mae’r ddolen yn dod rownd. I ffwrdd: tôn wedi’i dal, wedi’i symud gan y dolenni eraill.',pitch:'Yn camu’r nodyn i fyny ac i lawr graddfa bentatonig wrth i’r ddolen droi.',echo:'Faint sy’n mynd i atsain y tâp.',pan:'Yn symud y blaned o’ch cwmpas, o’r chwith i’r dde.',bright:'Yn agor ac yn cau’r lliw tôn.'},
+  srcs:{year:'Blwyddyn',day:'Diwrnod',ecc:'Echreiddiad',moons:'Lleuadau',off:'I ffwrdd'},
+  srcTips:{year:'17.8 e × ail isradd y pellter o’r Haul: Mercher 11 e, y Ddaear 18 e, Neifion 98 e.',day:'Cylchdro’r blaned: Iau 9 e, y Ddaear 12 e, Gwener 72 e, tuag yn ôl i droelli tuag yn ôl.',ecc:'Dolen y Flwyddyn, yn gyflym ger yr Haul ac yn araf ymhell allan, fel y dywed ail ddeddf Kepler: mae Mercher a Mawrth yn hercian, Gwener yn rhedeg yn wastad.',moons:'Dolen y Flwyddyn wedi’i rhannu rhwng lleuadau’r blaned: Iau a Sadwrn yn brysur, Mercher a Gwener yn gyfan.',off:'Nid yw’r ddolen hon yn gwneud dim.'},
+  muteTip:'Tapiwch i adael y blaned hon allan (neu i’w dychwelyd)',secs:'{n} e'},
+de:{title:'Bandschleifen',hint:'Jeder Planet lässt fünf Bandschleifen zugleich laufen, jede anders lang, sodass sie wie Brian Enos Schleifen in und aus der Phase driften. Jede Schleife bewegt eine Eigenschaft seines Klangs, und ihre Länge kommt aus einer Eigenschaft des Planeten selbst. Die Töne sind die des Synthesizers, vom Himmel.',speed:'Bandgeschwindigkeit',speedTip:'Dehnt oder staucht alle Schleifen zugleich: langsamer heißt länger und spärlicher.',lenFrom:'Länge aus',depth:'Tiefe',
+  lanes:{note:'Ton',pitch:'Tonhöhe',echo:'Echo',pan:'Panorama',bright:'Helligkeit'},
+  laneTips:{note:'Wann der Ton erklingt: einmal bei jedem Umlauf der Schleife. Aus: ein gehaltener Ton, von den anderen Schleifen bewegt.',pitch:'Führt den Ton auf einer pentatonischen Skala auf und ab, während die Schleife läuft.',echo:'Wie viel ins Bandecho geht.',pan:'Bewegt den Planeten um dich herum, von links nach rechts.',bright:'Öffnet und schließt den Klang.'},
+  srcs:{year:'Jahr',day:'Tag',ecc:'Exzentrizität',moons:'Monde',off:'Aus'},
+  srcTips:{year:'17,8 s × Wurzel des Abstands zur Sonne: Merkur 11 s, die Erde 18 s, Neptun 98 s.',day:'Die Drehung des Planeten: Jupiter 9 s, die Erde 12 s, Venus 72 s, rückwärts bei rückläufiger Drehung.',ecc:'Die Jahresschleife, schnell nahe der Sonne und langsam weit draußen, wie Keplers zweites Gesetz sagt: Merkur und Mars ruckeln, Venus läuft gleichmäßig.',moons:'Die Jahresschleife geteilt unter den Monden des Planeten: Jupiter und Saturn dicht, Merkur und Venus ganz.',off:'Diese Schleife tut nichts.'},
+  muteTip:'Tippen, um diesen Planeten auszulassen (oder zurückzuholen)',secs:'{n} s'},
+es:{title:'Bucles de cinta',hint:'Cada planeta hace sonar cinco bucles de cinta a la vez, cada uno de distinta longitud, así que se desfasan y se reencuentran como los bucles de Brian Eno. Cada bucle mueve una cosa del sonido del planeta, y su longitud sale de una propiedad del propio planeta. Las notas son las del Sintetizador, del cielo.',speed:'Velocidad de la cinta',speedTip:'Estira o comprime todos los bucles a la vez: más lento es más largo y más espaciado.',lenFrom:'Longitud según',depth:'Profundidad',
+  lanes:{note:'Nota',pitch:'Altura',echo:'Eco',pan:'Panorama',bright:'Brillo'},
+  laneTips:{note:'Cuándo suena la nota: una vez cada vuelta del bucle. Desactivado: un tono sostenido, movido por los otros bucles.',pitch:'Sube y baja la nota por una escala pentatónica mientras gira el bucle.',echo:'Cuánto va al eco de cinta.',pan:'Mueve el planeta a tu alrededor, de izquierda a derecha.',bright:'Abre y cierra el timbre.'},
+  srcs:{year:'Año',day:'Día',ecc:'Excentricidad',moons:'Lunas',off:'No'},
+  srcTips:{year:'17,8 s × la raíz de la distancia al Sol: Mercurio 11 s, la Tierra 18 s, Neptuno 98 s.',day:'La rotación del planeta: Júpiter 9 s, la Tierra 12 s, Venus 72 s, al revés si gira al revés.',ecc:'El bucle del Año, rápido cerca del Sol y lento lejos, como dice la segunda ley de Kepler: Mercurio y Marte dan tirones, Venus va parejo.',moons:'El bucle del Año repartido entre las lunas del planeta: Júpiter y Saturno, densos; Mercurio y Venus, enteros.',off:'Este bucle no hace nada.'},
+  muteTip:'Toca para dejar fuera este planeta (o recuperarlo)',secs:'{n} s'},
+fr:{title:'Boucles de bande',hint:'Chaque planète fait tourner cinq boucles de bande à la fois, chacune d’une longueur différente, si bien qu’elles se décalent et se retrouvent comme les boucles de Brian Eno. Chaque boucle fait varier une chose du son de la planète, et sa longueur vient d’une propriété de la planète elle-même. Les notes sont celles du Synthé, venues du ciel.',speed:'Vitesse de la bande',speedTip:'Étire ou resserre toutes les boucles à la fois : plus lent, c’est plus long et plus clairsemé.',lenFrom:'Longueur selon',depth:'Profondeur',
+  lanes:{note:'Note',pitch:'Hauteur',echo:'Écho',pan:'Panoramique',bright:'Brillance'},
+  laneTips:{note:'Quand la note sonne : une fois à chaque tour de boucle. Désactivé : un son tenu, que font bouger les autres boucles.',pitch:'Fait monter et descendre la note sur une gamme pentatonique au fil de la boucle.',echo:'Ce qui part dans l’écho à bande.',pan:'Déplace la planète autour de vous, de gauche à droite.',bright:'Ouvre et ferme le timbre.'},
+  srcs:{year:'Année',day:'Jour',ecc:'Excentricité',moons:'Lunes',off:'Non'},
+  srcTips:{year:'17,8 s × la racine de la distance au Soleil : Mercure 11 s, la Terre 18 s, Neptune 98 s.',day:'La rotation de la planète : Jupiter 9 s, la Terre 12 s, Vénus 72 s, à l’envers pour une rotation à l’envers.',ecc:'La boucle de l’Année, rapide près du Soleil et lente au loin, comme le dit la deuxième loi de Kepler : Mercure et Mars cahotent, Vénus est régulière.',moons:'La boucle de l’Année partagée entre les lunes de la planète : Jupiter et Saturne denses, Mercure et Vénus entières.',off:'Cette boucle ne fait rien.'},
+  muteTip:'Touchez pour laisser cette planète de côté (ou la reprendre)',secs:'{n} s'},
+it:{title:'Loop di nastro',hint:'Ogni pianeta fa girare cinque loop di nastro insieme, ognuno di lunghezza diversa, così si sfasano e si ritrovano come i loop di Brian Eno. Ogni loop muove un aspetto del suono del pianeta, e la sua lunghezza viene da una proprietà del pianeta stesso. Le note sono quelle del Synth, dal cielo.',speed:'Velocità del nastro',speedTip:'Allunga o accorcia tutti i loop insieme: più lento è più lungo e più rado.',lenFrom:'Lunghezza da',depth:'Profondità',
+  lanes:{note:'Nota',pitch:'Altezza',echo:'Eco',pan:'Panorama',bright:'Brillantezza'},
+  laneTips:{note:'Quando suona la nota: una volta a ogni giro del loop. Spento: un suono tenuto, mosso dagli altri loop.',pitch:'Sposta la nota su e giù lungo una scala pentatonica mentre il loop gira.',echo:'Quanto va nell’eco a nastro.',pan:'Muove il pianeta intorno a te, da sinistra a destra.',bright:'Apre e chiude il timbro.'},
+  srcs:{year:'Anno',day:'Giorno',ecc:'Eccentricità',moons:'Lune',off:'No'},
+  srcTips:{year:'17,8 s × la radice della distanza dal Sole: Mercurio 11 s, la Terra 18 s, Nettuno 98 s.',day:'La rotazione del pianeta: Giove 9 s, la Terra 12 s, Venere 72 s, all’indietro per una rotazione retrograda.',ecc:'Il loop dell’Anno, veloce vicino al Sole e lento lontano, come dice la seconda legge di Keplero: Mercurio e Marte strattonano, Venere scorre regolare.',moons:'Il loop dell’Anno diviso tra le lune del pianeta: Giove e Saturno fitti, Mercurio e Venere interi.',off:'Questo loop non fa nulla.'},
+  muteTip:'Tocca per escludere questo pianeta (o riprenderlo)',secs:'{n} s'},
+zh:{title:'磁带循环',hint:'每颗行星同时运行五条磁带循环，长度各不相同，所以它们像布莱恩·伊诺的循环一样时而错开、时而重合。每条循环改变行星声音的一个方面，它的长度来自行星自身的一项性质。音来自合成器，也就是来自天空。',speed:'磁带速度',speedTip:'同时拉长或压缩所有循环：越慢越长、越稀疏。',lenFrom:'长度来自',depth:'深度',
+  lanes:{note:'音',pitch:'音高',echo:'回声',pan:'声像',bright:'明亮度'},
+  laneTips:{note:'音何时响起：循环每转一圈响一次。关：一个持续的音，由其他循环来推动。',pitch:'循环转动时，让音沿五声音阶上下移动。',echo:'送入磁带回声的多少。',pan:'让行星在你周围从左到右移动。',bright:'让音色变亮或变暗。'},
+  srcs:{year:'年',day:'日',ecc:'偏心率',moons:'卫星',off:'关'},
+  srcTips:{year:'17.8 秒 × 与太阳距离的平方根：水星 11 秒，地球 18 秒，海王星 98 秒。',day:'行星的自转：木星 9 秒，地球 12 秒，金星 72 秒，逆向自转则磁带倒放。',ecc:'“年”循环，靠近太阳时快、远离时慢，正如开普勒第二定律：水星和火星一顿一顿，金星平稳。',moons:'“年”循环由行星的卫星分摊：木星和土星密集，水星和金星完整。',off:'这条循环不起作用。'},
+  muteTip:'点按可去掉这颗行星（或加回来）',secs:'{n} 秒'},
+ja:{title:'テープ・ループ',hint:'惑星はそれぞれ五本のテープ・ループを同時に回します。長さはすべて違うので、ブライアン・イーノのループのように位相がずれては重なります。各ループは惑星の音のひとつの要素を動かし、その長さは惑星自身の性質から決まります。音はシンセの音、つまり空から来る音です。',speed:'テープ速度',speedTip:'すべてのループをまとめて伸び縮みさせます。遅いほど長く、まばらになります。',lenFrom:'長さの元',depth:'深さ',
+  lanes:{note:'音',pitch:'音高',echo:'エコー',pan:'パン',bright:'明るさ'},
+  laneTips:{note:'音が鳴るとき：ループが一巡するたびに一回。オフ：持続音になり、ほかのループで動きます。',pitch:'ループが回るにつれて、音をペンタトニックの音階で上下させます。',echo:'テープ・エコーへ送る量。',pan:'惑星をあなたのまわりで左右に動かします。',bright:'音色を明るくしたり暗くしたりします。'},
+  srcs:{year:'年',day:'日',ecc:'離心率',moons:'衛星',off:'オフ'},
+  srcTips:{year:'17.8 秒 × 太陽からの距離の平方根：水星 11 秒、地球 18 秒、海王星 98 秒。',day:'惑星の自転：木星 9 秒、地球 12 秒、金星 72 秒。逆向きの自転ならテープも逆回し。',ecc:'「年」のループが、ケプラーの第二法則どおり太陽の近くで速く遠くで遅くなります。水星と火星はぎくしゃく、金星はなめらか。',moons:'「年」のループを惑星の衛星で分け合います。木星と土星はにぎやか、水星と金星はそのまま。',off:'このループは何もしません。'},
+  muteTip:'タップでこの惑星を外します（もう一度で戻します）',secs:'{n} 秒'},
+vi:{title:'Vòng băng',hint:'Mỗi hành tinh chạy cùng lúc năm vòng băng, mỗi vòng một độ dài, nên chúng lệch pha rồi lại gặp nhau như các vòng lặp của Brian Eno. Mỗi vòng làm thay đổi một điều trong âm thanh của hành tinh, và độ dài của nó lấy từ một tính chất của chính hành tinh. Các nốt là nốt của Bộ tổng hợp, đến từ bầu trời.',speed:'Tốc độ băng',speedTip:'Kéo dài hay thu ngắn mọi vòng cùng lúc: chậm hơn là dài hơn và thưa hơn.',lenFrom:'Độ dài theo',depth:'Độ sâu',
+  lanes:{note:'Nốt',pitch:'Cao độ',echo:'Tiếng vọng',pan:'Vị trí',bright:'Độ sáng'},
+  laneTips:{note:'Khi nào nốt vang: một lần mỗi khi vòng quay hết. Tắt: một âm ngân giữ, do các vòng khác làm chuyển động.',pitch:'Đưa nốt lên xuống theo thang ngũ cung khi vòng quay.',echo:'Lượng đưa vào tiếng vọng của băng.',pan:'Đưa hành tinh đi quanh bạn, từ trái sang phải.',bright:'Làm âm sắc sáng lên hay tối đi.'},
+  srcs:{year:'Năm',day:'Ngày',ecc:'Độ lệch tâm',moons:'Vệ tinh',off:'Tắt'},
+  srcTips:{year:'17,8 giây × căn bậc hai khoảng cách tới Mặt Trời: Sao Thủy 11 giây, Trái Đất 18 giây, Sao Hải Vương 98 giây.',day:'Sự tự quay của hành tinh: Sao Mộc 9 giây, Trái Đất 12 giây, Sao Kim 72 giây, chạy ngược nếu tự quay ngược.',ecc:'Vòng Năm, nhanh khi gần Mặt Trời và chậm khi ở xa, như định luật thứ hai của Kepler: Sao Thủy và Sao Hỏa giật cục, Sao Kim đều đặn.',moons:'Vòng Năm chia cho các vệ tinh của hành tinh: Sao Mộc và Sao Thổ dày đặc, Sao Thủy và Sao Kim nguyên vẹn.',off:'Vòng này không làm gì.'},
+  muteTip:'Chạm để bỏ hành tinh này ra (hoặc đưa trở lại)',secs:'{n} giây'},
+bg:{title:'Лентови примки',hint:'Всяка планета върти едновременно пет лентови примки, всяка с различна дължина, затова те се разминават и пак се срещат като примките на Брайън Ино. Всяка примка движи едно нещо в звука на планетата, а дължината ѝ идва от свойство на самата планета. Тоновете са тоновете на Синтезатора, от небето.',speed:'Скорост на лентата',speedTip:'Разтяга или свива всички примки наведнъж: по-бавно значи по-дълго и по-рядко.',lenFrom:'Дължина от',depth:'Дълбочина',
+  lanes:{note:'Тон',pitch:'Височина',echo:'Ехо',pan:'Панорама',bright:'Яркост'},
+  laneTips:{note:'Кога звучи тонът: веднъж при всяко завъртане на примката. Изкл.: задържан тон, движен от другите примки.',pitch:'Мести тона нагоре и надолу по пентатонична гама, докато примката се върти.',echo:'Колко отива в лентовото ехо.',pan:'Движи планетата около теб, отляво надясно.',bright:'Отваря и затваря тембъра.'},
+  srcs:{year:'Година',day:'Ден',ecc:'Ексцентрицитет',moons:'Луни',off:'Изкл.'},
+  srcTips:{year:'17,8 s × корен от разстоянието до Слънцето: Меркурий 11 s, Земята 18 s, Нептун 98 s.',day:'Въртенето на планетата: Юпитер 9 s, Земята 12 s, Венера 72 s, наобратно при обратно въртене.',ecc:'Примката на Годината, бърза близо до Слънцето и бавна далеч от него, както казва вторият закон на Кеплер: Меркурий и Марс подскачат, Венера върви равно.',moons:'Примката на Годината, поделена между луните на планетата: Юпитер и Сатурн гъсто, Меркурий и Венера цели.',off:'Тази примка не прави нищо.'},
+  muteTip:'Докосни, за да изключиш тази планета (или да я върнеш)',secs:'{n} s'},
+pt:{title:'Loops de fita',hint:'Cada planeta gira cinco loops de fita ao mesmo tempo, cada um de um comprimento, e assim eles se desencontram e se reencontram como os loops de Brian Eno. Cada loop mexe numa coisa do som do planeta, e o seu comprimento vem de uma propriedade do próprio planeta. As notas são as do Sintetizador, vindas do céu.',speed:'Velocidade da fita',speedTip:'Estica ou encolhe todos os loops de uma vez: mais lento é mais longo e mais espaçado.',lenFrom:'Comprimento de',depth:'Profundidade',
+  lanes:{note:'Nota',pitch:'Altura',echo:'Eco',pan:'Panorama',bright:'Brilho'},
+  laneTips:{note:'Quando a nota soa: uma vez a cada volta do loop. Desligado: um som sustentado, movido pelos outros loops.',pitch:'Leva a nota para cima e para baixo numa escala pentatônica enquanto o loop gira.',echo:'Quanto vai para o eco de fita.',pan:'Move o planeta à sua volta, da esquerda para a direita.',bright:'Abre e fecha o timbre.'},
+  srcs:{year:'Ano',day:'Dia',ecc:'Excentricidade',moons:'Luas',off:'Não'},
+  srcTips:{year:'17,8 s × a raiz da distância ao Sol: Mercúrio 11 s, a Terra 18 s, Netuno 98 s.',day:'A rotação do planeta: Júpiter 9 s, a Terra 12 s, Vênus 72 s, ao contrário para uma rotação ao contrário.',ecc:'O loop do Ano, rápido perto do Sol e lento longe dele, como diz a segunda lei de Kepler: Mercúrio e Marte dão solavancos, Vênus corre regular.',moons:'O loop do Ano dividido entre as luas do planeta: Júpiter e Saturno densos, Mercúrio e Vênus inteiros.',off:'Este loop não faz nada.'},
+  muteTip:'Toque para deixar este planeta de fora (ou trazê-lo de volta)',secs:'{n} s'},
+nb:{title:'Båndsløyfer',hint:'Hver planet kjører fem båndsløyfer samtidig, hver med sin lengde, så de glir inn og ut av fase som Brian Enos sløyfer. Hver sløyfe beveger én ting ved planetens lyd, og lengden kommer fra en egenskap ved planeten selv. Tonene er Synthesizerens egne, fra himmelen.',speed:'Båndfart',speedTip:'Strekker eller presser alle sløyfene samtidig: saktere er lengre og glissere.',lenFrom:'Lengde fra',depth:'Dybde',
+  lanes:{note:'Tone',pitch:'Tonehøyde',echo:'Ekko',pan:'Panorering',bright:'Klarhet'},
+  laneTips:{note:'Når tonen klinger: én gang hver gang sløyfa går rundt. Av: en holdt tone som de andre sløyfene beveger.',pitch:'Flytter tonen opp og ned en pentatonisk skala mens sløyfa går.',echo:'Hvor mye som går til båndekkoet.',pan:'Flytter planeten rundt deg, fra venstre til høyre.',bright:'Åpner og lukker klangen.'},
+  srcs:{year:'År',day:'Døgn',ecc:'Eksentrisitet',moons:'Måner',off:'Av'},
+  srcTips:{year:'17,8 s × kvadratroten av avstanden til Sola: Merkur 11 s, Jorda 18 s, Neptun 98 s.',day:'Planetens rotasjon: Jupiter 9 s, Jorda 12 s, Venus 72 s, baklengs ved baklengs rotasjon.',ecc:'Årssløyfa, rask nær Sola og langsom langt ute, slik Keplers andre lov sier: Merkur og Mars rykker, Venus går jevnt.',moons:'Årssløyfa delt mellom planetens måner: Jupiter og Saturn tette, Merkur og Venus hele.',off:'Denne sløyfa gjør ingenting.'},
+  muteTip:'Trykk for å utelate denne planeten (eller ta den tilbake)',secs:'{n} s'},
+nn:{title:'Bandsløyfer',hint:'Kvar planet køyrer fem bandsløyfer samstundes, kvar med si lengd, så dei glir inn og ut av fase som sløyfene til Brian Eno. Kvar sløyfe flyttar éin ting ved lyden til planeten, og lengda kjem frå ein eigenskap ved planeten sjølv. Tonane er dei til Synthesizeren, frå himmelen.',speed:'Bandfart',speedTip:'Strekkjer eller pressar alle sløyfene samstundes: seinare er lengre og glissare.',lenFrom:'Lengd frå',depth:'Djupn',
+  lanes:{note:'Tone',pitch:'Tonehøgd',echo:'Ekko',pan:'Panorering',bright:'Klårleik'},
+  laneTips:{note:'Når tonen klingar: éin gong kvar gong sløyfa går rundt. Av: ein halden tone som dei andre sløyfene flyttar.',pitch:'Flyttar tonen opp og ned ein pentatonisk skala medan sløyfa går.',echo:'Kor mykje som går til bandekkoet.',pan:'Flyttar planeten rundt deg, frå venstre til høgre.',bright:'Opnar og lukkar klangen.'},
+  srcs:{year:'År',day:'Døgn',ecc:'Eksentrisitet',moons:'Månar',off:'Av'},
+  srcTips:{year:'17,8 s × kvadratrota av avstanden til Sola: Merkur 11 s, Jorda 18 s, Neptun 98 s.',day:'Rotasjonen til planeten: Jupiter 9 s, Jorda 12 s, Venus 72 s, baklengs ved baklengs rotasjon.',ecc:'Årssløyfa, rask nær Sola og langsam langt ute, slik den andre lova til Kepler seier: Merkur og Mars rykkjer, Venus går jamt.',moons:'Årssløyfa delt mellom månane til planeten: Jupiter og Saturn tette, Merkur og Venus heile.',off:'Denne sløyfa gjer ingenting.'},
+  muteTip:'Trykk for å utelate denne planeten (eller ta han tilbake)',secs:'{n} s'}};
+/*LP_ALL-END*/
+const LANG=(document.documentElement.lang||'en').slice(0,2),T=LP_ALL[LANG]||LP_ALL.en;
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+const H=()=>window.SYNHOOK||null;
+const $=id=>document.getElementById(id);
+const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+const TAU=Math.PI*2;
+const IDS=['mercury','venus','earth','mars','jupiter','saturn','uranus','neptune'];
+const LANES=['note','pitch','echo','pan','bright'],SRCS=['year','day','ecc','moons','off'];
+// the planets' own numbers (the same as the dial's), so the module needs nothing more than the hook for the sky
+const DATA={mercury:{a:.387,e:.2056,rot:1407.6,moons:0},venus:{a:.723,e:.0068,rot:-5832.5,moons:0},earth:{a:1,e:.0167,rot:23.934,moons:1},
+  mars:{a:1.524,e:.0934,rot:24.623,moons:2},jupiter:{a:5.203,e:.0484,rot:9.925,moons:4},saturn:{a:9.537,e:.0539,rot:10.656,moons:7},
+  uranus:{a:19.19,e:.0473,rot:-17.24,moons:5},neptune:{a:30.07,e:.0086,rot:16.11,moons:2}};
+
+/* ---------- state, kept on this device ---------- */
+const KEY='mots.synth.loops';
+const LP={on:false,lvl:.8,speed:1,lanes:{note:{src:'year',d:1},pitch:{src:'off',d:.5},echo:{src:'day',d:.6},pan:{src:'ecc',d:.7},bright:{src:'moons',d:.5}},mute:{}};
+try{const o=JSON.parse(LS.get(KEY)||'null');if(o){LP.on=!!o.on;if(o.lvl>=0&&o.lvl<=1)LP.lvl=o.lvl;if(o.speed>=.25&&o.speed<=4)LP.speed=o.speed;
+  if(o.lanes)LANES.forEach(k=>{const l=o.lanes[k];if(l&&SRCS.includes(l.src))LP.lanes[k]={src:l.src,d:clamp(+l.d||0,0,1)}});if(o.mute)IDS.forEach(id=>{if(o.mute[id])LP.mute[id]=true})}}catch(e){}
+let saveT=0;const save=()=>{clearTimeout(saveT);saveT=setTimeout(()=>LS.set(KEY,JSON.stringify(LP)),250)};
+
+/* ---------- the loops ---------- */
+// a loop's length in seconds at tape speed 1, and which way its tape runs
+function lenOf(src,id){const p=DATA[id],yr=17.8*Math.sqrt(p.a);
+  if(src==='day')return 4*Math.cbrt(Math.abs(p.rot));
+  if(src==='moons')return yr/(1+Math.log2(1+p.moons));
+  return yr}
+const dirOf=(src,id)=>src==='day'&&DATA[id].rot<0?-1:1;
+// Kepler's second law: the share of the orbit swept by a given share of the time (mean anomaly → true anomaly), the stretch tripled
+function kepler(m,e){e=Math.min(.85,e*3);if(e<1e-4)return m;const M=m*TAU;let E=M;for(let i=0;i<6;i++)E-=(E-e*Math.sin(E)-M)/(1-e*Math.cos(E));
+  const nu=2*Math.atan2(Math.sqrt(1+e)*Math.sin(E/2),Math.sqrt(1-e)*Math.cos(E/2));return ((nu/TAU)%1+1)%1}
+// where a lane's tape is: its running phase, warped for Eccentricity
+const shown=(src,id,ph)=>src==='ecc'?kepler(((ph%1)+1)%1,DATA[id].e):((ph%1)+1)%1;
+// the pentatonic steps the Pitch loop walks (just intonation), n steps from the note
+const PENT=[1,9/8,5/4,3/2,5/3];
+const stepRatio=n=>PENT[((n%5)+5)%5]*Math.pow(2,Math.floor(n/5));
+
+/* ---------- the sound: one soft voice a planet, a pan, a lowpass, a send into a shared tape echo ---------- */
+let ctx=null,bus=null,echoIn=null,V={},ST={};
+function build(){const h=H(),c=h&&h.ac();if(!c)return false;if(ctx===c&&bus)return true;
+  ctx=c;V={};bus=c.createGain();bus.gain.value=0;bus.connect(h.out());
+  // the tape echo: a long delay with a slow wow, its repeats darkening and thinning
+  echoIn=c.createGain();const d=c.createDelay(4);d.delayTime.value=2.9;const fb=c.createGain();fb.gain.value=.5;const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2400;
+  const hp=c.createBiquadFilter();hp.type='highpass';hp.frequency.value=180;const ret=c.createGain();ret.gain.value=.75;
+  echoIn.connect(d);d.connect(lp);lp.connect(hp);hp.connect(fb);fb.connect(d);hp.connect(ret);ret.connect(bus);
+  const wow=c.createOscillator();wow.frequency.value=.21;const wd=c.createGain();wd.gain.value=.004;wow.connect(wd);wd.connect(d.delayTime);wow.start();
+  return true}
+function voice(id){if(V[id])return V[id];const c=ctx,v={};
+  v.o1=c.createOscillator();v.o1.type='sine';v.o2=c.createOscillator();v.o2.type='triangle';v.o3=c.createOscillator();v.o3.type='sine';
+  v.env=c.createGain();v.env.gain.value=0;v.ping=c.createGain();v.ping.gain.value=0;
+  const g2=c.createGain();g2.gain.value=.3;v.o1.connect(v.env);v.o2.connect(g2);g2.connect(v.env);v.o3.connect(v.ping);v.ping.connect(v.env);
+  v.lp=c.createBiquadFilter();v.lp.type='lowpass';v.lp.frequency.value=2200;v.lp.Q.value=.5;v.env.connect(v.lp);
+  v.out=c.createGain();v.out.gain.value=.13*(id==='jupiter'||id==='saturn'?1.15:1);v.lp.connect(v.out);
+  try{v.pan=c.createStereoPanner();v.out.connect(v.pan);v.pan.connect(bus)}catch(e){v.pan=null;v.out.connect(bus)}
+  v.send=c.createGain();v.send.gain.value=0;v.out.connect(v.send);v.send.connect(echoIn);
+  [v.o1,v.o2,v.o3].forEach(o=>o.start());v.f=0;v.held=false;return V[id]=v}
+const tgt=(p,v,tc)=>{try{p.setTargetAtTime(v,ctx.currentTime,tc)}catch(e){}};
+// the planet's note now: the Synthesiser's, or (before it has one) a fifth-spaced stand-in
+function noteOf(id){const h=H(),f=h&&h.note?h.note(id):null;return f&&isFinite(f)&&f>20?f:110*Math.pow(1.5,IDS.indexOf(id)%4)}
+function setF(v,f,t,glide){[[v.o1,1],[v.o2,1],[v.o3,2]].forEach(([o,k])=>{const p=o.frequency;p.cancelScheduledValues(t);if(glide)p.setTargetAtTime(f*k,t,glide);else p.setValueAtTime(f*k,t)});v.f=f}
+// one note: a soft, dulled piano-like strike that dies away slowly, a brighter ping on top
+function strike(v,t,f){setF(v,f,t,0);const g=v.env.gain,p=v.ping.gain;
+  g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(1,t+.025);g.setTargetAtTime(0,t+.03,2.4);
+  p.cancelScheduledValues(t);p.setValueAtTime(.35,t);p.setTargetAtTime(0,t+.01,.35)}
+
+/* ---------- the clock ---------- */
+let last=0,flash={};
+function tick(){
+  const h=H(),c=h&&h.ac();if(!c)return;
+  const live=LP.on&&h.playing();
+  if(!live){if(bus)tgt(bus.gain,0,.15);last=0;return}
+  if(!build())return;tgt(bus.gain,LP.lvl,.1);
+  const now=c.currentTime,dt=last?Math.min(.5,now-last):0;last=now;
+  IDS.forEach(id=>{
+    const v=voice(id);let s=ST[id];
+    // the start: every tape set running from where the planet stands round the Sun (as in Dance)
+    if(!s){const lo=h.lon?h.lon(id):null,ph0=lo!=null?((lo/TAU)%1+1)%1:Math.random();s=ST[id]={};LANES.forEach((k,i)=>s[k]=ph0+i*.137)}
+    const val={};
+    LANES.forEach(k=>{const L=LP.lanes[k];if(L.src==='off'){val[k]=null;return}
+      const before=s[k],step=dt*LP.speed*dirOf(L.src,id)/lenOf(L.src,id);s[k]=before+step;
+      const w=shown(L.src,id,s[k]);val[k]=Math.sin(TAU*w);
+      // the Note loop sounds as its tape comes round (Eccentricity: four times a loop, bunched near the Sun)
+      if(k==='note'&&dt>0&&!LP.mute[id]){const marks=L.src==='ecc'?4:1,wb=shown(L.src,id,before)*marks,wa=w*marks;
+        const crossed=step>0?Math.floor(s[k])>Math.floor(before)||(marks>1&&Math.floor(wa)!==Math.floor(wb)):Math.floor(s[k])<Math.floor(before);
+        if(crossed){let f=noteOf(id);if(val.pitch!=null||LP.lanes.pitch.src!=='off'){const pv=Math.sin(TAU*shown(LP.lanes.pitch.src,id,s.pitch||0));f*=stepRatio(Math.round(LP.lanes.pitch.d*4*pv))}
+          strike(v,now+.04,f);flash[id]=performance.now();v.held=false}}});
+    // the Pitch loop on a held tone glides it from step to step
+    const pit=val.pitch!=null?stepRatio(Math.round(LP.lanes.pitch.d*4*val.pitch)):1;
+    if(LP.lanes.note.src==='off'||LP.mute[id]){const want=LP.mute[id]?0:.32;if(!v.held||Math.abs(v.env.gain.value-want)>.01){v.env.gain.cancelScheduledValues(now);tgt(v.env.gain,want,.8);v.held=true}
+      const f=noteOf(id)*pit;if(Math.abs(f-v.f)>.01)setF(v,f,now,.25)}
+    const d=k=>LP.lanes[k].d;
+    tgt(v.send.gain,val.echo!=null?d('echo')*(.5+.5*val.echo)*.9:.2,.2);
+    if(v.pan)tgt(v.pan.pan,val.pan!=null?clamp(d('pan')*val.pan,-1,1):0,.2);
+    tgt(v.lp.frequency,val.bright!=null?clamp(2200*Math.pow(2,d('bright')*2*val.bright),300,9000):2200,.2);
+  });
+  paint();
+}
+setInterval(tick,40);
+
+/* ---------- switched on and off, and its level, from the mixer ---------- */
+function setOn(on){LP.on=!!on;save();if(!on&&bus&&ctx){tgt(bus.gain,0,.15);Object.values(V).forEach(v=>{tgt(v.env.gain,0,.3);v.held=false})}
+  const c=$('loopCard');if(c)c.classList.toggle('off',!LP.on)}
+function setLvl(x){LP.lvl=clamp(x,0,1);save();if(bus&&LP.on)tgt(bus.gain,LP.lvl,.05)}
+
+/* ---------- the panel ---------- */
+function render(){const C=$('loopctl'),Pl=$('loopPl');if(!C)return;$('loopTitle').firstChild.nodeValue=T.title+' ';$('loopHint').textContent=T.hint;
+  const sp=Math.round(Math.log2(LP.speed)*100);
+  C.innerHTML=`<div class="field lpspeed" title="${esc(T.speedTip)}"><label for="lpSpeed">${esc(T.speed)} <output id="lpSpeedOut">×${LP.speed.toFixed(2)}</output></label><input type="range" id="lpSpeed" min="-200" max="200" step="1" value="${sp}"></div>
+    <div class="lplanes" role="table">${LANES.map(k=>{const L=LP.lanes[k];return `<div class="lprow" role="row" data-k="${k}"><span class="lab" role="rowheader" title="${esc(T.laneTips[k])}">${esc(T.lanes[k])}</span>
+      <select aria-label="${esc(T.lanes[k])}: ${esc(T.lenFrom)}" title="${esc(T.srcTips[L.src])}">${SRCS.map(s=>`<option value="${s}"${s===L.src?' selected':''}>${esc(T.srcs[s])}</option>`).join('')}</select>
+      <input type="range" min="0" max="100" value="${Math.round(L.d*100)}" aria-label="${esc(T.lanes[k])}: ${esc(T.depth)}" title="${esc(T.depth)}"${L.src==='off'?' disabled':''}></div>`}).join('')}</div>`;
+  $('lpSpeed').oninput=e=>{LP.speed=Math.pow(2,e.target.value/100);$('lpSpeedOut').textContent='×'+LP.speed.toFixed(2);save();chips()};
+  C.querySelectorAll('.lprow').forEach(r=>{const k=r.dataset.k,s=r.querySelector('select'),d=r.querySelector('input');
+    s.onchange=()=>{LP.lanes[k].src=s.value;s.title=T.srcTips[s.value];d.disabled=s.value==='off';save();chips()};
+    d.oninput=()=>{LP.lanes[k].d=d.value/100;save()}});
+  chips();setOn(LP.on)}
+// one chip a planet: its Note loop's length, a ring round its colour showing how far round the loop it is; a tap leaves it out
+function chips(){const Pl=$('loopPl'),h=H();if(!Pl)return;const L=LP.lanes.note;
+  Pl.innerHTML=IDS.map(id=>{const b=h&&h.body?h.body(id):null,god=b?b.god:id,col=b?b.color:'#c9984f',len=L.src==='off'?'':T.secs.replace('{n}',(lenOf(L.src,id)/LP.speed).toFixed(L.src==='day'||lenOf(L.src,id)/LP.speed<10?1:0));
+    return `<button type="button" class="lpc${LP.mute[id]?' mute':''}" data-id="${id}" aria-pressed="${!LP.mute[id]}" title="${esc(T.muteTip)}" style="--c:${col}"><span class="ring"><i></i></span><b>${esc(god)}</b><small>${esc(len)}</small></button>`}).join('');
+  Pl.querySelectorAll('.lpc').forEach(x=>x.onclick=()=>{const id=x.dataset.id;LP.mute[id]=!LP.mute[id];if(!LP.mute[id])delete LP.mute[id];save();chips()})}
+function paint(){const Pl=$('loopPl');if(!Pl||Pl.offsetParent===null)return;const L=LP.lanes.note,t=performance.now();
+  Pl.querySelectorAll('.lpc').forEach(x=>{const id=x.dataset.id,s=ST[id];if(!s)return;const w=L.src==='off'?0:shown(L.src,id,s.note);
+    x.style.setProperty('--p',(w*360).toFixed(1)+'deg');x.classList.toggle('hit',t-(flash[id]||0)<250)})}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',render);else render();
+
+window.LOOPS={LP,setOn,setLvl,render,lenOf,kepler};
 })();
 </script>
 </body>
