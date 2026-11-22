@@ -635,10 +635,12 @@ select,.tx{background:#0c0e1c;color:var(--vellum);border:1px solid var(--line-2)
 @media (max-width:600px){.deck .field{flex-basis:100%;max-width:none}}
 .helpb{display:flex;gap:.4rem;flex-wrap:wrap;margin-left:auto}
 /* (MIXTOP v2) the top mixer: one slim line pinned at the top, sliding away as the page scrolls down; per channel a dot (on/off) and its name (opens its panel) */
-.mixtop{background:rgba(16,18,31,.96);border:1px solid var(--line);border-radius:999px;padding:.25rem;position:sticky;top:.3rem;z-index:20;transition:transform .25s,opacity .25s;backdrop-filter:blur(6px)}
+.mixtop{background:rgba(16,18,31,.96);border:1px solid var(--line);border-radius:14px;padding:.25rem;position:sticky;top:.3rem;z-index:20;transition:transform .25s,opacity .25s;backdrop-filter:blur(6px)}
 .mixtop.hid{transform:translateY(-130%);opacity:0;pointer-events:none}
 .mline{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.25rem}
-.mch{display:flex;align-items:center;min-width:0;border-radius:999px;border:1px solid transparent}
+.mch{display:flex;flex-wrap:wrap;align-items:center;min-width:0;border-radius:12px;border:1px solid transparent;padding-bottom:.15rem}
+.mch .mlv{flex:1 1 auto;width:calc(100% - .6rem);min-width:0;height:1.1rem;margin:.1rem .3rem 0;accent-color:var(--bronze)}
+.mch:not(.on) .mlv{opacity:.45}
 .mch.cur{border-color:var(--bronze);background:rgba(201,152,79,.1)}
 .mch .mon{appearance:none;flex:none;width:2.1rem;height:2.1rem;border-radius:50%;border:1px solid var(--line-2);background:transparent;color:var(--vellum-dim);cursor:pointer;font-size:.8rem;line-height:1;padding:0}
 .mch.on .mon{color:#1a1206;background:linear-gradient(180deg,#d7a75d,#a87a37);border-color:var(--bronze)}
@@ -11737,7 +11739,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       o.frequency.setValueAtTime(fk, t);
       LASTV.set(o.frequency, fk);
     });
-    const vel = acc ? 1 : 0.7, att = Math.max(3e-3, Math.min(v.att || 0.02, sd * 0.4)), G = SEQ.gate;
+    const vel = (acc ? 1 : 0.7) * MXT.st.seqL, att = Math.max(3e-3, Math.min(v.att || 0.02, sd * 0.4)), G = SEQ.gate;
     const gate = G === "short" ? sd * 0.22 : G === "long" ? sd * 0.98 : sd * 0.55, tau = Math.max(0.02, (v.rel || 0.8) / 6 * (G === "short" ? 0.3 : G === "long" ? 1 : 0.6));
     const envs = [I.env.gain].concat(v.moons.filter((x) => x && x.part && x.part.env).map((x) => x.part.env.gain));
     envs.forEach((g2) => {
@@ -12053,7 +12055,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
   }
   const MXT = (() => {
     const K2 = "mots.synth.mix";
-    let st = { syn: true, synL: 1, open: "synth" };
+    let st = { syn: true, synL: 1, seqL: 1, open: "synth" };
     try {
       Object.assign(st, JSON.parse(LS.get(K2) || "{}"));
     } catch (e) {
@@ -12065,10 +12067,24 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     const BT = () => window.BEATS || null;
     function apply() {
       if (!AC || !bus) return;
-      const g2 = st.syn ? st.synL : SEQ.on ? st.synL * 2.5 : 0;
+      const g2 = SEQ.on ? st.syn ? 1 : 2.5 : st.syn ? st.synL : 0;
       tgt(bus.gain, g2, 0.08);
       if (vsend) tgt(vsend.gain, g2, 0.08);
-      if (sunV && sunV.gate) tgt(sunV.gate.gain, st.syn ? 1 : 0, 0.08);
+      if (sunV && sunV.gate) tgt(sunV.gate.gain, st.syn ? SEQ.on ? st.synL : 1 : 0, 0.08);
+    }
+    const lvlOf = (k) => k === "synth" ? st.synL : k === "seq" ? st.seqL : BT() ? BT().B.lvl : 0.8;
+    function setLvl(k, v) {
+      v = clamp(v, 0, 1);
+      if (k === "synth") {
+        st.synL = v;
+        apply();
+        save();
+      } else if (k === "seq") {
+        st.seqL = v;
+        save();
+      } else if (BT()) {
+        BT().setLvl(v);
+      }
     }
     const isOn = (k) => k === "synth" ? st.syn : k === "seq" ? SEQ.on : !!(BT() && BT().B.on);
     function setOn(k, on) {
@@ -12101,10 +12117,11 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     function render() {
       const box = $("mixTop");
       if (!box) return;
-      box.innerHTML = '<div class="mline">' + [["synth", T.synth], ["seq", T.seq], ["beats", T.beats]].map(([k, name]) => '<div class="mch'.concat(isOn(k) ? " on" : "").concat(st.open === k ? " cur" : "", '" data-k="').concat(k, '">\n      <button type="button" class="mon" aria-pressed="').concat(isOn(k), '" title="').concat(T.onTip, '" aria-label="').concat(name, ": ").concat(isOn(k) ? T.on : T.off, '">').concat(isOn(k) ? "●" : "○", '</button>\n      <button type="button" class="mnm" aria-expanded="').concat(st.open === k, '" title="').concat(T.openTip, '"><span class="mnt">').concat(name, "</span></button></div>")).join("") + "</div>";
+      box.innerHTML = '<div class="mline">' + [["synth", T.synth], ["seq", T.seq], ["beats", T.beats]].map(([k, name]) => '<div class="mch'.concat(isOn(k) ? " on" : "").concat(st.open === k ? " cur" : "", '" data-k="').concat(k, '">\n      <button type="button" class="mon" aria-pressed="').concat(isOn(k), '" title="').concat(T.onTip, '" aria-label="').concat(name, ": ").concat(isOn(k) ? T.on : T.off, '">').concat(isOn(k) ? "●" : "○", '</button>\n      <button type="button" class="mnm" aria-expanded="').concat(st.open === k, '" title="').concat(T.openTip, '"><span class="mnt">').concat(name, '</span></button>\n      <input type="range" class="mlv" min="0" max="100" value="').concat(Math.round(lvlOf(k) * 100), '" aria-label="').concat(name, ": ").concat(T.level, '" title="').concat(T.level, '"></div>')).join("") + "</div>";
       box.querySelectorAll(".mch").forEach((c) => {
         const k = c.dataset.k;
         c.querySelector(".mnm").onclick = () => open(k);
+        c.querySelector(".mlv").oninput = (e) => setLvl(k, e.target.value / 100);
         c.querySelector(".mon").onclick = () => {
           const on = !isOn(k);
           setOn(k, on);
@@ -12133,6 +12150,8 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       let ch = false;
       box.querySelectorAll(".mch").forEach((c) => {
         if (c.classList.contains("on") !== isOn(c.dataset.k)) ch = true;
+        const lv = c.querySelector(".mlv");
+        if (lv && document.activeElement !== lv && +lv.value !== Math.round(lvlOf(c.dataset.k) * 100)) lv.value = Math.round(lvlOf(c.dataset.k) * 100);
       });
       if (ch) render();
     }, 700);
@@ -12151,7 +12170,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       else if (!on && Y.playing && silentNow()) setPlaying(false);
       render();
     }
-    return { apply, open, reveal, render, st, wake, seqChanged };
+    return { apply, open, reveal, render, st, wake, seqChanged, setLvl, seqVel: () => st.seqL };
   })();
   window.SYNMIX = MXT;
   window.SYNHOOK = {
@@ -13704,10 +13723,15 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     };
     addEventListener("resize", TR.re);
     addEventListener("scroll", TR.re, true);
+    if (window.ResizeObserver) {
+      TR.ro = new ResizeObserver(() => TR.re());
+      TR.ro.observe(document.body);
+    }
     tourShow(0);
     setTimeout(() => el.querySelector(".next").focus({ preventScroll: true }), 100);
   }
   function tourClose() {
+    if (TR && TR.ro) TR.ro.disconnect();
     if (!TR) return;
     document.removeEventListener("keydown", TR.key, true);
     removeEventListener("resize", TR.re);
@@ -16234,7 +16258,7 @@ function handleTrig(s,t,m){const v=s.V;
     else{const val=src.f(v),stp=src.bi?Math.floor((val+1)/2*steps*.999):Math.floor(val*steps*.999);if(st.last!==null&&stp!==st.last&&t>st.sched){SY.retrig(v,t+.02,v.att,v.rel,v.f);st.sched=t+.08}st.last=stp}}}
 // the sequencer strikes a strip: its envelope, as synth.js's strike() does for a planet
 function strike(id,t,acc,sd){const s=AU&&AU.strips[id.slice(2)];if(!s)return 0;const v=s.V,g=s.env.gain,f=v.f||220;
-  const vel=acc?1:.7,att=Math.max(.003,Math.min(v.att||.02,sd*.4)),Gt=SY.SEQ.gate,gate=Gt==='short'?sd*.22:Gt==='long'?sd*.98:sd*.55,tau=Math.max(.02,(v.rel||.8)/6*(Gt==='short'?.3:Gt==='long'?1:.6));
+  const vel=(acc?1:.7)*(window.SYNMIX?SYNMIX.seqVel():1),att=Math.max(.003,Math.min(v.att||.02,sd*.4)),Gt=SY.SEQ.gate,gate=Gt==='short'?sd*.22:Gt==='long'?sd*.98:sd*.55,tau=Math.max(.02,(v.rel||.8)/6*(Gt==='short'?.3:Gt==='long'?1:.6));
   g.cancelScheduledValues(t-.006);g.setTargetAtTime(0,t-.006,.0015);g.setValueAtTime(0,t);g.linearRampToValueAtTime(vel,t+att);g.setTargetAtTime(0,t+Math.max(att+.005,gate),tau);
   v.flash=1;if(window.MOTS&&MOTS.midi&&MOTS.midi.on)MOTS.midi.hit('g:'+s.id,t,f,Math.min(1,v.lvl*2*(acc?1.4:1)),gate);return f}
 // the pulsar clock: one step every (divider / spin frequency) seconds
@@ -16854,7 +16878,7 @@ function btn(lab,cls,on){const b=document.createElement('button');b.type='button
 function renderCtl(){const C=$('beatctl');if(!C)return;C.innerHTML='';const card=$('beatCard');card.classList.toggle('off',!B.on);
   const on=btn((B.on?'● ':'○ ')+BT.on,'gold',()=>setOn(!B.on));on.id='beatOn';on.title=BT.onTip;on.setAttribute('aria-pressed',String(B.on));C.appendChild(on);
   const f=(lab,el)=>{const d=document.createElement('div');d.className='field';const l=document.createElement('label');l.textContent=lab;if(el.id)l.htmlFor=el.id;d.appendChild(l);d.appendChild(el);return d};
-  const lv=document.createElement('input');lv.type='range';lv.id='beatLvl';lv.min=0;lv.max=100;lv.value=Math.round(B.lvl*100);lv.oninput=()=>{B.lvl=lv.value/100;if(bus)bus.gain.setTargetAtTime(B.lvl,now(),.03);save()};C.appendChild(f(BT.level,lv));
+  const lv=document.createElement('input');lv.type='range';lv.id='beatLvl';lv.min=0;lv.max=100;lv.value=Math.round(B.lvl*100);lv.oninput=()=>setLvl(lv.value/100);C.appendChild(f(BT.level,lv));
   const sw=document.createElement('input');sw.type='range';sw.id='beatSwing';sw.min=0;sw.max=60;sw.value=Math.round(B.swing*100);sw.oninput=()=>{B.swing=sw.value/100;save()};C.appendChild(f(BT.swing,sw));
   const ms=document.createElement('select');ms.id='beatMeter';ms.title=BT.meterTip;Object.keys(METERS).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k;if(k===B.meter)o.selected=true;ms.appendChild(o)});
   ms.onchange=()=>{B.meter=ms.value;if(isSky(B.pat)){skyApply(B.bar);render();save()}else apply(B.pat==='clear'?'clear':B.pat)};C.appendChild(f(BT.meter,ms));
@@ -16900,7 +16924,9 @@ function init(){if(!$('beatCard'))return;const st=document.createElement('style'
   if(/^#beats\b/.test(location.hash))setTimeout(()=>{try{$('beatCard').scrollIntoView({block:'start'})}catch(e){}},400);
   // a body sent from the dial (in another tab or page) shows here on return
   addEventListener('storage',e=>{if(e.key==='mots.beats.sends')render()});document.addEventListener('visibilitychange',()=>{if(!document.hidden)renderGrid()})}
-window.BEATS={B,KIT,tick,render,apply,exp,setOn,renderRows,renderOne,midi,wav,zip,PAT,skyBar,skyApply,eventAt,jdBar};
+// the level, from Beats' own fader or the top mixer's
+function setLvl(v){B.lvl=clamp(v,0,1);if(bus)bus.gain.setTargetAtTime(B.lvl,now(),.03);const lv=document.getElementById('beatLvl');if(lv&&+lv.value!==Math.round(B.lvl*100))lv.value=Math.round(B.lvl*100);save()}
+window.BEATS={B,setLvl,KIT,tick,render,apply,exp,setOn,renderRows,renderOne,midi,wav,zip,PAT,skyBar,skyApply,eventAt,jdBar};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 </script>
