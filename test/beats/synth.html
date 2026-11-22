@@ -12001,7 +12001,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     const BT = () => window.BEATS || null;
     function apply() {
       if (!AC || !bus) return;
-      tgt(bus.gain, st.syn ? st.synL : 0, 0.08);
+      tgt(bus.gain, st.syn || SEQ.on ? st.synL : 0, 0.08);
     }
     const isOn = (k) => k === "synth" ? st.syn : k === "seq" ? SEQ.on : !!(BT() && BT().B.on);
     function setOn(k, on) {
@@ -12009,8 +12009,11 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
         st.syn = on;
         apply();
         save();
-      } else if (k === "seq") seqSetOn(on);
-      else if (BT()) BT().setOn(on);
+      } else if (k === "seq") {
+        seqSetOn(on);
+        apply();
+        if (on && !Object.values(SEQ.rows || {}).some((r) => r && r.s && r.s.some(Boolean))) seqApply("sky");
+      } else if (BT()) BT().setOn(on);
       if (!on && Y.playing && silentNow()) setPlaying(false);
       render();
     }
@@ -12044,7 +12047,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       });
     }
     function silentNow() {
-      return !st.syn && !(BT() && BT().B.on);
+      return !st.syn && !SEQ.on && !(BT() && BT().B.on);
     }
     {
       let lastY = scrollY;
