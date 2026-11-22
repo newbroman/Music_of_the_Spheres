@@ -11721,6 +11721,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     }
     $("seqCard").classList.toggle("off", !on);
     seqSave();
+    if (window.SYNMIX) SYNMIX.seqChanged(on);
   }
   function seqSetBpm(v) {
     v = clamp(Math.round(v), 60, 180);
@@ -12018,8 +12019,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
         save();
       } else if (k === "seq") {
         seqSetOn(on);
-        apply();
-        if (on && !Object.values(SEQ.rows || {}).some((r) => r && r.s && r.s.some(Boolean))) seqApply("sky");
+        return;
       } else if (BT()) BT().setOn(on);
       if (!on && Y.playing && silentNow()) setPlaying(false);
       render();
@@ -12085,7 +12085,14 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
         render();
       }
     }
-    return { apply, open, reveal, render, st, wake };
+    function seqChanged(on) {
+      if (on && !Object.values(SEQ.rows || {}).some((r) => r && r.s && r.s.some(Boolean))) seqApply("sky");
+      apply();
+      if (on && !Y.playing) setPlaying(true);
+      else if (!on && Y.playing && silentNow()) setPlaying(false);
+      render();
+    }
+    return { apply, open, reveal, render, st, wake, seqChanged };
   })();
   window.SYNMIX = MXT;
   window.SYNHOOK = {
