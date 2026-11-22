@@ -10670,7 +10670,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     }
     return m;
   }
-  let AC = null, master, bus, dry, wet, verbIn, comp, lim, noiseBus = null, audioOn = false;
+  let AC = null, master, bus, dry, wet, verbIn, vsend = null, comp, lim, noiseBus = null, audioOn = false;
   const V = {};
   let sunV = null;
   const PANNERS = [];
@@ -10833,6 +10833,8 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     dry = AC.createGain();
     wet = AC.createGain();
     verbIn = AC.createGain();
+    vsend = AC.createGain();
+    vsend.connect(verbIn);
     const pre = AC.createGain();
     bus.connect(pre);
     pre.connect(dry);
@@ -10902,9 +10904,10 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     VOICED.forEach((b) => V[b.id] = makeSlot(b));
     COMETS.forEach((b) => V[b.id] = makeSlot(b));
     sunV = { pan: mkPanner(true) };
-    sunV.vol = mkGain(0, sunV.pan);
-    sunV.verb = mkGain(0.5, verbIn);
-    sunV.vol.connect(sunV.verb);
+    sunV.gate = mkGain(MXT.st.syn ? 1 : 0, sunV.pan);
+    sunV.vol = mkGain(0, sunV.gate);
+    sunV.verb = mkGain(0.5, vsend);
+    sunV.gate.connect(sunV.verb);
     setListener();
     audioOn = true;
     {
@@ -10922,7 +10925,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     v.vol = mkGain(0, v.pan);
     v.verb = mkGain(0.4);
     v.vol.connect(v.verb);
-    v.verb.connect(verbIn);
+    v.verb.connect(vsend);
     v.dly = AC.createDelay(2);
     v.dly.delayTime.value = 0.35;
     v.dlyIn = mkGain(0, v.dly);
@@ -10933,7 +10936,7 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     dlp.type = "lowpass";
     dlp.frequency.value = 3200;
     v.dly.connect(dlp);
-    v.dlpV = mkGain(0.3, verbIn);
+    v.dlpV = mkGain(0.3, vsend || verbIn);
     if (!echoCut) {
       dlp.connect(v.pan);
       dlp.connect(v.dlpV);
@@ -12002,7 +12005,10 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
     const BT = () => window.BEATS || null;
     function apply() {
       if (!AC || !bus) return;
-      tgt(bus.gain, st.syn || SEQ.on ? st.synL : 0, 0.08);
+      const g2 = st.syn ? st.synL : SEQ.on ? st.synL * 2.5 : 0;
+      tgt(bus.gain, g2, 0.08);
+      if (vsend) tgt(vsend.gain, g2, 0.08);
+      if (sunV && sunV.gate) tgt(sunV.gate.gain, st.syn ? 1 : 0, 0.08);
     }
     const isOn = (k) => k === "synth" ? st.syn : k === "seq" ? SEQ.on : !!(BT() && BT().B.on);
     function setOn(k, on) {
@@ -14057,6 +14063,9 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       return bus;
     },
     get verbIn() {
+      return vsend || verbIn;
+    },
+    get roomIn() {
       return verbIn;
     },
     get noiseBus() {
