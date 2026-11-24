@@ -12591,13 +12591,19 @@ MOTS.light={attach,voice,tick,info,near,readout,on:k=>ON[k],set:setOn,T,
       }
     }
     function seqChanged(on) {
-      if (on && !Object.values(SEQ.rows || {}).some((r) => r && r.s && r.s.some(Boolean))) seqApply("sky");
+      if (on) seqFillEmpty();
       apply();
       if (on && !Y.playing) setPlaying(true);
       else if (!on && Y.playing && silentNow()) setPlaying(false);
       render();
     }
-    return { apply, open, reveal, render, st, wake, seqChanged, setLvl, seqVel: () => st.seqL };
+    function seqFillEmpty() {
+      if (!SEQ_ROWS().some((b) => {
+        const r = SEQ.rows[b.id];
+        return r && r.s && r.s.some(Boolean);
+      })) seqApply("sky");
+    }
+    return { apply, open, reveal, render, st, wake, seqChanged, seqFillEmpty, setLvl, seqVel: () => st.seqL };
   })();
   window.SYNMIX = MXT;
   window.SYNHOOK = {
@@ -16587,6 +16593,10 @@ function audioInit(){if(AU||!SY.AC)return;const AC=SY.AC,mk=SY.mkGain;AU={strips
     s.V={b:{id:'g:'+sd.id,kind:'gstrip',god:stripGod(sd),color:sd.color,el:{a:1+STRIPS.indexOf(sd)*2}},part:{env:s.env,srcs:[]},moons:[],f:0,lvl:0,att:.02,rel:.8,trig:{},rate:.3,flash:0,vol:s.vol,pan:null};
     SY.V['g:'+sd.id]=s.V;AU.strips[sd.id]=s});
 }
+// (SEQ-GALAXY 2, Martin 24 Nov: "options that only have one choice") a strip whose data gives it one voice or one tuning law shows
+// that choice as plain text instead of a one-item list; the select stays in the page (hidden) for the patch and the tests
+function fixed(sel){const os=[...sel.options];if(os.length>1)return;sel.hidden=true;const t=document.createElement('span');t.className='gfix';
+  t.textContent=os[0]?os[0].textContent:'';t.title=sel.getAttribute('aria-label')||'';sel.insertAdjacentElement('afterend',t)}
 function stripGod(sd){const g=sd.god==='pulsars'?(GS.gods==='chaos'?'cyclopes':'hephaestus'):sd.god;return GT.gods[g]||g}
 // a pulse train with the pulsar's real duty cycle (W50/P), as a periodic wave (zero-mean; the gate adds the mean back)
 function pulseWave(duty){const d=Math.round(clamp(duty,.02,.5)*50)/50;let w=AU.pulseWaves.get(d);if(w)return w;const N=64,re=new Float32Array(N),im=new Float32Array(N);for(let n=1;n<N;n++)re[n]=2*Math.sin(n*Math.PI*d)/(n*Math.PI);w=SY.AC.createPeriodicWave(re,im,{disableNormalization:true});AU.pulseWaves.set(d,w);return w}
@@ -16810,11 +16820,11 @@ function renderStrips(){const box=$('strips');box.innerHTML='';const Y=GS.Y;
       <p class="hint ghint"><span class="gtip">${esc(GT.stripTip[sd.id])}<br></span><b class="glaw">${esc(GT.lawTip[o.law])}</b></p>`;
     d.title='';d.querySelector('.m').onclick=()=>{o.on=!o.on;syncStrips();dirty()};d.querySelector('.s').onclick=()=>toggleSolo({id:sd.id});
     d.querySelector('.lvl input').oninput=e=>{o.lvl=e.target.value/100;dirty()};
-    const vs=SY.sel('gvo_'+sd.id,sd.voices.map(v=>[v,GT.voice[v]||TX.voices[v]]),o.voice,v=>{o.voice=v;if(tpb)tpb.hidden=v!=='lines';dirty()});vs.setAttribute('aria-label',TX.voice+' · '+GT.strips[sd.id]);d.querySelector('.voice').appendChild(vs);
+    const vs=SY.sel('gvo_'+sd.id,sd.voices.map(v=>[v,GT.voice[v]||TX.voices[v]]),o.voice,v=>{o.voice=v;if(tpb)tpb.hidden=v!=='lines';dirty()});vs.setAttribute('aria-label',TX.voice+' · '+GT.strips[sd.id]);d.querySelector('.voice').appendChild(vs);fixed(vs);
     const tpb=sd.voices.includes('lines')&&SY.tpButton?SY.tpButton(o,GT.strips[sd.id]):null;if(tpb){tpb.hidden=o.voice!=='lines';d.querySelector('.voice').appendChild(tpb)}
     const os=SY.sel('goc_'+sd.id,[-3,-2,-1,0,1,2,3].map(v=>[v,(v>0?'+':'')+v+' '+TX.oct]),o.oct,v=>{o.oct=+v;dirty()});os.setAttribute('aria-label',TX.octave+' · '+GT.strips[sd.id]);os.style.minWidth='4.6rem';d.querySelector('.oct').appendChild(os);
     const gf=d.querySelectorAll('.gf');gf[0].querySelector('input').oninput=e=>{o.n=+e.target.value;gf[0].querySelector('output').textContent=o.n;AS.dirty=true;dirty()};
-    const ls=SY.sel('glaw_'+sd.id,sd.laws.map(l=>[l,GT.laws[l]]),o.law,v=>{o.law=v;d.querySelector('.glaw').textContent=GT.lawTip[v];AS.dirty=true;dirty()});ls.setAttribute('aria-label',GT.law+' · '+GT.strips[sd.id]);gf[1].appendChild(ls);if(sd.laws.length<2)ls.disabled=true;
+    const ls=SY.sel('glaw_'+sd.id,sd.laws.map(l=>[l,GT.laws[l]]),o.law,v=>{o.law=v;d.querySelector('.glaw').textContent=GT.lawTip[v];AS.dirty=true;dirty()});ls.setAttribute('aria-label',GT.law+' · '+GT.strips[sd.id]);gf[1].appendChild(ls);fixed(ls);
     gf[2].querySelector('input').oninput=e=>{o.spread=e.target.value/100;dirty()};
     if(sd.id==='quakes'){const gs=SY.sel('ggiant',GIANTS.map(n=>[n,n]),Y.giant,v=>{Y.giant=v;AS.dirty=true;dirty()});gs.setAttribute('aria-label',GT.giant);const l=document.createElement('label');l.className='gf';l.innerHTML=`<span>${esc(GT.giant)}</span>`;l.appendChild(gs);d.querySelector('.gx').appendChild(l)}
     box.appendChild(d)});
@@ -17002,11 +17012,11 @@ function activate(byUser,patch){if(GS.active)return;
       if(SY.sunV&&SY.sunV.part){SY.killPart(SY.sunV.part);SY.sunV.part=null;SY.tgt(SY.sunV.vol.gain,0,.05)}audioInit()}
     seqLoadG();seqRows();
     if(patch)setPatch(patch);else if(!GS.Y.name)applyPreset('harmonic');else setPatch(GS.Y);
-    $('walk').hidden=true;retitle(true);SY.renderAll();syncSwitch();syncURL();SY.syncBar();if(SY.AC&&SY.SEQ.on)SY.seqRestart(SY.AC.currentTime);
+    $('walk').hidden=true;retitle(true);SY.renderAll();syncSwitch();syncURL();SY.syncBar();/*SEQ-GALAXY: the other mode's grid may be empty*/if(SY.SEQ.on&&window.SYNMIX&&SYNMIX.seqFillEmpty)SYNMIX.seqFillEmpty();if(SY.AC&&SY.SEQ.on)SY.seqRestart(SY.AC.currentTime);
     if(byUser)speakHera()}).catch(e=>{document.documentElement.classList.remove('gloading');SY.toast(GT.loadFail,4000);syncSwitch();console.warn('gsynth:',e)})}
 function deactivate(){if(!GS.active)return;GS.active=false;window.GSYNTH.active=false;LS.set('mots.synthMode','planets');document.documentElement.classList.remove('galaxy');
   killAll();const Y=SY.Y(),s=GS.saveY;if(s){Y.mx=s.mx;Y.lfo=s.lfo;Y.stagger=s.stagger;Y.verb=s.verb;Y.tun.mode=s.mode;Y.tun.zod=s.zod;Y.tun.key=s.key;Y.name=s.name;Y.preset=s.preset;Y.user=s.user}
-  if(SY.AC)SY.setVerb();$('walk').hidden=false;retitle(false);SY.renderAll();syncSwitch();SY.syncURL();SY.syncBar();if(SY.AC&&SY.SEQ.on)SY.seqRestart(SY.AC.currentTime);try{speechSynthesis.cancel()}catch(e){}}
+  if(SY.AC)SY.setVerb();$('walk').hidden=false;retitle(false);SY.renderAll();syncSwitch();SY.syncURL();SY.syncBar();/*SEQ-GALAXY: the other mode's grid may be empty*/if(SY.SEQ.on&&window.SYNMIX&&SYNMIX.seqFillEmpty)SYNMIX.seqFillEmpty();if(SY.AC&&SY.SEQ.on)SY.seqRestart(SY.AC.currentTime);try{speechSynthesis.cancel()}catch(e){}}
 
 /* ---------- styles for the galaxy's own controls (the body markup is untouched) ---------- */
 const css=document.createElement('style');css.textContent=`
@@ -17016,6 +17026,8 @@ const css=document.createElement('style');css.textContent=`
 .gf{display:flex;align-items:center;gap:.4rem;font-size:.74rem;color:var(--vellum-dim);text-transform:uppercase;letter-spacing:.06em;min-height:var(--tap);flex:1 1 8rem;min-width:0;max-width:19rem}.gf>span{white-space:nowrap}.gf.glawf{flex:2 1 14rem;max-width:26rem}
 .gf input[type=range]{flex:1;min-width:4rem;max-width:9rem;height:var(--tap)}.gf output{font-family:var(--f-mono);text-transform:none;letter-spacing:0;color:var(--vellum);min-width:2ch;text-align:right}
 .gf select{flex:1;min-width:0;min-height:2.2rem;padding:.2rem .4rem;font-size:.86rem;text-transform:none;letter-spacing:0}
+.gfix{flex:1;min-width:0;display:inline-flex;align-items:center;min-height:2.2rem;padding:.2rem .4rem;font-size:.86rem;text-transform:none;letter-spacing:0;opacity:.85}
+.voice .gfix{min-width:7rem}
 .ghint{margin:0 0 .3rem;font-size:.8rem}.ghint b{color:#f3d9a4;font-weight:400}
 .gstrip.off .gx,.gstrip.off .ghint{opacity:.45}
 .gdm{display:flex;flex-direction:column;gap:.3rem;padding:.6rem .7rem;border:1px solid var(--bronze);border-radius:10px;background:rgba(201,152,79,.08);box-shadow:0 0 18px rgba(212,166,87,.15)}
