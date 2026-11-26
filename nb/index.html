@@ -3610,6 +3610,87 @@ td:last-child{color:var(--vellum-dim);font-size:.95rem}
     if (keys.some((k) => TPD.includes(k))) return tourCompose({ ev: "flight", th: "tour", keys: ["tour"], gk: keys, gt: titles, tour: 1, all: 0, minScene: 0, caps: "caps", mins: 0, loop: false, hold: 1 }, every);
     return { ev: "flight", th: "tour", keys: ["tour"], group: keys.join(","), tour: 1, title: titles.join(" · "), all: 0, minScene: 0, caps: "caps", mins: 0, loop: false, hold: 1 };
   }
+  const TPP = { en: "Tour", pl: "Wycieczka", cy: "Taith", de: "Tour", es: "Recorrido", fr: "Visite", it: "Giro", zh: "游览", ja: "ツアー", vi: "Tham quan", bg: "Обиколка", pt: "Passeio", nb: "Tur", nn: "Tur" };
+  const TPG = {
+    en: "tour tours",
+    pl: "wycieczka wycieczki wycieczkę wycieczek",
+    cy: "taith teithiau",
+    de: "tour touren rundgang",
+    es: "recorrido recorridos tour",
+    fr: "visite visites tour",
+    it: "giro giri tour",
+    zh: "游览 巡游",
+    ja: "ツアー",
+    vi: "tham quan chuyến",
+    bg: "обиколка обиколки",
+    pt: "passeio passeios tour",
+    nb: "tur turer",
+    nn: "tur turar"
+  };
+  function tourCatalog() {
+    const L = TPT[LANG] || TPT.en, N = TPN[LANG] || TPN.en, DL = TPDL[LANG] || TPDL.en, out2 = [];
+    const fill = (s, id) => {
+      const p = N[id] || TPN.en[id];
+      return s.replace("{de}", /^[aeiouyàâéèêëîïôûüh]/i.test(p) ? "d’" : "de ").replace("{p}", p);
+    };
+    ["earth", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"].forEach((id) => out2.push({ key: "moons:" + id, title: fill(L.moons, id) }));
+    out2.push({ key: "moons:*", title: L.all });
+    ["planets", "dwarfs", "tno", "asteroids", "comets", "craft"].forEach((k) => out2.push({ key: k, title: L[k] }));
+    TPD.forEach((k) => out2.push({ key: k + ":best", title: L[k] + " (" + DL[0] + ")" }, { key: k, title: L[k] + " (" + DL[1] + ")" }));
+    ["voyager1", "voyager2"].forEach((k) => out2.push({ key: "ride:" + k, title: rideTitle(k), ride: 1 }));
+    return out2;
+  }
+  const tpLabel = (x) => {
+    if (x.ride) return x.title;
+    const lc = LANG !== "de" && !/^(zh|ja)$/.test(LANG), t = lc ? x.title.charAt(0).toLowerCase() + x.title.slice(1) : x.title;
+    return (TPP[LANG] || TPP.en) + (LANG === "zh" || LANG === "ja" ? "：" : /:/.test(t) ? " · " : ": ") + t;
+  };
+  MOTS.tourCatalog = () => tourCatalog();
+  MOTS.tourSearch = (q) => {
+    const u = " " + nrm(q) + " ";
+    if (u.trim().length < 2) return [];
+    const has = (w) => {
+      w = nrm(w);
+      return !!w && (/^[\x00-\x7f]+$/.test(w) ? u.includes(" " + w + " ") || LANG === "cy" && w.length >= 7 && u.includes(w.slice(2) + " ") : u.includes(w));
+    };
+    const cat = tourCatalog().map((x) => ({ key: x.key, label: tpLabel(x) })), out2 = [], add = (k) => {
+      const x = cat.find((y) => y.key === k);
+      if (x && !out2.includes(x)) out2.push(x);
+    };
+    const gen = new Set(nrm((TPG[LANG] || "") + " " + TPG.en).split(" ")), qw = u.trim().split(" ");
+    if (qw.every((w) => gen.has(w))) return cat;
+    let o = null;
+    try {
+      o = tourAsk(u, has);
+    } catch (e) {
+    }
+    if (o) {
+      if (o.ride) {
+        const m = u.match(RDRX);
+        if (m && m[3]) add(o.group);
+        else {
+          add("ride:voyager1");
+          add("ride:voyager2");
+        }
+      } else for (const k of o.gk || o.group.split(",")) {
+        const g = k.replace(/:best$/, "");
+        if (TPD.includes(g)) {
+          if (o.full) {
+            add(g);
+            add(g + ":best");
+          } else {
+            add(g + ":best");
+            add(g);
+          }
+        } else add(k);
+      }
+    }
+    const rest = qw.filter((w) => !gen.has(w)).join(" ");
+    if (rest.length >= 3 || /[\u3040-\u30ff\u3400-\u9fff]/.test(rest) && rest.length >= 2) cat.forEach((x) => {
+      if (nrm(x.label).includes(rest)) add(x.key);
+    });
+    return out2;
+  };
   function ask(text) {
     const raw = String(text || "").toLowerCase(), u = " " + nrm(text) + " ";
     if (u.trim().length < 2) return null;
@@ -10720,12 +10801,13 @@ function framed(pg){
 }
 // (GROUP-TOUR) a tour (o.hold) ends where it is when the visitor takes over in the Flight: a key, the wheel, a drag or a control of the page
 // (the show's own clicks are not trusted events, so they do not count)
+// (RIDE-FIX, Martin 26 Nov) except on a ride's own controls (❚❚ / ▶, its speed) and its card, which a tap folds and unfolds
 function tourUser(w){let d0=null;const end=()=>{if(!PROG||!PROG.hold||held||!el)return;clearTimeout(timer);held=true;try{w.MOTS.app.tourStop()}catch(e){}};
-  const o={capture:true,passive:true};
-  w.addEventListener('keydown',e=>{if(e.isTrusted)end()},o);w.addEventListener('wheel',e=>{if(e.isTrusted)end()},o);
-  w.addEventListener('pointerdown',e=>{d0=e.isTrusted?{x:e.clientX,y:e.clientY}:null},o);w.addEventListener('pointerup',()=>{d0=null},o);
+  const o={capture:true,passive:true},own=e=>!!(e.target&&e.target.closest&&e.target.closest('#rideCtl,#rideCard'));
+  w.addEventListener('keydown',e=>{if(e.isTrusted&&!own(e))end()},o);w.addEventListener('wheel',e=>{if(e.isTrusted&&!own(e))end()},o);
+  w.addEventListener('pointerdown',e=>{d0=e.isTrusted&&!own(e)?{x:e.clientX,y:e.clientY}:null},o);w.addEventListener('pointerup',()=>{d0=null},o);
   w.addEventListener('pointermove',e=>{if(d0&&e.isTrusted&&Math.hypot(e.clientX-d0.x,e.clientY-d0.y)>10){d0=null;end()}},o);
-  w.addEventListener('click',e=>{if(e.isTrusted&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,.chip,[role=button]'))end()},o)}
+  w.addEventListener('click',e=>{if(e.isTrusted&&!own(e)&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,.chip,[role=button]'))end()},o)}
 // (the page's sound is closed only as the frame goes, after its own stop has suspended it: the flight suspends 0.6 s after its stop, and a
 // suspend on a context already closed is an uncaught error)
 function dropFrame(){if(!frame)return;const f=frame;frame=null;let c=null;try{const w=f.contentWindow;w.MOTS&&w.MOTS.app&&w.MOTS.app.stop();c=w.MOTS&&w.MOTS.audioCtx&&w.MOTS.audioCtx();if(c&&c.state==='running')c.suspend().catch(()=>{})}catch(e){}f.classList.remove('on');

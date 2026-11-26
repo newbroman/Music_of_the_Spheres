@@ -3442,6 +3442,87 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
     if (keys.some((k) => TPD.includes(k))) return tourCompose({ ev: "flight", th: "tour", keys: ["tour"], gk: keys, gt: titles, tour: 1, all: 0, minScene: 0, caps: "caps", mins: 0, loop: false, hold: 1 }, every);
     return { ev: "flight", th: "tour", keys: ["tour"], group: keys.join(","), tour: 1, title: titles.join(" · "), all: 0, minScene: 0, caps: "caps", mins: 0, loop: false, hold: 1 };
   }
+  const TPP = { en: "Tour", pl: "Wycieczka", cy: "Taith", de: "Tour", es: "Recorrido", fr: "Visite", it: "Giro", zh: "游览", ja: "ツアー", vi: "Tham quan", bg: "Обиколка", pt: "Passeio", nb: "Tur", nn: "Tur" };
+  const TPG = {
+    en: "tour tours",
+    pl: "wycieczka wycieczki wycieczkę wycieczek",
+    cy: "taith teithiau",
+    de: "tour touren rundgang",
+    es: "recorrido recorridos tour",
+    fr: "visite visites tour",
+    it: "giro giri tour",
+    zh: "游览 巡游",
+    ja: "ツアー",
+    vi: "tham quan chuyến",
+    bg: "обиколка обиколки",
+    pt: "passeio passeios tour",
+    nb: "tur turer",
+    nn: "tur turar"
+  };
+  function tourCatalog() {
+    const L = TPT[LANG] || TPT.en, N = TPN[LANG] || TPN.en, DL = TPDL[LANG] || TPDL.en, out2 = [];
+    const fill = (s, id) => {
+      const p = N[id] || TPN.en[id];
+      return s.replace("{de}", /^[aeiouyàâéèêëîïôûüh]/i.test(p) ? "d’" : "de ").replace("{p}", p);
+    };
+    ["earth", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"].forEach((id) => out2.push({ key: "moons:" + id, title: fill(L.moons, id) }));
+    out2.push({ key: "moons:*", title: L.all });
+    ["planets", "dwarfs", "tno", "asteroids", "comets", "craft"].forEach((k) => out2.push({ key: k, title: L[k] }));
+    TPD.forEach((k) => out2.push({ key: k + ":best", title: L[k] + " (" + DL[0] + ")" }, { key: k, title: L[k] + " (" + DL[1] + ")" }));
+    ["voyager1", "voyager2"].forEach((k) => out2.push({ key: "ride:" + k, title: rideTitle(k), ride: 1 }));
+    return out2;
+  }
+  const tpLabel = (x) => {
+    if (x.ride) return x.title;
+    const lc = LANG !== "de" && !/^(zh|ja)$/.test(LANG), t = lc ? x.title.charAt(0).toLowerCase() + x.title.slice(1) : x.title;
+    return (TPP[LANG] || TPP.en) + (LANG === "zh" || LANG === "ja" ? "：" : /:/.test(t) ? " · " : ": ") + t;
+  };
+  MOTS.tourCatalog = () => tourCatalog();
+  MOTS.tourSearch = (q) => {
+    const u = " " + nrm(q) + " ";
+    if (u.trim().length < 2) return [];
+    const has = (w) => {
+      w = nrm(w);
+      return !!w && (/^[\x00-\x7f]+$/.test(w) ? u.includes(" " + w + " ") || LANG === "cy" && w.length >= 7 && u.includes(w.slice(2) + " ") : u.includes(w));
+    };
+    const cat = tourCatalog().map((x) => ({ key: x.key, label: tpLabel(x) })), out2 = [], add = (k) => {
+      const x = cat.find((y) => y.key === k);
+      if (x && !out2.includes(x)) out2.push(x);
+    };
+    const gen = new Set(nrm((TPG[LANG] || "") + " " + TPG.en).split(" ")), qw = u.trim().split(" ");
+    if (qw.every((w) => gen.has(w))) return cat;
+    let o = null;
+    try {
+      o = tourAsk(u, has);
+    } catch (e) {
+    }
+    if (o) {
+      if (o.ride) {
+        const m = u.match(RDRX);
+        if (m && m[3]) add(o.group);
+        else {
+          add("ride:voyager1");
+          add("ride:voyager2");
+        }
+      } else for (const k of o.gk || o.group.split(",")) {
+        const g = k.replace(/:best$/, "");
+        if (TPD.includes(g)) {
+          if (o.full) {
+            add(g);
+            add(g + ":best");
+          } else {
+            add(g + ":best");
+            add(g);
+          }
+        } else add(k);
+      }
+    }
+    const rest = qw.filter((w) => !gen.has(w)).join(" ");
+    if (rest.length >= 3 || /[\u3040-\u30ff\u3400-\u9fff]/.test(rest) && rest.length >= 2) cat.forEach((x) => {
+      if (nrm(x.label).includes(rest)) add(x.key);
+    });
+    return out2;
+  };
   function ask(text) {
     const raw = String(text || "").toLowerCase(), u = " " + nrm(text) + " ";
     if (u.trim().length < 2) return null;
@@ -15003,7 +15084,7 @@ function placeLabel(id,pos,show){
   const el=LBL[id];if(!show){el.hidden=true;return}
   pv.copy(pos).project(camera);
   if(pv.z>1||pv.z<-1||Math.abs(pv.x)>1.1||Math.abs(pv.y)>1.1){el.hidden=true;return}
-  el.hidden=false;const cv=renderer.domElement,W=cv.clientWidth||innerWidth,H=cv.clientHeight||innerHeight;el.style.transform=`translate3d(${((pv.x*.5+.5)*W+10).toFixed(1)}px,${((-pv.y*.5+.5)*H).toFixed(1)}px,0) translateY(-50%)`;
+  el.hidden=false;const cv=renderer.domElement,W=cv.clientWidth||innerWidth,H=cv.clientHeight||innerHeight;el._x=(pv.x*.5+.5)*W;el._y=(-pv.y*.5+.5)*H;el.style.transform=`translate3d(${(el._x+10).toFixed(1)}px,${el._y.toFixed(1)}px,0) translateY(-50%)`;
   el.classList.toggle('target',!!(ship.ap&&ship.ap.id===id));
 }
 function updateLabels(){
@@ -15015,6 +15096,8 @@ function updateLabels(){
     o.moons.forEach((mm,k)=>{if(mm.sm){if(o.smOn||mm.lbl)smLabel(b,o,mm,k);return}placeLabel(b.id+':'+k,mm.wp,ship.anchor===b.id||(ship.ap&&ship.ap.id===b.id+':'+k))});
   });
   if(window.CRAFT3)CRAFT3.labels();
+  // (RIDE-FIX) riding with a spacecraft: no name on the planet or moon in view, nor the craft's own (fly_ride.js)
+  if(ship.tour&&ship.tour.ride)rideLabels();
 }
 // the small moons' names: at most SMLAB of them at once (the nearest the ship), plus the one under way or held in the crosshair
 const SMLAB=matchMedia('(hover:none)').matches?3:5,SMNEAR=[];let SMNB=null,SMNT=0;
@@ -15189,7 +15272,28 @@ function morePlaces(){const g=[];
     if(window.MOTS_CRAFT)['voyager1','voyager2'].forEach(k=>{const c=MOTS_CRAFT.get('sc_'+k);if(c)T.push({id:'tour:ride:'+k,l:rfill(RT.title,{c:c.nm}),c:c.col})});
     g.push(['Tours',T])}
   return g.filter(x=>x[1].length)}
-// a tour from the ribbon's More places
+/* ---- (RIDE-FIX, Martin 26 Nov) tours from inside the Flight: a Tours chip of its own on the travel strip (beside "Tour the planets" and
+   "More places", which keeps its Tours row), and the tours in the Flight's search (fly_galaxy.js searchFor). The tours' titles and what a
+   typed request asks for come from the Stage's own words in the page's language (stage.js MOTS.tourCatalog / MOTS.tourSearch); without
+   them, the English of More places. ---- */
+const TOURS={open:false},escT=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+const TOURS_W={en:'Tours',pl:'Wycieczki',cy:'Teithiau',de:'Touren',es:'Recorridos',fr:'Visites',it:'Giri',zh:'游览',ja:'ツアー',vi:'Tham quan',bg:'Обиколки',pt:'Passeios',nb:'Turer',nn:'Turar'}[String(document.documentElement.lang||'en').slice(0,2)]||'Tours';
+// can this tour be flown here (its group's data loaded, the craft known)
+function tourAvail(k){if(/^ride:/.test(k))return !!(window.MOTS_CRAFT&&MOTS_CRAFT.get('sc_'+k.slice(5)));if(/^(nebulae|clusters|galaxies)/.test(k))return !!window.FLYG;
+  const m=/^moons:(\w+)$/.exec(k);if(m){const b=byId[m[1]];return !!b&&((b.moons||[]).some(x=>!x.sm)||!!TOUR_MOONS[b.id])}return true}
+const tourColor=k=>{const m=/^moons:(\w+)$/.exec(k);if(m&&byId[m[1]])return byId[m[1]].color;if(/^ride:/.test(k)&&window.MOTS_CRAFT){const c=MOTS_CRAFT.get('sc_'+k.slice(5));if(c&&c.col)return c.col}return '#c9984f'};
+// every tour, titled in the page's language
+function tourItems(){let cat=null;try{cat=window.MOTS&&MOTS.tourCatalog?MOTS.tourCatalog():null}catch(e){}
+  if(!cat||!cat.length){const g=morePlaces().find(x=>x[0]==='Tours');return g?g[1]:[]}
+  return cat.filter(x=>tourAvail(x.key)).map(x=>({id:'tour:'+x.key,l:x.title,c:tourColor(x.key)}))}
+// a few of a tour's members, under its name in the search
+function tourSub(k){if(/^ride:/.test(k))return RT.btn;let L=[];try{L=tourList(k).filter(x=>!x.lead)}catch(e){}if(!L.length)return '';
+  return L.slice(0,4).map(x=>x.name).join(', ')+(L.length>4?' … ('+L.length+')':'')}
+// the tours a search asks for: by the Stage's reading of the request, then any whose title holds what is typed
+function tourHits(q){let L=[];try{L=window.MOTS&&MOTS.tourSearch?MOTS.tourSearch(q):null}catch(e){L=null}
+  if(!L){const s=String(q).trim().toLowerCase();L=s.length<3?[]:tourItems().filter(x=>('tour: '+x.l).toLowerCase().includes(s)).map(x=>({key:x.id.slice(5),label:'Tour: '+x.l}))}
+  return L.filter(x=>tourAvail(x.key)).slice(0,24).map(x=>({kind:'tour',key:x.key,name:x.label,sub:tourSub(x.key),row:{}}))}
+// a tour from the ribbon's More places, its Tours chip or the search
 function startGroupTour(k,label){resumeAudio();if(!audioOn)startAudio3D();
   tourGroup(k,{dwell:20000,onEnd:r=>{if(r==='done'&&!/^ride:/.test(k))toast('The tour is over: you stay where you are')}});if(!/^ride:/.test(k))toast('A tour: '+label);renderCourse(true)}
 function startTour(){tourGroup('planets',{dwell:25000,onEnd:r=>{if(r==='done')toast('The tour of the planets is over: you are in orbit round Poseidon')}});toast('A tour of the planets: Hermes to Poseidon, a while in orbit round each');renderCourse(true)}
@@ -15291,19 +15395,21 @@ function tourCardClear(){try{const el=FLYG.card&&FLYG.card();if(!el||el.hidden)r
   const r2=el.getBoundingClientRect();if(r2.right<x-R||r2.left>x+R||r2.bottom<y-R||r2.top>y+R)return;el.classList.add('tourhid')}catch(e){}}
 
 function renderCourse(force){
-  const n=neighbours(), key=(n.inn?n.inn.id:'')+'|'+(n.out?n.out.id:'')+'|'+!!ship.cruise+'|'+!!ship.tour+'|'+MORE.open;
+  const n=neighbours(), key=(n.inn?n.inn.id:'')+'|'+(n.out?n.out.id:'')+'|'+!!ship.cruise+'|'+!!ship.tour+'|'+MORE.open+'|'+TOURS.open;
   if(key===courseKey&&!force)return;courseKey=key;
   $('courseChips').innerHTML=(n.inn?`<button class="chip" data-c="${n.inn.id}" data-ic="pl" style="--c:${n.inn.color}"><span class="rb-d" aria-hidden="true">◀\uFE0E</span>${n.inn.god}</button>`:'')+
     `<button class="chip${ship.cruise?' on':''}" data-c="cruise" data-ic="cruise" aria-pressed="${!!ship.cruise}">${ship.cruise?'Ferma la crociera':'Vai in crociera'}</button>`+
     `<button class="chip" data-ic="rise" data-c="above">Sali sopra</button>`+
     (n.out?`<button class="chip" data-c="${n.out.id}" data-ic="pl" style="--c:${n.out.color}">${n.out.god}<span class="rb-d" aria-hidden="true">▶\uFE0E</span></button>`:'')+
     `<button class="chip${ship.tour?' on':''}" data-c="tour" data-ic="cruise" aria-pressed="${!!ship.tour}">${ship.tour?'Stop the tour':'Tour the planets'}</button>`+
+    `<button class="chip mmchip${TOURS.open?' on':''}" data-c="tours" data-ic="cruise" aria-expanded="${TOURS.open}">${TOURS_W} ${TOURS.open?'◂':'▸'}</button>`+
+    (TOURS.open?`<span class="mplab">${TOURS_W}</span>`+tourItems().map(x=>`<button class="chip bhc" data-c="${x.id}" style="--c:${x.c}">${escT(x.l)}</button>`).join(''):'')+
     `<button class="chip mmchip${MORE.open?' on':''}" data-c="more" aria-expanded="${MORE.open}">More places ${MORE.open?'◂':'▸'}</button>`+
     (MORE.open?morePlaces().map(([lab,list])=>`<span class="mplab">${lab}</span>`+list.map(x=>`<button class="chip bhc" data-c="${x.id}" style="--c:${x.c}">${x.l}</button>`).join('')).join(''):'');
 }
 $('courseChips').onclick=e=>{const c=e.target.closest('.chip');if(!c)return;const v=c.dataset.c;resumeAudio();
   if(v==='cruise')toggleCruise();else if(v==='above')riseAbove();else if(v==='tour'){if(ship.tour){tourEnd('stop');ship.orb=null;toast('Tour stopped');renderCourse(true)}else startTour()}
-  else if(v==='more'){MORE.open=!MORE.open;renderCourse(true)}else if(v.startsWith('tour:'))startGroupTour(v.slice(5),c.textContent);else travelTo(v);};
+  else if(v==='more'){MORE.open=!MORE.open;if(MORE.open)TOURS.open=false;renderCourse(true)}else if(v==='tours'){TOURS.open=!TOURS.open;if(TOURS.open)MORE.open=false;renderCourse(true)}else if(v.startsWith('tour:'))startGroupTour(v.slice(5),c.textContent);else travelTo(v);};
 
 /* ---- the travel ribbon (layout only): the course, moon and interstellar chips in ONE row along the bottom, styled like the dial's
    timeline of thinkers — a journey outward from the planets (course, moons, heliopause, Oort cloud) to the stars, the Galaxy and the
@@ -15506,7 +15612,7 @@ window.MOTS=window.MOTS||{};
 MOTS.app={start:()=>audioOn?Promise.resolve():startAudio3D(),stop:()=>{if(audioOn)stopAudio3D()},
   travel:(id,quiet)=>{resumeAudio();travelTo(id,quiet)},speak:id=>{const b=byId[id];if(b&&S.speak&&audioOn)speakGod(b)},cruise:()=>{resumeAudio();if(!ship.cruise)toggleCruise()},uncruise:()=>{if(ship.cruise)toggleCruise()},above:()=>{resumeAudio();riseAbove()},
   // (MOON-TOUR) into orbit round a body where the ship is (the show's tours open in orbit round the Earth, not parked beside it)
-  tourGroup:(key,o)=>tourGroup(key,o),tourStep:d=>tourStep(d),tourStop:()=>tourEnd('stop'),tourHold:p=>{if(ship.tour)ship.tour.paused=!!p},tourInfo:()=>ship.tour?{key:ship.tour.key,i:ship.tour.i,phase:ship.tour.phase,n:ship.tour.list.length,id:ship.tour.it&&ship.tour.it.id,kind:ship.tour.it&&ship.tour.it.kind,scr:tourScreen(),jd:S.jd,speed:S.speed}:null,tourList:k=>tourList(k),
+  tourGroup:(key,o)=>tourGroup(key,o),tourStep:d=>tourStep(d),tourStop:()=>tourEnd('stop'),tourHold:p=>{if(ship.tour)ship.tour.paused=!!p},tourInfo:()=>ship.tour?{key:ship.tour.key,i:ship.tour.i,phase:ship.tour.phase,n:ship.tour.list.length,paused:!!ship.tour.paused,mult:ship.tour.mult||1,id:ship.tour.it&&ship.tour.it.id,kind:ship.tour.it&&ship.tour.it.kind,scr:tourScreen(),jd:S.jd,speed:S.speed}:null,tourList:k=>tourList(k),
   orbit:id=>{const T=targetInfo(id);if(!T||!T.pos)return;resumeAudio();ship.ap=null;ship.gap=null;ship.cruise=false;ship.vel.set(0,0,0);
     const rel=ship.pos.clone().sub(T.pos);let L=rel.length();if(!(L>T.r*2&&L<T.r*60)){if(!(L>0))rel.set(0,.35,1);rel.normalize().multiplyScalar(T.r*7)}
     ship.orb={id,rel,t0:performance.now()}},
@@ -17823,9 +17929,11 @@ function buildSearch(wrap){if($('gSearch'))return;const S2=TL.srch;const d=docum
   // phones: the suggestions stay in view above the keyboard
   inp.onfocus=()=>{setTimeout(()=>{try{d.scrollIntoView({block:'start',behavior:'smooth'})}catch(e){}},250)}}
 function clearSearch(){const inp=$('gQ');if(inp)inp.value='';SR.q='';SR.res=[];SR.con=null;SR.sel=0;$('gQx').hidden=true;renderSug()}
-function searchFor(q){SR.q=q;SR.sel=0;const g=G();if(!g||!g.ready){SR.res=[];renderSug();return}
+// (RIDE-FIX, Martin 26 Nov) the tours a search names come first ("Voyager", "tour", "moons of Jupiter", "nebulae"…: fly3d.js tourHits)
+function searchFor(q){SR.q=q;SR.sel=0;const g=G();let tr=[];if(q.trim()&&!SR.con&&typeof tourHits==='function')try{tr=tourHits(q)}catch(e){tr=[]}
+  if(!g||!g.ready){SR.res=tr;renderSug();return}
   if(SR.con){SR.res=g.constellationStars(SR.con).slice(0,40).map(r=>({kind:'star',row:r,name:r.n||r.bf}));renderSug();return}
-  SR.res=q.trim()?g.search(q,{n:9}):[];renderSug()}
+  SR.res=q.trim()?tr.concat(g.search(q,{n:9})):[];renderSug()}
 function subOf(r){const g=G(),S2=TL.srch,K=S2.kind;const row=r.row;
   if(r.kind==='star'){const sp=String(row.sp||'').replace(/\.\.\./,'').trim(),bits=[K.star];if(sp)bits.push(sp);if(row.d)bits.push(fmtN(row.d*PC_LY,row.d*PC_LY<100?1:0)+' '+TX.ly);return bits.join(' · ')}
   if(r.kind==='pulsar'){const bits=[K.pulsar];if(row.P0)bits.push(fmtN(row.P0*1000,row.P0<.1?2:0)+' ms');if(row.d)bits.push(fmtPc(row.d*1000));return bits.join(' · ')}
@@ -17842,17 +17950,18 @@ function renderSug(){const sug=$('gSug'),inp=$('gQ');if(!sug)return;const S2=TL.
   const conB=()=>window.CON?`<button class="gsj gscon" data-a="con" title="${ESC(CON.TX.hear)}" aria-label="${ESC(CON.TX.hear)}">♪</button>`:'';
   if(SR.con){const g=G();h+=`<div class="gsr gsback" data-i="-1"><button class="gsm"><span class="gsn">← ${ESC(g.nameOf('constellation',SR.con,LANG))}</span><span class="gss">${ESC(uf(S2.con,{n:g.constellationStars(SR.con).length}))}</span></button>${conB()}</div>`}
   if(!SR.res.length&&SR.q.trim().length>=2&&!SR.con)h+=`<div class="gsnone">${ESC(S2.none)}</div>`;
-  SR.res.forEach((r,i)=>{const far=r.kind==='galaxy'||r.kind==='constellation';h+=`<div class="gsr" role="option" data-i="${i}" aria-selected="${i===SR.sel}"><button class="gsm" data-a="fly" title="${ESC(r.kind==='constellation'?S2.kind.con:S2.fly)}"><span class="gsn">${dispName(r)}</span><span class="gss">${ESC(subOf(r))}</span></button>${r.kind==='constellation'?conB():`<button class="gsj" data-a="jump" title="${ESC(S2.jump)}" aria-label="${ESC(S2.jump)}">⤼</button>`}</div>`});
+  SR.res.forEach((r,i)=>{if(r.kind==='tour'){h+=`<div class="gsr gstour" role="option" data-i="${i}" aria-selected="${i===SR.sel}"><button class="gsm" data-a="fly"><span class="gsn">${ESC(r.name)}</span><span class="gss">${ESC(r.sub||'')}</span></button></div>`;return}const far=r.kind==='galaxy'||r.kind==='constellation';h+=`<div class="gsr" role="option" data-i="${i}" aria-selected="${i===SR.sel}"><button class="gsm" data-a="fly" title="${ESC(r.kind==='constellation'?S2.kind.con:S2.fly)}"><span class="gsn">${dispName(r)}</span><span class="gss">${ESC(subOf(r))}</span></button>${r.kind==='constellation'?conB():`<button class="gsj" data-a="jump" title="${ESC(S2.jump)}" aria-label="${ESC(S2.jump)}">⤼</button>`}</div>`});
   sug.innerHTML=h;if(inp)inp.setAttribute('aria-expanded',String(!!h));const el=sug.querySelector('[aria-selected="true"]');if(el&&el.scrollIntoView)try{el.scrollIntoView({block:'nearest'})}catch(e){}}
 function specOf(r){if(r.kind==='dso')return r.row.far?null:{dso:r.row};if(r.kind==='blackhole')return {bh:r.row};if(r.kind==='star')return {star:r.row};if(r.kind==='galaxy')return r.row.id==='mw'?'gc':{galaxy:r.row};if(r.kind==='pulsar')return {pulsar:r.row};if(r.kind==='radio')return {radio:r.row};return null}
-function pick(r,jump){if(r.kind==='constellation'){SR.con=r.row;searchFor(SR.q);return}if(r.kind==='dso'&&r.row.far){if(typeof resumeAudio==='function')resumeAudio();dsLook(r.row);if(typeof closeNav==='function')closeNav();setTimeout(()=>openPop({kind:'dso',row:r.row}),400);return}const spec=specOf(r);if(!spec)return;if(typeof resumeAudio==='function')resumeAudio();
+function pick(r,jump){if(r.kind==='tour'){if(typeof closeNav==='function')closeNav();if(typeof startGroupTour==='function')startGroupTour(r.key,r.name);return}if(r.kind==='constellation'){SR.con=r.row;searchFor(SR.q);return}if(r.kind==='dso'&&r.row.far){if(typeof resumeAudio==='function')resumeAudio();dsLook(r.row);if(typeof closeNav==='function')closeNav();setTimeout(()=>openPop({kind:'dso',row:r.row}),400);return}const spec=specOf(r);if(!spec)return;if(typeof resumeAudio==='function')resumeAudio();
   if(jump)jumpTo(spec);else travelG(spec);if(typeof closeNav==='function')closeNav()}
 function jumpTo(id){const gp=goalOf(id);if(!gp)return;if(!(gp.bh&&BHX.row===gp.bh))bhRestoreTime();ship.speed=0;ship.last=null;ship.gap=null;ship.ap=null;ship.drift=null;ship.cruise=false;ship.vel.set(0,0,0);ST.orbit=null;hideCard();ship.pos.copy(gp.goal);camera.position.copy(ship.pos);aimQ(gp,null,camera.quaternion);ST.lastScan=0;
   if(gp.id!=='home'&&gp.id!=='helio'&&gp.id!=='oort'){AS.dirty=true;toast(uf(TX.arrived,{n:gp.name}));arrive(gp)}}
 // the HUD: a "Find a star" entry in the "⋯" menu (on a desktop the shell shows the menu's entries as buttons in the top-right row)
 function searchButton(force){if($('gSearchBtn'))return true;const mm=document.querySelector('#moreMenu .mmenu'),tr=document.querySelector('.hud.tr');if(!mm&&!(force&&tr))return false;
   const b=document.createElement('button');b.type='button';b.id='gSearchBtn';b.className='btn';b.textContent=TL.srch.btn;b.setAttribute('aria-label',TL.srch.h);
-  b.onclick=()=>{const dd=document.getElementById('moreMenu');if(dd)dd.open=false;if(typeof openNav==='function')openNav();const inp=$('gQ');if(inp){try{inp.closest('.gsearch').scrollIntoView({block:'start'})}catch(e){}inp.focus({preventScroll:true})}};
+  // (RIDE-FIX) on a phone the search's group of the panel starts folded (drawers.js flightFolds): it is opened first, or the box stayed hidden
+  b.onclick=()=>{const dd=document.getElementById('moreMenu');if(dd)dd.open=false;if(typeof openNav==='function')openNav();const gs=$('gSearch'),hd=gs&&gs.parentElement&&gs.parentElement.querySelector(':scope > h3');if(hd&&hd.classList.contains('drw-fh-shut'))hd.click();const inp=$('gQ');if(inp){try{inp.closest('.gsearch').scrollIntoView({block:'start'})}catch(e){}inp.focus({preventScroll:true})}};
   if(mm)mm.appendChild(b);else tr.appendChild(b);return true}
 
 hud();if(!searchButton()){document.addEventListener('DOMContentLoaded',()=>searchButton());setTimeout(()=>searchButton(),400);setTimeout(()=>searchButton(),1200);setTimeout(()=>searchButton(true),2500)}
@@ -20232,7 +20341,7 @@ const RIDE_DEF={voyager1:{fly:[['jupiter','1979-03-05'],['saturn','1980-11-12','
 const RV_MAX=200,RV_OUT=400,RV_K=.25,RV_FLY=1/24,RV_HP=4,RV_LAUNCH=.25,RV_END=.5,RIDE_CARD=12000,RIDE_D0=.003;
 const RIDE_L=String(document.documentElement.lang||'en').slice(0,2);
 const RIDE_TX={
-en:{launch:'Launch',hp:'The heliopause',now:'Today',title:'Ride with {c}',btn:'Ride along from launch',end:'The ride ends here: the ship stays with {c} until you take the controls.',
+en:{pause:'Pause the ride',play:'Play the ride',speed:'Speed of the ride',tap:'Tap for the text',launch:'Launch',hp:'The heliopause',now:'Today',title:'Ride with {c}',btn:'Ride along from launch',end:'The ride ends here: the ship stays with {c} until you take the controls.',
  launch1:'{c} sets out from the Earth, on a faster path than its twin, for Jupiter and Saturn.',
  launch2:'{c} sets out first, on a slower path that will take it past all four giant planets.',
  jup1:'Closest to Jupiter. {c} found volcanoes erupting on Io, the first seen beyond the Earth.',
@@ -20244,7 +20353,7 @@ en:{launch:'Launch',hp:'The heliopause',now:'Today',title:'Ride with {c}',btn:'R
  hp1:'{c} crosses the heliopause, the edge of the Sun’s wind: the first craft in interstellar space.',
  hp2:'{c} crosses the heliopause into interstellar space, six years after its twin.',
  nowTx:'{c} today: {d} {au} from the Sun. Its radio signal takes {t} to reach the Earth.'},
-pl:{launch:'Start',hp:'Heliopauza',now:'Dziś',title:'W drodze z sondą {c}',btn:'Leć razem od startu',end:'Tu podróż się kończy: statek zostaje przy sondzie {c}, dopóki nie przejmiesz sterów.',
+pl:{pause:'Wstrzymaj podróż',play:'Wznów podróż',speed:'Tempo podróży',tap:'Dotknij, aby przeczytać',launch:'Start',hp:'Heliopauza',now:'Dziś',title:'W drodze z sondą {c}',btn:'Leć razem od startu',end:'Tu podróż się kończy: statek zostaje przy sondzie {c}, dopóki nie przejmiesz sterów.',
  launch1:'{c} wyrusza z Ziemi szybszą drogą niż jego bliźniak, ku Jowiszowi i Saturnowi.',
  launch2:'{c} startuje pierwszy, wolniejszą drogą, która poprowadzi go obok wszystkich czterech olbrzymów.',
  jup1:'Najbliżej Jowisza. {c} odkrył wybuchające wulkany na Io, pierwsze widziane poza Ziemią.',
@@ -20256,7 +20365,7 @@ pl:{launch:'Start',hp:'Heliopauza',now:'Dziś',title:'W drodze z sondą {c}',btn
  hp1:'{c} przekracza heliopauzę, granicę wiatru słonecznego: pierwsza sonda w przestrzeni międzygwiazdowej.',
  hp2:'{c} przekracza heliopauzę i wchodzi w przestrzeń międzygwiazdową, sześć lat po swoim bliźniaku.',
  nowTx:'{c} dziś: {d} {au} od Słońca. Jego sygnał radiowy leci do Ziemi {t}.'},
-cy:{launch:'Lansio',hp:'Yr heliopos',now:'Heddiw',title:'Teithio gyda {c}',btn:'Teithio gydag ef o’r lansio',end:'Dyma ddiwedd y daith: mae’r llong yn aros gyda {c} nes i chi gymryd y llyw.',
+cy:{pause:'Oedi’r daith',play:'Ailgychwyn y daith',speed:'Cyflymder y daith',tap:'Tapiwch i ddarllen',launch:'Lansio',hp:'Yr heliopos',now:'Heddiw',title:'Teithio gyda {c}',btn:'Teithio gydag ef o’r lansio',end:'Dyma ddiwedd y daith: mae’r llong yn aros gyda {c} nes i chi gymryd y llyw.',
  launch1:'Mae {c} yn gadael y Ddaear, ar lwybr cyflymach na’i efaill, am Iau a Sadwrn.',
  launch2:'{c} sy’n gadael gyntaf, ar lwybr arafach a fydd yn ei gludo heibio i bob un o’r pedair planed gawr.',
  jup1:'Agosaf at Iau. Gwelodd {c} losgfynyddoedd yn ffrwydro ar Io, y cyntaf a welwyd y tu hwnt i’r Ddaear.',
@@ -20268,7 +20377,7 @@ cy:{launch:'Lansio',hp:'Yr heliopos',now:'Heddiw',title:'Teithio gyda {c}',btn:'
  hp1:'Mae {c} yn croesi’r heliopos, ymyl gwynt yr Haul: y llong gyntaf yn y gofod rhyngserol.',
  hp2:'Mae {c} yn croesi’r heliopos i’r gofod rhyngserol, chwe blynedd ar ôl ei efaill.',
  nowTx:'{c} heddiw: {d} {au} o’r Haul. Mae ei signal radio yn cymryd {t} i gyrraedd y Ddaear.'},
-de:{launch:'Start',hp:'Die Heliopause',now:'Heute',title:'Mit {c} unterwegs',btn:'Ab dem Start mitfliegen',end:'Hier endet die Reise: Das Schiff bleibt bei {c}, bis du das Steuer übernimmst.',
+de:{pause:'Reise anhalten',play:'Reise fortsetzen',speed:'Tempo der Reise',tap:'Tippen zum Lesen',launch:'Start',hp:'Die Heliopause',now:'Heute',title:'Mit {c} unterwegs',btn:'Ab dem Start mitfliegen',end:'Hier endet die Reise: Das Schiff bleibt bei {c}, bis du das Steuer übernimmst.',
  launch1:'{c} bricht von der Erde auf, auf einer schnelleren Bahn als sein Zwilling, zu Jupiter und Saturn.',
  launch2:'{c} startet zuerst, auf einer langsameren Bahn, die ihn an allen vier Riesenplaneten vorbeiführen wird.',
  jup1:'Jupiter am nächsten. {c} entdeckte ausbrechende Vulkane auf Io, die ersten jenseits der Erde.',
@@ -20280,7 +20389,7 @@ de:{launch:'Start',hp:'Die Heliopause',now:'Heute',title:'Mit {c} unterwegs',btn
  hp1:'{c} durchquert die Heliopause, den Rand des Sonnenwinds: die erste Sonde im interstellaren Raum.',
  hp2:'{c} durchquert die Heliopause in den interstellaren Raum, sechs Jahre nach seinem Zwilling.',
  nowTx:'{c} heute: {d} {au} von der Sonne. Sein Funksignal braucht {t} bis zur Erde.'},
-es:{launch:'Lanzamiento',hp:'La heliopausa',now:'Hoy',title:'Viaje con la {c}',btn:'Viajar con ella desde el lanzamiento',end:'Aquí termina el viaje: la nave sigue junto a la {c} hasta que tomes los mandos.',
+es:{pause:'Pausar el viaje',play:'Reanudar el viaje',speed:'Velocidad del viaje',tap:'Toca para leer',launch:'Lanzamiento',hp:'La heliopausa',now:'Hoy',title:'Viaje con la {c}',btn:'Viajar con ella desde el lanzamiento',end:'Aquí termina el viaje: la nave sigue junto a la {c} hasta que tomes los mandos.',
  launch1:'La {c} parte de la Tierra, por un camino más rápido que su gemela, hacia Júpiter y Saturno.',
  launch2:'La {c} sale primero, por un camino más lento que la llevará junto a los cuatro planetas gigantes.',
  jup1:'Lo más cerca de Júpiter. La {c} descubrió volcanes en erupción en Ío, los primeros vistos fuera de la Tierra.',
@@ -20292,7 +20401,7 @@ es:{launch:'Lanzamiento',hp:'La heliopausa',now:'Hoy',title:'Viaje con la {c}',b
  hp1:'La {c} cruza la heliopausa, el borde del viento solar: la primera nave en el espacio interestelar.',
  hp2:'La {c} cruza la heliopausa hacia el espacio interestelar, seis años después que su gemela.',
  nowTx:'La {c} hoy: a {d} {au} del Sol. Su señal de radio tarda {t} en llegar a la Tierra.'},
-fr:{launch:'Lancement',hp:'L’héliopause',now:'Aujourd’hui',title:'En route avec {c}',btn:'Voyager avec elle depuis le lancement',end:'Le voyage s’arrête ici : le vaisseau reste auprès de {c} jusqu’à ce que vous preniez les commandes.',
+fr:{pause:'Mettre le voyage en pause',play:'Reprendre le voyage',speed:'Vitesse du voyage',tap:'Touchez pour lire',launch:'Lancement',hp:'L’héliopause',now:'Aujourd’hui',title:'En route avec {c}',btn:'Voyager avec elle depuis le lancement',end:'Le voyage s’arrête ici : le vaisseau reste auprès de {c} jusqu’à ce que vous preniez les commandes.',
  launch1:'{c} quitte la Terre, sur une route plus rapide que sa jumelle, vers Jupiter et Saturne.',
  launch2:'{c} part la première, sur une route plus lente qui la mènera près des quatre planètes géantes.',
  jup1:'Au plus près de Jupiter. {c} découvre des volcans en éruption sur Io, les premiers vus hors de la Terre.',
@@ -20304,7 +20413,7 @@ fr:{launch:'Lancement',hp:'L’héliopause',now:'Aujourd’hui',title:'En route 
  hp1:'{c} franchit l’héliopause, la limite du vent solaire : le premier engin dans l’espace interstellaire.',
  hp2:'{c} franchit l’héliopause et entre dans l’espace interstellaire, six ans après sa jumelle.',
  nowTx:'{c} aujourd’hui : à {d} {au} du Soleil. Son signal radio met {t} à atteindre la Terre.'},
-it:{launch:'Lancio',hp:'L’eliopausa',now:'Oggi',title:'In viaggio con {c}',btn:'Viaggia con lei dal lancio',end:'Il viaggio finisce qui: l’astronave resta accanto a {c} finché non prendi i comandi.',
+it:{pause:'Metti in pausa il viaggio',play:'Riprendi il viaggio',speed:'Velocità del viaggio',tap:'Tocca per leggere',launch:'Lancio',hp:'L’eliopausa',now:'Oggi',title:'In viaggio con {c}',btn:'Viaggia con lei dal lancio',end:'Il viaggio finisce qui: l’astronave resta accanto a {c} finché non prendi i comandi.',
  launch1:'{c} lascia la Terra, su una rotta più veloce della sua gemella, verso Giove e Saturno.',
  launch2:'{c} parte per prima, su una rotta più lenta che la porterà accanto a tutti e quattro i pianeti giganti.',
  jup1:'Il punto più vicino a Giove. {c} scoprì vulcani in eruzione su Io, i primi visti fuori dalla Terra.',
@@ -20316,7 +20425,7 @@ it:{launch:'Lancio',hp:'L’eliopausa',now:'Oggi',title:'In viaggio con {c}',btn
  hp1:'{c} attraversa l’eliopausa, il confine del vento solare: la prima sonda nello spazio interstellare.',
  hp2:'{c} attraversa l’eliopausa ed entra nello spazio interstellare, sei anni dopo la sua gemella.',
  nowTx:'{c} oggi: a {d} {au} dal Sole. Il suo segnale radio impiega {t} per raggiungere la Terra.'},
-zh:{launch:'发射',hp:'日球层顶',now:'今天',title:'与{c}同行',btn:'从发射起同行',end:'旅程到此结束：飞船会一直跟着{c}，直到你接手操控。',
+zh:{pause:'暂停旅程',play:'继续旅程',speed:'旅程速度',tap:'点按阅读',launch:'发射',hp:'日球层顶',now:'今天',title:'与{c}同行',btn:'从发射起同行',end:'旅程到此结束：飞船会一直跟着{c}，直到你接手操控。',
  launch1:'{c}从地球出发，沿着比它的孪生兄弟更快的路线飞向木星和土星。',
  launch2:'{c}先出发，沿着一条较慢的路线，将飞掠全部四颗巨行星。',
  jup1:'最接近木星。{c}发现木卫一上正在喷发的火山，这是在地球之外首次看到的火山。',
@@ -20328,7 +20437,7 @@ zh:{launch:'发射',hp:'日球层顶',now:'今天',title:'与{c}同行',btn:'从
  hp1:'{c}穿过日球层顶，即太阳风的边缘：第一艘进入星际空间的航天器。',
  hp2:'{c}穿过日球层顶进入星际空间，比它的孪生兄弟晚六年。',
  nowTx:'今天的{c}：距太阳{d} {au}。它的无线电信号要{t}才能到达地球。'},
-ja:{launch:'打ち上げ',hp:'ヘリオポーズ',now:'今日',title:'{c}と旅する',btn:'打ち上げから一緒に旅する',end:'旅はここで終わりです。操縦を始めるまで、船は{c}のそばにとどまります。',
+ja:{pause:'旅を一時停止',play:'旅を再開',speed:'旅の速さ',tap:'タップして読む',launch:'打ち上げ',hp:'ヘリオポーズ',now:'今日',title:'{c}と旅する',btn:'打ち上げから一緒に旅する',end:'旅はここで終わりです。操縦を始めるまで、船は{c}のそばにとどまります。',
  launch1:'{c}が地球を出発します。双子の探査機より速い道すじで、木星と土星へ。',
  launch2:'{c}が先に出発します。ゆっくりした道すじで、四つの巨大惑星すべてのそばを通ります。',
  jup1:'木星に最接近。{c}はイオで噴火する火山を見つけました。地球の外で初めて見つかった火山です。',
@@ -20340,7 +20449,7 @@ ja:{launch:'打ち上げ',hp:'ヘリオポーズ',now:'今日',title:'{c}と旅�
  hp1:'{c}がヘリオポーズ、太陽風の果てを越えます。星間空間に入った最初の探査機です。',
  hp2:'{c}がヘリオポーズを越えて星間空間へ。双子の探査機の6年後です。',
  nowTx:'今日の{c}：太陽から{d} {au}。電波が地球に届くまで{t}かかります。'},
-vi:{launch:'Phóng',hp:'Ranh giới nhật quyển',now:'Hôm nay',title:'Bay cùng {c}',btn:'Bay cùng từ lúc phóng',end:'Chuyến bay kết thúc ở đây: con tàu ở lại bên {c} cho đến khi bạn cầm lái.',
+vi:{pause:'Tạm dừng chuyến bay',play:'Tiếp tục chuyến bay',speed:'Tốc độ chuyến bay',tap:'Chạm để đọc',launch:'Phóng',hp:'Ranh giới nhật quyển',now:'Hôm nay',title:'Bay cùng {c}',btn:'Bay cùng từ lúc phóng',end:'Chuyến bay kết thúc ở đây: con tàu ở lại bên {c} cho đến khi bạn cầm lái.',
  launch1:'{c} rời Trái Đất, trên một đường bay nhanh hơn tàu song sinh của nó, hướng tới Sao Mộc và Sao Thổ.',
  launch2:'{c} khởi hành trước, trên một đường bay chậm hơn sẽ đưa nó đi qua cả bốn hành tinh khổng lồ.',
  jup1:'Gần Sao Mộc nhất. {c} phát hiện núi lửa đang phun trên Io, những núi lửa đầu tiên được thấy ngoài Trái Đất.',
@@ -20352,7 +20461,7 @@ vi:{launch:'Phóng',hp:'Ranh giới nhật quyển',now:'Hôm nay',title:'Bay c�
  hp1:'{c} vượt qua ranh giới nhật quyển, rìa của gió Mặt Trời: con tàu đầu tiên vào không gian liên sao.',
  hp2:'{c} vượt qua ranh giới nhật quyển vào không gian liên sao, sáu năm sau tàu song sinh của nó.',
  nowTx:'{c} hôm nay: cách Mặt Trời {d} {au}. Tín hiệu vô tuyến của nó mất {t} để tới Trái Đất.'},
-bg:{launch:'Изстрелване',hp:'Хелиопаузата',now:'Днес',title:'Пътуване с {c}',btn:'Пътувай с него от изстрелването',end:'Пътуването свършва тук: корабът остава до {c}, докато не поемеш управлението.',
+bg:{pause:'Пауза на пътуването',play:'Продължи пътуването',speed:'Скорост на пътуването',tap:'Докосни, за да прочетеш',launch:'Изстрелване',hp:'Хелиопаузата',now:'Днес',title:'Пътуване с {c}',btn:'Пътувай с него от изстрелването',end:'Пътуването свършва тук: корабът остава до {c}, докато не поемеш управлението.',
  launch1:'{c} тръгва от Земята по по-бърз път от своя близнак, към Юпитер и Сатурн.',
  launch2:'{c} тръгва пръв, по по-бавен път, който ще го преведе покрай четирите планети гиганти.',
  jup1:'Най-близо до Юпитер. {c} откри изригващи вулкани на Йо, първите видени извън Земята.',
@@ -20364,7 +20473,7 @@ bg:{launch:'Изстрелване',hp:'Хелиопаузата',now:'Днес'
  hp1:'{c} пресича хелиопаузата, края на слънчевия вятър: първият апарат в междузвездното пространство.',
  hp2:'{c} пресича хелиопаузата и навлиза в междузвездното пространство, шест години след своя близнак.',
  nowTx:'{c} днес: на {d} {au} от Слънцето. Радиосигналът му пътува {t} до Земята.'},
-pt:{launch:'Lançamento',hp:'A heliopausa',now:'Hoje',title:'Viagem com a {c}',btn:'Viajar junto desde o lançamento',end:'A viagem termina aqui: a nave fica junto da {c} até você assumir os controles.',
+pt:{pause:'Pausar a viagem',play:'Retomar a viagem',speed:'Velocidade da viagem',tap:'Toque para ler',launch:'Lançamento',hp:'A heliopausa',now:'Hoje',title:'Viagem com a {c}',btn:'Viajar junto desde o lançamento',end:'A viagem termina aqui: a nave fica junto da {c} até você assumir os controles.',
  launch1:'A {c} parte da Terra, por um caminho mais rápido que o da sua gêmea, rumo a Júpiter e Saturno.',
  launch2:'A {c} parte primeiro, por um caminho mais lento que a levará a passar pelos quatro planetas gigantes.',
  jup1:'O mais perto de Júpiter. A {c} descobriu vulcões em erupção em Io, os primeiros vistos fora da Terra.',
@@ -20376,7 +20485,7 @@ pt:{launch:'Lançamento',hp:'A heliopausa',now:'Hoje',title:'Viagem com a {c}',b
  hp1:'A {c} cruza a heliopausa, a borda do vento solar: a primeira nave no espaço interestelar.',
  hp2:'A {c} cruza a heliopausa rumo ao espaço interestelar, seis anos depois da sua gêmea.',
  nowTx:'A {c} hoje: a {d} {au} do Sol. Seu sinal de rádio leva {t} para chegar à Terra.'},
-nb:{launch:'Oppskyting',hp:'Heliopausen',now:'I dag',title:'Reis med {c}',btn:'Reis med fra oppskytingen',end:'Reisen slutter her: skipet blir hos {c} til du tar over styringen.',
+nb:{pause:'Sett reisen på pause',play:'Fortsett reisen',speed:'Farten på reisen',tap:'Trykk for å lese',launch:'Oppskyting',hp:'Heliopausen',now:'I dag',title:'Reis med {c}',btn:'Reis med fra oppskytingen',end:'Reisen slutter her: skipet blir hos {c} til du tar over styringen.',
  launch1:'{c} forlater Jorden, på en raskere bane enn tvillingen, mot Jupiter og Saturn.',
  launch2:'{c} drar først, på en langsommere bane som skal føre sonden forbi alle de fire kjempeplanetene.',
  jup1:'Nærmest Jupiter. {c} oppdaget vulkaner i utbrudd på Io, de første som er sett utenfor Jorden.',
@@ -20388,7 +20497,7 @@ nb:{launch:'Oppskyting',hp:'Heliopausen',now:'I dag',title:'Reis med {c}',btn:'R
  hp1:'{c} krysser heliopausen, kanten av solvinden: det første fartøyet i det interstellare rommet.',
  hp2:'{c} krysser heliopausen og går inn i det interstellare rommet, seks år etter tvillingen.',
  nowTx:'{c} i dag: {d} {au} fra Solen. Radiosignalet bruker {t} til Jorden.'},
-nn:{launch:'Oppskyting',hp:'Heliopausen',now:'I dag',title:'Reis med {c}',btn:'Reis med frå oppskytinga',end:'Reisa sluttar her: skipet blir verande hos {c} til du tek over styringa.',
+nn:{pause:'Set reisa på pause',play:'Hald fram med reisa',speed:'Farten på reisa',tap:'Trykk for å lese',launch:'Oppskyting',hp:'Heliopausen',now:'I dag',title:'Reis med {c}',btn:'Reis med frå oppskytinga',end:'Reisa sluttar her: skipet blir verande hos {c} til du tek over styringa.',
  launch1:'{c} forlèt Jorda, på ei raskare bane enn tvillingen, mot Jupiter og Saturn.',
  launch2:'{c} dreg først, på ei langsamare bane som skal føre sonden forbi alle dei fire kjempeplanetane.',
  jup1:'Nærast Jupiter. {c} oppdaga vulkanar i utbrot på Io, dei første som er sett utanfor Jorda.',
@@ -20445,13 +20554,15 @@ function rideList(k){const c=window.MOTS_CRAFT&&MOTS_CRAFT.get('sc_'+k),D=RIDE_D
 // the "now" card's sentence: the distance from the Sun and the light time to the Earth, from the app's own positions
 function rideNowTxt(R){const p=P[R.c.id],E=P.earth;if(!p||!E)return '';const de=Math.hypot(p.x-E.x,p.y-E.y,p.z-E.z),MC=MOTS_CRAFT;
   return rfill(RT.nowTx,{c:R.c.nm,d:MC.nf(p.r,1),au:MC.T.unit.au,t:MC.lightTxt(de)})}
-// a key in the Flight ends the ride where it is, even a tap too quick for the tour's watch to see (fly3d.js tourTick)
-addEventListener('keydown',e=>{if(ship.tour&&ship.tour.ride&&e.isTrusted&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!['Shift','Control','Alt','Meta'].includes(e.key))tourEnd('user')},true);
+// a key in the Flight ends the ride where it is, even a tap too quick for the tour's watch to see (fly3d.js tourTick); not a key on the ride's
+// own controls or its card (RIDE-FIX)
+const rideOwn=e=>!!(e&&e.target&&e.target.closest&&e.target.closest('#rideCtl,#rideCard'));
+addEventListener('keydown',e=>{if(ship.tour&&ship.tour.ride&&e.isTrusted&&!rideOwn(e)&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!['Shift','Control','Alt','Meta'].includes(e.key))tourEnd('user')},true);
 function rideStart(k,o){const R=rideList(k);if(!R){if(o.onEnd)o.onEnd('empty');return false}
-  const t={key:'ride:'+k,ride:R,list:R.L,i:-1,o,phase:'go',t0:performance.now(),paused:false,dir:null,dd:RIDE_D0};
+  const t={key:'ride:'+k,ride:R,list:R.L,i:-1,o,phase:'go',t0:performance.now(),paused:false,mult:1,dir:null,dd:RIDE_D0};
   ship.tour=t;ship.ap=null;ship.gap=null;ship.cruise=false;ship.orb=null;ship.vel.set(0,0,0);ship.ride=R.c.id;
   S.playing=true;S.jd=R.c.jl;setTime(RV_LAUNCH);computePositions();updateScene(0);
-  rideFrame(0,true);renderCourse(true);
+  rideFrame(0,true);renderCourse(true);rideCtlShow(true);
   clearInterval(TOUR_T);TOUR_T=setInterval(tourTick,200);rideNext(t);
   toast(rfill(RT.title,{c:R.c.nm}));return true}
 function rideNext(t){t.i++;t.it=t.list[t.i];t.phase='go';t.since=performance.now();tourEmit('go')}
@@ -20461,10 +20572,11 @@ function rideFocus(t,jd){const R=t.ride,L=R.L;if(jd<R.c.jl+12)return 'earth';
   for(const x of L){if(x.kind!=='fly')continue;if(jd<x.jd+1.5){if(x.moon&&(x.side<0?jd>x.jd-2&&jd<x.jd-.3:jd>x.jd+.3))return x.moon;return x.id}}
   return null}
 // each frame: the sky's date along the craft's path at the ride's pace, the ship beside the craft, looking ahead (fly3d.js flight)
+// (RIDE-FIX, Martin 26 Nov) the pace times the ride's speed (×⅛ to ×8, t.mult), so the flybys still slow it; paused, the date holds
 const RQ=new THREE.Quaternion(),RM=new THREE.Matrix4();
 function rideFrame(dt,snap){const t=ship.tour,R=t.ride;
   // (never past today: the frame's step is at most 0.1 s, so the pace is held to what is left of the way in that time)
-  if(t.paused)S.speed=0;else if(t.phase!=='end')S.speed=Math.min(rideV(R,S.jd),Math.max(0,R.jEnd-S.jd)/.1);
+  if(t.paused)S.speed=0;else if(t.phase!=='end')S.speed=Math.min(rideV(R,S.jd)*(t.mult||1),Math.max(0,R.jEnd-S.jd)/.1);
   const C=OBJ[R.c.id].pos.clone(),f=rideFocus(t,S.jd);let L=null,pr=null;
   if(f){const T=targetInfo(f);if(T&&T.pos&&isFinite(T.pos.x))L=T.pos}
   const want=L?L.clone().sub(C):C.clone();if(!(want.lengthSq()>0))want.set(0,0,-1);want.normalize();
@@ -20476,34 +20588,115 @@ function rideFrame(dt,snap){const t=ship.tour,R=t.ride;
   ship.pos.copy(C).addScaledVector(t.dir,-t.dd).addScaledVector(UPY,t.dd*.12);ship.vel.set(0,0,0);ship.ride=R.c.id;
   RM.lookAt(ship.pos,ship.pos.clone().add(t.dir),UPY);RQ.setFromRotationMatrix(RM);if(snap)camera.quaternion.copy(RQ);else camera.quaternion.slerp(RQ,1-Math.exp(-dt*3))}
 // every 200 ms (fly3d.js tourTick): the stops, their cards, and the end
-function rideTick(t,now){const R=t.ride,it=t.it;if(!it)return;
+function rideTick(t,now){const R=t.ride,it=t.it;rideCtlSync();rideCardClear(t);if(!it)return;
+  const dt=now-(t.last||now);t.last=now;
   // (the card comes a few hours before the closest approach, but never before the day of the flyby begins)
   if(t.phase==='go'){const at=it.kind==='fly'?Math.max(it.jd-.15,it.day0):it.kind==='now'?it.jd-.01:it.jd;
-    if(S.jd>=at||it.kind==='launch'){t.phase='at';t.at=now;rideCard(t,it);tourEmit('at');
+    if(S.jd>=at||it.kind==='launch'){t.phase='at';t.at=now;t.acc=0;rideCard(t,it);tourEmit('at');
       if(it.kind==='now'){t.phase='end';S.jd=Math.max(S.jd,R.jEnd);tourEnd('done')}}
     return}
-  if(t.phase==='at'){rideCardClear(t);if(!t.paused&&now-t.at>=RIDE_CARD){rideCardHide();if(t.i<t.list.length-1)rideNext(t)}}}
+  // (RIDE-FIX) the card stays, folded to its title at the edge, until the next stop's card takes its place
+  if(t.phase==='at'){if(!t.paused)t.acc=(t.acc||0)+dt;if(t.acc>=RIDE_CARD&&t.i<t.list.length-1)rideNext(t)}}
 // ⏮ ⏭: the previous or next stop (the date goes to a month before it, so the craft is seen coming up to it)
 function rideStep(t,d){const j=t.i+d;if(j<1||j>=t.list.length)return false;const it=t.list[j];
   S.jd=Math.max(t.ride.c.jl,it.kind==='now'?it.jd-60:it.jd-30);t.i=j-1;rideCardHide();rideNext(t);return true}
-function rideFinish(t,why){rideCardHide(why==='done');
+function rideFinish(t,why){rideCardHide(why==='done');rideCtlShow(false);
   if(why==='done'){S.jd=Math.max(S.jd,t.ride.jEnd);setTime(1/86400);ship.ride=t.ride.c.id;toast(rfill(RT.end,{c:t.ride.c.nm}))}
   else setTime(1)}
-// the card: the Flight's own card (gpop bspop), kept clear of the planet, its moon and the craft
-let rideEl=null;
-function rideCard(t,it){if(!rideEl){rideEl=document.createElement('div');rideEl.id='rideCard';rideEl.className='gpop bspop';rideEl.setAttribute('role','status');rideEl.hidden=true;document.body.appendChild(rideEl)}
+/* ---- (RIDE-FIX, Martin 26 Nov, on his phone) the middle of the view stays clear while riding:
+   - the card docks at the top or the bottom of the view, whichever is the farther from what the ship is looking at (the planet, its moon,
+     the craft), between the header and the travel strip (in the show's frame, above its caption);
+   - after RIDE_FOLD it folds to its title strip (the stop and its date); a tap brings the text back, and it folds again a few seconds later.
+     A tap on it does not end the ride; the card stays, folded, until the next stop's;
+   - no name sits on the planet or moon in view, and the craft's own name is not shown (rideLabels, from fly3d.js updateLabels);
+   - ❚❚ / ▶ and the ride's speed (×⅛ … ×8 of its own pace) at the bottom left edge (#rideCtl); neither ends the ride. ---- */
+const RIDE_FOLD=6000,RSPT={'-3':'⅛','-2':'¼','-1':'½','0':'1','1':'2','2':'4','3':'8'};
+{const st=document.createElement('style');st.textContent=`
+#rideCard{cursor:pointer;-webkit-tap-highlight-color:transparent;transition:top .35s ease}
+#rideCard .gph{align-items:baseline;flex-wrap:wrap;justify-content:flex-start;column-gap:.6rem}
+#rideCard .gph b{flex:0 1 auto}
+#rideCard .rdt{font-family:var(--f-mono);font-size:.74rem;color:var(--vellum-dim);font-variant-numeric:tabular-nums}
+#rideCard .rfx{margin-left:auto;color:var(--bronze);font-size:.8rem;transition:transform .25s}
+#rideCard .rtx{opacity:.9;font-size:.84rem;margin-top:.25rem}
+#rideCard.rfold{padding-top:.3rem;padding-bottom:.35rem}
+#rideCard.rfold .rtx{display:none}
+#rideCard.rfold .rfx{transform:rotate(-90deg)}
+#rideCtl{position:fixed;z-index:31;display:flex;align-items:center;gap:.35rem;padding:.2rem .55rem .2rem .25rem;border-radius:999px;background:var(--glass,rgba(9,11,24,.82));border:1px solid var(--line,#2b3050);color:var(--vellum,#F1E6C8);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:.8rem;box-shadow:0 4px 18px rgba(0,0,0,.45)}
+#rideCtl[hidden]{display:none}
+#rideCtl .rpp{appearance:none;width:2.4rem;height:2.4rem;min-width:0;min-height:0;border-radius:50%;border:1px solid var(--bronze,#c9984f);background:rgba(201,152,79,.14);color:#f3d9a4;font-size:.9rem;line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+#rideCtl .rpp.on{background:var(--bronze,#c9984f);color:#14110A}
+#rideCtl .rsp{width:6.2rem;accent-color:var(--bronze,#c9984f);margin:0;min-height:2rem}
+#rideCtl .rsv{min-width:2.1rem;font-family:var(--f-mono);font-variant-numeric:tabular-nums;color:#f3d9a4;text-align:left}
+html.mots-proj #rideCtl,html.mots-proj #rideCtl *,html.mots-proj #rideCard:not([hidden]),html.mots-proj #rideCard:not([hidden]) *{visibility:visible!important}
+html.mots-proj #rideCtl{z-index:9003!important}html.mots-proj #rideCard{z-index:9002!important}`;document.head.appendChild(st)}
+// a body on the screen, in the canvas's own frame (in the show's projector view the canvas stops above the caption), and its true size
+function rideDisc(id){const T=targetInfo(id);if(!T||!T.pos||!isFinite(T.pos.x))return null;const cv=renderer.domElement,W=cv.clientWidth||innerWidth,H=cv.clientHeight||innerHeight;
+  const v=T.pos.clone().sub(camera.position).applyQuaternion(camera.quaternion.clone().invert());if(v.z>=0)return null;
+  const f=(H/2)/Math.tan(camera.fov*Math.PI/360),x=W/2+f*v.x/-v.z,y=H/2-f*v.y/-v.z,tr=T.r/Math.max(1e-12,v.length())*f;
+  if(x<-W*.1||x>W*1.1||y<-H*.1||y>H*1.1)return null;return {x,y,r:Math.max(14,Math.min(H/2,tr)),tr}}
+// what the view is on: the body looked at (and its planet, when that is a moon), the planet of a flyby under way, and the craft
+function rideIds(t){const ids=[],f=rideFocus(t,S.jd),it=t.it;if(f){ids.push(f);if(f.includes(':'))ids.push(f.split(':')[0])}
+  for(const x of t.list)if(x.kind==='fly'&&Math.abs(S.jd-x.jd)<6&&!ids.includes(x.id))ids.push(x.id);
+  if(it&&it.kind==='fly'&&!ids.includes(it.id)&&Math.abs(S.jd-it.jd)<6)ids.push(it.id);return ids}
+// the free band of the view between what sits along its top (the header) and its bottom (the travel strip, the thrust buttons, a caption),
+// for what spans x0…x1
+const rVis=e=>{if(!e||e.hidden)return null;const cs=getComputedStyle(e);if(cs.display==='none'||cs.visibility==='hidden'||+cs.opacity<.05)return null;const r=e.getBoundingClientRect();return r.width&&r.height?r:null};
+function rideBand(x0,x1,noCtl){const cv=renderer.domElement.getBoundingClientRect();let top=Math.max(0,cv.top),bot=Math.min(innerHeight,cv.bottom||innerHeight);
+  const over=r=>r.left<x1&&r.right>x0;
+  for(const e of document.querySelectorAll('.hud.tl,.hud.tr,.drw-topg')){const r=rVis(e);if(r&&over(r)&&r.bottom<innerHeight*.45)top=Math.max(top,r.bottom)}
+  for(const e of document.querySelectorAll('.hud.bc,.drw-t-bot,.thrust,#motsCap'+(noCtl?'':',#rideCtl'))){const r=rVis(e);if(r&&over(r)&&r.top>innerHeight*.45)bot=Math.min(bot,r.top)}
+  return {top:top+6,bot:bot-6,left:Math.max(0,cv.left),right:Math.min(innerWidth,cv.right||innerWidth)}}
+// the card: the Flight's own card (gpop bspop), docked at the edge farther from what the view is on
+let rideEl=null,rideFoldT=0;
+function rideCard(t,it){if(!rideEl){rideEl=document.createElement('div');rideEl.id='rideCard';rideEl.className='gpop bspop';rideEl.setAttribute('role','status');rideEl.tabIndex=0;rideEl.hidden=true;document.body.appendChild(rideEl);
+    // a tap folds or unfolds it; nothing under it, nor the tour's watch, sees the tap
+    const stop=e=>e.stopPropagation();['pointerdown','pointerup','touchstart','mousedown'].forEach(k=>rideEl.addEventListener(k,stop));
+    rideEl.addEventListener('click',e=>{e.stopPropagation();rideFold(!rideEl.classList.contains('rfold'))});
+    rideEl.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();rideFold(!rideEl.classList.contains('rfold'))}})}
   const txt=it.kind==='now'?rideNowTxt(t.ride):it.txt;
-  rideEl.innerHTML=`<div class="gph"><b>${esc3(it.c+' · '+it.head)}</b></div><div class="gpf">${esc3(it.dstr)}</div>${txt?`<div class="gpf" style="opacity:.9;font-family:inherit;font-size:.84rem">${esc3(txt)}</div>`:''}`;
-  rideEl.dataset.k=it.kind;rideEl.classList.remove('bsmin');['top','bottom','left','transform'].forEach(k=>rideEl.style.removeProperty(k));rideEl.hidden=false;rideCardClear(t,true)}
-// (what the card keeps clear of: the planet, or its moon while the view is on the moon, and the craft)
-function rideTargets(t){const it=t&&t.it;if(!it)return [];const ids=[];if(it.kind==='fly')ids.push(it.moon&&rideFocus(t,S.jd)===it.moon?it.moon:it.id);ids.push(t.ride.c.id);return ids}
-// (a card shortened for want of room is tried again in full as the view moves on: the planet's disc shrinks and settles)
-function rideCardClear(t,force){if(!rideEl||rideEl.hidden||!t)return;const ids=rideTargets(t);
-  if(!force&&rideEl.classList.contains('bsmin')){rideEl.classList.remove('bsmin');['top','bottom','left','transform'].forEach(k=>rideEl.style.removeProperty(k));force=true}
-  const discs=ids.map(onScreen).filter(Boolean),r=rideEl.getBoundingClientRect(),m=10;
-  if(!force&&!discs.some(c=>r.left<c.x+c.r+m&&r.right>c.x-c.r-m&&r.top<c.y+c.r+m&&r.bottom>c.y-c.r-m))return;
-  keepClear(rideEl,ids[0],ids.slice(1))}
-function rideCardHide(keep){if(rideEl&&!keep)rideEl.hidden=true}
+  rideEl.innerHTML=`<div class="gph"><b>${esc3(it.c+' · '+it.head)}</b><span class="rdt">${esc3(it.dstr)}</span>${txt?`<span class="rfx" aria-hidden="true">▾</span>`:''}</div>${txt?`<div class="rtx">${esc3(txt)}</div>`:''}`;
+  rideEl.title=txt?RT.tap:'';rideEl.dataset.k=it.kind;rideEl.classList.remove('bsmin');rideEl.hidden=false;rideEl.dataset.side='';rideFold(false,true)}
+// folded: the title strip only; unfolded, it folds again after RIDE_FOLD
+function rideFold(f,fresh){if(!rideEl)return;clearTimeout(rideFoldT);const has=!!rideEl.querySelector('.rtx');
+  rideEl.classList.toggle('rfold',!!f&&has);rideEl.setAttribute('aria-expanded',String(!f||!has));
+  if(!f&&has)rideFoldT=setTimeout(()=>rideFold(true),RIDE_FOLD);
+  rideDock(ship.tour&&ship.tour.ride?ship.tour:null,true)}
+// dock it at the top or the bottom of the free band, the side farther from what the view is on (it changes sides only for a clear gain)
+function rideDock(t,now){if(!rideEl||rideEl.hidden)return;const W=innerWidth,b=rideBand(0,W),w=Math.min(b.right-b.left-12,24*16),x=b.left+(b.right-b.left-w)/2;
+  rideEl.style.setProperty('transform','none','important');rideEl.style.setProperty('left',Math.round(x)+'px','important');rideEl.style.setProperty('width',Math.round(w)+'px','important');rideEl.style.setProperty('bottom','auto','important');
+  const h=rideEl.offsetHeight,cv=renderer.domElement.getBoundingClientRect();
+  const ds=(t?rideIds(t).concat(t.ride.c.id):[]).map(rideDisc).filter(Boolean).map(c=>({x:c.x+cv.left,y:c.y+cv.top,r:c.r}));
+  let side=rideEl.dataset.side||'';
+  if(ds.length){const hi=Math.min(...ds.map(c=>c.y-c.r)),lo=Math.max(...ds.map(c=>c.y+c.r)),up=hi-b.top,dn=b.bot-lo;
+    const want=dn>up?'bot':'top';if(!side||(want!==side&&Math.abs(dn-up)>40))side=want}
+  else if(!side)side='top';
+  rideEl.dataset.side=side;
+  const y=side==='bot'?Math.max(b.top,b.bot-h):b.top;
+  rideEl.style.setProperty('top',Math.round(y)+'px','important')}
+function rideCardClear(t){rideDock(t)}
+function rideCardHide(keep){if(rideEl&&!keep){rideEl.hidden=true;clearTimeout(rideFoldT)}}
+// ❚❚ / ▶ and the speed: at the bottom left edge, clear of the thrust buttons and the strip
+let rideCtl=null;
+function rideCtlBuild(){if(rideCtl)return rideCtl;const d=document.createElement('div');d.id='rideCtl';d.hidden=true;d.setAttribute('role','group');d.setAttribute('aria-label',RT.speed);
+  d.innerHTML=`<button type="button" class="rpp"></button><input type="range" class="rsp" min="-3" max="3" step="1" value="0" aria-label="${esc3(RT.speed)}" title="${esc3(RT.speed)}"><output class="rsv">×1</output>`;
+  const stop=e=>e.stopPropagation();['pointerdown','pointerup','touchstart','mousedown','click','wheel'].forEach(k=>d.addEventListener(k,stop,{passive:k==='wheel'||k==='touchstart'}));
+  d.addEventListener('keydown',e=>{e.stopPropagation()});
+  d.querySelector('.rpp').onclick=()=>{const t=ship.tour;if(!t||!t.ride)return;resumeAudio();t.paused=!t.paused;rideCtlSync()};
+  d.querySelector('.rsp').oninput=e=>{const t=ship.tour;if(!t||!t.ride)return;t.mult=Math.pow(2,+e.target.value);rideCtlSync()};
+  document.body.appendChild(d);rideCtl=d;return d}
+function rideCtlShow(on){const d=rideCtlBuild();d.hidden=!on;if(on){d.querySelector('.rsp').value='0';rideCtlSync()}}
+function rideCtlSync(){const d=rideCtl,t=ship.tour;if(!d||d.hidden||!t||!t.ride)return;const b=d.querySelector('.rpp'),p=!!t.paused,l=p?RT.play:RT.pause;
+  const g=p?'▶︎':'❚❚';if(b.textContent!==g){b.textContent=g;b.title=l;b.setAttribute('aria-label',l);b.classList.toggle('on',p);b.setAttribute('aria-pressed',String(p))}
+  const e=Math.round(Math.log2(t.mult||1)),inp=d.querySelector('.rsp');if(document.activeElement!==inp&&+inp.value!==e)inp.value=String(e);
+  d.querySelector('.rsv').textContent='×'+RSPT[String(Math.max(-3,Math.min(3,e)))];
+  const w=d.offsetWidth||200,h=d.offsetHeight||40,cv=renderer.domElement.getBoundingClientRect(),x=Math.max(8,cv.left+8),bd=rideBand(x,x+w,true);
+  d.style.left=Math.round(x)+'px';d.style.top=Math.round(Math.max(bd.top,bd.bot-h))+'px'}
+addEventListener('resize',()=>{const t=ship.tour;if(t&&t.ride){rideCtlSync();rideDock(t)}else rideDock(null)});
+// (RIDE-FIX) the names: none on the planet or moon in view (once its disc is a disc, not a point), and not the craft's own
+function rideLabels(){const t=ship.tour;if(!t||!t.ride)return;const own=LBL[t.ride.c.id];if(own)own.hidden=true;
+  const ids=rideIds(t),ds=[];for(const id of ids){const c=rideDisc(id);if(c&&c.tr>=20){ds.push(c);if(LBL[id])LBL[id].hidden=true}}if(!ds.length)return;
+  for(const id in LBL){const e=LBL[id];if(e.hidden||e._x==null)continue;const w=e._w||(e._w=e.offsetWidth)||60,x0=e._x+10,x1=x0+w,y0=e._y-9,y1=e._y+9;
+    if(ds.some(c=>{const nx=Math.max(x0,Math.min(c.x,x1)),ny=Math.max(y0,Math.min(c.y,y1));return Math.hypot(nx-c.x,ny-c.y)<c.r+4}))e.hidden=true}}
 // where the stop under way is on the screen (the planet; otherwise the craft), for tests and the show
 function rideScreen(t){const it=t&&t.it;if(!it)return null;return onScreen(it.kind==='fly'?it.id:t.ride.c.id)}
 

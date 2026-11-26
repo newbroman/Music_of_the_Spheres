@@ -3367,6 +3367,87 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
     if (keys.some((k) => TPD.includes(k))) return tourCompose({ ev: "flight", th: "tour", keys: ["tour"], gk: keys, gt: titles, tour: 1, all: 0, minScene: 0, caps: "caps", mins: 0, loop: false, hold: 1 }, every);
     return { ev: "flight", th: "tour", keys: ["tour"], group: keys.join(","), tour: 1, title: titles.join(" · "), all: 0, minScene: 0, caps: "caps", mins: 0, loop: false, hold: 1 };
   }
+  const TPP = { en: "Tour", pl: "Wycieczka", cy: "Taith", de: "Tour", es: "Recorrido", fr: "Visite", it: "Giro", zh: "游览", ja: "ツアー", vi: "Tham quan", bg: "Обиколка", pt: "Passeio", nb: "Tur", nn: "Tur" };
+  const TPG = {
+    en: "tour tours",
+    pl: "wycieczka wycieczki wycieczkę wycieczek",
+    cy: "taith teithiau",
+    de: "tour touren rundgang",
+    es: "recorrido recorridos tour",
+    fr: "visite visites tour",
+    it: "giro giri tour",
+    zh: "游览 巡游",
+    ja: "ツアー",
+    vi: "tham quan chuyến",
+    bg: "обиколка обиколки",
+    pt: "passeio passeios tour",
+    nb: "tur turer",
+    nn: "tur turar"
+  };
+  function tourCatalog() {
+    const L = TPT[LANG] || TPT.en, N = TPN[LANG] || TPN.en, DL = TPDL[LANG] || TPDL.en, out2 = [];
+    const fill = (s, id) => {
+      const p = N[id] || TPN.en[id];
+      return s.replace("{de}", /^[aeiouyàâéèêëîïôûüh]/i.test(p) ? "d’" : "de ").replace("{p}", p);
+    };
+    ["earth", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"].forEach((id) => out2.push({ key: "moons:" + id, title: fill(L.moons, id) }));
+    out2.push({ key: "moons:*", title: L.all });
+    ["planets", "dwarfs", "tno", "asteroids", "comets", "craft"].forEach((k) => out2.push({ key: k, title: L[k] }));
+    TPD.forEach((k) => out2.push({ key: k + ":best", title: L[k] + " (" + DL[0] + ")" }, { key: k, title: L[k] + " (" + DL[1] + ")" }));
+    ["voyager1", "voyager2"].forEach((k) => out2.push({ key: "ride:" + k, title: rideTitle(k), ride: 1 }));
+    return out2;
+  }
+  const tpLabel = (x) => {
+    if (x.ride) return x.title;
+    const lc = LANG !== "de" && !/^(zh|ja)$/.test(LANG), t = lc ? x.title.charAt(0).toLowerCase() + x.title.slice(1) : x.title;
+    return (TPP[LANG] || TPP.en) + (LANG === "zh" || LANG === "ja" ? "：" : /:/.test(t) ? " · " : ": ") + t;
+  };
+  MOTS.tourCatalog = () => tourCatalog();
+  MOTS.tourSearch = (q) => {
+    const u = " " + nrm(q) + " ";
+    if (u.trim().length < 2) return [];
+    const has = (w) => {
+      w = nrm(w);
+      return !!w && (/^[\x00-\x7f]+$/.test(w) ? u.includes(" " + w + " ") || LANG === "cy" && w.length >= 7 && u.includes(w.slice(2) + " ") : u.includes(w));
+    };
+    const cat = tourCatalog().map((x) => ({ key: x.key, label: tpLabel(x) })), out2 = [], add = (k) => {
+      const x = cat.find((y) => y.key === k);
+      if (x && !out2.includes(x)) out2.push(x);
+    };
+    const gen = new Set(nrm((TPG[LANG] || "") + " " + TPG.en).split(" ")), qw = u.trim().split(" ");
+    if (qw.every((w) => gen.has(w))) return cat;
+    let o = null;
+    try {
+      o = tourAsk(u, has);
+    } catch (e) {
+    }
+    if (o) {
+      if (o.ride) {
+        const m = u.match(RDRX);
+        if (m && m[3]) add(o.group);
+        else {
+          add("ride:voyager1");
+          add("ride:voyager2");
+        }
+      } else for (const k of o.gk || o.group.split(",")) {
+        const g = k.replace(/:best$/, "");
+        if (TPD.includes(g)) {
+          if (o.full) {
+            add(g);
+            add(g + ":best");
+          } else {
+            add(g + ":best");
+            add(g);
+          }
+        } else add(k);
+      }
+    }
+    const rest = qw.filter((w) => !gen.has(w)).join(" ");
+    if (rest.length >= 3 || /[\u3040-\u30ff\u3400-\u9fff]/.test(rest) && rest.length >= 2) cat.forEach((x) => {
+      if (nrm(x.label).includes(rest)) add(x.key);
+    });
+    return out2;
+  };
   function ask(text) {
     const raw = String(text || "").toLowerCase(), u = " " + nrm(text) + " ";
     if (u.trim().length < 2) return null;
