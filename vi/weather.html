@@ -3273,7 +3273,70 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
     galaxies: "galaxies galaktyki galaktyk galaktykach galaethau galaxien galaxias galassie 星系 銀河 thiên_hà галактики галактиките galáxias galakser galaksene galaksar galaksane"
   };
   const TPX = { fr: ["monde"], it: ["alle"] };
+  const TPA = "all every whole full complete entire wszystkie wszystkich wszystkimi każda każdą każdy każdej cały całą pełna pełny pob holl gyfan i_gyd alle allen jede jeden jedes ganze gesamte vollständig vollständige todas todos cada completo completa entero toutes tous chaque complet complète entière tutte tutti ogni intero 所有 全部 每个 每一个 すべて 全て mọi tất_cả toàn_bộ всички всяка всеки цялата hver hvert hele kvar kvart heile";
+  const TPS = {
+    nebulae: "nebula mgławica mgławicę mgławicy nifwl nebulosa nébuleuse мъглявина tåke tåka",
+    clusters: "cluster star_cluster gromada gromadę gromady clwstwr cúmulo ammasso aglomerado купа stjernehop",
+    galaxies: "galaxy galaktyka galaktykę galaktyki galaeth galaxie galaxia galassia galáxia галактика galakse"
+  };
+  const TPD = ["nebulae", "clusters", "galaxies"];
+  const TPDL = {
+    en: ["the 10 best known", "every one"],
+    pl: ["wybór 10", "wszystkie"],
+    cy: ["detholiad o 10", "pob un"],
+    de: ["Auswahl von 10", "vollständig"],
+    es: ["selección de 10", "completo"],
+    fr: ["sélection de 10", "au complet"],
+    it: ["selezione di 10", "completo"],
+    zh: ["精选10个", "全部"],
+    ja: ["代表的な10", "すべて"],
+    vi: ["10 nổi tiếng nhất", "tất cả"],
+    bg: ["избрани 10", "всички"],
+    pt: ["seleção de 10", "completo"],
+    nb: ["utvalg på 10", "alle"],
+    nn: ["utval på 10", "alle"]
+  };
+  function tourCompose(o, full) {
+    const DL = TPDL[LANG] || TPDL.en;
+    o.full = !!full;
+    o.group = o.gk.map((k) => TPD.includes(k) ? k + (full ? "" : ":best") : k).join(",");
+    o.title = o.gk.map((k, i) => TPD.includes(k) ? o.gt[i] + " (" + DL[full ? 1 : 0] + ")" : o.gt[i]).join(" · ");
+    return o;
+  }
+  const RDT = {
+    en: "Ride with {c}",
+    pl: "W drodze z sondą {c}",
+    cy: "Teithio gyda {c}",
+    de: "Mit {c} unterwegs",
+    es: "Viaje con la {c}",
+    fr: "En route avec {c}",
+    it: "In viaggio con {c}",
+    zh: "与{c}同行",
+    ja: "{c}と旅する",
+    vi: "Bay cùng {c}",
+    bg: "Пътуване с {c}",
+    pt: "Viagem com a {c}",
+    nb: "Reis med {c}",
+    nn: "Reis med {c}"
+  };
+  const RDN = { zh: ["旅行者1号", "旅行者2号"], ja: ["ボイジャー1号", "ボイジャー2号"], bg: ["Вояджър 1", "Вояджър 2"] };
+  const rideName = (k) => {
+    const n = RDN[LANG];
+    return n ? n[k === "voyager2" ? 1 : 0] : k === "voyager2" ? "Voyager 2" : "Voyager 1";
+  };
+  const rideTitle = (k) => (RDT[LANG] || RDT.en).replace("{c}", rideName(k));
+  const RDRX = new RegExp("(?:(?:^|\\s)(voyager[a-z]*|вояджър[а-я]*)|(" + [nrm("旅行者"), nrm("ボイジャー")].join("|") + "))\\s*(1|2|ii|i|one|two|un|dau|" + nrm("一") + "|" + nrm("二") + ")?(?![a-z0-9а-я])");
+  function rideAsk(u) {
+    const m0 = u.match(RDRX);
+    if (!m0) return null;
+    const m = [m0[0], m0[1] || m0[2], m0[3]];
+    if (LANG === "fr" && m[1] === "voyager" && !m[2] && !/(?:^|\s)(sonde|sondes|la|les|avec)\s+voyager\s/.test(u)) return null;
+    const n = m[2], k = n === "2" || n === "ii" || n === "two" || n === "dau" || n === "二" ? "voyager2" : "voyager1";
+    return { ev: "flight", th: "tour", keys: ["tour"], group: "ride:" + k, ride: k, tour: 1, title: rideTitle(k), all: 0, minScene: 0, caps: "caps", mins: 0, loop: false, hold: 1 };
+  }
   function tourAsk(u, has) {
+    const rd = rideAsk(u);
+    if (rd) return rd;
     const words = u.trim().split(" "), skip = TPX[LANG] || [];
     const any = (list) => list.split(" ").some((w) => !skip.includes(w) && has(w));
     const named = (list) => list.split(" ").some((w) => {
@@ -3300,8 +3363,10 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
     if (dw) add("dwarfs", L.dwarfs);
     if (tn) add("tno", L.tno);
     if (as) add("asteroids", L.asteroids);
-    for (const g of ["comets", "craft", "nebulae", "clusters", "galaxies"]) if (any(TPW[g])) add(g, L[g]);
+    const every = any(TPA);
+    for (const g of ["comets", "craft", "nebulae", "clusters", "galaxies"]) if (any(TPW[g]) || every && TPS[g] && any(TPS[g])) add(g, L[g]);
     if (!keys.length) return null;
+    if (keys.some((k) => TPD.includes(k))) return tourCompose({ ev: "flight", th: "tour", keys: ["tour"], gk: keys, gt: titles, tour: 1, all: 0, minScene: 0, caps: "caps", mins: 0, loop: false, hold: 1 }, every);
     return { ev: "flight", th: "tour", keys: ["tour"], group: keys.join(","), tour: 1, title: titles.join(" · "), all: 0, minScene: 0, caps: "caps", mins: 0, loop: false, hold: 1 };
   }
   function ask(text) {
@@ -3482,9 +3547,11 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
       const lv2 = o.loop ? "loop" : o.mins ? String(o.mins) : "as";
       const LEN = [["as", nat ? gt("asN", { n: nat }) : gt("as")], ["20", gt("m20")], ["45", gt("m45")], ["90", gt("m90")], ["loop", gt("loop")]];
       if (o.hold) LEN.splice(1);
+      const RIDE = o.ride ? ["voyager1", "voyager2"].map((k) => [k, rideName(k)]) : null;
+      const DEEP = o.gk && o.gk.some((k) => TPD.includes(k)) ? [["best", (TPDL[LANG] || TPDL.en)[0]], ["all", (TPDL[LANG] || TPDL.en)[1]]] : null;
       if (o.mins && !["20", "45", "90"].includes(String(o.mins))) LEN.splice(1, 0, [String(o.mins), o.mins + " min"]);
       const seg = (id, list, cur) => '<div class="seg" id="'.concat(id, '">').concat(list.map(([v, l]) => '<button type="button" data-v="'.concat(v, '" aria-pressed="').concat(v === cur, '">').concat(gesc(l), "</button>")).join(""), "</div>");
-      h += (GS.heard ? '<p class="rec">'.concat(gesc(gt("heard", { t: GS.heard })), "</p>") : "") + "<h3>".concat(gesc(gt("ev." + o.ev + ".0")), " · ").concat(gesc(o.title), "</h3>\n      <h3>").concat(gesc(gt("len")), "</h3>").concat(seg("gLen", LEN, lv2), "\n      <h3>").concat(gesc(gt("out")), "</h3>").concat(seg("gOut", [["pa", T.pa], ["stereo", T.stereo], ["hrtf", T.hrtf]].concat(mode === "5.1" ? [["5.1", "5.1"]] : []), o.out), "\n      <h3>").concat(gesc(gt("words")), "</h3>").concat(seg("gWords", [["narr", gt("narr")], ["caps", gt("caps")], ["none", gt("none")]], o.caps), "\n      ").concat(out ? '<p class="rec">'.concat(gesc(gt("lights")), "</p>") : "", '\n      <div class="row"><button type="button" class="b" data-a="back">← ').concat(gesc(gt("back")), '</button><button type="button" class="go" data-a="go">▶ ').concat(gesc(gt("start")), '</button></div>\n      <p class="msg" id="gSoon" hidden></p>') + foot;
+      h += (GS.heard ? '<p class="rec">'.concat(gesc(gt("heard", { t: GS.heard })), "</p>") : "") + '<h3 class="rdt">'.concat(gesc(gt("ev." + o.ev + ".0")), " · ").concat(gesc(o.title), "</h3>\n      ").concat(RIDE ? seg("gRide", RIDE, o.ride) : "").concat(DEEP ? seg("gDeep", DEEP, o.full ? "all" : "best") : "", "<h3>").concat(gesc(gt("len")), "</h3>").concat(seg("gLen", LEN, lv2), "\n      <h3>").concat(gesc(gt("out")), "</h3>").concat(seg("gOut", [["pa", T.pa], ["stereo", T.stereo], ["hrtf", T.hrtf]].concat(mode === "5.1" ? [["5.1", "5.1"]] : []), o.out), "\n      <h3>").concat(gesc(gt("words")), "</h3>").concat(seg("gWords", [["narr", gt("narr")], ["caps", gt("caps")], ["none", gt("none")]], o.caps), "\n      ").concat(out ? '<p class="rec">'.concat(gesc(gt("lights")), "</p>") : "", '\n      <div class="row"><button type="button" class="b" data-a="back">← ').concat(gesc(gt("back")), '</button><button type="button" class="go" data-a="go">▶ ').concat(gesc(gt("start")), '</button></div>\n      <p class="msg" id="gSoon" hidden></p>') + foot;
       p.innerHTML = h;
       const pick = (id, f2) => p.querySelectorAll("#" + id + " button").forEach((b) => b.onclick = () => {
         clearInterval(cdT);
@@ -3492,6 +3559,18 @@ details.card > summary{cursor:pointer;font-family:var(--f-display);font-size:1.2
         if (s) s.hidden = true;
         p.querySelectorAll("#" + id + " button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
         f2(b.dataset.v);
+      });
+      if (DEEP) pick("gDeep", (v) => {
+        tourCompose(o, v === "all");
+        const h2 = p.querySelector("h3.rdt");
+        if (h2) h2.textContent = gt("ev." + o.ev + ".0") + " · " + o.title;
+      });
+      if (RIDE) pick("gRide", (v) => {
+        o.ride = v;
+        o.group = "ride:" + v;
+        o.title = rideTitle(v);
+        const h2 = p.querySelector("h3.rdt");
+        if (h2) h2.textContent = gt("ev." + o.ev + ".0") + " · " + o.title;
       });
       pick("gLen", (v) => {
         o.loop = v === "loop";
