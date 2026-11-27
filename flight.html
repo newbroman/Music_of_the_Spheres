@@ -15810,7 +15810,8 @@ html.drw-on.drw-clear .xh,html.drw-on.drw-clear .xh-tab,html.drw-on.drw-clear .x
     if(document.hidden)return;
     const now=performance.now(),cv=renderer.domElement,cx=(cv.clientWidth||innerWidth)/2,cy=(cv.clientHeight||innerHeight)/2;
     const gy=!!(window.FLYG&&FLYG.gyear&&FLYG.gyear.GY&&FLYG.gyear.GY.on)||!!(window.FLYG&&FLYG.lgyear&&FLYG.lgyear.LG&&FLYG.lgyear.LG.on);   // the Galactic year (or the Local Group year) is playing: its card and orbits come first
-    const blocked=(window.MOTS&&MOTS.skyHidden&&MOTS.skyHidden())||document.documentElement.classList.contains('mots-proj')||gy||overlays();
+    // (RIDE-MARK) and not during a ride with a spacecraft: the ride's own ring and card say what is where, and the middle stays clear
+    const blocked=!!(ship.tour&&ship.tour.ride)||(window.MOTS&&MOTS.skyHidden&&MOTS.skyHidden())||document.documentElement.classList.contains('mots-proj')||gy||overlays();
     {if(!tab.closest('.drw-rail')){const rl=document.querySelector('.drw-rail');if(rl){rl.appendChild(tab);tab.style.top='';tab.className='drw-tab xh-tab-r'+(tab.classList.contains('new')?' new':'')}}   // beside the Info and Travel tabs, moving with them
      tab.hidden=!tucked||gy||document.documentElement.classList.contains('mots-proj');if(!tab.hidden&&!st.shown)tab.classList.remove('new');if(!tab.hidden)place(st.cur?measure(st.cur):null)}
     const uw=underWay();if(uw){if(!same(uw,st.sup))st.supD=0;st.sup=uw;st.supOff=0;st.wasUW=1}
@@ -20599,7 +20600,7 @@ function rideTick(t,now){const R=t.ride,it=t.it;rideCtlSync();rideCardClear(t);i
 // ⏮ ⏭: the previous or next stop (the date goes to a month before it, so the craft is seen coming up to it)
 function rideStep(t,d){const j=t.i+d;if(j<1||j>=t.list.length)return false;const it=t.list[j];
   S.jd=Math.max(t.ride.c.jl,it.kind==='now'?it.jd-60:it.jd-30);t.i=j-1;rideCardHide();rideNext(t);return true}
-function rideFinish(t,why){rideCardHide(why==='done');rideCtlShow(false);
+function rideFinish(t,why){rideCardHide(why==='done');rideCtlShow(false);rideMarkHide();
   if(why==='done'){S.jd=Math.max(S.jd,t.ride.jEnd);setTime(1/86400);ship.ride=t.ride.c.id;toast(rfill(RT.end,{c:t.ride.c.nm}))}
   else setTime(1)}
 /* ---- (RIDE-FIX, Martin 26 Nov, on his phone) the middle of the view stays clear while riding:
@@ -20607,7 +20608,8 @@ function rideFinish(t,why){rideCardHide(why==='done');rideCtlShow(false);
      the craft), between the header and the travel strip (in the show's frame, above its caption);
    - after RIDE_FOLD it folds to its title strip (the stop and its date); a tap brings the text back, and it folds again a few seconds later.
      A tap on it does not end the ride; the card stays, folded, until the next stop's;
-   - no name sits on the planet or moon in view, and the craft's own name is not shown (rideLabels, from fly3d.js updateLabels);
+   - no name sits on the planet or moon in view (rideLabels, from fly3d.js updateLabels); the craft has a gold ring and its name beside it
+     (RIDE-MARK, below);
    - ❚❚ / ▶ and the ride's speed (×⅛ … ×8 of its own pace) at the bottom left edge (#rideCtl); neither ends the ride. ---- */
 const RIDE_FOLD=6000,RSPT={'-3':'⅛','-2':'¼','-1':'½','0':'1','1':'2','2':'4','3':'8'};
 {const st=document.createElement('style');st.textContent=`
@@ -20697,11 +20699,44 @@ function rideCtlSync(){const d=rideCtl,t=ship.tour;if(!d||d.hidden||!t||!t.ride)
   const w=d.offsetWidth||200,h=d.offsetHeight||40,cv=renderer.domElement.getBoundingClientRect(),x=Math.max(8,cv.left+8),bd=rideBand(x,x+w,true);
   d.style.left=Math.round(x)+'px';d.style.top=Math.round(Math.max(bd.top,bd.bot-h))+'px'}
 addEventListener('resize',()=>{const t=ship.tour;if(t&&t.ride){rideCtlSync();rideDock(t)}else rideDock(null)});
-// (RIDE-FIX) the names: none on the planet or moon in view (once its disc is a disc, not a point), and not the craft's own
-function rideLabels(){const t=ship.tour;if(!t||!t.ride)return;const own=LBL[t.ride.c.id];if(own)own.hidden=true;
-  const ids=rideIds(t),ds=[];for(const id of ids){const c=rideDisc(id);if(c&&c.tr>=20){ds.push(c);if(LBL[id])LBL[id].hidden=true}}if(!ds.length)return;
-  for(const id in LBL){const e=LBL[id];if(e.hidden||e._x==null)continue;const w=e._w||(e._w=e.offsetWidth)||60,x0=e._x+10,x1=x0+w,y0=e._y-9,y1=e._y+9;
-    if(ds.some(c=>{const nx=Math.max(x0,Math.min(c.x,x1)),ny=Math.max(y0,Math.min(c.y,y1));return Math.hypot(nx-c.x,ny-c.y)<c.r+4}))e.hidden=true}}
+// (RIDE-FIX) the names: none on the planet or moon in view (once its disc is a disc, not a point)
+// (RIDE-MARK, Martin 27 Nov: with its name hidden the craft was only a blue point) the craft has a thin gold ring round it all the ride,
+// fainter while it is in front of the planet or moon in view, and its name beside the ring, unless that would fall on that disc, the
+// ride's card or its controls; off the screen, a small gold arrow at the edge points the way to it
+const RMK=16;let rideMk=null,rideAr=null;
+{const st=document.createElement('style');st.textContent=`
+#rideMark{position:absolute;left:0;top:0;width:${RMK}px;height:${RMK}px;margin:${-RMK/2}px 0 0 ${-RMK/2}px;border:1.5px solid #e2b765;border-radius:50%;box-shadow:0 0 0 1.5px rgba(0,0,0,.7),inset 0 0 0 1px rgba(0,0,0,.55),0 0 7px rgba(226,183,101,.6);pointer-events:none;will-change:transform,opacity;transition:opacity .3s}
+#rideArrow{position:absolute;left:0;top:0;width:0;height:0;margin:-7px 0 0 -6px;border-style:solid;border-width:7px 0 7px 12px;border-color:transparent transparent transparent #e2b765;filter:drop-shadow(0 0 3px rgba(0,0,0,.8));pointer-events:none;will-change:transform}
+#rideMark[hidden],#rideArrow[hidden]{display:none}`;document.head.appendChild(st)}
+function rideMarkEls(){if(!rideMk){const host=document.getElementById('labels')||document.body;rideMk=document.createElement('div');rideMk.id='rideMark';rideMk.setAttribute('aria-hidden','true');rideMk.hidden=true;
+    rideAr=document.createElement('div');rideAr.id='rideArrow';rideAr.setAttribute('aria-hidden','true');rideAr.hidden=true;host.appendChild(rideMk);host.appendChild(rideAr)}}
+function rideMarkHide(){if(rideMk){rideMk.hidden=true;rideAr.hidden=true}}
+// the craft on the screen (canvas frame), or, off it, the way to it from the middle
+function rideCraftScr(id){const T=targetInfo(id);if(!T||!T.pos||!isFinite(T.pos.x))return null;const cv=renderer.domElement,W=cv.clientWidth||innerWidth,H=cv.clientHeight||innerHeight;
+  const v=T.pos.clone().sub(camera.position).applyQuaternion(camera.quaternion.clone().invert()),f=(H/2)/Math.tan(camera.fov*Math.PI/360);
+  if(v.z<0){const x=W/2+f*v.x/-v.z,y=H/2-f*v.y/-v.z;if(x>=4&&x<=W-4&&y>=4&&y<=H-4)return {on:true,x,y,W,H}}
+  let dx=v.x,dy=-v.y;if(v.z>=0&&!(dx||dy))dy=1;return {on:false,dx,dy,W,H}}
+const rHit=(a,x0,y0,x1,y1)=>a&&a.width&&x0<a.right&&x1>a.left&&y0<a.bottom&&y1>a.top;
+function rideLabels(){const t=ship.tour;if(!t||!t.ride){rideMarkHide();return}rideMarkEls();
+  const ids=rideIds(t),ds=[];for(const id of ids){const c=rideDisc(id);if(c&&c.tr>=20){ds.push(c);if(LBL[id])LBL[id].hidden=true}}
+  const onDisc=(x0,y0,x1,y1,m)=>ds.some(c=>{const nx=Math.max(x0,Math.min(c.x,x1)),ny=Math.max(y0,Math.min(c.y,y1));return Math.hypot(nx-c.x,ny-c.y)<c.r+m});
+  const cid=t.ride.c.id,own=LBL[cid];
+  for(const id in LBL){if(id===cid)continue;const e=LBL[id];if(e.hidden||e._x==null||!ds.length)continue;const w=e._w||(e._w=e.offsetWidth)||60,x0=e._x+10;
+    if(onDisc(x0,e._y-9,x0+w,e._y+9,4))e.hidden=true}
+  // the ring, and the name beside it
+  const cs=rideCraftScr(cid),cv=renderer.domElement.getBoundingClientRect();
+  if(cs&&cs.on){const inDisc=ds.some(c=>Math.hypot(cs.x-c.x,cs.y-c.y)<c.r);rideAr.hidden=true;rideMk.hidden=false;
+    rideMk.style.transform=`translate3d(${cs.x.toFixed(1)}px,${cs.y.toFixed(1)}px,0)`;rideMk.style.opacity=inDisc?'.75':'1';rideMk.dataset.dim=inDisc?'1':'';
+    if(own){own.hidden=false;const w=own._w||(own._w=own.offsetWidth)||70,x0=cs.x+RMK/2+4,y0=cs.y-9,y1=cs.y+9;own._x=x0-10;own._y=cs.y;
+      own.style.transform=`translate3d(${x0.toFixed(1)}px,${cs.y.toFixed(1)}px,0) translateY(-50%)`;
+      const sx=x0+cv.left,sy=cs.y+cv.top,card=rideEl&&!rideEl.hidden?rideEl.getBoundingClientRect():null,ctl=rideCtl&&!rideCtl.hidden?rideCtl.getBoundingClientRect():null;
+      if(onDisc(x0,y0,x0+w,y1,2)||rHit(card,sx,sy-9,sx+w,sy+9)||rHit(ctl,sx,sy-9,sx+w,sy+9))own.hidden=true}}
+  else{rideMk.hidden=true;if(own)own.hidden=true;
+    if(cs){// the arrow: from the middle towards the craft, at the edge of the view (inside the ride's band)
+      const L=Math.hypot(cs.dx,cs.dy)||1,ux=cs.dx/L,uy=cs.dy/L,b=rideBand(0,innerWidth,false),cx=cs.W/2,cy=cs.H/2,m=18;
+      const top=Math.max(m,b.top-cv.top+m),bot=Math.min(cs.H-m,b.bot-cv.top-m),kx=ux?((ux>0?cs.W-m:m)-cx)/ux:1e9,ky=uy?((uy>0?bot:top)-cy)/uy:1e9,k=Math.max(0,Math.min(kx,ky));
+      rideAr.hidden=false;rideAr.style.transform=`translate3d(${(cx+ux*k).toFixed(1)}px,${(cy+uy*k).toFixed(1)}px,0) rotate(${(Math.atan2(uy,ux)*180/Math.PI).toFixed(1)}deg)`}
+    else rideAr.hidden=true}}
 // where the stop under way is on the screen (the planet; otherwise the craft), for tests and the show
 function rideScreen(t){const it=t&&t.it;if(!it)return null;return onScreen(it.kind==='fly'?it.id:t.ride.c.id)}
 
