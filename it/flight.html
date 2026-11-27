@@ -711,7 +711,8 @@ input[type=range]{width:100%;accent-color:var(--bronze);height:var(--tap);margin
 @media (max-height:520px) and (orientation:landscape){.gcard.bhcard{left:auto;right:calc(env(safe-area-inset-right,0px) + .5rem);transform:none;max-width:min(50vw,30rem)}.gcard.bhcard .gcl{display:none}.gcard.bhcard .gcb{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -.7rem;padding:.1rem .7rem}.gcard.bhcard .gcb .chip{flex:0 0 auto}.gcard.bhcard{max-height:calc(100vh - 17.5rem);overflow-y:auto;overscroll-behavior:contain}.gcard.bhcard>*{order:2;flex-shrink:0}.gcard.bhcard .gch{order:0}.gcard.bhcard .gcb{order:1}}
 @media (prefers-reduced-motion:reduce){.gcard{transition:none}}
 /* the star search (fly_galaxy.js): a box in the Travel panel with instant suggestions; rows are ≥ 44 px, the ⤼ button jumps */
-.gsearch{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.3rem}
+.gsearch{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.3rem;scroll-margin-top:112px}
+/* (RIDE-FIX) brought into view by Find a star, the box (and its group's heading) sits below the panel's sticky × (stage.js .mots-px), not under it */
 .gsbox{position:relative;display:flex}
 .gsbox input{flex:1;appearance:none;-webkit-appearance:none;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:10px;padding:.5rem 2.6rem .5rem .8rem;min-height:var(--tap);color:var(--vellum);font-size:1rem;min-width:0}
 .gsbox input::placeholder{color:var(--vellum-dim);opacity:.8}
@@ -20628,6 +20629,7 @@ const RIDE_FOLD=6000,RSPT={'-3':'⅛','-2':'¼','-1':'½','0':'1','1':'2','2':'4
 #rideCtl .rsp{width:6.2rem;accent-color:var(--bronze,#c9984f);margin:0;min-height:2rem}
 #rideCtl .rsv{min-width:2.1rem;font-family:var(--f-mono);font-variant-numeric:tabular-nums;color:#f3d9a4;text-align:left}
 html.mots-proj #rideCtl,html.mots-proj #rideCtl *,html.mots-proj #rideCard:not([hidden]),html.mots-proj #rideCard:not([hidden]) *{visibility:visible!important}
+html.ride-card #toast.rtop{top:var(--ride-toast,96px)!important;bottom:auto!important}html.ride-card #toast.rbot{top:auto!important;bottom:var(--ride-toast,96px)!important}html.ride-card .drw-toast{display:none!important}
 html.mots-proj #rideCtl{z-index:9003!important}html.mots-proj #rideCard{z-index:9002!important}`;document.head.appendChild(st)}
 // a body on the screen, in the canvas's own frame (in the show's projector view the canvas stops above the caption), and its true size
 function rideDisc(id){const T=targetInfo(id);if(!T||!T.pos||!isFinite(T.pos.x))return null;const cv=renderer.domElement,W=cv.clientWidth||innerWidth,H=cv.clientHeight||innerHeight;
@@ -20655,7 +20657,7 @@ function rideCard(t,it){if(!rideEl){rideEl=document.createElement('div');rideEl.
     rideEl.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();rideFold(!rideEl.classList.contains('rfold'))}})}
   const txt=it.kind==='now'?rideNowTxt(t.ride):it.txt;
   rideEl.innerHTML=`<div class="gph"><b>${esc3(it.c+' · '+it.head)}</b><span class="rdt">${esc3(it.dstr)}</span>${txt?`<span class="rfx" aria-hidden="true">▾</span>`:''}</div>${txt?`<div class="rtx">${esc3(txt)}</div>`:''}`;
-  rideEl.title=txt?RT.tap:'';rideEl.dataset.k=it.kind;rideEl.classList.remove('bsmin');rideEl.hidden=false;rideEl.dataset.side='';rideFold(false,true)}
+  rideEl.title=txt?RT.tap:'';rideEl.dataset.k=it.kind;rideEl.classList.remove('bsmin');rideEl.hidden=false;document.documentElement.classList.add('ride-card');rideEl.dataset.side='';rideFold(false,true)}
 // folded: the title strip only; unfolded, it folds again after RIDE_FOLD
 function rideFold(f,fresh){if(!rideEl)return;clearTimeout(rideFoldT);const has=!!rideEl.querySelector('.rtx');
   rideEl.classList.toggle('rfold',!!f&&has);rideEl.setAttribute('aria-expanded',String(!f||!has));
@@ -20672,9 +20674,14 @@ function rideDock(t,now){if(!rideEl||rideEl.hidden)return;const W=innerWidth,b=r
   else if(!side)side='top';
   rideEl.dataset.side=side;
   const y=side==='bot'?Math.max(b.top,b.bot-h):b.top;
-  rideEl.style.setProperty('top',Math.round(y)+'px','important')}
+  rideEl.style.setProperty('top',Math.round(y)+'px','important');
+  // the Flight's toast ("Controls tucked away…", "Setting course…") goes just past the card, on the side towards the middle, not behind it
+  const ts=document.getElementById('toast');if(ts){ts.classList.toggle('rtop',side!=='bot');ts.classList.toggle('rbot',side==='bot');
+    document.documentElement.style.setProperty('--ride-toast',Math.round(side==='bot'?innerHeight-y+8:y+h+8)+'px')}}
 function rideCardClear(t){rideDock(t)}
-function rideCardHide(keep){if(rideEl&&!keep){rideEl.hidden=true;clearTimeout(rideFoldT)}}
+// (while the ride's card shows, the Flight's toast ("Controls tucked away…") is placed just past it, and the drawers' own hint is not shown:
+// the toast sat behind a card docked at the top)
+function rideCardHide(keep){if(rideEl&&!keep){rideEl.hidden=true;clearTimeout(rideFoldT);document.documentElement.classList.remove('ride-card')}}
 // ❚❚ / ▶ and the speed: at the bottom left edge, clear of the thrust buttons and the strip
 let rideCtl=null;
 function rideCtlBuild(){if(rideCtl)return rideCtl;const d=document.createElement('div');d.id='rideCtl';d.hidden=true;d.setAttribute('role','group');d.setAttribute('aria-label',RT.speed);
