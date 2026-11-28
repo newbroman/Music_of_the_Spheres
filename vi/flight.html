@@ -7435,7 +7435,8 @@ if(keepOn&&SR)setTimeout(()=>{if(keepOn&&!rec)start('keep')},1500);
                own=1|0 (OWN-SKY, v7: the heaven's own time on or off for this visit)
                #timeline (v7, the home page's "more thinkers on the dial"): the dial at its row of heavens, with the Tap to play cover like any
                starting point (Plato plays after the tap); not a deep link of this kind: #talk&ch=<movement> starts the talk at a movement (show.js)
-     flight    to=<helio oort acen sirius vela gc above gyear mag m31 m33 lg lgyear, or a planet>
+     flight    to=<helio oort acen sirius vela gc above gyear mag m31 m33 lg lgyear, or a planet>; tour=<a tour's key: planets, moons:jupiter,
+               nebulae:best, ride:voyager1… (fly3d.js tourGroup)>
      dance     style=<style key>  mix=1 (the Sky mix switched on: with a club style, the club sky mix, Turn the Sky carried through the four club styles)
      meditate  preset=<preset key>  len=<minutes, 0 = open>
      any page  play  (a plain start: weather.html#play, flight.html#play, synth.html#play)
@@ -7474,7 +7475,7 @@ if(!inFrame)try{sessionStorage.setItem('mots.launched','1')}catch(e){}
 if(!WORLD&&PAGE!=='help')return;
 
 /* ---- the deep link: the shared keys come off the address before the page's own scripts read it ---- */
-const MY=['vp','sys','hear','open','to','style','mix','preset','len','xm','own'];
+const MY=['vp','sys','hear','open','to','style','mix','preset','len','xm','own','tour'];
 const DL={};
 if(WORLD&&location.hash.length>1){
   const keep=[];location.hash.slice(1).split('&').forEach(p=>{const i=p.indexOf('='),k=i>0?p.slice(0,i):p;if(k==='play'&&i<0){DL.play='1';return}if(MY.includes(k)&&i>0){try{DL[k]=decodeURIComponent(p.slice(i+1))}catch(e){DL[k]=p.slice(i+1)}}else if(p)keep.push(p)});
@@ -7495,6 +7496,9 @@ function here(){
       if(s.thinker==='today'){const vp=s.vp?'&vp='+s.vp:'',sy=s.sys?'&sys='+s.sys:'';
         return {s:'today',u:'index.html#today'+vp+sy,l:s.sys?s.sysName:String(s.vpName||'').replace(/\s*\(.*$/,'')}}
       return {s:secOfThinker(s.thinker),u:'index.html#'+s.thinker+'&hear='+(s.written?'text':'athens'),l:s.name}}
+    // (HOME-TOURS) a tour from the home page's Flight card: until the tap, and while that tour runs, this is where we are
+    if(PAGE==='flight'&&DL.tour){const a=MOTS.app,t=a&&a.tourInfo&&a.tourInfo();if(tapPending||(t&&t.key===DL.tour)){let l='';try{const x=(MOTS.tourCatalog?MOTS.tourCatalog():[]).find(y=>y.key===DL.tour);l=x?x.title:''}catch(e){}
+      return {s:'flight',u:'flight.html#tour='+DL.tour,l}}}
     if(PAGE==='flight'){const d=flyDest,ds=/^#ds=/.test(location.hash)?location.hash:'';
       const c=d&&document.querySelector('.chip[data-g="'+d+'"]');const lab=c?c.textContent.replace(/^[♪\s]+|[\s▸]+$/g,''):(d&&(T['to_'+d]||T['fl_'+d]))||'';
       if(d)return {s:GAL.includes(d)?'galaxy':LGP.includes(d)?'localgroup':'flight',u:'flight.html#to='+d,l:lab};
@@ -7604,6 +7608,8 @@ function after(){
     if(DL.open==='stage')when(()=>$('stageBtn'),b=>setTimeout(()=>b.click(),600),15000);
     if(DL.open==='guide')when(()=>MOTS.stageGuide,f=>setTimeout(f,600),15000);
   }
+  // (HOME-TOURS, Martin 27 Nov) flight.html#tour=<key>: the tour (or ride) starts with the tap (fly3d.js MOTS.app.startTour)
+  if(PAGE==='flight'&&DL.tour)when(()=>MOTS.app&&MOTS.app.startTour,f=>setTimeout(()=>f(DL.tour),300),20000);
   if(PAGE==='flight'&&DL.to){const v=DL.to,A=ACT(),PL=['mercury','venus','earth','mars','jupiter','saturn','uranus','neptune','sun','moon'];
     if(PL.includes(v)&&A.go)A.go(v);else if(v==='gyear'&&A.gyear)A.gyear();else if(v==='lgyear'&&A.lgyear)A.lgyear();else if(A.fly)A.fly(v)}
 }
@@ -15615,6 +15621,8 @@ window.MOTS=window.MOTS||{};
 MOTS.app={start:()=>audioOn?Promise.resolve():startAudio3D(),stop:()=>{if(audioOn)stopAudio3D()},
   travel:(id,quiet)=>{resumeAudio();travelTo(id,quiet)},speak:id=>{const b=byId[id];if(b&&S.speak&&audioOn)speakGod(b)},cruise:()=>{resumeAudio();if(!ship.cruise)toggleCruise()},uncruise:()=>{if(ship.cruise)toggleCruise()},above:()=>{resumeAudio();riseAbove()},
   // (MOON-TOUR) into orbit round a body where the ship is (the show's tours open in orbit round the Earth, not parked beside it)
+  // (HOME-TOURS) a tour as the ribbon starts it, titled as the Stage titles it (home_link.js flight.html#tour=<key>)
+  startTour:k=>{let l=k;try{const x=(MOTS.tourCatalog?MOTS.tourCatalog():[]).find(y=>y.key===k);if(x)l=x.title}catch(e){}if(!tourAvail(k)&&!/^(nebulae|clusters|galaxies)/.test(k))return false;startGroupTour(k,l);return true},
   tourGroup:(key,o)=>tourGroup(key,o),tourStep:d=>tourStep(d),tourStop:()=>tourEnd('stop'),tourHold:p=>{if(ship.tour)ship.tour.paused=!!p},tourInfo:()=>ship.tour?{key:ship.tour.key,i:ship.tour.i,phase:ship.tour.phase,n:ship.tour.list.length,paused:!!ship.tour.paused,mult:ship.tour.mult||1,id:ship.tour.it&&ship.tour.it.id,kind:ship.tour.it&&ship.tour.it.kind,scr:tourScreen(),jd:S.jd,speed:S.speed}:null,tourList:k=>tourList(k),
   orbit:id=>{const T=targetInfo(id);if(!T||!T.pos)return;resumeAudio();ship.ap=null;ship.gap=null;ship.cruise=false;ship.vel.set(0,0,0);
     const rel=ship.pos.clone().sub(T.pos);let L=rel.length();if(!(L>T.r*2&&L<T.r*60)){if(!(L>0))rel.set(0,.35,1);rel.normalize().multiplyScalar(T.r*7)}
